@@ -10,8 +10,8 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / List / Card procedure
  * haritası) and `docs/architecture/03-backend.md`.
  */
-import { and, asc, eq, isNull, sql } from '@pusula/db';
-import { activityEvents, boardMembers, boards, cards, lists } from '@pusula/db';
+import { and, asc, eq, inArray, isNull, sql } from '@pusula/db';
+import { activityEvents, boardMembers, boards, cardLabels, cards, labels, lists } from '@pusula/db';
 import {
   archiveBoardInput,
   canManageBoard,
@@ -137,7 +137,10 @@ export const boardRouter = router({
    * include archived ones (read-only, still rendered); cards are active only
    * (`archived_at IS NULL`). Cards are fetched in one query keyed by `boardId`
    * and grouped client-side. Both lists and cards are returned in `position`
-   * order.
+   * order. Each card carries its attached `labels` (`{ labelId, name, color }[]`,
+   * `card_labels ⋈ labels`, fetched in a single query for the whole board and
+   * grouped here) so the board screen can render label chips + a label filter
+   * without an extra round-trip per card (Phase 2.5E — DEM-54).
    */
   get: boardProcedure.query(async ({ ctx }) => {
     if (!canViewBoard(accessFromBoardRole(ctx.board.role))) {
@@ -182,10 +185,35 @@ export const boardRouter = router({
       .where(and(eq(cards.boardId, ctx.board.id), isNull(cards.archivedAt)))
       .orderBy(asc(cards.position));
 
+    // Card labels for every card on the board, in one query, grouped by card id.
+    type CardLabelRow = { cardId: string; labelId: string; name: string; color: string };
+    const cardIds = boardCards.map((c) => c.id);
+    const labelRows: CardLabelRow[] =
+      cardIds.length === 0
+        ? []
+        : await ctx.db
+            .select({
+              cardId: cardLabels.cardId,
+              labelId: cardLabels.labelId,
+              name: labels.name,
+              color: labels.color,
+            })
+            .from(cardLabels)
+            .innerJoin(labels, eq(labels.id, cardLabels.labelId))
+            .where(inArray(cardLabels.cardId, cardIds))
+            .orderBy(asc(labels.name), asc(labels.color));
+    const labelsByCard = new Map<string, { labelId: string; name: string; color: string }[]>();
+    for (const row of labelRows) {
+      const bucket = labelsByCard.get(row.cardId);
+      const entry = { labelId: row.labelId, name: row.name, color: row.color };
+      if (bucket) bucket.push(entry);
+      else labelsByCard.set(row.cardId, [entry]);
+    }
+
     return {
       board: { ...board, role: ctx.board.role },
       lists: boardLists,
-      cards: boardCards,
+      cards: boardCards.map((card) => ({ ...card, labels: labelsByCard.get(card.id) ?? [] })),
     };
   }),
 

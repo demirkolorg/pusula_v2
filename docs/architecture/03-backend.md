@@ -44,6 +44,7 @@ procedure-level auth & permission · TanStack Query entegrasyonu.
 - tRPC paketi: `@pusula/api` (`packages/api`) — root router, board/list/card/comment/notification router'ları, auth context, rate-limit & permission middleware'leri.
 - `protectedProcedure` (in `@pusula/api`) non-null session garantiler; üzerine workspace → board → card/list permission kontrollerini katmanla.
 - **Hono RPC ile tRPC aynı anda ana API sözleşmesi yapılmaz.** Source of truth tek: tRPC.
+- **Kullanıcının kendi hesabını yönetmesi** (ad/avatar, parola değiştir, hesap silme) tRPC'de **değildir** — doğrudan Better Auth uçlarına gider (`/api/auth/*`); bkz. [`07-auth.md`](07-auth.md) (Profil & hesap yönetimi). Hesap silme `beforeDelete` hook'u, kullanıcı bir workspace `owner`'ıysa silmeyi engeller (domain kuralı `@pusula/domain` `canDeleteOwnAccount`).
 
 ### Bir mutation procedure'ün iskeleti
 
@@ -87,7 +88,7 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | --- | --- | --- | --- |
 | `board` | `list` | `workspaceProcedure` | Kullanıcının erişebildiği board'lar (workspace owner/admin tüm board'lar; guest yalnızca davetli) |
 | `board` | `create` | `workspaceProcedure` | workspace `member+`; oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
-| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü) |
+| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E) |
 | `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
 | `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); arşivli board'a liste eklenemez; `activity_events` (`list.created`); `boards.version` artar |

@@ -36,6 +36,7 @@ const card: BoardCard = {
   archivedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
+  labels: [],
 };
 
 describe('<CardItem>', () => {
@@ -52,5 +53,16 @@ describe('<CardItem>', () => {
   it('viewer (canEdit=false): no quick archive button', () => {
     render(<CardItem boardId="b1" card={card} canEdit={false} />);
     expect(screen.queryByRole('button', { name: /arşivle/i })).not.toBeInTheDocument();
+  });
+
+  it('renders label chips for the card labels', () => {
+    render(
+      <CardItem
+        boardId="b1"
+        card={{ ...card, labels: [{ labelId: 'l1', name: 'Acil', color: 'red' }] }}
+        canEdit={false}
+      />,
+    );
+    expect(screen.getByText('Acil')).toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { LABEL_COLORS, type LabelColor } from '@pusula/domain';
 import { Alert, AlertDescription, Button, Input, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { LABEL_SWATCH } from './label-colors';
+import { LABEL_SWATCH } from '../label-colors';
 
 export type BoardLabel = { id: string; name: string; color: string };
 export type CardLabel = { labelId: string; name: string; color: string };

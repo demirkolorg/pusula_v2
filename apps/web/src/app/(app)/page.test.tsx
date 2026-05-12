@@ -30,7 +30,15 @@ vi.mock('@/trpc/client', () => ({
       list: { queryOptions: () => ({ key: 'workspace.list' }), queryFilter: () => ({}) },
       create: { mutationOptions: (o: unknown) => o },
       invitations: {
-        mine: { queryOptions: () => ({ key: 'invitations.mine' }), queryFilter: () => ({}) },
+        mine: { queryOptions: () => ({ key: 'workspace.invitations.mine' }), queryFilter: () => ({}) },
+        accept: { mutationOptions: (o: unknown) => o },
+        decline: { mutationOptions: (o: unknown) => o },
+      },
+    },
+    board: {
+      list: { queryFilter: () => ({}) },
+      invitations: {
+        mine: { queryOptions: () => ({ key: 'board.invitations.mine' }), queryFilter: () => ({}) },
         accept: { mutationOptions: (o: unknown) => o },
         decline: { mutationOptions: (o: unknown) => o },
       },

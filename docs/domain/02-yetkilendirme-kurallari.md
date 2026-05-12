@@ -115,7 +115,7 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 | --- | --- | --- | --- |
 | `board.list` | `workspaceProcedure` | workspace `member+` | Erişilebilir board'lar (workspace owner/admin tümü; guest yalnızca davetli); her satırda effective board rolü döner |
 | `board.create` | `workspaceProcedure` | workspace `member+` (`guest` hariç) | Oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
-| `board.get` | `boardProcedure` | board `viewer+` | Board + listeler (arşivli dahil, `position` sıralı) + aktif kartlar (`position` sıralı) |
+| `board.get` | `boardProcedure` | board `viewer+` | Board + listeler (arşivli dahil, `position` sıralı) + aktif kartlar (`position` sıralı, her kart kendi etiketlerini `cards[].labels` ile taşır — Faz 2.5E) |
 | `board.update` | `boardProcedure` | board `admin` (`canManageBoard`) | Başlık; arşivli board düzenlenemez; idempotent (aynı başlık → `changed:false`); `boards.version` artar |
 | `board.archive` | `boardProcedure` | board `admin` | `archived_at` (set/restore); arşivli board salt-okunur; idempotent; `boards.version` artar |
 | `list.create` | `boardProcedure` | board `member+` (`canEditBoardContent`) | Board sonuna `position` (`@pusula/domain/position` — boş board `firstPosition`, aksi son listenin ardı); arşivli board'a liste eklenemez; `boards.version` artar |
@@ -164,6 +164,18 @@ Activity (Faz 2.5'te kullanılan, [`05-aktivite-kurallari.md`](05-aktivite-kural
 
 - `assignee`: karta atanmış; due-date ve kart değişikliği bildirimleri alır; board yetkisi varsa düzenleyebilir.
 - `watcher`: kartı izliyor; ilgili event'lerde bildirim alır; düzenleme yetkisi board rolünden.
+
+### Hesap (User) — öz-yönetim
+
+Workspace/board/card rollerinden bağımsız: her kullanıcı yalnızca **kendi** hesabını yönetir.
+
+| İşlem | Yetki |
+| --- | --- |
+| Adını / avatarını (basit URL) değiştir | kendi (Better Auth `updateUser`) |
+| Parolasını değiştir | kendi (Better Auth `changePassword`; `currentPassword` doğrulanır, başarıda diğer oturumlar iptal) |
+| Hesabını sil | kendi — **ancak** hiçbir workspace'in `owner`'ı değilse (`@pusula/domain` `canDeleteOwnAccount`) |
+
+> **Hesap silme:** Kullanıcı bir veya daha fazla workspace'in `owner`'ıysa hesap silme **engellenir** (`BAD_REQUEST` — açıklayıcı mesaj). Ownership transfer henüz yok; kullanıcı önce o workspace'leri silmeli/arşivlemeli/devretmeli. `workspaces.ownerId` FK'sı `onDelete: 'restrict'` olduğundan DB de reddeder; enforcement noktası Better Auth `beforeDelete` hook'u (auth altyapısı + cascade ayrıntısı → [`../architecture/07-auth.md`](../architecture/07-auth.md) (Profil & hesap yönetimi), invariant → [`01-urun-modeli.md`](01-urun-modeli.md) invariant 14). Bu uçlar tRPC'de değil — doğrudan Better Auth (`/api/auth/*`); web ekranı → [`../architecture/08-web-ve-mobil.md`](../architecture/08-web-ve-mobil.md) §8.1.7.
 
 ## Enforcement kuralları
 

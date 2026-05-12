@@ -17,9 +17,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pusula/ui';
+import { type LabelColor } from '@pusula/domain';
+import { cn } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { LABEL_SWATCH } from './label-colors';
+
+export type BoardCardLabel = { labelId: string; name: string; color: string };
 
 export type BoardCard = {
   id: string;
@@ -32,6 +37,8 @@ export type BoardCard = {
   archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+  /** Labels attached to this card (`board.get` → `cards[].labels`). May be empty. */
+  labels: BoardCardLabel[];
 };
 
 type CardItemProps = {
@@ -81,6 +88,26 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
 
   return (
     <div className="bg-card rounded-md border p-2 shadow-xs">
+      {card.labels.length > 0 && (
+        <ul className="mb-1.5 flex flex-wrap gap-1">
+          {card.labels.map((label) => (
+            <li
+              key={label.labelId}
+              className="bg-muted flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] leading-none"
+              title={label.name.trim() || undefined}
+            >
+              <span
+                className={cn(
+                  'inline-block size-2 shrink-0 rounded-full',
+                  LABEL_SWATCH[label.color as LabelColor] ?? 'bg-muted-foreground',
+                )}
+                aria-hidden
+              />
+              {label.name.trim() && <span className="max-w-24 truncate">{label.name.trim()}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"

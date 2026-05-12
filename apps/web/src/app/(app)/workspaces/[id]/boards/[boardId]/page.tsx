@@ -8,6 +8,7 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { ArchiveBoardDialog } from './_components/archive-board-dialog';
 import { BoardColumns } from './_components/board-columns';
+import { BoardSettingsDialog } from './_components/board-settings/board-settings-dialog';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
 import { RenameBoardForm } from './_components/rename-board-form';
 
@@ -75,7 +76,17 @@ export default function BoardDetailPage({
           )}
           {archived && <Badge variant="outline">{strings.board.detail.archivedNote}</Badge>}
         </div>
-        {isBoardAdmin && <ArchiveBoardDialog boardId={boardId} archived={archived} />}
+        {isBoardAdmin && (
+          <div className="flex flex-wrap items-center gap-2">
+            <BoardSettingsDialog
+              boardId={boardId}
+              workspaceId={workspaceId}
+              canManage
+              boardActive={!archived}
+            />
+            <ArchiveBoardDialog boardId={boardId} archived={archived} />
+          </div>
+        )}
       </div>
 
       <BoardColumns

@@ -210,6 +210,61 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(shaped.cards.map((c) => c.title)).toEqual(['First', 'Second']);
     expect(shaped.cards.every((c) => c.archivedAt === null)).toBe(true);
     expect(shaped.cards.every((c) => c.boardId === board.id)).toBe(true);
+    // additive `labels` field — empty until labels are attached (see below)
+    expect(shaped.cards.every((c) => Array.isArray(c.labels) && c.labels.length === 0)).toBe(true);
+  });
+
+  it('get: each card carries its attached labels (DEM-54 — board screen label filter)', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Labelled Board',
+      clientMutationId: newId('cmid'),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Doing',
+      clientMutationId: newId('cmid'),
+    });
+    const cardWithLabels = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Tagged card',
+      clientMutationId: newId('cmid'),
+    });
+    const cardNoLabels = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Bare card',
+      clientMutationId: newId('cmid'),
+    });
+    const red = await callerFor(ownerId).label.create({
+      boardId: board.id,
+      color: 'red',
+      name: 'Acil',
+      clientMutationId: newId('cmid'),
+    });
+    const blue = await callerFor(ownerId).label.create({
+      boardId: board.id,
+      color: 'blue',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).card.labels.add({
+      cardId: cardWithLabels.id,
+      labelId: red.id,
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).card.labels.add({
+      cardId: cardWithLabels.id,
+      labelId: blue.id,
+      clientMutationId: newId('cmid'),
+    });
+
+    const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
+    const tagged = shaped.cards.find((c) => c.id === cardWithLabels.id);
+    const bare = shaped.cards.find((c) => c.id === cardNoLabels.id);
+    expect(bare?.labels).toEqual([]);
+    expect(tagged?.labels).toHaveLength(2);
+    expect(new Set(tagged?.labels.map((l) => l.labelId))).toEqual(new Set([red.id, blue.id]));
+    const redEntry = tagged?.labels.find((l) => l.labelId === red.id);
+    expect(redEntry).toMatchObject({ name: 'Acil', color: 'red' });
   });
 
   // ---------------------------------------------------------------- update
