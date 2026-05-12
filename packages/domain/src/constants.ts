@@ -64,6 +64,15 @@ export const ACTIVITY_EVENT_TYPES = [
   'list.renamed',
   'card.renamed',
   'card.description_changed',
+  // Phase 2.5A (Comment / Checklist CRUD — DEM-50) — checklist item lifecycle.
+  // Appended to keep the Postgres enum append-only; `comment.created/updated/deleted`
+  // and `checklist.created` already exist above. The Phase-0 `checklist.item_completed`
+  // entry stays as cruft (toggle uses `checklist.item_checked` / `checklist.item_unchecked`).
+  // See `docs/domain/05-aktivite-kurallari.md`.
+  'checklist.item_added',
+  'checklist.item_checked',
+  'checklist.item_unchecked',
+  'checklist.item_removed',
 ] as const;
 
 /**
@@ -79,13 +88,24 @@ export const WORKSPACE_INVITATION_TTL_DAYS = 7;
 /**
  * Seed data for the new-user onboarding bootstrap (best-effort, runs at signup —
  * see `docs/domain/01-urun-modeli.md` invariant 11 and `docs/architecture/08-web-ve-mobil.md`
- * §8.1.3). These are persisted *data* (workspace/board names), not UI chrome — kept
- * here so the bootstrap (and the later board-template work) share one source.
+ * §8.1.3). These are persisted *data* (workspace/board names, list titles, welcome
+ * card titles), not UI chrome — kept here so the bootstrap (and any later board-template
+ * work) share one source. User-facing → Turkish; an i18n placeholder for now, and the
+ * welcome copy is written against what's actually shipped — refresh it as features land.
  */
 /** Name of the default workspace auto-created for a new user at signup. */
 export const ONBOARDING_WORKSPACE_NAME = 'Çalışma Alanım';
-/** Title of the empty board auto-created inside the onboarding workspace. */
+/** Title of the board auto-created inside the onboarding workspace. */
 export const ONBOARDING_BOARD_TITLE = 'İlk Pano';
+/** Default list titles seeded into the onboarding board, in display (left-to-right) order. */
+export const ONBOARDING_LIST_TITLES = ['Yapılacak', 'Devam Eden', 'Bitti'] as const;
+/** Welcome / sample card titles seeded into the onboarding board's first list (`Yapılacak`), in order. */
+export const ONBOARDING_WELCOME_CARDS = [
+  '👋 Pusula’ya hoş geldin',
+  'Bu pano senin için otomatik oluşturuldu — listeleri ve kartları dilediğin gibi düzenle',
+  'Yeni kart ve liste ekle, panoyu yeniden adlandır (üst bar ve liste altındaki butonlar)',
+  'Bu örnek kartları ve listeleri silip panonu sıfırdan kurabilirsin',
+] as const;
 
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;

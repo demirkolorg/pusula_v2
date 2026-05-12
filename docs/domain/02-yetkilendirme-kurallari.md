@@ -134,7 +134,7 @@ Activity: `board.created/renamed/archived`, `list.created/renamed/archived`, `ca
 
 | Procedure | Middleware | Gereken rol | Not |
 | --- | --- | --- | --- |
-| `comment.list` | `cardProcedure` | board `viewer+` | Kartın silinmemiş yorumları (`created_at` artan); ayrı query |
+| `comment.list` | `cardProcedure` | board `viewer+` | Kartın yorumları (`created_at` artan) — silinmiş yorumlar da döner (`deleted_at` set + `body` boş; UI placeholder); ayrı query |
 | `comment.create` | `cardProcedure` | board `member+` | Düz metin (mention Faz 6); `comment.created` |
 | `comment.update` | `cardProcedure` | board `member+` **ve** (yazan veya board `admin`) | `edited_at`; `comment.updated` |
 | `comment.delete` | `cardProcedure` | board `member+` **ve** (yazan veya board `admin`) | Soft-delete (`deleted_at`); `comment.deleted` |

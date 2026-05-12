@@ -1,0 +1,433 @@
+/**
+ * Checklist router — Phase 2.5A (DEM-50). Nested:
+ * `checklist.{create,update,delete}` and
+ * `checklist.item.{create,toggle,update,delete,reorder}`. All run on
+ * `cardProcedure` (board `viewer+` visibility already enforced) and require
+ * board `member+` (`canEditBoardContent`) — the procedure body checks the
+ * finer role with `@pusula/domain/permissions`. An archived board is read-only:
+ * every mutation re-reads `boards.archived_at` inside its transaction.
+ *
+ * Each mutation's transaction contains only the domain change + (when applicable)
+ * the `activity_events` insert + the `boards.version` bump (Phase 2.5 scope —
+ * realtime/notification outbox land in Phase 5/6). Per
+ * `docs/domain/05-aktivite-kurallari.md`, only checklist-item *lifecycle*
+ * mutations write activity (`checklist.created`, `checklist.item_added`,
+ * `checklist.item_checked` / `checklist.item_unchecked`, `checklist.item_removed`);
+ * checklist rename/delete and item content-edit/reorder are low-signal "board
+ * metadata"-like changes — **no activity**, but they still bump `boards.version`
+ * (the board screen renders checklist badges, so a stale-snapshot client needs
+ * to know). The Phase-0 `checklist.item_completed` enum value is unused cruft.
+ *
+ * Positions are LexoRank-like fractional strings (`@pusula/domain/position`):
+ * `create` / `item.create` append to the end; `item.reorder` recomputes the
+ * `position` from the supplied `beforeItemId` / `afterItemId` neighbours (which
+ * must live in the same checklist).
+ *
+ * Ownership invariants checked on every nested read: a `checklist` belongs to
+ * exactly one card (`checklist.cardId === ctx.card.id`), and a `checklist_item`
+ * belongs to exactly one checklist (`item.checklistId === input.checklistId`,
+ * whose card is `ctx.card.id`) — a mismatch is `NOT_FOUND`.
+ *
+ * See `docs/architecture/03-backend.md` (Faz 2.5 — checklist / checklist.item
+ * procedure'leri) and `docs/domain/02-yetkilendirme-kurallari.md`.
+ */
+import { desc, eq, inArray, sql } from '@pusula/db';
+import { activityEvents, boards, checklistItems, checklists } from '@pusula/db';
+import type { Database } from '@pusula/db';
+import {
+  canEditBoardContent,
+  createChecklistInput,
+  createChecklistItemInput,
+  deleteChecklistInput,
+  deleteChecklistItemInput,
+  firstPosition,
+  positionBetween,
+  reorderChecklistItemInput,
+  toggleChecklistItemInput,
+  updateChecklistInput,
+  updateChecklistItemInput,
+} from '@pusula/domain';
+import { TRPCError } from '@trpc/server';
+import { accessFromBoardRole } from '../middleware/board';
+import { cardProcedure } from '../middleware/card';
+import { router } from '../trpc';
+
+/** A Drizzle transaction handle for our schema, as passed to `db.transaction(cb)`. */
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/** Columns of a full checklist row returned to clients. */
+const checklistCols = {
+  id: checklists.id,
+  cardId: checklists.cardId,
+  title: checklists.title,
+  position: checklists.position,
+  createdAt: checklists.createdAt,
+  updatedAt: checklists.updatedAt,
+} as const;
+
+/** Columns of a full checklist-item row returned to clients. */
+const itemCols = {
+  id: checklistItems.id,
+  checklistId: checklistItems.checklistId,
+  content: checklistItems.content,
+  position: checklistItems.position,
+  completed: checklistItems.completed,
+  completedAt: checklistItems.completedAt,
+  completedBy: checklistItems.completedBy,
+  createdAt: checklistItems.createdAt,
+  updatedAt: checklistItems.updatedAt,
+} as const;
+
+/** Re-read the card's board inside a transaction; throw if missing or archived. */
+async function assertBoardWritable(tx: Transaction, boardId: string): Promise<void> {
+  const [board] = await tx
+    .select({ archivedAt: boards.archivedAt })
+    .from(boards)
+    .where(eq(boards.id, boardId))
+    .limit(1);
+  if (!board) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+  }
+  if (board.archivedAt) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+  }
+}
+
+/** Load a checklist and assert it belongs to `cardId`; `NOT_FOUND` otherwise. */
+async function loadChecklist(tx: Transaction, checklistId: string, cardId: string) {
+  const [checklist] = await tx
+    .select(checklistCols)
+    .from(checklists)
+    .where(eq(checklists.id, checklistId))
+    .limit(1);
+  if (!checklist || checklist.cardId !== cardId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist bulunamadı.' });
+  }
+  return checklist;
+}
+
+/**
+ * Load a checklist item and assert it belongs to `checklistId`, whose card is
+ * `cardId`; `NOT_FOUND` otherwise. Returns the item row.
+ */
+async function loadItem(tx: Transaction, itemId: string, checklistId: string, cardId: string) {
+  const [item] = await tx.select(itemCols).from(checklistItems).where(eq(checklistItems.id, itemId)).limit(1);
+  if (!item || item.checklistId !== checklistId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist öğesi bulunamadı.' });
+  }
+  // Walk up: the checklist must belong to this card.
+  await loadChecklist(tx, checklistId, cardId);
+  return item;
+}
+
+/** Next append position for a sequence ordered by `position` desc; `firstPosition()` when empty. */
+function nextPosition(lastPosition: string | undefined): string {
+  return lastPosition ? positionBetween(lastPosition, null) : firstPosition();
+}
+
+/** Bump the board's optimistic-concurrency `version` column. */
+async function bumpBoardVersion(tx: Transaction, boardId: string): Promise<void> {
+  await tx
+    .update(boards)
+    .set({ version: sql`${boards.version} + 1` })
+    .where(eq(boards.id, boardId));
+}
+
+const itemRouter = router({
+  /**
+   * Append an item to a checklist. Board `member+` only. Writes a
+   * `checklist.item_added` activity event and bumps `boards.version`.
+   */
+  create: cardProcedure.input(createChecklistItemInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi ekleme yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      await loadChecklist(tx, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      const [last] = await tx
+        .select({ position: checklistItems.position })
+        .from(checklistItems)
+        .where(eq(checklistItems.checklistId, input.checklistId))
+        .orderBy(desc(checklistItems.position))
+        .limit(1);
+      const position = nextPosition(last?.position);
+
+      const [created] = await tx
+        .insert(checklistItems)
+        .values({ checklistId: input.checklistId, content: input.content, position })
+        .returning(itemCols);
+      if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        type: 'checklist.item_added',
+        payload: { checklistId: input.checklistId, itemId: created.id, cardId: ctx.card.id, content: created.content },
+      });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return created;
+    });
+  }),
+
+  /**
+   * Check / uncheck a checklist item. Board `member+` only. Idempotent: a no-op
+   * flip returns `{ ..., changed: false }`. On a real change sets/clears
+   * `completed_at` / `completed_by` and writes a `checklist.item_checked` /
+   * `checklist.item_unchecked` activity event; bumps `boards.version`.
+   */
+  toggle: cardProcedure.input(toggleChecklistItemInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      if (item.completed === input.completed) {
+        return { ...item, changed: false as const };
+      }
+
+      const now = new Date();
+      const [updated] = await tx
+        .update(checklistItems)
+        .set({
+          completed: input.completed,
+          completedAt: input.completed ? now : null,
+          completedBy: input.completed ? ctx.session.user.id : null,
+        })
+        .where(eq(checklistItems.id, item.id))
+        .returning(itemCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        type: input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked',
+        payload: { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id },
+      });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { ...updated, changed: true as const };
+    });
+  }),
+
+  /**
+   * Edit a checklist item's content. Board `member+` only. Idempotent. **No
+   * activity** (low-signal board metadata); bumps `boards.version`.
+   */
+  update: cardProcedure.input(updateChecklistItemInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi düzenleme yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      if (input.content === item.content) {
+        return { ...item, changed: false as const };
+      }
+
+      const [updated] = await tx
+        .update(checklistItems)
+        .set({ content: input.content })
+        .where(eq(checklistItems.id, item.id))
+        .returning(itemCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { ...updated, changed: true as const };
+    });
+  }),
+
+  /**
+   * Delete a checklist item. Board `member+` only. Idempotent semantics are
+   * unnecessary (a missing item is `NOT_FOUND`). Writes a
+   * `checklist.item_removed` activity event; bumps `boards.version`.
+   */
+  delete: cardProcedure.input(deleteChecklistItemInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi silme yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      await tx.delete(checklistItems).where(eq(checklistItems.id, item.id));
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        type: 'checklist.item_removed',
+        payload: { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id },
+      });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { id: item.id, deleted: true as const };
+    });
+  }),
+
+  /**
+   * Move an item within its checklist. Board `member+` only. `beforeItemId` /
+   * `afterItemId` are the target neighbours — neither may be the item itself and
+   * both must live in the same checklist (a `BAD_REQUEST` otherwise); the new
+   * `position` is `positionBetween(before?.position ?? null, after?.position ??
+   * null)` (out-of-order neighbours → `BAD_REQUEST`, never a 500). **No
+   * activity**; bumps `boards.version`.
+   */
+  reorder: cardProcedure.input(reorderChecklistItemInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi taşıma yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      // An item cannot be positioned relative to itself (degenerate / no-op).
+      if (input.beforeItemId === input.itemId || input.afterItemId === input.itemId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bir öğe kendisine göre konumlandırılamaz.' });
+      }
+
+      const neighbourIds = [input.beforeItemId, input.afterItemId].filter(
+        (id): id is string => typeof id === 'string',
+      );
+      const neighbours = neighbourIds.length
+        ? await tx.select(itemCols).from(checklistItems).where(inArray(checklistItems.id, neighbourIds))
+        : [];
+      const byId = new Map(neighbours.map((n) => [n.id, n] as const));
+
+      const before = input.beforeItemId ? byId.get(input.beforeItemId) : undefined;
+      const after = input.afterItemId ? byId.get(input.afterItemId) : undefined;
+      if (
+        (input.beforeItemId && (!before || before.checklistId !== input.checklistId)) ||
+        (input.afterItemId && (!after || after.checklistId !== input.checklistId))
+      ) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Komşu öğeler aynı checklist içinde olmalı.' });
+      }
+
+      // `fractional-indexing` throws when the neighbours are out of order
+      // (before >= after); surface that as a client error, not a 500.
+      let position: string;
+      try {
+        position = positionBetween(before?.position ?? null, after?.position ?? null);
+      } catch {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Geçersiz konum.' });
+      }
+      const [updated] = await tx
+        .update(checklistItems)
+        .set({ position })
+        .where(eq(checklistItems.id, item.id))
+        .returning(itemCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { ...updated, changed: true as const };
+    });
+  }),
+});
+
+export const checklistRouter = router({
+  /**
+   * Append a checklist to a card. Board `member+` only. Writes a
+   * `checklist.created` activity event and bumps `boards.version`.
+   */
+  create: cardProcedure.input(createChecklistInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist oluşturma yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      const [last] = await tx
+        .select({ position: checklists.position })
+        .from(checklists)
+        .where(eq(checklists.cardId, ctx.card.id))
+        .orderBy(desc(checklists.position))
+        .limit(1);
+      const position = nextPosition(last?.position);
+
+      const [created] = await tx
+        .insert(checklists)
+        .values({ cardId: ctx.card.id, title: input.title, position })
+        .returning(checklistCols);
+      if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        type: 'checklist.created',
+        payload: { checklistId: created.id, cardId: ctx.card.id, title: created.title },
+      });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return created;
+    });
+  }),
+
+  /**
+   * Rename a checklist. Board `member+` only. Idempotent. **No activity**
+   * (low-signal board metadata); bumps `boards.version`.
+   */
+  update: cardProcedure.input(updateChecklistInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist düzenleme yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      if (input.title === checklist.title) {
+        return { ...checklist, changed: false as const };
+      }
+
+      const [updated] = await tx
+        .update(checklists)
+        .set({ title: input.title })
+        .where(eq(checklists.id, checklist.id))
+        .returning(checklistCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { ...updated, changed: true as const };
+    });
+  }),
+
+  /**
+   * Delete a checklist (its items cascade via the FK). Board `member+` only.
+   * A missing checklist is `NOT_FOUND`. **No activity**; bumps `boards.version`.
+   */
+  delete: cardProcedure.input(deleteChecklistInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist silme yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      await tx.delete(checklists).where(eq(checklists.id, checklist.id));
+
+      await bumpBoardVersion(tx, ctx.card.boardId);
+      return { id: checklist.id, deleted: true as const };
+    });
+  }),
+
+  item: itemRouter,
+});

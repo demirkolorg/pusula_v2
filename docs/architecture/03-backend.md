@@ -106,7 +106,7 @@ Faz 2 dışı (ileri faz): `list.move` / `card.move` (`moveCardInput` — Faz 3)
 
 | Router | Procedure | Middleware | Not |
 | --- | --- | --- | --- |
-| `comment` | `list` | `cardProcedure` | board `viewer+`; kartın yorumları (silinmemiş; `created_at` artan); ayrı query — `card.get` payload'ını şişirmez |
+| `comment` | `list` | `cardProcedure` | board `viewer+`; kartın yorumları (`created_at` artan) — silinmiş yorumlar da döner (`deleted_at` set + `body` boşaltılmış → UI "silindi" placeholder'ı gösterir); ayrı query — `card.get` payload'ını şişirmez |
 | `comment` | `create` | `cardProcedure` | board `member+`; düz metin (mention parsing **Faz 6**); arşivli board salt-okunur; `activity_events` (`comment.created`); `boards.version` artar |
 | `comment` | `update` | `cardProcedure` | board `member+` **ve** (`authorId === userId` veya board `admin`) — aksi `FORBIDDEN`; silinmiş yorum düzenlenemez; `edited_at` set; `activity_events` (`comment.updated`); `boards.version` artar |
 | `comment` | `delete` | `cardProcedure` | board `member+` **ve** (yazan veya board `admin`); soft-delete (`deleted_at` set, `body` korunur ya da boşaltılır — kararı implementasyonda; UI "silindi" gösterir); `activity_events` (`comment.deleted`); `boards.version` artar |
