@@ -35,6 +35,11 @@ updated: 2026-05-12
 - Typesense search API: https://typesense.org/docs/27.1/api/search.html
 - Better Auth installation: https://better-auth.com/docs/installation
 - Dokploy dokümantasyonu: https://docs.dokploy.com/docs/core
+- Dokploy "Docker Compose" servisi: https://docs.dokploy.com/docs/core/docker-compose
 - Dokploy MinIO template: https://docs.dokploy.com/docs/templates/minio
+- Traefik HTTP routers: https://doc.traefik.io/traefik/routing/routers/
+- Traefik Let's Encrypt (ACME): https://doc.traefik.io/traefik/https/acme/
+- Turborepo Docker (`turbo prune`): https://turbo.build/repo/docs/guides/tools/docker
+- Next.js standalone output: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
 - Resend Node.js email: https://resend.com/docs/send-with-nodejs
 - Atlassian Pragmatic Drag and Drop: https://atlassian.design/components/pragmatic-drag-and-drop/

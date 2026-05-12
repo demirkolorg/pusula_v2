@@ -82,7 +82,7 @@ validasyon şemalarını paylaşır. TypeScript strict mode + project references
 | Drag-drop | Atlassian Pragmatic Drag and Drop | Trello/Jira hissi, performans odaklı nested taşıma |
 | Auth | Better Auth | Self-hosted, TypeScript odaklı kimlik yönetimi |
 | Web UI | shadcn/ui (tek standart) + Tailwind + lucide-react | Tek web component sistemi |
-| Deployment | Self-hosted Dokploy | Docker/Traefik tabanlı self-hosted yayın |
+| Deployment | Self-hosted Dokploy ("Docker Compose" servis tipi) | `compose.prod.yml` tek ünite; Traefik + Let's Encrypt + git-push-to-deploy Dokploy'da → runbook: [`12-deployment-runbook.md`](12-deployment-runbook.md) |
 | Object storage | Self-hosted MinIO (S3 uyumlu SDK) | S3 uyumlu attachment depolama |
 | Email | Resend | Transactional email + digest |
 | Search | MVP: PostgreSQL FTS; ileri: Meilisearch | Önce basitlik, büyüyünce typo-tolerant arama |

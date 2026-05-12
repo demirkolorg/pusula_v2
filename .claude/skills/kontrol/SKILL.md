@@ -57,7 +57,7 @@ Use these decisions as defaults:
 | Auth | Better Auth |
 | Web UI | shadcn/ui only |
 | Icons | lucide-react |
-| Deployment | Self-hosted Dokploy |
+| Deployment | Self-hosted Dokploy — single "Docker Compose" service (`compose.prod.yml` in repo) |
 | Object storage | Self-hosted MinIO through S3-compatible APIs |
 | Email | Resend |
 | Search | MVP: PostgreSQL full-text search; later: Meilisearch |
@@ -327,7 +327,7 @@ Start with PostgreSQL full-text search. Use the denormalized `search_documents` 
 
 ## Deployment
 
-Deploy self-hosted with Dokploy. Treat these as separate services: web (Next.js container), api (Hono Node container), worker (background jobs), postgres, redis, minio, meilisearch (later). API and worker may share an image with different commands, but run as separate processes. Define backup/volume strategy for PostgreSQL, Redis persistence, MinIO, and Meilisearch before production. Local infra: `docker-compose.yml` at the repo root (`pnpm infra:up`).
+Deploy self-hosted with Dokploy as a **single "Docker Compose" service**: point Dokploy at the GitHub repo + branch + `compose.prod.yml` at the repo root → the whole stack (web · api · worker · postgres · redis · minio · meilisearch later) deploys as one unit. Do **not** define each service as a separate Dokploy "Application". Dokploy handles Traefik + Let's Encrypt TLS, git-push-to-deploy, build logs, env, rollback. API and worker share an image (`apps/api/Dockerfile`) with different commands but run as separate processes; images are built from the monorepo via `turbo prune --docker`. Migrations run as a one-off `migrate` service (`pnpm db:migrate`), not in the request path. `compose.prod.yml` is **separate** from the local `docker-compose.yml` (prod: no public Postgres port, named volumes + backups, no dev credentials). Define backup/volume strategy (PostgreSQL `pg_dump`, Redis AOF, MinIO mirror) before production. Local infra: `docker-compose.yml` at the repo root (`pnpm infra:up`). Step-by-step production runbook (VDS cleanup → first deploy → migration → smoke test → open access → continuous deploy → rollback → backups): `docs/architecture/12-deployment-runbook.md`.
 
 ## Environment Variables
 

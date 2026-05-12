@@ -38,15 +38,29 @@ contract build pass · web build pass · (mobil geldiğinde) mobile typecheck pa
 
 ---
 
-## 10.3 Deployment (Dokploy)
+## 10.3 Deployment (Dokploy — "Docker Compose" servis tipi)
 
-Self-hosted **Dokploy** (Docker/Traefik). Ayrı servisler: web (Next.js container), api (Hono Node
-container), worker (background jobs), postgres, redis, minio, meilisearch (ileride). API ve worker
-aynı image'dan farklı command ile koşabilir ama **ayrı process**. PostgreSQL / Redis persistence /
-MinIO / Meilisearch için backup + volume stratejisi production öncesi tanımlanır. Mobil: EAS Build + EAS Update.
+Self-hosted **Dokploy** (Docker/Traefik). Dokploy **tek bir "Docker Compose" servisi** olarak
+kullanılır: GitHub repo + branch + repo kökündeki `compose.prod.yml` → tüm stack tek ünite olarak
+deploy edilir. Her servisi Dokploy UI'ında ayrı "Application" olarak elle tanımlama **yapılmaz**
+(önceki sürümde bu zahmet yarattı). Dokploy'un payı: Traefik + Let's Encrypt TLS, git-push-to-deploy
+webhook'u, build logu, env yönetimi, rollback. Compose dosyası git'te → "infrastructure as code"
+budur; Dokploy ayarlarını ayrıca kod/Terraform ile yönetmeye gerek yok.
+
+Stack servisleri (`compose.prod.yml`): web (Next.js container), api (Hono Node container), worker
+(background jobs), postgres, redis, minio, meilisearch (ileride). API ve worker **aynı image'dan
+farklı command** ile koşar ama **ayrı process** (`apps/api/Dockerfile` paylaşılır; worker servisi
+`command: node apps/worker/dist/index.js`). Image'lar monorepo'dan multi-stage build edilir
+(pnpm + `turbo prune --docker`). Migration (`pnpm db:migrate`) request-path'te değil; deploy sırasında
+tek seferlik bir job/komut olarak koşturulur. PostgreSQL / Redis / MinIO / Meilisearch için named
+volume + zamanlanmış `pg_dump` + MinIO yedeği production öncesi tanımlanır. Mobil: EAS Build + EAS Update.
+
+Adım adım üretim deploy'u (VDS temizliği → ilk deploy → smoke test → erişimi açma → rollback →
+yedekleme → sorun giderme): **[`12-deployment-runbook.md`](12-deployment-runbook.md)**.
 
 Yerel altyapı: repo kökünde `docker-compose.yml` (`pnpm infra:up` / `infra:down` / `infra:logs`) —
-Postgres, Redis, MinIO.
+Postgres, Redis, MinIO. **Üretim `compose.prod.yml`'i yerel `docker-compose.yml`'den ayrıdır**
+(prod'da Postgres internete açılmaz, named volume + yedek, dev kimlik bilgileri kullanılmaz).
 
 ---
 

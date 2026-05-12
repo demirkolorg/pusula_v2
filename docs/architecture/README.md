@@ -40,8 +40,9 @@ Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açm
 | 07 | [`07-auth.md`](07-auth.md) | Better Auth, session, permission enforcement noktası |
 | 08 | [`08-web-ve-mobil.md`](08-web-ve-mobil.md) | Next.js + shadcn/ui + i18n, board ekranı teknik ihtiyaçları, Expo (ileri faz) |
 | 09 | [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) | MinIO / S3 uyumlu depolama, attachment akışı, PostgreSQL FTS → Meilisearch |
-| 10 | [`10-platform.md`](10-platform.md) | Test stratejisi, CI/CD, deployment (Dokploy), environment, observability, güvenlik başlıkları, performans |
+| 10 | [`10-platform.md`](10-platform.md) | Test stratejisi, CI/CD, deployment (Dokploy "Docker Compose" servis tipi), environment, observability, güvenlik başlıkları, performans |
 | 11 | [`11-referanslar.md`](11-referanslar.md) | Dış dokümantasyon linkleri |
+| 12 | [`12-deployment-runbook.md`](12-deployment-runbook.md) | Üretim deploy runbook'u: `compose.prod.yml`/`Dockerfile` template'leri, VDS temizliği (v1'i indirme), ilk deploy + migration, smoke test, erişimi açma, sürekli deploy, rollback, yedekleme, sorun giderme |
 
 ## Kaçınılması gerekenler (teknik)
 
@@ -60,3 +61,5 @@ Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açm
 - Billing/subscription implementasyonu eklemek.
 - `apps/mobile` iskeletini kullanıcı istemeden oluşturmak.
 - `pnpm` dışında paket yöneticisi (npm/yarn/bun/npx) kullanmak.
+- Dokploy'da her servisi (web/api/worker/postgres/redis/minio) tek tek "Application" olarak tanımlamak — tek bir "Docker Compose" servisi (`compose.prod.yml`) kullan.
+- Üretim için yerel `docker-compose.yml`'i (dev kimlik bilgileri, host port publish) doğrudan kullanmak — ayrı `compose.prod.yml`.
