@@ -58,6 +58,12 @@ export const ACTIVITY_EVENT_TYPES = [
   'checklist.item_completed',
   'attachment.added',
   'attachment.removed',
+  // Phase 2A (Board/List/Card CRUD) — rename / description-change variants. Appended
+  // to keep the Postgres enum append-only; aligned with `docs/domain/05-aktivite-kurallari.md`.
+  'board.renamed',
+  'list.renamed',
+  'card.renamed',
+  'card.description_changed',
 ] as const;
 
 /**
