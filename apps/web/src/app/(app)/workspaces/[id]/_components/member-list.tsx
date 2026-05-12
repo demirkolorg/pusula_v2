@@ -28,7 +28,7 @@ export function MemberList({ workspaceId, canManage }: MemberListProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
   const viewerUserId = session?.user.id ?? '';
 
   const members = useQuery(trpc.workspace.members.list.queryOptions({ workspaceId }));
@@ -83,8 +83,11 @@ export function MemberList({ workspaceId, canManage }: MemberListProps) {
 
   const isBusy = updateRole.isPending || removeMember.isPending;
 
-  if (members.isPending) {
-    return <p className="text-muted-foreground text-sm">{strings.members.loading}</p>;
+  // Don't render rows until we know the viewer's id (the "you" badge / leave
+  // action depend on it) — avoids a flash + layout shift when the session
+  // resolves a tick after the member list does.
+  if (members.isPending || sessionPending) {
+    return <p className="text-muted-foreground text-sm">{strings.common.loading}</p>;
   }
 
   if (members.isError) {
@@ -119,9 +122,15 @@ export function MemberList({ workspaceId, canManage }: MemberListProps) {
         return (
           <li key={member.userId}>
             <MemberRow
-              member={member}
+              member={{
+                userId: member.userId,
+                name: member.name,
+                email: member.email,
+                role: member.role,
+              }}
               viewerUserId={viewerUserId}
               canManage={canManage}
+              disabled={isBusy}
               pending={rowPending}
               error={rowError?.userId === member.userId ? rowError.message : null}
               onRoleChange={(role) => handleRoleChange(member.userId, role)}

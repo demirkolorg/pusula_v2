@@ -385,6 +385,9 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     expect(emails).toContain(inviteeEmail);
     expect(emails).toContain(noAccountEmail);
     expect(list.every((i) => 'expiresAt' in i)).toBe(true);
+    // Inviter's display name is joined in (seed users use `name === id`).
+    expect(list.find((i) => i.email === inviteeEmail)?.invitedByName).toBe(invAdminId);
+    expect(list.find((i) => i.email === noAccountEmail)?.invitedByName).toBe(invOwnerId);
   });
 
   it('invitations.list: a non-member is FORBIDDEN', async () => {

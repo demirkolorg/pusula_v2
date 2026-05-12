@@ -33,7 +33,6 @@ export type MemberRowMember = {
   userId: string;
   name: string | null;
   email: string;
-  image: string | null;
   role: WorkspaceRole;
 };
 
@@ -43,7 +42,12 @@ type MemberRowProps = {
   viewerUserId: string;
   /** Whether the viewer is `admin+` (may change roles / remove others). */
   canManage: boolean;
-  /** A mutation for this row is in flight — disables its controls. */
+  /**
+   * Any member-list mutation is in flight (possibly on another row) — disables
+   * this row's controls too so a second mutation can't race the first.
+   */
+  disabled?: boolean;
+  /** A mutation for *this* row is in flight — shows the inline "…ediliyor…" text. */
   pending?: boolean;
   /** Inline error for this row's last mutation (CONFLICT / BAD_REQUEST / FORBIDDEN …). */
   error?: string | null;
@@ -66,6 +70,7 @@ export function MemberRow({
   member,
   viewerUserId,
   canManage,
+  disabled = false,
   pending = false,
   error,
   onRoleChange,
@@ -75,6 +80,9 @@ export function MemberRow({
   const isSelf = member.userId === viewerUserId;
   const isOwner = member.role === 'owner';
   const displayName = member.name?.trim() || member.email;
+  // Controls are disabled while *any* member-list mutation runs (race guard);
+  // the "…ediliyor…" label only shows for the row that owns the active mutation.
+  const controlsDisabled = disabled || pending;
 
   // Only managers may change a *non-owner, non-self* member's role.
   const showRoleSelect = canManage && !isOwner && !isSelf;
@@ -104,7 +112,7 @@ export function MemberRow({
         ) : showRoleSelect ? (
           <Select
             value={member.role}
-            disabled={pending}
+            disabled={controlsDisabled}
             onValueChange={(value) => onRoleChange?.(value as Exclude<WorkspaceRole, 'owner'>)}
           >
             <SelectTrigger size="sm" aria-label={strings.members.roleLabel}>
@@ -125,14 +133,14 @@ export function MemberRow({
         {showRemove && (
           <ConfirmDialog
             trigger={
-              <Button variant="outline" size="sm" disabled={pending}>
+              <Button variant="outline" size="sm" disabled={controlsDisabled}>
                 {pending ? strings.members.removing : strings.members.remove}
               </Button>
             }
             title={strings.members.removeConfirmTitle}
             description={strings.members.removeConfirmDescription}
             confirmLabel={strings.members.removeConfirm}
-            pending={pending}
+            pending={controlsDisabled}
             onConfirm={() => onRemove?.()}
           />
         )}
@@ -140,14 +148,14 @@ export function MemberRow({
         {showLeave && (
           <ConfirmDialog
             trigger={
-              <Button variant="outline" size="sm" disabled={pending}>
+              <Button variant="outline" size="sm" disabled={controlsDisabled}>
                 {pending ? strings.members.leaving : strings.members.leave}
               </Button>
             }
             title={strings.members.leaveConfirmTitle}
             description={strings.members.leaveConfirmDescription}
             confirmLabel={strings.members.leaveConfirm}
-            pending={pending}
+            pending={controlsDisabled}
             onConfirm={() => onLeave?.()}
           />
         )}
