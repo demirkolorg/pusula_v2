@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { emailSchema } from '@pusula/domain';
 import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 
@@ -19,6 +20,12 @@ const envSchema = z.object({
   // mailing it). See `docs/architecture/07-auth.md` (Şifre sıfırlama akışı).
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).default('Pusula <no-reply@pusula.local>'),
+  // Dev-only recipient override (v1's `MAIL_DEV_ALICI_OVERRIDE`, renamed for the
+  // v2 `EMAIL_*` naming): when set and `NODE_ENV !== 'production'`, every
+  // transactional auth email goes to this address instead of the real recipient.
+  // Ignored in production. Handy because the Resend test sender
+  // (`onboarding@resend.dev`) only delivers to the Resend account owner.
+  EMAIL_DEV_OVERRIDE: emailSchema.optional(),
 });
 
 export const env = envSchema.parse(process.env);

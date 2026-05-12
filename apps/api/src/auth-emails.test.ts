@@ -12,10 +12,12 @@ const mockEnv: {
   NODE_ENV: 'development' | 'test' | 'production';
   RESEND_API_KEY?: string;
   EMAIL_FROM: string;
+  EMAIL_DEV_OVERRIDE?: string;
 } = {
   NODE_ENV: 'development',
   RESEND_API_KEY: undefined,
   EMAIL_FROM: 'Pusula <no-reply@pusula.test>',
+  EMAIL_DEV_OVERRIDE: undefined,
 };
 vi.mock('./env', () => ({
   get env() {
@@ -36,6 +38,7 @@ const {
   __resetResendClientForTests,
   resetPasswordEmailHtml,
   resetPasswordEmailText,
+  resolveRecipient,
   sendResetPasswordEmail,
 } = await import('./auth-emails');
 
@@ -46,6 +49,7 @@ afterEach(() => {
   sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
   mockEnv.RESEND_API_KEY = undefined;
   mockEnv.NODE_ENV = 'development';
+  mockEnv.EMAIL_DEV_OVERRIDE = undefined;
   __resetResendClientForTests();
   vi.restoreAllMocks();
 });
@@ -142,5 +146,81 @@ describe('sendResetPasswordEmail — with RESEND_API_KEY', () => {
 
     await expect(sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL })).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
+  });
+});
+
+describe('EMAIL_DEV_OVERRIDE (dev-only recipient override)', () => {
+  it('resolveRecipient: in dev with the override set, returns the override and logs a notice', () => {
+    mockEnv.NODE_ENV = 'development';
+    mockEnv.EMAIL_DEV_OVERRIDE = 'dev@example.com';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(resolveRecipient('aria@test.com')).toBe('dev@example.com');
+    expect(warn).toHaveBeenCalledTimes(1);
+    // The notice may mention the real recipient — fine in dev.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('dev@example.com'));
+  });
+
+  it('resolveRecipient: in production the override is ignored', () => {
+    mockEnv.NODE_ENV = 'production';
+    mockEnv.EMAIL_DEV_OVERRIDE = 'dev@example.com';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(resolveRecipient('aria@test.com')).toBe('aria@test.com');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('resolveRecipient: no override set → returns the real recipient unchanged', () => {
+    mockEnv.NODE_ENV = 'development';
+    mockEnv.EMAIL_DEV_OVERRIDE = undefined;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(resolveRecipient('aria@test.com')).toBe('aria@test.com');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('sendResetPasswordEmail: in dev with the override set, mails the override instead of the real recipient', async () => {
+    mockEnv.NODE_ENV = 'development';
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    mockEnv.EMAIL_DEV_OVERRIDE = 'dev@example.com';
+    __resetResendClientForTests();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
+
+    await sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.to).toBe('dev@example.com');
+    expect(arg.to).not.toBe('aria@test.com');
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('sendResetPasswordEmail: in production the override is ignored — mails the real recipient', async () => {
+    mockEnv.NODE_ENV = 'production';
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    mockEnv.EMAIL_DEV_OVERRIDE = 'dev@example.com';
+    __resetResendClientForTests();
+    sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
+
+    await sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.to).toBe('aria@test.com');
+  });
+
+  it('sendResetPasswordEmail: no override → mails the real recipient (existing behavior)', async () => {
+    mockEnv.NODE_ENV = 'development';
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    mockEnv.EMAIL_DEV_OVERRIDE = undefined;
+    __resetResendClientForTests();
+    sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
+
+    await sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.to).toBe('aria@test.com');
   });
 });

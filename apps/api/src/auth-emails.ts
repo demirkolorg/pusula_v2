@@ -24,6 +24,10 @@ import { env } from './env';
  *  - The email body is a small, self-contained HTML + plain-text template with
  *    Turkish copy. Hard-coded strings are fine here — this is a server-side
  *    email template, not a UI component (the web app uses `strings.auth.*`).
+ *  - Dev-only recipient override: in non-production, when `EMAIL_DEV_OVERRIDE`
+ *    is set, the email is sent to that address instead of the real recipient (so
+ *    a developer can test reset with an arbitrary account even though the Resend
+ *    test sender only delivers to the account owner). Ignored in production.
  */
 
 /** Lazily-built Resend client; `null` when `RESEND_API_KEY` is not configured. */
@@ -42,6 +46,24 @@ function getResend(): Resend | null {
 export function __resetResendClientForTests(): void {
   resendClient = null;
   resendResolved = false;
+}
+
+/**
+ * Resolve the address the email should actually go to. In non-production, when
+ * `EMAIL_DEV_OVERRIDE` is set, all transactional auth mail is redirected there
+ * (and a notice is logged including the real recipient — fine in dev). In
+ * production the override is ignored: always the real `to`.
+ *
+ * Exported for tests.
+ */
+export function resolveRecipient(to: string): string {
+  if (env.NODE_ENV !== 'production' && env.EMAIL_DEV_OVERRIDE) {
+    console.warn(
+      `[auth] DEV: e-posta gerçek alıcı yerine override adresine yönlendiriliyor → ${env.EMAIL_DEV_OVERRIDE}; gerçek alıcı: ${to}`,
+    );
+    return env.EMAIL_DEV_OVERRIDE;
+  }
+  return to;
 }
 
 const RESET_SUBJECT = 'Pusula — Şifre sıfırlama';
@@ -114,7 +136,7 @@ export async function sendResetPasswordEmail(params: {
   try {
     const { error } = await resend.emails.send({
       from: env.EMAIL_FROM,
-      to,
+      to: resolveRecipient(to),
       subject: RESET_SUBJECT,
       html: resetPasswordEmailHtml(url),
       text: resetPasswordEmailText(url),
