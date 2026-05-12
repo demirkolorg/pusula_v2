@@ -5,7 +5,9 @@ import {
   Alert,
   AlertDescription,
   AlertTitle,
+  Badge,
   Card,
+  CardAction,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -13,6 +15,10 @@ import {
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateWorkspaceDialog } from './_components/create-workspace-dialog';
+import { InviteMemberDialog } from './_components/invite-member-dialog';
+import { PendingInvitations } from './_components/pending-invitations';
+
+const MANAGER_ROLES = new Set(['owner', 'admin']);
 
 export default function WorkspacesPage() {
   const trpc = useTRPC();
@@ -24,6 +30,8 @@ export default function WorkspacesPage() {
         <h1 className="text-xl font-semibold tracking-tight">{strings.workspace.listTitle}</h1>
         <CreateWorkspaceDialog />
       </div>
+
+      <PendingInvitations />
 
       {workspaces.isPending && (
         <p className="text-muted-foreground text-sm">{strings.workspace.loading}</p>
@@ -53,12 +61,20 @@ export default function WorkspacesPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>{workspace.name}</CardTitle>
-                  <CardDescription className="flex items-center justify-between gap-2">
+                  <CardDescription className="flex items-center gap-2">
                     <span>{workspace.slug}</span>
-                    <span className="bg-secondary text-secondary-foreground rounded-full px-2 py-0.5 text-xs">
+                    <Badge variant="secondary">
                       {strings.workspace.roleBadgePrefix} {workspace.role}
-                    </span>
+                    </Badge>
                   </CardDescription>
+                  {MANAGER_ROLES.has(workspace.role) && (
+                    <CardAction>
+                      <InviteMemberDialog
+                        workspaceId={workspace.id}
+                        workspaceName={workspace.name}
+                      />
+                    </CardAction>
+                  )}
                 </CardHeader>
               </Card>
             </li>

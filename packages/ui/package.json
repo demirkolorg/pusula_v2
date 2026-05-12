@@ -11,6 +11,7 @@
     "./card": "./src/components/card.tsx",
     "./dialog": "./src/components/dialog.tsx",
     "./alert": "./src/components/alert.tsx",
+    "./badge": "./src/components/badge.tsx",
     "./lib/utils": "./src/lib/utils.ts",
     "./theme.css": "./src/styles/theme.css"
   },
