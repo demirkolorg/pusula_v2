@@ -50,6 +50,8 @@ export const strings = {
       submitting: 'Giriş yapılıyor…',
       noAccount: 'Hesabın yok mu?',
       goToSignUp: 'Kayıt ol',
+      forgotPassword: 'Şifreni mi unuttun?',
+      resetDone: 'Parolan güncellendi. Yeni parolanla giriş yapabilirsin.',
     },
     signUp: {
       title: 'Kayıt ol',
@@ -58,6 +60,37 @@ export const strings = {
       submitting: 'Kayıt olunuyor…',
       hasAccount: 'Zaten hesabın var mı?',
       goToSignIn: 'Giriş yap',
+    },
+    forgotPassword: {
+      title: 'Şifreni mi unuttun?',
+      description: 'E-posta adresini gir; sana bir sıfırlama bağlantısı gönderelim.',
+      submit: 'Sıfırlama bağlantısı gönder',
+      submitting: 'Gönderiliyor…',
+      successTitle: 'Bağlantı yolda',
+      // E-posta adresi araya konur — hesap kayıtlı mı belli edilmez (kullanıcı
+      // listesi sızdırılmaz); kayıt yoksa Better Auth da sessizce başarı döner.
+      successBodyPrefix: 'Eğer ',
+      successBodySuffix:
+        ' adresine bağlı bir hesap varsa, bir parola sıfırlama bağlantısı gönderdik. Gelen kutunu (ve spam klasörünü) kontrol et.',
+      resend: 'Yeniden gönder',
+      backToSignIn: 'Giriş ekranına dön',
+    },
+    resetPassword: {
+      title: 'Yeni parola belirle',
+      description: 'Hesabın için yeni bir parola gir.',
+      newPasswordLabel: 'Yeni parola',
+      confirmPasswordLabel: 'Yeni parola (tekrar)',
+      passwordPlaceholder: '••••••••',
+      passwordMismatch: 'Parolalar eşleşmiyor.',
+      submit: 'Parolayı güncelle',
+      submitting: 'Güncelleniyor…',
+      successTitle: 'Parolan güncellendi',
+      redirecting: 'Giriş ekranına yönlendiriliyorsun…',
+      missingTokenTitle: 'Bağlantı geçersiz veya eksik',
+      missingTokenBody:
+        'Bu sıfırlama bağlantısı eksik ya da bozuk görünüyor. Yeni bir bağlantı isteyebilirsin.',
+      requestNewLink: 'Yeni bağlantı iste',
+      backToSignIn: 'Giriş ekranına dön',
     },
   },
   shell: {

@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { count, eq, getDb, accounts, sessions, users, verifications, workspaces } from '@pusula/db';
 import { canDeleteOwnAccount, userImageUrlSchema, userNameSchema } from '@pusula/domain';
 import { bootstrapNewUser } from './bootstrap';
+import { sendResetPasswordEmail } from './auth-emails';
 import { env } from './env';
 
 /**
@@ -32,6 +33,24 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // "Forgot password": the web app calls `authClient.requestPasswordReset({
+    // email, redirectTo: '${window.location.origin}/reset-password' })` — an
+    // *absolute* URL on the web app's origin. Better Auth resolves `redirectTo`
+    // server-side; our `baseURL` here is `env.API_URL` (`:3001`), so a relative
+    // path would point at the API server (no `/reset-password` route there).
+    // Passing the absolute web URL makes Better Auth keep it as-is and call this
+    // with `url` = `${APP_URL}/reset-password?token=…&callbackURL=${APP_URL}/reset-password`
+    // (and `env.APP_URL` is in `trustedOrigins`, so the origin check passes).
+    // Better Auth mints a one-time, ~1h token (in the `verifications` table); we
+    // just mail that link via Resend. This is best-effort and never throws — see
+    // `./auth-emails.ts` and `docs/architecture/07-auth.md` (Şifre sıfırlama
+    // akışı). `resetPasswordTokenExpiresIn` is left at the default (1 hour).
+    sendResetPassword: async ({ user, url }) => {
+      await sendResetPasswordEmail({ to: user.email, url });
+    },
+    // When the password is actually reset, drop the user's other sessions —
+    // a reset is a strong signal the old credential may be compromised.
+    revokeSessionsOnPasswordReset: true,
   },
   user: {
     // Self-service account deletion (`authClient.deleteUser({ password })`).

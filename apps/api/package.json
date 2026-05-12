@@ -10,6 +10,7 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rimraf dist .turbo"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "better-auth": "^1.6.10",
     "dotenv": "^17.2.0",
     "hono": "^4.12.18",
+    "resend": "^6.12.3",
     "superjson": "^2.2.6",
     "zod": "^4"
   },
@@ -31,6 +33,7 @@
     "rimraf": "^6.0.1",
     "tsup": "^8.5.0",
     "tsx": "^4.20.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.5"
   }
 }

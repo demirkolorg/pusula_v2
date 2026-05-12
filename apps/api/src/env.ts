@@ -13,6 +13,12 @@ const envSchema = z.object({
   APP_URL: z.string().min(1).default('http://localhost:3000'),
   API_URL: z.string().min(1).default('http://localhost:3001'),
   API_PORT: z.coerce.number().int().positive().default(3001),
+  // Transactional email (Resend) — used for the password-reset link (and later
+  // signup verification). Optional: with no key, the auth flow still works and
+  // the reset callback degrades to best-effort (logs the link instead of
+  // mailing it). See `docs/architecture/07-auth.md` (Şifre sıfırlama akışı).
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).default('Pusula <no-reply@pusula.local>'),
 });
 
 export const env = envSchema.parse(process.env);

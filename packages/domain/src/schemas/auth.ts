@@ -35,5 +35,28 @@ export const signUpInput = z.object({
   password: passwordSchema,
 });
 
+/**
+ * "Forgot password" form: just an email. The actual reset link is mailed by
+ * Better Auth (`requestPasswordReset` → `emailAndPassword.sendResetPassword` →
+ * Resend). The response never says whether the email exists — the client treats
+ * any non-error response as "if that address has an account, a link is on its
+ * way". See `docs/architecture/07-auth.md` (Şifre sıfırlama akışı).
+ */
+export const forgotPasswordInput = z.object({
+  email: emailSchema,
+});
+
+/**
+ * "Reset password" form: the one-time token (read from the `?token=` query
+ * param on the reset link) plus the new password (same rule as sign-up —
+ * `passwordSchema`, 8..128). Submitted to Better Auth's `resetPassword`.
+ */
+export const resetPasswordInput = z.object({
+  token: z.string().min(1, 'Sıfırlama bağlantısı geçersiz veya eksik'),
+  newPassword: passwordSchema,
+});
+
 export type SignInInput = z.infer<typeof signInInput>;
 export type SignUpInput = z.infer<typeof signUpInput>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordInput>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordInput>;
