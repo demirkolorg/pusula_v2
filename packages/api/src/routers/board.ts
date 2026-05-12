@@ -22,12 +22,9 @@ import {
   type BoardRole,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
-import { boardProcedure } from '../middleware/board';
+import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
-
-/** Build an `AccessContext` from a resolved (already-effective) board role. */
-const accessFromBoardRole = (boardRole: BoardRole) => ({ workspaceRole: null, boardRole });
 
 /** Columns of a full board row returned to clients (sans internal-only fields — there are none yet). */
 const boardCols = {

@@ -73,8 +73,8 @@ middleware'ler yalnızca **enforcement** noktasıdır — "üye mi?" kapısını
 (`canManageWorkspace`, `canEditBoardContent`, …) procedure gövdesi yapar.
 
 - `workspaceProcedure` = `protectedProcedure` + `workspaceId`'yi input'tan okuyup kullanıcının `workspace_members` kaydını çözen middleware. Workspace yoksa `NOT_FOUND`, üyelik yoksa `FORBIDDEN`; varsa `ctx.workspace = { id, role }` eklenir. (Faz 1)
-- `boardProcedure` = board'u çözer ve `effectiveBoardRole` sonucunu (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar; `ctx.board = { id, workspaceId, role }` ekler. (Faz 2)
-- `cardProcedure` = board context + kullanıcının kart ilişkisi (`assignee`/`watcher`); `ctx.card` ekler. (İlgili faz)
+- `boardProcedure` = board'u çözer ve `effectiveBoardRole` sonucunu (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar; `ctx.board = { id, workspaceId, role }` ekler. (Faz 2) — board-erişim çözümlemesi (board → workspace üyeliği → board üyeliği → `effectiveBoardRole`; `NOT_FOUND`/`FORBIDDEN`) paylaşılan `resolveBoardAccess` helper'ında; `cardProcedure` ve `card.create` de bunu kullanır.
+- `cardProcedure` = kartı çözer, kartın board'unu `resolveBoardAccess` ile resolve eder, kullanıcının kart ilişkisini (`card_members`: `assignee`/`watcher`) ekler; `ctx.card = { id, listId, boardId, workspaceId, archivedAt, boardRole, boardArchivedAt, relations }`. Kart yoksa `NOT_FOUND`. (Faz 2C)
 
 `@pusula/api` içindeki `permission middleware`'leri bu katmanı uygular; rate-limit middleware'i de aynı
 zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
@@ -90,13 +90,13 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü) |
 | `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
-| `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); `activity_events` (`list.created`) |
-| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; `activity_events` (`list.renamed`) |
-| `list` | `archive` | `boardProcedure` | board `member+`; `archived_at`; arşivli liste aktif kart almaz; `activity_events` (`list.archived`) |
-| `card` | `create` | `boardProcedure` (+ listeyi doğrula) | board `member+`; liste sonuna `position`; kart `board_id` = listenin board'u; arşivli listeye eklenemez; `activity_events` (`card.created`) |
-| `card` | `get` | `cardProcedure` | Kart detayı |
-| `card` | `update` | `cardProcedure` | board `member+`; başlık → `card.renamed`, açıklama → `card.description_changed`, `due_at` → `card.due_set`/`card.due_cleared` |
-| `card` | `archive` | `cardProcedure` | board `member+`; `archived_at`; `activity_events` (`card.archived`) |
+| `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); arşivli board'a liste eklenemez; `activity_events` (`list.created`); `boards.version` artar |
+| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; arşivli board salt-okunur; `activity_events` (`list.renamed`); `boards.version` artar |
+| `list` | `archive` | `boardProcedure` | board `member+`; `archived_at` (set/restore); arşivli liste aktif kart almaz (yeni kart eklenemez); `activity_events` (`list.archived`); `boards.version` artar |
+| `card` | `create` | `protectedProcedure` (listenin board'unu `resolveBoardAccess` ile çözer) | `createCardInput` yalnızca `listId` taşır → liste transaction içinde okunur, board ondan türetilir; board `member+`; liste sonuna `position`; kart `board_id` = listenin board'u (**kart ⊆ liste.board invariant'ı**); arşivli board/listeye eklenemez; `activity_events` (`card.created`); `boards.version` artar |
+| `card` | `get` | `cardProcedure` | board `viewer+`; kart detayı + kullanıcının kart ilişkileri (`card_members`) |
+| `card` | `update` | `cardProcedure` | board `member+`; arşivli board salt-okunur; başlık → `card.renamed`, açıklama → `card.description_changed`, `due_at` set → `card.due_set` / null → `card.due_cleared` (her değişen alan için ayrı activity); `boards.version` artar |
+| `card` | `archive` | `cardProcedure` | board `member+`; `archived_at` (set/restore); arşivli board salt-okunur; `activity_events` (`card.archived`); `boards.version` artar |
 
 Faz 2 dışı (ileri faz): `list.move` / `card.move` (`moveCardInput` — Faz 3); `board.members.*`, `label.*`, `card.members.*`, `checklist.*`, `comment.*`, `attachment.*` (ilgili fazlar). Tüm mutation procedure'leri yukarıdaki **mutation iskeleti**ni izler — Faz 2'de transaction yalnızca `domain mutasyonu + activity_events insert` içerir; `realtime_events` / `notification_outbox` insert'leri Faz 5/6'da devreye girer. Faz 2'de kullanılan activity tipleri (`board.created/renamed/archived`, `list.created/renamed/archived`, `card.created/renamed/description_changed/due_set/due_cleared/archived`) [`../domain/05-aktivite-kurallari.md`](../domain/05-aktivite-kurallari.md) taksonomisinde **zaten tanımlı** — `ACTIVITY_EVENT_TYPES`'a bu alt küme eklenir.
 

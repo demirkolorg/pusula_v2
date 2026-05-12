@@ -103,22 +103,22 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 
 #### Board / List / Card procedure haritası (Faz 2)
 
-> tRPC procedure → gereken board rolü. Enforcement: `boardProcedure` board'u çözer ve `effectiveBoardRole`'u (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar — board yoksa `NOT_FOUND`, erişim yoksa `FORBIDDEN`; `cardProcedure` ek olarak kart context'i (`assignee`/`watcher`) ekler. İnce kontrol (`admin` / `member+`) procedure gövdesinde yapılır. Faz 2 = statik CRUD; `move`/reorder + drag-drop Faz 3 ([DEM-26](https://linear.app/demirkol/issue/DEM-26) — [`../architecture/05-board-mekanigi.md`](../architecture/05-board-mekanigi.md) §5.1). Procedure iskeleti ve router listesi: [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 2 — board / list / card procedure'leri).
+> tRPC procedure → gereken board rolü. Enforcement: `boardProcedure` board'u çözer ve `effectiveBoardRole`'u (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar — board yoksa `NOT_FOUND`, erişim yoksa `FORBIDDEN` (board-erişim çözümlemesi paylaşılan `resolveBoardAccess` helper'ında); `cardProcedure` kartı çözer, kartın board'unu `resolveBoardAccess` ile resolve eder, kart context'i (`card_members`: `assignee`/`watcher`) ekler — kart yoksa `NOT_FOUND`. İnce kontrol (`admin` / `member+`) procedure gövdesinde `@pusula/domain/permissions` (`canViewBoard`/`canEditBoardContent`/`canManageBoard`) ile yapılır. Arşivli board salt-okunur (yeni liste/kart eklenemez, içerik düzenlenemez) — her mutation procedure'ünde transaction içinde tekrar okunarak enforce edilir. Faz 2 = statik CRUD; `move`/reorder + drag-drop Faz 3 ([DEM-26](https://linear.app/demirkol/issue/DEM-26) — [`../architecture/05-board-mekanigi.md`](../architecture/05-board-mekanigi.md) §5.1). Procedure iskeleti ve router listesi: [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 2 — board / list / card procedure'leri).
 
 | Procedure | Middleware | Gereken rol | Not |
 | --- | --- | --- | --- |
-| `board.list` | `workspaceProcedure` | workspace `member+` | Erişilebilir board'lar (workspace owner/admin tümü; guest yalnızca davetli) |
-| `board.create` | `workspaceProcedure` | workspace `member+` | Oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
-| `board.get` | `boardProcedure` | board `viewer+` | Board + listeler + kartlar |
-| `board.update` | `boardProcedure` | board `admin` | Başlık vb. |
-| `board.archive` | `boardProcedure` | board `admin` | `archived_at`; arşivli board salt-okunur |
-| `list.create` | `boardProcedure` | board `member+` | Board sonuna `position` |
-| `list.update` | `boardProcedure` | board `member+` | Yeniden adlandırma |
-| `list.archive` | `boardProcedure` | board `member+` | `archived_at`; arşivli liste aktif kart almaz |
-| `card.create` | `boardProcedure` | board `member+` | Liste sonuna `position`; kart `board_id` = listenin board'u; arşivli listeye eklenemez |
-| `card.get` | `cardProcedure` | board `viewer+` | Kart detayı |
-| `card.update` | `cardProcedure` | board `member+` | Başlık/açıklama/`due_at` |
-| `card.archive` | `cardProcedure` | board `member+` | `archived_at` |
+| `board.list` | `workspaceProcedure` | workspace `member+` | Erişilebilir board'lar (workspace owner/admin tümü; guest yalnızca davetli); her satırda effective board rolü döner |
+| `board.create` | `workspaceProcedure` | workspace `member+` (`guest` hariç) | Oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
+| `board.get` | `boardProcedure` | board `viewer+` | Board + listeler (arşivli dahil, `position` sıralı) + aktif kartlar (`position` sıralı) |
+| `board.update` | `boardProcedure` | board `admin` (`canManageBoard`) | Başlık; arşivli board düzenlenemez; idempotent (aynı başlık → `changed:false`); `boards.version` artar |
+| `board.archive` | `boardProcedure` | board `admin` | `archived_at` (set/restore); arşivli board salt-okunur; idempotent; `boards.version` artar |
+| `list.create` | `boardProcedure` | board `member+` (`canEditBoardContent`) | Board sonuna `position` (`@pusula/domain/position` — boş board `firstPosition`, aksi son listenin ardı); arşivli board'a liste eklenemez; `boards.version` artar |
+| `list.update` | `boardProcedure` | board `member+` | Yeniden adlandırma; arşivli board düzenlenemez; idempotent; `boards.version` artar |
+| `list.archive` | `boardProcedure` | board `member+` | `archived_at` (set/restore); arşivli liste aktif kart almaz (yeni kart eklenemez); idempotent; `boards.version` artar |
+| `card.create` | `protectedProcedure` (listenin board'unu `resolveBoardAccess` ile çözer) | board `member+` | `createCardInput` yalnızca `listId` taşır → liste transaction içinde okunur, board ondan türetilir; liste sonuna `position`; kart `board_id` = listenin board'u (**kart ⊆ liste.board invariant'ı**); arşivli board/listeye eklenemez; `boards.version` artar |
+| `card.get` | `cardProcedure` | board `viewer+` | Kart detayı + kullanıcının kart ilişkileri (`card_members`) |
+| `card.update` | `cardProcedure` | board `member+` | Başlık → `card.renamed`, açıklama → `card.description_changed`, `due_at` set → `card.due_set` / null → `card.due_cleared` (her değişen alan ayrı activity); arşivli board düzenlenemez; idempotent; `boards.version` artar |
+| `card.archive` | `cardProcedure` | board `member+` | `archived_at` (set/restore); arşivli board düzenlenemez; idempotent; `boards.version` artar |
 
 Activity: `board.created/renamed/archived`, `list.created/renamed/archived`, `card.created/renamed/description_changed/due_set/due_cleared/archived` ilgili transaction'da `activity_events`'e yazılır (bu tipler [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) taksonomisinde zaten tanımlı; Faz 2'de bu alt küme `ACTIVITY_EVENT_TYPES`'a eklenir). Realtime yayın Faz 5, bildirim outbox Faz 6.
 
