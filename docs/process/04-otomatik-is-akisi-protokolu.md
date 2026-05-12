@@ -12,12 +12,17 @@ type: "protocol"
 axis: "process"
 status: "active"
 parent: "[[docs/process/README|Süreç]]"
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 # 04 — Otomatik İş Akışı Protokolü
 
 > Eksen: **süreç**. Amaç: Claude Code geliştirme yaparken Linear MCP ve `docs/` aynı iş
 > durumunu taşısın; kullanıcı süreci iki taraftan da izleyebilsin.
+>
+> **Token disiplini:** Her-tur takip `docs/process/05-is-kayit-defteri.md`'de yapılır (repo içi, ücretsiz).
+> Linear MCP (ve diğer connector'lar) yalnızca **iş kaydı oluşturma/eşleme (adım 2)** ve **kapanış (adım 5)**
+> adımlarında — veya kullanıcı açıkça isteyince — açılır; ara turlarda Linear API çağrısı yapılmaz, durum
+> bir sonraki Linear temasında toplu yansıtılır.
 
 ## Kaynaklar ve roller
 
@@ -61,7 +66,7 @@ için "en yakın karşılık + notta belirt" kuralı uygulanır.
    - `docs/process/05-is-kayit-defteri.md` ve Linear içinde aynı işi temsil eden mevcut kayıt var mı kontrol et.
    - Çelişki varsa kodlamaya başlamadan kullanıcıya bildir.
 
-2. **İş kaydı oluştur veya eşle**
+2. **İş kaydı oluştur veya eşle** _(Linear MCP burada açılır)_
    - Linear MCP erişilebilir durumdaysa mevcut issue'yu kullan veya yeni issue oluştur.
    - Issue açıklamasına hedef, teknik gereksinimler, kabul kriterleri, etkilenen katmanlar ve
      etkilenen `docs/` dosyalarını yaz.
@@ -79,14 +84,16 @@ için "en yakın karşılık + notta belirt" kuralı uygulanır.
      satır ekle.
    - Faz çıktısı veya faz durumu değiştiyse `docs/process/02-mvp-faz-plani.md`yi güncelle.
 
-4. **Geliştirme sırasında senkron**
-   - Durum değişirse aynı çalışma turunda hem Linear hem iş kayıt defteri güncellenir.
-   - Yeni alt iş çıkarsa küçükse mevcut issue checklist'ine, bağımsızsa yeni Linear issue + yeni
-     kayıt defteri satırına taşınır.
-   - Her anlamlı yorumda Linear'a şu bilgiler yazılır: özet, değişen dosyalar, test/verification
+4. **Geliştirme sırasında senkron** _(Linear API çağrısı yok)_
+   - Durum/alt iş değişiklikleri **iş kayıt defterine** yazılır (repo içi, her tur).
+   - Linear issue ara turlarda güncellenmez; bir sonraki Linear teması (kapanış adım 5 veya kullanıcı
+     talebi) durumu, yeni alt işleri ve yorumları toplu yansıtır.
+   - Yeni alt iş çıkarsa defterde işaretlenir; kapanışta/temasta küçükse mevcut issue checklist'ine,
+     bağımsızsa yeni Linear issue + yeni kayıt defteri satırına taşınır.
+   - Linear'a yazılan her yorumda şu bilgiler bulunur: özet, değişen dosyalar, test/verification
      durumu, açık risk veya blokaj.
 
-5. **Kapanış**
+5. **Kapanış** _(Linear MCP burada açılır)_
    - Kod ve docs değişiklikleri tamamlanınca test/verification çalıştır.
    - Linear issue'ya kapanış yorumu ekle: yapılanlar, güncellenen docs, test sonucu, kalan riskler.
    - Kullanıcı onayı gerekiyorsa durum `Review`; onaylandıysa veya görev açıkça tamamlanabilir
@@ -95,7 +102,7 @@ için "en yakın karşılık + notta belirt" kuralı uygulanır.
 
 ## Çift yönlü senkron kuralı
 
-Her yeni çalışma turunun başında Linear ve iş kayıt defteri karşılaştırılır.
+Her **Linear teması** başında (adım 2 ve adım 5) Linear ve iş kayıt defteri karşılaştırılır — ara turlarda Linear okunmaz.
 
 - Linear daha güncelse iş kayıt defteri Linear'a göre güncellenir.
 - İş kayıt defteri daha güncelse Linear issue açıklaması/yorumu/durumu güncellenir.

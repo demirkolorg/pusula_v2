@@ -16,7 +16,7 @@ related:
   - "[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]"
   - "[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]"
   - "[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]"
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 # Pusula — Çalışma Protokolü (Claude Code)
 
@@ -43,12 +43,14 @@ Obsidian dokümantasyon standardı: [`docs/process/06-obsidian-dokumantasyon-kur
 
 ## 1. Her görevde önce oku
 
-Bir özellik / refactor / bug fix isteği geldiğinde, ilgili eksenleri oku ve **kararları yeniden açma** (kullanıcı açıkça istemedikçe):
+Bir özellik / refactor / bug fix isteği geldiğinde, **işin dokunduğu eksenin README'sini + yalnızca ihtiyacın olan numaralı dosyayı** oku (klasörün tamamını tarama, tüm dosyaları peşin açma); **kararları yeniden açma** (kullanıcı açıkça istemedikçe):
 
-- Stack / kod organizasyonu / pattern → `docs/architecture/`
-- Domain modeli / yetki / bildirim / sıralama kuralı → `docs/domain/`
-- Yeni iş başlangıcı / Linear / faz → `docs/process/00-calisma-baslangic-rehberi.md` ve `docs/process/`
+- Stack / kod organizasyonu / pattern → `docs/architecture/README.md` → ilgili numaralı dosya
+- Domain modeli / yetki / bildirim / sıralama kuralı → `docs/domain/README.md` → ilgili numaralı dosya
+- Yeni iş başlangıcı / Linear / faz → `docs/process/00-calisma-baslangic-rehberi.md` (Faz 0 devir notu yalnızca kurulum geçmişi gerekirse)
 - Doküman ekleme/değiştirme → `docs/process/06-obsidian-dokumantasyon-kurallari.md`
+
+Soğuk/uzun dosyaları (`docs/architecture/12-deployment-runbook.md`, `docs/process/03-faz-0-devir-notu.md`) yalnızca o konuya doğrudan dokunan işte aç; aksi halde README satırı yeterli.
 
 ## 2. Vazgeçilmez kurallar (özet — gerekçeler `docs/`'ta)
 
@@ -87,9 +89,10 @@ Monorepo `apps/*` ve `packages/*` ile Turborepo üzerinde koşar. Bir kod parça
 ## 4. Linear İş Akışı ve Otomatik Senkronizasyon
 
 - Ayrıntılı protokol: `docs/process/04-otomatik-is-akisi-protokolu.md`.
-- Repo içi takip aynası: `docs/process/05-is-kayit-defteri.md`.
+- Repo içi takip aynası: `docs/process/05-is-kayit-defteri.md` — **birincil/her-tur** takip burası (repo içi, ücretsiz).
+- **Linear MCP yalnızca gerektiğinde aç:** Linear MCP'yi (ve diğer connector'ları) ara turlarda kullanma; sadece Pre-Dev (issue oluştur/eşle), Post-Dev (kapanış) adımlarında veya kullanıcı açıkça isteyince aç. Ara turlarda Linear API çağrısı yapma.
 - **Pre-Dev:** Geliştirmeye başlamadan Linear MCP ile isteğe uygun issue oluştur veya mevcut issue ile eşle — başlık kısa, açıklamaya teknik gereksinimleri yaz, durum "In Progress", bana ata. Hangi `docs/` dosyalarının etkilendiğini açıklamaya not düş ve aynı işi iş kayıt defterine yaz.
-- **During-Dev:** Durum değişirse Linear issue ve `docs/process/05-is-kayit-defteri.md` aynı çalışma turunda aynı duruma çekilir. Yeni alt iş çıkarsa Linear'da checklist/linked issue ve docs tarafında kayıt açılır.
+- **During-Dev:** Durum/alt iş değişikliklerini **önce iş kayıt defterine** yaz (her tur, repo içi); Linear issue ara turlarda güncellenmez — bir sonraki Linear teması (kapanış veya kullanıcı talebi) toplu yansıtır. Yeni bağımsız alt iş çıkarsa defterde yeni satır; Linear'a kapanışta/temasta taşınır.
 - **Post-Dev:** Kodlama bitince ilgili issue'ya değişiklik özeti, güncellenen `docs/` dosyaları ve test/verification sonucunu yorum olarak ekle. Onay bekliyorsa durumu "Review", onaylandıysa "Done" yap; iş kayıt defteri aynı durumu taşımalı.
 
 Ayrıntı ve şablon: `docs/process/01-linear-is-akisi.md`. MVP faz planı: `docs/process/02-mvp-faz-plani.md` (Faz 0 tamam).

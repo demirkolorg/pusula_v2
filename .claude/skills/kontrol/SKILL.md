@@ -352,6 +352,7 @@ Always test: permission edge cases, position/ranking calculations, optimistic ro
 ## Workflow Sync Requirements
 
 - Before non-trivial development, create or reuse a Linear MCP issue and mirror it in `docs/process/05-is-kayit-defteri.md`.
+- Open the Linear MCP (and other connectors) **only** at issue create/reuse and at closeout — or when the user explicitly asks. Between those, track status in the work register (`docs/process/05-is-kayit-defteri.md`); Linear catches up in batch at the next Linear touch. No Linear API calls on intermediate turns.
 - Start from `docs/process/00-calisma-baslangic-rehberi.md` for task selection and source priority; use `docs/process/03-faz-0-devir-notu.md` only as Phase 0 historical handoff context.
 - Keep status values in sync across Linear and the work register: `Todo`, `In Progress`, `Blocked`, `Review`, `Done`, `Canceled`.
 - If Linear MCP is not reachable, record `MCP bekliyor` in the work register and state the sync debt in the final response.
