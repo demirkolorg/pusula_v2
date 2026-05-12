@@ -57,6 +57,8 @@ notification_outbox: id, event_id, channel, recipient_id (nullable — e-posta d
 > `workspace_invitations`: `token` rastgele ve gizli (yalnızca davet e-postasında), tek kullanımlık;
 > bir (workspace_id, email) çifti için aynı anda en fazla bir `pending` satır. Detay → [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Workspace davet akışı).
 
+> **Faz 2 (Board/List/Card CRUD) kapsamı:** statik CRUD için `boards(id, workspace_id, title, version, archived_at?, created_at, updated_at)`, `lists(id, board_id, title, position, archived_at, created_at, updated_at)`, `cards(id, board_id, list_id, title, description, position, due_at, archived_at, created_at, updated_at)` ve `board_members` (oluşturan `admin`) kullanılır. `labels`, `card_labels`, `card_members`, `checklists`, `checklist_items`, `comments`, `attachments` ileri fazlardır. `position` her zaman `@pusula/domain/position` ile üretilir; Faz 2 yalnızca **sona ekleme** yapar (ilk eleman `firstPosition`, sonrakiler son elemanın ardına) — araya ekleme/reorder Faz 3. Faz 2 transaction'ı yalnızca `domain mutasyonu + activity_events` içerir; `realtime_events` / `notification_outbox` Faz 5/6'da devreye girer.
+
 ## Sıralama implementasyonu (position)
 
 `position` kolonu **integer değildir**. Akıcı drag-drop için LexoRank benzeri string (fractional)

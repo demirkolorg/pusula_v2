@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -7,18 +8,14 @@ import {
   AlertTitle,
   Badge,
   Card,
-  CardAction,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@pusula/ui';
-import { strings } from '@/lib/strings';
+import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateWorkspaceDialog } from './_components/create-workspace-dialog';
-import { InviteMemberDialog } from './_components/invite-member-dialog';
 import { PendingInvitations } from './_components/pending-invitations';
-
-const MANAGER_ROLES = new Set(['owner', 'admin']);
 
 export default function WorkspacesPage() {
   const trpc = useTRPC();
@@ -60,21 +57,20 @@ export default function WorkspacesPage() {
             <li key={workspace.id}>
               <Card>
                 <CardHeader>
-                  <CardTitle>{workspace.name}</CardTitle>
+                  <CardTitle>
+                    <Link
+                      href={`/workspaces/${workspace.id}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {workspace.name}
+                    </Link>
+                  </CardTitle>
                   <CardDescription className="flex items-center gap-2">
                     <span>{workspace.slug}</span>
                     <Badge variant="secondary">
-                      {strings.workspace.roleBadgePrefix} {workspace.role}
+                      {strings.workspace.roleBadgePrefix} {workspaceRoleLabels[workspace.role]}
                     </Badge>
                   </CardDescription>
-                  {MANAGER_ROLES.has(workspace.role) && (
-                    <CardAction>
-                      <InviteMemberDialog
-                        workspaceId={workspace.id}
-                        workspaceName={workspace.name}
-                      />
-                    </CardAction>
-                  )}
                 </CardHeader>
               </Card>
             </li>

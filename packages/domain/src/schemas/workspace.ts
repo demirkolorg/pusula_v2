@@ -37,6 +37,19 @@ export const archiveWorkspaceInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * `workspace.delete` input — *permanent* (hard) deletion, not the `archived_at`
+ * soft-delete. `confirmName` must match the workspace's current `name` exactly
+ * (typed-to-confirm guard against accidental deletion); the procedure rejects a
+ * mismatch with `BAD_REQUEST`. Plain object so it merges cleanly with
+ * `workspaceProcedure`'s `{ workspaceId }` input.
+ */
+export const deleteWorkspaceInput = z.object({
+  workspaceId: idSchema,
+  confirmName: workspaceNameSchema,
+  ...withClientMutationId,
+});
+
 /** `workspace.members.updateRole` input. `owner` cannot be assigned here (owner transfer is a separate flow). */
 export const updateWorkspaceMemberRoleInput = z.object({
   workspaceId: idSchema,
@@ -64,6 +77,7 @@ export const inviteWorkspaceMemberInput = z.object({
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInput>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceInput>;
 export type ArchiveWorkspaceInput = z.infer<typeof archiveWorkspaceInput>;
+export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInput>;
 export type UpdateWorkspaceMemberRoleInput = z.infer<typeof updateWorkspaceMemberRoleInput>;
 export type RemoveWorkspaceMemberInput = z.infer<typeof removeWorkspaceMemberInput>;
 export type InviteWorkspaceMemberInput = z.infer<typeof inviteWorkspaceMemberInput>;

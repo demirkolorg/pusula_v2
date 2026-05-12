@@ -25,7 +25,9 @@ export function WorkspaceSettings({ workspaceId, name, slug }: WorkspaceSettings
   const updateWorkspace = useMutation(
     trpc.workspace.update.mutationOptions({
       onSuccess: async (result) => {
-        setNotice(result.changed ? strings.workspace.manage.saved : strings.workspace.manage.noChange);
+        setNotice(
+          result.changed ? strings.workspace.manage.saved : strings.workspace.manage.noChange,
+        );
         await Promise.all([
           queryClient.invalidateQueries(trpc.workspace.get.queryFilter({ workspaceId })),
           queryClient.invalidateQueries(trpc.workspace.list.queryFilter()),
@@ -54,7 +56,11 @@ export function WorkspaceSettings({ workspaceId, name, slug }: WorkspaceSettings
       slug={slug}
       onSubmit={handleSubmit}
       pending={updateWorkspace.isPending}
-      error={updateWorkspace.isError ? updateWorkspace.error.message || strings.common.unknownError : null}
+      error={
+        updateWorkspace.isError
+          ? updateWorkspace.error.message || strings.common.unknownError
+          : null
+      }
       notice={notice}
     />
   );

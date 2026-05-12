@@ -58,8 +58,16 @@ export function WorkspaceSettingsForm({
     event.preventDefault();
     const parsedName = workspaceNameSchema.safeParse(nameValue);
     const parsedSlug = workspaceSlugSchema.safeParse(slugValue);
-    setNameError(parsedName.success ? null : parsedName.error.issues[0]?.message ?? strings.common.unknownError);
-    setSlugError(parsedSlug.success ? null : parsedSlug.error.issues[0]?.message ?? strings.common.unknownError);
+    setNameError(
+      parsedName.success
+        ? null
+        : (parsedName.error.issues[0]?.message ?? strings.common.unknownError),
+    );
+    setSlugError(
+      parsedSlug.success
+        ? null
+        : (parsedSlug.error.issues[0]?.message ?? strings.common.unknownError),
+    );
     if (!parsedName.success || !parsedSlug.success) return;
     onSubmit({ name: parsedName.data, slug: parsedSlug.data });
   };

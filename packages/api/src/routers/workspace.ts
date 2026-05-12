@@ -14,6 +14,7 @@ import {
   canManageWorkspace,
   createWorkspaceInput,
   declineWorkspaceInvitationInput,
+  deleteWorkspaceInput,
   inviteWorkspaceMemberInput,
   removeWorkspaceMemberInput,
   revokeWorkspaceInvitationInput,
@@ -310,10 +311,12 @@ const workspaceInvitationsRouter = router({
         email: workspaceInvitations.email,
         role: workspaceInvitations.role,
         invitedById: workspaceInvitations.invitedById,
+        invitedByName: users.name,
         expiresAt: workspaceInvitations.expiresAt,
         createdAt: workspaceInvitations.createdAt,
       })
       .from(workspaceInvitations)
+      .leftJoin(users, eq(workspaceInvitations.invitedById, users.id))
       .where(
         and(
           eq(workspaceInvitations.workspaceId, ctx.workspace.id),
@@ -713,8 +716,46 @@ export const workspaceRouter = router({
     });
   }),
 
-  // `workspace.delete` (permanent deletion) is intentionally disabled for now —
-  // see docs/domain/02-yetkilendirme-kurallari.md.
+  /**
+   * Permanently delete a workspace — *hard* delete, irreversible. This is a
+   * different concept from `archive` (which only sets `archived_at`); this
+   * procedure never touches `archived_at`. Owner only. The caller must echo the
+   * workspace `name` in `confirmName` (typed-to-confirm guard). One `DELETE FROM
+   * workspaces` row removal; FK cascades clean up `workspace_members`,
+   * `workspace_invitations` (and, later, boards/lists/cards/…). No activity
+   * event / notification is written — the workspace and any in-DB trace go away
+   * with the cascade (see docs/domain/02-yetkilendirme-kurallari.md).
+   */
+  delete: workspaceProcedure.input(deleteWorkspaceInput).mutation(async ({ ctx, input }) => {
+    if (ctx.workspace.role !== 'owner') {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Yalnızca owner workspace silebilir.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ id: workspaces.id, name: workspaces.name })
+        .from(workspaces)
+        .where(eq(workspaces.id, ctx.workspace.id))
+        .limit(1);
+      if (!current) {
+        // The middleware already loaded it; a race could still delete it.
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace bulunamadı.' });
+      }
+      if (input.confirmName !== current.name) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Onay için workspace adını tam yazın.' });
+      }
+
+      const [deleted] = await tx
+        .delete(workspaces)
+        .where(eq(workspaces.id, ctx.workspace.id))
+        .returning({ id: workspaces.id });
+      if (!deleted) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace bulunamadı.' });
+      }
+
+      return { id: deleted.id, deleted: true as const };
+    });
+  }),
 
   members: workspaceMembersRouter,
   invitations: workspaceInvitationsRouter,

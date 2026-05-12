@@ -104,12 +104,14 @@ export const strings = {
     remove: 'Çıkar',
     removing: 'Çıkarılıyor…',
     removeConfirmTitle: 'Üye çıkarılsın mı?',
-    removeConfirmDescription: 'Bu kişi workspace’ten çıkarılacak. Tekrar erişmesi için yeniden davet edilmesi gerekir.',
+    removeConfirmDescription:
+      'Bu kişi workspace’ten çıkarılacak. Tekrar erişmesi için yeniden davet edilmesi gerekir.',
     removeConfirm: 'Çıkar',
     leave: 'Workspace’ten ayrıl',
     leaving: 'Ayrılınıyor…',
     leaveConfirmTitle: 'Workspace’ten ayrılınsın mı?',
-    leaveConfirmDescription: 'Bu workspace’e erişiminizi kaybedersiniz. Tekrar erişmek için yeniden davet edilmeniz gerekir.',
+    leaveConfirmDescription:
+      'Bu workspace’e erişiminizi kaybedersiniz. Tekrar erişmek için yeniden davet edilmeniz gerekir.',
     leaveConfirm: 'Ayrıl',
   },
   invitations: {
@@ -129,11 +131,13 @@ export const strings = {
     expiresAt: 'Son tarih',
     sentTitle: 'Gönderilmiş davetler',
     sentDescription: 'Bu workspace’e gönderilen ve henüz yanıtlanmamış davetler.',
+    loadErrorTitle: 'Davetler yüklenemedi',
     noSent: 'Bekleyen davet yok.',
     revoke: 'İptal et',
     revoking: 'İptal ediliyor…',
     revokeConfirmTitle: 'Davet iptal edilsin mi?',
-    revokeConfirmDescription: 'Bu davet geçersiz hale gelir. Kişi davet bağlantısını artık kullanamaz.',
+    revokeConfirmDescription:
+      'Bu davet geçersiz hale gelir. Kişi davet bağlantısını artık kullanamaz.',
     revokeConfirm: 'Daveti iptal et',
   },
 } as const;

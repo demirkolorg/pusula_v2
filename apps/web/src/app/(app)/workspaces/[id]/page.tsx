@@ -142,7 +142,9 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
       {isOwner && (
         <Card className="border-destructive/40">
           <CardHeader>
-            <CardTitle className="text-destructive">{strings.workspace.manage.dangerTitle}</CardTitle>
+            <CardTitle className="text-destructive">
+              {strings.workspace.manage.dangerTitle}
+            </CardTitle>
             <CardDescription>{strings.workspace.manage.dangerDescription}</CardDescription>
           </CardHeader>
           <CardContent>

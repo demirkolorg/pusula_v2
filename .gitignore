@@ -52,3 +52,6 @@ packages/db/drizzle/meta/_journal.json.lock
 # misc
 .cache
 tmp
+
+# obsidian canvas scratch files (e.g. accidental "Untitled" canvases)
+*.canvas

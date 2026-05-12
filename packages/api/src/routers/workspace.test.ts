@@ -737,6 +737,134 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
   });
 });
 
+describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)', () => {
+  const db = () => probe!.db;
+
+  const delOwnerId = newId('u-del-owner');
+  const delMemberId = newId('u-del-member');
+  const delUserIds = [delOwnerId, delMemberId];
+
+  // Workspaces we may leave behind if a test fails before deletion — cleaned up
+  // in afterAll (ones already hard-deleted just match nothing).
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values(delUserIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    for (const id of delUserIds) {
+      await db().delete(users).where(dbMod.eq(users.id, id));
+    }
+  });
+
+  const makeWorkspace = async (name: string) => {
+    const ws = await callerFor(delOwnerId).workspace.create({
+      name,
+      slug: newSlug('del'),
+      clientMutationId: newId('cmid'),
+    });
+    createdWorkspaceIds.push(ws.id);
+    await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: delMemberId, role: 'member' });
+    return ws;
+  };
+
+  it('rejects a non-owner member with FORBIDDEN', async () => {
+    const ws = await makeWorkspace('Del Co A');
+    await expect(
+      callerFor(delMemberId).workspace.delete({
+        workspaceId: ws.id,
+        confirmName: ws.name,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // still there
+    expect((await callerFor(delOwnerId).workspace.list()).some((w) => w.id === ws.id)).toBe(true);
+  });
+
+  it('rejects a wrong confirmName with BAD_REQUEST', async () => {
+    const ws = await makeWorkspace('Del Co B');
+    await expect(
+      callerFor(delOwnerId).workspace.delete({
+        workspaceId: ws.id,
+        confirmName: `${ws.name} (wrong)`,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect((await callerFor(delOwnerId).workspace.list()).some((w) => w.id === ws.id)).toBe(true);
+  });
+
+  it('owner + matching confirmName: hard-deletes the workspace; members cascade; list/get no longer see it', async () => {
+    const ws = await makeWorkspace('Del Co C');
+    // sanity: membership rows exist before deletion
+    const membersBefore = await db()
+      .select({ value: dbMod.count() })
+      .from(workspaceMembers)
+      .where(dbMod.eq(workspaceMembers.workspaceId, ws.id));
+    expect(membersBefore[0]?.value).toBeGreaterThanOrEqual(2); // owner + delMemberId
+
+    // seed a pending invitation so we can assert it cascades too
+    await db()
+      .insert(workspaceInvitations)
+      .values({
+        workspaceId: ws.id,
+        email: `del-invite-${Math.random().toString(36).slice(2, 10)}@example.test`,
+        role: 'member',
+        token: `del-${Math.random().toString(36).slice(2, 14)}-padding`,
+        invitedById: delOwnerId,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+
+    const res = await callerFor(delOwnerId).workspace.delete({
+      workspaceId: ws.id,
+      confirmName: ws.name,
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toEqual({ id: ws.id, deleted: true });
+
+    // workspace row gone
+    const wsRows = await db().select().from(workspaces).where(dbMod.eq(workspaces.id, ws.id));
+    expect(wsRows).toHaveLength(0);
+
+    // cascades
+    const membersAfter = await db()
+      .select({ value: dbMod.count() })
+      .from(workspaceMembers)
+      .where(dbMod.eq(workspaceMembers.workspaceId, ws.id));
+    expect(membersAfter[0]?.value).toBe(0);
+    const invitesAfter = await db()
+      .select({ value: dbMod.count() })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.workspaceId, ws.id));
+    expect(invitesAfter[0]?.value).toBe(0);
+
+    // not in list anymore
+    expect((await callerFor(delOwnerId).workspace.list()).some((w) => w.id === ws.id)).toBe(false);
+
+    // a workspaceProcedure-backed call now 404s (membership row was cascaded away,
+    // and the workspace itself is gone)
+    await expect(callerFor(delOwnerId).workspace.get({ workspaceId: ws.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('an unknown workspaceId is NOT_FOUND (workspaceProcedure)', async () => {
+    await expect(
+      callerFor(delOwnerId).workspace.delete({
+        workspaceId: 'does-not-exist',
+        confirmName: 'whatever',
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
 // File-scoped teardown: the suites above share `probe`'s pool — close it once,
 // after every suite in this file has finished.
 afterAll(async () => {

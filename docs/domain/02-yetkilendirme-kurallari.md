@@ -101,6 +101,27 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 | Board/kartları görüntüle | ✓ | ✓ | ✓ |
 | Kendini watcher yap / atamayı bırak | ✓ | ✓ | ✓ |
 
+#### Board / List / Card procedure haritası (Faz 2)
+
+> tRPC procedure → gereken board rolü. Enforcement: `boardProcedure` board'u çözer ve `effectiveBoardRole`'u (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar — board yoksa `NOT_FOUND`, erişim yoksa `FORBIDDEN`; `cardProcedure` ek olarak kart context'i (`assignee`/`watcher`) ekler. İnce kontrol (`admin` / `member+`) procedure gövdesinde yapılır. Faz 2 = statik CRUD; `move`/reorder + drag-drop Faz 3 ([DEM-26](https://linear.app/demirkol/issue/DEM-26) — [`../architecture/05-board-mekanigi.md`](../architecture/05-board-mekanigi.md) §5.1). Procedure iskeleti ve router listesi: [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 2 — board / list / card procedure'leri).
+
+| Procedure | Middleware | Gereken rol | Not |
+| --- | --- | --- | --- |
+| `board.list` | `workspaceProcedure` | workspace `member+` | Erişilebilir board'lar (workspace owner/admin tümü; guest yalnızca davetli) |
+| `board.create` | `workspaceProcedure` | workspace `member+` | Oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
+| `board.get` | `boardProcedure` | board `viewer+` | Board + listeler + kartlar |
+| `board.update` | `boardProcedure` | board `admin` | Başlık vb. |
+| `board.archive` | `boardProcedure` | board `admin` | `archived_at`; arşivli board salt-okunur |
+| `list.create` | `boardProcedure` | board `member+` | Board sonuna `position` |
+| `list.update` | `boardProcedure` | board `member+` | Yeniden adlandırma |
+| `list.archive` | `boardProcedure` | board `member+` | `archived_at`; arşivli liste aktif kart almaz |
+| `card.create` | `boardProcedure` | board `member+` | Liste sonuna `position`; kart `board_id` = listenin board'u; arşivli listeye eklenemez |
+| `card.get` | `cardProcedure` | board `viewer+` | Kart detayı |
+| `card.update` | `cardProcedure` | board `member+` | Başlık/açıklama/`due_at` |
+| `card.archive` | `cardProcedure` | board `member+` | `archived_at` |
+
+Activity: `board.created/updated/archived`, `list.created/updated/archived`, `card.created/updated/archived` ilgili transaction'da `activity_events`'e yazılır (bkz. [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) — Faz 2'de bu tipler eklenir). Realtime yayın Faz 5, bildirim outbox Faz 6.
+
 ### Card (ilgi rolleri — yetki değil)
 
 - `assignee`: karta atanmış; due-date ve kart değişikliği bildirimleri alır; board yetkisi varsa düzenleyebilir.
