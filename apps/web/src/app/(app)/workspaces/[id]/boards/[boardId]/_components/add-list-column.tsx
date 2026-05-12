@@ -28,10 +28,10 @@ export function AddListColumn({ boardId }: AddListColumnProps) {
 
   return (
     <section
-      className="bg-muted/40 flex w-72 shrink-0 flex-col gap-3 rounded-md border p-3"
+      className="bg-muted/30 flex w-72 shrink-0 flex-col gap-3 rounded-lg border border-dashed p-2"
       aria-label={strings.board.column.addList}
     >
-      <p className="text-muted-foreground text-sm font-medium">{strings.board.column.addList}</p>
+      <p className="text-muted-foreground px-1 text-sm font-medium">{strings.board.column.addList}</p>
       <AddListForm
         onSubmit={(title) =>
           createList.mutate({ boardId, title, clientMutationId: crypto.randomUUID() })

@@ -74,16 +74,16 @@ Bu tab'da kullanabileceğin adlandırılmış işlemler. Adını yazınca bu tab
 `.claude/commands/<ad>.md` slash komutu olarak da var (`/panorama` gibi — her tab'da görünür ama prompt'unda
 "kontrol odası işi" notu taşır). Hiçbiri kod yazmaz; hepsi `docs/` + Linear + analiz kapsamında.
 
-| Komut | Slash | Ne yapar | Argüman |
-| --- | --- | --- | --- |
-| `panorama` | `/panorama` | Büyük resim / önünü görme: faz durumu, aktif tab'lar, sıradaki işler, açık riskler/kararlar, önerilen adımlar | — |
-| `doc-denetim` | `/doc-denetim` | `docs/` ↔ kod ↔ Linear tutarlılık + Obsidian standardı taraması → bulgu listesi → onayla `docs/`-only düzeltme | — |
-| `bosluk-tara` | `/bosluk-tara` | Ürün boşluğu / paralel-iş taraması: Trello/Linear çizgisinde eksik/beklenen özellikler + şimdi paralel yapılabilecek işler → analiz + öneri → onayla yeni issue + docs | — |
-| `linear-senkron` | `/linear-senkron` | Hızlı: Linear ↔ `05-is-kayit-defteri.md` + `02-mvp-faz-plani.md` hizalama (eksik satır, durum güncelleme) | — |
-| `faz-bol` | `/faz-bol` | Faz N epic'ini alt issue'lara böl: öneri → onay → Linear (parent + milestone + `blockedBy`) → faz planına "Faz N alt işleri" | `<N>` |
-| `faz-baslat` | `/faz-baslat` | Faz N'in "önce belge" adımı + alt issue'ları `Todo`'ya alma + defter satırları + faz planı `🚧` | `<N>` |
-| `devir` | `/devir` | Bu tab'ın devir notu: değişen `docs/`, açık kararlar, bekleyen catch-up, aktif tab durumu | — |
-| `celiski` | `/celiski` | Gelen istek mevcut `docs/` ile çelişiyor mu; çelişiyorsa "belgeyi mi güncelleyelim, koda mı sadık kalalım?" netleştir | `<istek>` |
+| Komut            | Slash             | Ne yapar                                                                                                                                                               | Argüman   |
+| ---------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `panorama`       | `/panorama`       | Büyük resim / önünü görme: faz durumu, aktif tab'lar, sıradaki işler, açık riskler/kararlar, önerilen adımlar                                                          | —         |
+| `doc-denetim`    | `/doc-denetim`    | `docs/` ↔ kod ↔ Linear tutarlılık + Obsidian standardı taraması → bulgu listesi → onayla `docs/`-only düzeltme                                                         | —         |
+| `bosluk-tara`    | `/bosluk-tara`    | Ürün boşluğu / paralel-iş taraması: Trello/Linear çizgisinde eksik/beklenen özellikler + şimdi paralel yapılabilecek işler → analiz + öneri → onayla yeni issue + docs | —         |
+| `linear-senkron` | `/linear-senkron` | Hızlı: Linear ↔ `05-is-kayit-defteri.md` + `02-mvp-faz-plani.md` hizalama (eksik satır, durum güncelleme)                                                              | —         |
+| `faz-bol`        | `/faz-bol`        | Faz N epic'ini alt issue'lara böl: öneri → onay → Linear (parent + milestone + `blockedBy`) → faz planına "Faz N alt işleri"                                           | `<N>`     |
+| `faz-baslat`     | `/faz-baslat`     | Faz N'in "önce belge" adımı + alt issue'ları `Todo`'ya alma + defter satırları + faz planı `🚧`                                                                        | `<N>`     |
+| `devir`          | `/devir`          | Bu tab'ın devir notu: değişen `docs/`, açık kararlar, bekleyen catch-up, aktif tab durumu                                                                              | —         |
+| `celiski`        | `/celiski`        | Gelen istek mevcut `docs/` ile çelişiyor mu; çelişiyorsa "belgeyi mi güncelleyelim, koda mı sadık kalalım?" netleştir                                                  | `<istek>` |
 
 ### Komut detayları
 

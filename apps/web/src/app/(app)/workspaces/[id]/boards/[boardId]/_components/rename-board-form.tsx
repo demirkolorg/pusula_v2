@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PencilIcon } from 'lucide-react';
 import { boardTitleSchema } from '@pusula/domain';
 import { Button, Input } from '@pusula/ui';
 import { strings } from '@/lib/strings';
@@ -11,21 +12,42 @@ type RenameBoardFormProps = {
   boardId: string;
   /** Current persisted board title — pre-fills the input. */
   title: string;
+  /**
+   * Optionally control the editing state from the outside (e.g. a "rename" menu
+   * item in the board top bar). When omitted, the form is uncontrolled and shows
+   * its own "edit" affordance.
+   */
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide the built-in "edit" affordance when collapsed (for fully external triggers). */
+  hideTrigger?: boolean;
 };
 
 /**
  * Inline board rename: shows the title as static text with an "edit" affordance;
  * on edit, an input + save/cancel. Save calls `board.update` and, on success,
  * invalidates `board.get` so the new title propagates. Only mounted by the page
- * when the viewer is a board `admin`.
+ * when the viewer is a board `admin`. The editing state can be lifted via
+ * `editing` / `onEditingChange` (e.g. driven by a top-bar menu).
  */
-export function RenameBoardForm({ boardId, title }: RenameBoardFormProps) {
+export function RenameBoardForm({
+  boardId,
+  title,
+  editing: editingProp,
+  onEditingChange,
+  hideTrigger = false,
+}: RenameBoardFormProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const inputId = useId();
   const copy = strings.board.detail;
 
-  const [editing, setEditing] = useState(false);
+  const [editingState, setEditingState] = useState(false);
+  const editing = editingProp ?? editingState;
+  const setEditing = (next: boolean) => {
+    setEditingState(next);
+    onEditingChange?.(next);
+  };
   const [value, setValue] = useState(title);
   const [valueError, setValueError] = useState<string | null>(null);
 
@@ -72,11 +94,20 @@ export function RenameBoardForm({ boardId, title }: RenameBoardFormProps) {
 
   if (!editing) {
     return (
-      <div className="flex items-center gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        <Button type="button" variant="ghost" size="sm" onClick={startEditing}>
-          {copy.rename}
-        </Button>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <h1 className="truncate text-sm font-semibold">{title}</h1>
+        {!hideTrigger && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            aria-label={copy.rename}
+            onClick={startEditing}
+          >
+            <PencilIcon className="size-3.5" />
+          </Button>
+        )}
       </div>
     );
   }
@@ -92,7 +123,8 @@ export function RenameBoardForm({ boardId, title }: RenameBoardFormProps) {
         aria-label={copy.renamePlaceholder}
         disabled={renameBoard.isPending}
         autoComplete="off"
-        className="max-w-xs"
+        autoFocus
+        className="h-8 max-w-xs"
         aria-invalid={valueError || renameBoard.isError ? true : undefined}
         aria-describedby={valueError ? `${inputId}-error` : undefined}
       />

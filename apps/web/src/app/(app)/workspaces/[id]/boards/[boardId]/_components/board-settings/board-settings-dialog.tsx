@@ -29,6 +29,15 @@ type BoardSettingsDialogProps = {
   canManage: boolean;
   /** Whether the board is active (an archived board is read-only — disables label CRUD). */
   boardActive: boolean;
+  /**
+   * Optionally control the dialog open state from the outside (e.g. the board
+   * top-bar "Invite" button or "⋮" menu). When omitted, the component owns its
+   * own state and shows a built-in trigger button.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger button (for fully external triggers). */
+  hideTrigger?: boolean;
 };
 
 /**
@@ -39,8 +48,21 @@ type BoardSettingsDialogProps = {
  * optimistic UI this phase — each section's mutations `await` then invalidate
  * the affected queries.
  */
-export function BoardSettingsDialog({ boardId, workspaceId, canManage, boardActive }: BoardSettingsDialogProps) {
-  const [open, setOpen] = useState(false);
+export function BoardSettingsDialog({
+  boardId,
+  workspaceId,
+  canManage,
+  boardActive,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
+}: BoardSettingsDialogProps) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const copy = strings.board.settings;
   // Board `member+` can edit labels; this dialog is admin-only so `canManage`
   // already implies it — but an archived board is read-only either way.
@@ -48,11 +70,13 @@ export function BoardSettingsDialog({ boardId, workspaceId, canManage, boardActi
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          {copy.open}
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            {copy.open}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{copy.dialogTitle}</DialogTitle>

@@ -2,11 +2,11 @@
 
 import { useEffect, useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon, PencilIcon } from 'lucide-react';
 import { listTitleSchema } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
-  Badge,
   Button,
   Dialog,
   DialogClose,
@@ -15,7 +15,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   cn,
 } from '@pusula/ui';
@@ -45,7 +48,14 @@ type ListColumnProps = {
   canEdit: boolean;
 };
 
-/** Fixed-width board column for a single list: header (rename / archive) + cards + add-card form. */
+/**
+ * Fixed-width board column for a single list: a header (title + card count +
+ * a "⋮" menu — rename / archive / restore), the cards, and (when editable) an
+ * add-card form. The "⋮" menu actions reuse the existing mutations
+ * (`list.update` / `list.archive`); archiving still goes through a confirm
+ * dialog. An archived list is dimmed + dashed and read-only (the server gate is
+ * authoritative; the UI just hides the actions). Drag-and-drop is Phase 3.
+ */
 export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -133,14 +143,14 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
   return (
     <section
       className={cn(
-        'bg-muted/40 flex w-72 shrink-0 flex-col gap-3 rounded-md border p-3',
-        listArchived && 'opacity-60',
+        'flex max-h-[calc(100vh-9rem)] w-72 shrink-0 flex-col rounded-lg border',
+        listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/40',
       )}
       aria-label={list.title}
     >
-      <header className="space-y-1">
+      <header className="flex items-start justify-between gap-1 p-2">
         {renaming ? (
-          <form onSubmit={handleRenameSubmit} noValidate className="space-y-2">
+          <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
             <Input
               id={renameId}
               name="listTitle"
@@ -150,6 +160,7 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
               aria-label={columnCopy.renamePlaceholder}
               disabled={renameList.isPending}
               autoComplete="off"
+              autoFocus
               aria-invalid={renameError || renameList.isError ? true : undefined}
               aria-describedby={renameError ? `${renameId}-error` : undefined}
             />
@@ -179,89 +190,42 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
             )}
           </form>
         ) : (
-          <div className="flex items-start justify-between gap-2">
-            {listEditable ? (
-              <button
-                type="button"
-                onClick={startRenaming}
-                className="hover:text-primary flex-1 text-left text-sm font-semibold break-words"
-              >
-                {list.title}
-              </button>
-            ) : (
-              <h2 className="flex-1 text-sm font-semibold break-words">{list.title}</h2>
-            )}
+          <>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              {listArchived && <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />}
+              <h2 className="truncate text-sm font-semibold">{list.title}</h2>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {cards.length} {columnCopy.cardCount}
+              </span>
+            </div>
             {canEdit && (
-              <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
-                <DialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={listArchived ? columnCopy.restore : columnCopy.archive}
-                  >
-                    {listArchived ? columnCopy.restore : columnCopy.archive}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" aria-label={columnCopy.more}>
+                    <MoreHorizontalIcon className="size-4" />
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {listArchived ? columnCopy.restore : columnCopy.archiveConfirmTitle}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {listArchived ? list.title : columnCopy.archiveConfirmDescription}
-                    </DialogDescription>
-                  </DialogHeader>
-                  {archiveList.isError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>
-                        {archiveList.error.message || strings.common.unknownError}
-                      </AlertDescription>
-                    </Alert>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!listArchived && (
+                    <DropdownMenuItem onSelect={startRenaming}>
+                      <PencilIcon />
+                      {columnCopy.menuRename}
+                    </DropdownMenuItem>
                   )}
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button type="button" variant="outline" disabled={archiveList.isPending}>
-                        {strings.common.cancel}
-                      </Button>
-                    </DialogClose>
-                    <Button
-                      type="button"
-                      variant={listArchived ? 'default' : 'destructive'}
-                      disabled={archiveList.isPending}
-                      onClick={() =>
-                        archiveList.mutate({
-                          boardId,
-                          listId: list.id,
-                          archived: !listArchived,
-                          clientMutationId: crypto.randomUUID(),
-                        })
-                      }
-                    >
-                      {archiveList.isPending
-                        ? listArchived
-                          ? columnCopy.restoring
-                          : columnCopy.archiving
-                        : listArchived
-                          ? columnCopy.restore
-                          : columnCopy.archiveConfirm}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
+                    {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+                    {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          </div>
-        )}
-        {listArchived && (
-          <Badge variant="outline" className="text-xs">
-            {columnCopy.archivedLabel}
-          </Badge>
+          </>
         )}
       </header>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2">
         {cards.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{columnCopy.empty}</p>
+          <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
         ) : (
           cards.map((card) => (
             <CardItem key={card.id} boardId={boardId} card={card} canEdit={listEditable} />
@@ -270,7 +234,7 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
       </div>
 
       {listEditable && (
-        <div className="border-t pt-3">
+        <footer className="border-t p-2">
           <p className="text-muted-foreground mb-2 text-xs font-medium">{cardCopy.addCard}</p>
           <AddCardForm
             onSubmit={(title) =>
@@ -279,7 +243,57 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
             pending={createCard.isPending}
             error={createCard.isError ? createCard.error.message || strings.common.unknownError : null}
           />
-        </div>
+        </footer>
+      )}
+
+      {canEdit && (
+        <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {listArchived ? columnCopy.restore : columnCopy.archiveConfirmTitle}
+              </DialogTitle>
+              <DialogDescription>
+                {listArchived ? list.title : columnCopy.archiveConfirmDescription}
+              </DialogDescription>
+            </DialogHeader>
+            {archiveList.isError && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {archiveList.error.message || strings.common.unknownError}
+                </AlertDescription>
+              </Alert>
+            )}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={archiveList.isPending}>
+                  {strings.common.cancel}
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                variant={listArchived ? 'default' : 'destructive'}
+                disabled={archiveList.isPending}
+                onClick={() =>
+                  archiveList.mutate({
+                    boardId,
+                    listId: list.id,
+                    archived: !listArchived,
+                    clientMutationId: crypto.randomUUID(),
+                  })
+                }
+              >
+                {archiveList.isPending
+                  ? listArchived
+                    ? columnCopy.restoring
+                    : columnCopy.archiving
+                  : listArchived
+                    ? columnCopy.restore
+                    : columnCopy.archiveConfirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </section>
   );

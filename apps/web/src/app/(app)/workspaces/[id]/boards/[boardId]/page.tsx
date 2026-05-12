@@ -2,23 +2,25 @@
 
 import { Suspense, use } from 'react';
 import Link from 'next/link';
+import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, AlertDescription, AlertTitle, Badge } from '@pusula/ui';
+import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
-import { ArchiveBoardDialog } from './_components/archive-board-dialog';
 import { BoardColumns } from './_components/board-columns';
-import { BoardSettingsDialog } from './_components/board-settings/board-settings-dialog';
+import { BoardSkeleton } from './_components/board-skeleton';
+import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
-import { RenameBoardForm } from './_components/rename-board-form';
 
 /**
- * Board detail (Phase 2D — read-only CRUD, no drag-and-drop). One `board.get`
- * call returns `{ board (with the viewer's effective role), lists (archived
- * included, position-sorted), cards (active only, position-sorted) }`. List/card
- * CRUD goes through `list.*` / `card.*` and then invalidates `board.get` — no
- * optimistic UI yet (Phase 4 — DEM-27). Drag-and-drop is Phase 3 (DEM-26).
- * Authorization is server-side; this only hides actions the role can't perform.
+ * Board detail (read-only CRUD, no drag-and-drop yet). One `board.get` call
+ * returns `{ board (with the viewer's effective role), lists (archived included,
+ * position-sorted), cards (active only, position-sorted, with labels + metadata
+ * counts + members) }`. List/card CRUD goes through `list.*` / `card.*` and then
+ * invalidates `board.get` — no optimistic UI yet (Phase 4 — DEM-27).
+ * Drag-and-drop is Phase 3 (DEM-26). Authorization is server-side; the UI only
+ * hides actions the role can't perform. Phase 2.7B (DEM-63) is the visual polish
+ * pass — top bar + columns + card metadata + skeleton.
  */
 export default function BoardDetailPage({
   params,
@@ -32,24 +34,25 @@ export default function BoardDetailPage({
   const backLink = (
     <Link
       href={`/workspaces/${workspaceId}`}
-      className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+      className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-xs underline-offset-4 hover:underline"
     >
-      ← {strings.board.detail.backToWorkspace}
+      <ArrowLeftIcon className="size-3.5" />
+      {strings.board.detail.backToWorkspace}
     </Link>
   );
 
   if (board.isPending) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-4">
         {backLink}
-        <p className="text-muted-foreground text-sm">{strings.board.detail.loading}</p>
+        <BoardSkeleton />
       </div>
     );
   }
 
   if (board.isError) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-4">
         {backLink}
         <Alert variant="destructive">
           <AlertTitle>{strings.board.detail.loadErrorTitle}</AlertTitle>
@@ -64,30 +67,14 @@ export default function BoardDetailPage({
   const isBoardAdmin = b.role === 'admin';
 
   return (
-    <div className="space-y-6">
-      {backLink}
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          {isBoardAdmin && !archived ? (
-            <RenameBoardForm boardId={boardId} title={b.title} />
-          ) : (
-            <h1 className="text-xl font-semibold tracking-tight">{b.title}</h1>
-          )}
-          {archived && <Badge variant="outline">{strings.board.detail.archivedNote}</Badge>}
-        </div>
-        {isBoardAdmin && (
-          <div className="flex flex-wrap items-center gap-2">
-            <BoardSettingsDialog
-              boardId={boardId}
-              workspaceId={workspaceId}
-              canManage
-              boardActive={!archived}
-            />
-            <ArchiveBoardDialog boardId={boardId} archived={archived} />
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-4">
+      <BoardTopBar
+        boardId={boardId}
+        workspaceId={workspaceId}
+        title={b.title}
+        archived={archived}
+        isBoardAdmin={isBoardAdmin}
+      />
 
       <BoardColumns
         boardId={boardId}

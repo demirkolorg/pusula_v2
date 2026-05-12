@@ -212,6 +212,129 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(shaped.cards.every((c) => c.boardId === board.id)).toBe(true);
     // additive `labels` field — empty until labels are attached (see below)
     expect(shaped.cards.every((c) => Array.isArray(c.labels) && c.labels.length === 0)).toBe(true);
+    // additive Phase 2.7B metadata — zero/empty until checklists/comments/members exist
+    expect(
+      shaped.cards.every(
+        (c) =>
+          c.checklistTotal === 0 &&
+          c.checklistDone === 0 &&
+          c.commentCount === 0 &&
+          Array.isArray(c.members) &&
+          c.members.length === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it('get: cards carry additive metadata — checklist progress, comment count, members (Phase 2.7B — DEM-63)', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Metadata Board',
+      clientMutationId: newId('cmid'),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Doing',
+      clientMutationId: newId('cmid'),
+    });
+    const richCard = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Rich card',
+      clientMutationId: newId('cmid'),
+    });
+    const bareCard = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Bare card',
+      clientMutationId: newId('cmid'),
+    });
+
+    // Two checklists: 3 items total, 2 done.
+    const cl1 = await callerFor(ownerId).checklist.create({
+      cardId: richCard.id,
+      title: 'A',
+      clientMutationId: newId('cmid'),
+    });
+    const cl2 = await callerFor(ownerId).checklist.create({
+      cardId: richCard.id,
+      title: 'B',
+      clientMutationId: newId('cmid'),
+    });
+    const it1 = await callerFor(ownerId).checklist.item.create({
+      cardId: richCard.id,
+      checklistId: cl1.id,
+      content: 'item 1',
+      clientMutationId: newId('cmid'),
+    });
+    const it2 = await callerFor(ownerId).checklist.item.create({
+      cardId: richCard.id,
+      checklistId: cl1.id,
+      content: 'item 2',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).checklist.item.create({
+      cardId: richCard.id,
+      checklistId: cl2.id,
+      content: 'item 3',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).checklist.item.toggle({
+      cardId: richCard.id,
+      checklistId: cl1.id,
+      itemId: it1.id,
+      completed: true,
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).checklist.item.toggle({
+      cardId: richCard.id,
+      checklistId: cl1.id,
+      itemId: it2.id,
+      completed: true,
+      clientMutationId: newId('cmid'),
+    });
+
+    // Two comments, one of which gets deleted (so it shouldn't count).
+    await callerFor(ownerId).comment.create({
+      cardId: richCard.id,
+      body: 'first',
+      clientMutationId: newId('cmid'),
+    });
+    const c2 = await callerFor(ownerId).comment.create({
+      cardId: richCard.id,
+      body: 'second',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).comment.delete({
+      cardId: richCard.id,
+      commentId: c2.id,
+      clientMutationId: newId('cmid'),
+    });
+
+    // Owner is already implicitly the board admin but not a card member yet —
+    // add them to the card as the assignee.
+    await callerFor(ownerId).card.members.add({
+      cardId: richCard.id,
+      userId: ownerId,
+      role: 'assignee',
+      clientMutationId: newId('cmid'),
+    });
+
+    const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
+    const rich = shaped.cards.find((c) => c.id === richCard.id);
+    const bare = shaped.cards.find((c) => c.id === bareCard.id);
+
+    expect(rich).toBeDefined();
+    expect(rich?.checklistTotal).toBe(3);
+    expect(rich?.checklistDone).toBe(2);
+    expect(rich?.commentCount).toBe(1);
+    expect(rich?.members).toHaveLength(1);
+    expect(rich?.members[0]).toMatchObject({ userId: ownerId, role: 'assignee' });
+    // privacy — no e-mail field leaks through
+    expect(rich?.members[0]).not.toHaveProperty('email');
+
+    expect(bare).toBeDefined();
+    expect(bare?.checklistTotal).toBe(0);
+    expect(bare?.checklistDone).toBe(0);
+    expect(bare?.commentCount).toBe(0);
+    expect(bare?.members).toEqual([]);
   });
 
   it('get: each card carries its attached labels (DEM-54 — board screen label filter)', async () => {

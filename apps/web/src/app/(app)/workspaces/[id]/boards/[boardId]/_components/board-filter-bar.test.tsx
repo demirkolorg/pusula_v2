@@ -12,7 +12,7 @@ const labels: BoardFilterLabel[] = [
 ];
 
 describe('<BoardFilterBar>', () => {
-  it('renders label chips and the archived-lists toggle', () => {
+  it('renders label chips and the archived-lists checkbox', () => {
     render(
       <BoardFilterBar
         labels={labels}
@@ -25,7 +25,7 @@ describe('<BoardFilterBar>', () => {
       />,
     );
     expect(screen.getByRole('button', { name: /Acil/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: copy.showArchivedLists })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: copy.archivedListsToggle })).toBeInTheDocument();
     expect(screen.getByText(`2 ${copy.archivedListCount}`)).toBeInTheDocument();
   });
 
@@ -77,7 +77,7 @@ describe('<BoardFilterBar>', () => {
     expect(onClearLabels).toHaveBeenCalledTimes(1);
   });
 
-  it('toggle button reflects state and fires onToggleArchivedLists', async () => {
+  it('the archived-lists checkbox reflects state and fires onToggleArchivedLists', async () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     const { rerender } = render(
@@ -91,7 +91,9 @@ describe('<BoardFilterBar>', () => {
         archivedListCount={1}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.showArchivedLists }));
+    const checkbox = screen.getByRole('checkbox', { name: copy.archivedListsToggle });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
     expect(onToggle).toHaveBeenCalledTimes(1);
     rerender(
       <BoardFilterBar
@@ -104,7 +106,7 @@ describe('<BoardFilterBar>', () => {
         archivedListCount={1}
       />,
     );
-    expect(screen.getByRole('button', { name: copy.hideArchivedLists })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: copy.archivedListsToggle })).toBeChecked();
   });
 
   it('shows the "no labels" hint when the board has no labels', () => {

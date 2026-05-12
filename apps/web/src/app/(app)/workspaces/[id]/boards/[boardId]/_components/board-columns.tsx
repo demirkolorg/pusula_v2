@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { LayoutGridIcon } from 'lucide-react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
+import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardFilterBar, type BoardFilterLabel } from './board-filter-bar';
@@ -93,7 +95,7 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
   const showFilterBar = boardLabels.length > 0 || archivedListCount > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-3">
       {showFilterBar && (
         <BoardFilterBar
           labels={boardLabels}
@@ -107,9 +109,12 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
       )}
 
       {visibleLists.length === 0 && !canEdit ? (
-        <p className="text-muted-foreground text-sm">{strings.board.detail.emptyBoard}</p>
+        <EmptyState
+          icon={<LayoutGridIcon className="size-8" />}
+          message={strings.board.detail.emptyBoard}
+        />
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-3 overflow-x-auto pb-4">
           {visibleLists.map((list) => (
             <ListColumn
               key={list.id}

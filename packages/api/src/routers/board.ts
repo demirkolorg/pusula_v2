@@ -11,7 +11,20 @@
  * haritası) and `docs/architecture/03-backend.md`.
  */
 import { and, asc, eq, inArray, isNull, sql } from '@pusula/db';
-import { activityEvents, boardMembers, boards, cardLabels, cards, labels, lists } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  boards,
+  cardLabels,
+  cardMembers,
+  cards,
+  checklistItems,
+  checklists,
+  comments,
+  labels,
+  lists,
+  users,
+} from '@pusula/db';
 import {
   archiveBoardInput,
   canManageBoard,
@@ -141,6 +154,15 @@ export const boardRouter = router({
    * `card_labels ⋈ labels`, fetched in a single query for the whole board and
    * grouped here) so the board screen can render label chips + a label filter
    * without an extra round-trip per card (Phase 2.5E — DEM-54).
+   *
+   * Phase 2.7B (DEM-63 — board screen polish) additively enriches each card with
+   * lightweight metadata for the card chip badges: `checklistTotal` /
+   * `checklistDone` (aggregated over the card's checklists' items),
+   * `commentCount` (non-deleted comments) and `members` (`card_members ⋈ users` —
+   * `{ userId, name, image, role }`, never e-mail). Each is one batched query over
+   * the board's card ids (`GROUP BY` / `WHERE card_id IN (...)`) — no per-card
+   * round-trip. On an empty board these queries are skipped. See
+   * `docs/architecture/03-backend.md` / `docs/architecture/05-board-mekanigi.md`.
    */
   get: boardProcedure.query(async ({ ctx }) => {
     if (!canViewBoard(accessFromBoardRole(ctx.board.role))) {
@@ -185,23 +207,73 @@ export const boardRouter = router({
       .where(and(eq(cards.boardId, ctx.board.id), isNull(cards.archivedAt)))
       .orderBy(asc(cards.position));
 
-    // Card labels for every card on the board, in one query, grouped by card id.
+    // --- Per-card aggregates, all keyed by the board's card ids ---------------
+    //
+    // The four queries below each depend only on `cardIds` (not on each other),
+    // so they run in parallel (`Promise.all`). On an empty board they're skipped
+    // entirely. Card labels (`card_labels ⋈ labels`), checklist progress
+    // (`GROUP BY checklists.card_id`), non-deleted comment counts, and card
+    // members (`card_members ⋈ users` — name + image + role only, never e-mail).
     type CardLabelRow = { cardId: string; labelId: string; name: string; color: string };
+    type ChecklistAggRow = { cardId: string; total: number; done: number };
+    type CommentAggRow = { cardId: string; count: number };
+    type CardMemberRow = {
+      cardId: string;
+      userId: string;
+      name: string | null;
+      image: string | null;
+      role: 'assignee' | 'watcher';
+    };
     const cardIds = boardCards.map((c) => c.id);
-    const labelRows: CardLabelRow[] =
+    const [labelRows, checklistRows, commentRows, memberRows]: [
+      CardLabelRow[],
+      ChecklistAggRow[],
+      CommentAggRow[],
+      CardMemberRow[],
+    ] =
       cardIds.length === 0
-        ? []
-        : await ctx.db
-            .select({
-              cardId: cardLabels.cardId,
-              labelId: cardLabels.labelId,
-              name: labels.name,
-              color: labels.color,
-            })
-            .from(cardLabels)
-            .innerJoin(labels, eq(labels.id, cardLabels.labelId))
-            .where(inArray(cardLabels.cardId, cardIds))
-            .orderBy(asc(labels.name), asc(labels.color));
+        ? [[], [], [], []]
+        : await Promise.all([
+            ctx.db
+              .select({
+                cardId: cardLabels.cardId,
+                labelId: cardLabels.labelId,
+                name: labels.name,
+                color: labels.color,
+              })
+              .from(cardLabels)
+              .innerJoin(labels, eq(labels.id, cardLabels.labelId))
+              .where(inArray(cardLabels.cardId, cardIds))
+              .orderBy(asc(labels.name), asc(labels.color)),
+            ctx.db
+              .select({
+                cardId: checklists.cardId,
+                total: sql<number>`(count(${checklistItems.id}))::int`,
+                done: sql<number>`(count(${checklistItems.id}) filter (where ${checklistItems.completed}))::int`,
+              })
+              .from(checklists)
+              .leftJoin(checklistItems, eq(checklistItems.checklistId, checklists.id))
+              .where(inArray(checklists.cardId, cardIds))
+              .groupBy(checklists.cardId),
+            ctx.db
+              .select({ cardId: comments.cardId, count: sql<number>`(count(*))::int` })
+              .from(comments)
+              .where(and(inArray(comments.cardId, cardIds), isNull(comments.deletedAt)))
+              .groupBy(comments.cardId),
+            ctx.db
+              .select({
+                cardId: cardMembers.cardId,
+                userId: cardMembers.userId,
+                name: users.name,
+                image: users.image,
+                role: cardMembers.role,
+              })
+              .from(cardMembers)
+              .innerJoin(users, eq(users.id, cardMembers.userId))
+              .where(inArray(cardMembers.cardId, cardIds))
+              .orderBy(asc(cardMembers.role), asc(users.name)),
+          ]);
+
     const labelsByCard = new Map<string, { labelId: string; name: string; color: string }[]>();
     for (const row of labelRows) {
       const bucket = labelsByCard.get(row.cardId);
@@ -210,10 +282,39 @@ export const boardRouter = router({
       else labelsByCard.set(row.cardId, [entry]);
     }
 
+    const checklistByCard = new Map<string, { total: number; done: number }>();
+    for (const row of checklistRows) {
+      checklistByCard.set(row.cardId, { total: row.total, done: row.done });
+    }
+
+    const commentCountByCard = new Map<string, number>();
+    for (const row of commentRows) commentCountByCard.set(row.cardId, row.count);
+
+    const membersByCard = new Map<
+      string,
+      { userId: string; name: string | null; image: string | null; role: 'assignee' | 'watcher' }[]
+    >();
+    for (const row of memberRows) {
+      const entry = { userId: row.userId, name: row.name, image: row.image, role: row.role };
+      const bucket = membersByCard.get(row.cardId);
+      if (bucket) bucket.push(entry);
+      else membersByCard.set(row.cardId, [entry]);
+    }
+
     return {
       board: { ...board, role: ctx.board.role },
       lists: boardLists,
-      cards: boardCards.map((card) => ({ ...card, labels: labelsByCard.get(card.id) ?? [] })),
+      cards: boardCards.map((card) => {
+        const checklist = checklistByCard.get(card.id);
+        return {
+          ...card,
+          labels: labelsByCard.get(card.id) ?? [],
+          checklistTotal: checklist?.total ?? 0,
+          checklistDone: checklist?.done ?? 0,
+          commentCount: commentCountByCard.get(card.id) ?? 0,
+          members: membersByCard.get(card.id) ?? [],
+        };
+      }),
     };
   }),
 
