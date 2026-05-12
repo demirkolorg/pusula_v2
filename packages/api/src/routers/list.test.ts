@@ -7,6 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
 import { activityEvents, boardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
+import { positionBetween } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -266,6 +267,178 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       false,
       true,
     ]);
+  });
+
+  // ------------------------------------------------------------------ move (DEM-42)
+
+  it('move: reorders a list within the board (in front of, behind, into the middle); writes list.moved activity; bumps boards.version', async () => {
+    // Fresh board with three lists A < B < C.
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Move Board',
+      clientMutationId: newId('cmid'),
+    });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: newId('cmid') });
+    expect(a.position < b.position).toBe(true);
+    expect(b.position < c.position).toBe(true);
+
+    // Move C to the front (before A): C < A < B.
+    const v0 = await boardVersion(board.id);
+    const movedToFront = await callerFor(memberId).list.move({
+      boardId: board.id,
+      listId: c.id,
+      afterListId: a.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(movedToFront).toMatchObject({ id: c.id, changed: true });
+    expect(movedToFront.position < a.position).toBe(true);
+    expect(await boardVersion(board.id)).toBe(v0 + 1);
+
+    const movedActs1 = (await actsFor(board.id)).filter(
+      (e) => e.type === 'list.moved' && (e.payload as { listId?: string }).listId === c.id,
+    );
+    expect(movedActs1).toHaveLength(1);
+    expect(movedActs1[0]?.payload).toMatchObject({
+      listId: c.id,
+      fromPosition: c.position,
+      toPosition: movedToFront.position,
+    });
+
+    // Move C to the end (after B): A < B < C.
+    const movedToEnd = await callerFor(memberId).list.move({
+      boardId: board.id,
+      listId: c.id,
+      beforeListId: b.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(movedToEnd.changed).toBe(true);
+    expect(b.position < movedToEnd.position).toBe(true);
+
+    // Move C into the middle (between A and B): A < C < B.
+    const movedToMiddle = await callerFor(memberId).list.move({
+      boardId: board.id,
+      listId: c.id,
+      beforeListId: a.id,
+      afterListId: b.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(movedToMiddle.changed).toBe(true);
+    expect(a.position < movedToMiddle.position).toBe(true);
+    expect(movedToMiddle.position < b.position).toBe(true);
+  });
+
+  it('move: a client-supplied newPosition is accepted when valid and rejected (BAD_REQUEST) when out of bounds', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'NewPosition Board',
+      clientMutationId: newId('cmid'),
+    });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: newId('cmid') });
+
+    // valid: a position strictly between A and B
+    const between = positionBetween(a.position, b.position);
+    const ok = await callerFor(memberId).list.move({
+      boardId: board.id,
+      listId: c.id,
+      beforeListId: a.id,
+      afterListId: b.id,
+      newPosition: between,
+      clientMutationId: newId('cmid'),
+    });
+    expect(ok).toMatchObject({ id: c.id, position: between, changed: true });
+
+    // invalid: a position that is NOT between A and B (use B's own position — not < B)
+    await expect(
+      callerFor(memberId).list.move({
+        boardId: board.id,
+        listId: c.id,
+        beforeListId: a.id,
+        afterListId: b.id,
+        newPosition: b.position,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('move: moving a list that belongs to another board is BAD_REQUEST; an archived board is BAD_REQUEST', async () => {
+    // list in another board
+    const otherBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Move Other Board',
+      clientMutationId: newId('cmid'),
+    });
+    const otherList = await callerFor(ownerId).list.create({
+      boardId: otherBoard.id,
+      title: 'Their List',
+      clientMutationId: newId('cmid'),
+    });
+    await expect(
+      callerFor(ownerId).list.move({
+        boardId, // authenticate against *this* board…
+        listId: otherList.id, // …but reference a list in another board
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // archived board
+    const archBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Move Archived Board',
+      clientMutationId: newId('cmid'),
+    });
+    const archList = await callerFor(ownerId).list.create({
+      boardId: archBoard.id,
+      title: 'Doomed',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(ownerId).list.move({
+        boardId: archBoard.id,
+        listId: archList.id,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+  });
+
+  it('move: a board viewer is FORBIDDEN', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Viewer Cannot Move',
+      clientMutationId: newId('cmid'),
+    });
+    await expect(
+      callerFor(guestId).list.move({ boardId, listId: list.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('move: a no-op (the list is already at the resolved position) is changed:false — no activity, no version bump', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Noop Move Board',
+      clientMutationId: newId('cmid'),
+    });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(board.id);
+    const before0 = (await actsFor(board.id)).filter((e) => e.type === 'list.moved').length;
+
+    // Ask to move B to exactly its own position (newPosition === b.position).
+    const noop = await callerFor(memberId).list.move({
+      boardId: board.id,
+      listId: b.id,
+      beforeListId: a.id,
+      newPosition: b.position,
+      clientMutationId: newId('cmid'),
+    });
+    expect(noop).toMatchObject({ id: b.id, position: b.position, changed: false });
+    expect(await boardVersion(board.id)).toBe(v0);
+    expect((await actsFor(board.id)).filter((e) => e.type === 'list.moved').length).toBe(before0);
   });
 });
 

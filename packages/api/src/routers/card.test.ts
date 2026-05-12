@@ -7,6 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
 import { activityEvents, boardMembers, cardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
+import { positionBetween } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -584,6 +585,204 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       completedBy: null,
       coverColor: null,
     });
+  });
+
+  // -------------------------------------------------------------- move (DEM-42)
+
+  it('move: reorders a card within its list (in front of / behind / between neighbours); writes card.moved activity (same from/to listId); bumps boards.version', async () => {
+    // Fresh list with three cards A < B < C.
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Reorder List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: newId('cmid') });
+    expect(a.position < b.position).toBe(true);
+    expect(b.position < c.position).toBe(true);
+
+    // Move C to the front (before A): C < A < B.
+    const v0 = await boardVersion(boardId);
+    const toFront = await callerFor(memberId).card.move({
+      cardId: c.id,
+      fromListId: list.id,
+      toListId: list.id,
+      afterCardId: a.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(toFront).toMatchObject({ id: c.id, listId: list.id, boardId, changed: true });
+    expect(toFront.position < a.position).toBe(true);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const movedActs = (await actsFor(boardId)).filter(
+      (e) => e.type === 'card.moved' && (e.payload as { cardId?: string }).cardId === c.id,
+    );
+    expect(movedActs).toHaveLength(1);
+    expect(movedActs[0]?.payload).toMatchObject({
+      cardId: c.id,
+      fromListId: list.id,
+      toListId: list.id,
+      fromPosition: c.position,
+      toPosition: toFront.position,
+    });
+    expect(movedActs[0]?.cardId).toBe(c.id);
+
+    // Move C between A and B: A < C < B.
+    const toMiddle = await callerFor(memberId).card.move({
+      cardId: c.id,
+      fromListId: list.id,
+      toListId: list.id,
+      beforeCardId: a.id,
+      afterCardId: b.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(toMiddle.changed).toBe(true);
+    expect(a.position < toMiddle.position).toBe(true);
+    expect(toMiddle.position < b.position).toBe(true);
+  });
+
+  it('move: re-parents a card to another list of the same board (listId changes; card.moved records from/to listId; version bumps)', async () => {
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'Src List', clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Dst List', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Travelling card', clientMutationId: newId('cmid') });
+    // a card already in the destination, to anchor against
+    const anchor = await callerFor(ownerId).card.create({ listId: dst.id, title: 'Anchor', clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(boardId);
+    const moved = await callerFor(memberId).card.move({
+      cardId: card.id,
+      fromListId: src.id,
+      toListId: dst.id,
+      beforeCardId: anchor.id, // place after the anchor → end of dst
+      clientMutationId: newId('cmid'),
+    });
+    expect(moved).toMatchObject({ id: card.id, listId: dst.id, boardId, changed: true });
+    expect(anchor.position < moved.position).toBe(true);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const movedActs = (await actsFor(boardId)).filter(
+      (e) => e.type === 'card.moved' && (e.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(movedActs).toHaveLength(1);
+    expect(movedActs[0]?.payload).toMatchObject({ fromListId: src.id, toListId: dst.id });
+
+    // and card.get reflects the new parent
+    const fetched = await callerFor(ownerId).card.get({ cardId: card.id });
+    expect(fetched.card.listId).toBe(dst.id);
+    expect(fetched.card.boardId).toBe(boardId);
+  });
+
+  it('move: a stale fromListId (the card was already moved away) is CONFLICT', async () => {
+    const l1 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L1', clientMutationId: newId('cmid') });
+    const l2 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L2', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Conflicted card', clientMutationId: newId('cmid') });
+
+    // someone moves it to l2 first
+    await callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l2.id, clientMutationId: newId('cmid') });
+
+    // a second mover still thinks it's in l1 → CONFLICT
+    await expect(
+      callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('move: an archived destination list is BAD_REQUEST; a card may still be moved OUT of an archived list', async () => {
+    const live = await callerFor(ownerId).list.create({ boardId, title: 'Live List', clientMutationId: newId('cmid') });
+    const archived = await callerFor(ownerId).list.create({ boardId, title: 'Archived List', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: archived.id, title: 'Stuck card', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).list.archive({ boardId, listId: archived.id, clientMutationId: newId('cmid') });
+
+    // can't move INTO the archived list
+    const other = await callerFor(ownerId).card.create({ listId: live.id, title: 'Other card', clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.move({ cardId: other.id, fromListId: live.id, toListId: archived.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
+
+    // but CAN move OUT of the archived list into a live one
+    const rescued = await callerFor(memberId).card.move({
+      cardId: card.id,
+      fromListId: archived.id,
+      toListId: live.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(rescued).toMatchObject({ id: card.id, listId: live.id, changed: true });
+  });
+
+  it('move: moving a card into a list of another board is BAD_REQUEST', async () => {
+    const otherBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Other Board', clientMutationId: newId('cmid') });
+    const otherList = await callerFor(ownerId).list.create({ boardId: otherBoard.id, title: 'Foreign List', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Homesick card', clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.move({ cardId: card.id, fromListId: listId, toListId: otherList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: "Kart başka bir board'a taşınamaz." });
+  });
+
+  it('move: a board viewer is FORBIDDEN', async () => {
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Viewer Cannot Move card', clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(guestId).card.move({ cardId: card.id, fromListId: listId, toListId: listId, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('move: an archived board is BAD_REQUEST', async () => {
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Archived Board', clientMutationId: newId('cmid') });
+    const l1 = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L1', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Doomed card', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(ownerId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+  });
+
+  it('move: a no-op (already in toListId at the resolved position) is changed:false — no activity, no version bump', async () => {
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Noop Move List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(boardId);
+    const movedActs0 = (await actsFor(boardId)).filter((e) => e.type === 'card.moved').length;
+
+    // Ask to move B to exactly its own position.
+    const noop = await callerFor(memberId).card.move({
+      cardId: b.id,
+      fromListId: list.id,
+      toListId: list.id,
+      beforeCardId: a.id,
+      newPosition: b.position,
+      clientMutationId: newId('cmid'),
+    });
+    expect(noop).toMatchObject({ id: b.id, listId: list.id, position: b.position, changed: false });
+    expect(await boardVersion(boardId)).toBe(v0);
+    expect((await actsFor(boardId)).filter((e) => e.type === 'card.moved').length).toBe(movedActs0);
+  });
+
+  it('move: a client-supplied newPosition is validated — accepted between neighbours, rejected (BAD_REQUEST) when out of bounds', async () => {
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'NewPosition Move List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: newId('cmid') });
+
+    const between = positionBetween(a.position, b.position);
+    const ok = await callerFor(memberId).card.move({
+      cardId: c.id,
+      fromListId: list.id,
+      toListId: list.id,
+      beforeCardId: a.id,
+      afterCardId: b.id,
+      newPosition: between,
+      clientMutationId: newId('cmid'),
+    });
+    expect(ok).toMatchObject({ id: c.id, position: between, changed: true });
+
+    // c is now between a and b; reorder reference for the invalid case stays a/b
+    await expect(
+      callerFor(memberId).card.move({
+        cardId: c.id,
+        fromListId: list.id,
+        toListId: list.id,
+        beforeCardId: a.id,
+        afterCardId: b.id,
+        newPosition: b.position, // not < b → invalid
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
 

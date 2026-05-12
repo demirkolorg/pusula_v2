@@ -1,8 +1,9 @@
 /**
  * Card router — Phase 2C (DEM-36): `card.create` / `card.get` / `card.update` /
- * `card.archive`. `card.move` (within / across lists) + drag-drop land in
- * Phase 3; optimistic UI in Phase 4; realtime publishing in Phase 5;
- * notification outbox in Phase 6.
+ * `card.archive`; Phase 3A (DEM-42): `card.move` (within / across lists, same
+ * board). Drag-drop UI lands in Phase 3B; cross-board `card.moveToList` /
+ * `card.copy` in Phase 3E; optimistic UI in Phase 4; realtime publishing in
+ * Phase 5; notification outbox in Phase 6.
  *
  * Authorization is server-side:
  * - `card.create` runs on `protectedProcedure` (it only carries `listId`, so it
@@ -10,33 +11,41 @@
  *   board `member+` (`canEditBoardContent`).
  * - `card.get` runs on `cardProcedure` (board visibility ⇒ `viewer+` already
  *   enforced); the explicit `canViewBoard` check is kept for clarity.
- * - `card.update` / `card.archive` run on `cardProcedure` and require board
- *   `member+` (`canEditBoardContent`).
+ * - `card.update` / `card.archive` / `card.complete` / `card.uncomplete` /
+ *   `card.move` run on `cardProcedure` and require board `member+`
+ *   (`canEditBoardContent`).
  *
  * Each mutation's transaction contains only the domain change + the
- * `activity_events` insert(s) + the `boards.version` bump (Phase 2 scope). See
+ * `activity_events` insert(s) + the `boards.version` bump (Phase 2/3A scope —
+ * `realtime_events` / `notification_outbox` land in Phase 5/6). See
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / List / Card procedure
- * haritası) and `docs/architecture/03-backend.md`.
+ * haritası), `docs/architecture/03-backend.md` and
+ * `docs/architecture/05-board-mekanigi.md` §5.1.
  *
  * Invariant: a card lives in exactly one list, and `card.boardId === list.boardId`
- * (set at insert time from the list's board). Phase 2 positions only ever
- * *append*: a new card goes to the end of its list. An archived board is
- * read-only (no new cards, no edits); an archived *list* rejects new cards too
- * (the domain forbids adding/moving cards into an archived list) — but its
- * existing cards may still be edited/archived (only `card.move` is blocked).
+ * (set at insert time from the list's board, preserved by `card.move` which only
+ * moves within a board). Phase 2 positions only ever *append*: a new card goes to
+ * the end of its list. `card.move` (Phase 3A) reorders / re-parents a card within
+ * its board; cross-board moves are `card.moveToList` (Phase 3E). An archived
+ * *board* is read-only (no new cards, no edits, no moves); an archived *list*
+ * rejects new cards *and* cards moved *into* it — but a card may still be moved
+ * *out of* an archived list (Trello semantics: you can drag a card out of an
+ * archived list); an archived list's existing cards may still be edited/archived.
  *
  * `activity_events` taxonomy (per `docs/architecture/03-backend.md`):
  * `card.create` → `card.created`; `card.update`: title → `card.renamed`,
  * description → `card.description_changed`, `due_at` set → `card.due_set` /
  * cleared → `card.due_cleared`, cover colour set → `card.cover_changed` /
  * cleared → `card.cover_cleared`; `card.archive` → `card.archived`;
- * `card.complete` → `card.completed`; `card.uncomplete` → `card.uncompleted`.
+ * `card.complete` → `card.completed`; `card.uncomplete` → `card.uncompleted`;
+ * `card.move` → `card.moved` (`{ cardId, fromListId, toListId, fromPosition,
+ * toPosition }`).
  *
  * Phase 2.7 (DEM-66 / DEM-67): `card.complete` / `card.uncomplete` toggle the
  * `completed` / `completed_at` / `completed_by` columns; `card.update` also
  * accepts `coverColor` (one of the 12 palette names, or `null` to clear).
  */
-import { desc, eq, sql } from '@pusula/db';
+import { desc, eq, inArray, sql } from '@pusula/db';
 import { activityEvents, boards, cards, lists, users } from '@pusula/db';
 import {
   archiveCardInput,
@@ -45,11 +54,13 @@ import {
   completeCardInput,
   createCardInput,
   firstPosition,
+  moveCardInput,
   positionBetween,
   uncompleteCardInput,
   updateCardInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { resolveMovePosition } from '../lib/position';
 import { accessFromBoardRole } from '../middleware/board';
 import { resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
@@ -516,6 +527,164 @@ export const cardRouter = router({
         actorId: ctx.session.user.id,
         type: 'card.uncompleted',
         payload: { cardId: card.id },
+      });
+
+      await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, card.boardId));
+
+      return { ...updated, changed: true as const };
+    });
+  }),
+
+  /**
+   * Move a card within its board (Phase 3A — DEM-42): reorder inside the same
+   * list (`toListId === fromListId`) or re-parent it to another list of the same
+   * board. Board `member+` only.
+   *
+   * Flow (inside one transaction):
+   *  1. Re-read the card → `NOT_FOUND` if gone.
+   *  2. `card.listId !== input.fromListId` → `CONFLICT` (a concurrent move beat
+   *     this one; the client refetches the board rather than losing the card).
+   *  3. Load `input.toListId` → `NOT_FOUND` if missing; it must belong to the
+   *     card's board (`BAD_REQUEST` otherwise — cross-board moves are
+   *     `card.moveToList`, Phase 3E) and must not be archived (`BAD_REQUEST` —
+   *     no cards *into* an archived list; moving *out of* one is allowed).
+   *  4. Re-read the board → an archived *board* is read-only (`BAD_REQUEST`).
+   *  5. Load the target `before`/`after` cards (each must be in `toListId` and
+   *     not archived — active cards are ordered among themselves); the new
+   *     `position` is the client-supplied `newPosition` (validated against the
+   *     neighbours) or `positionBetween(before, after)`.
+   *  6. No-op / idempotent: if the card is already in `toListId` *and* at the
+   *     resolved `position`, return `{ ..., changed: false }` without writing
+   *     activity or bumping `version` — a duplicate-delivered `clientMutationId`
+   *     is a natural no-op.
+   *  7. Otherwise update `cards.list_id` + `cards.position` (`board_id` is
+   *     unchanged — same board), write a `card.moved` activity event and bump
+   *     `boards.version`.
+   */
+  move: cardProcedure.input(moveCardInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı taşıma yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const [card] = await tx
+        .select({
+          id: cards.id,
+          listId: cards.listId,
+          boardId: cards.boardId,
+          archivedAt: cards.archivedAt,
+          position: cards.position,
+        })
+        .from(cards)
+        .where(eq(cards.id, ctx.card.id))
+        .limit(1);
+      if (!card) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
+      }
+
+      // Concurrent move: the client's neighbours are stale → tell it to refetch
+      // (don't silently relocate the card from someone else's move).
+      if (card.listId !== input.fromListId) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Kart artık bu listede değil; pano yenileniyor.',
+        });
+      }
+
+      const [toList] = await tx
+        .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
+        .from(lists)
+        .where(eq(lists.id, input.toListId))
+        .limit(1);
+      if (!toList) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Hedef liste bulunamadı.' });
+      }
+      if (toList.boardId !== card.boardId) {
+        // Cross-board moves are `card.moveToList` (Phase 3E — they also change
+        // `cards.board_id` and re-check authorization on the target board).
+        throw new TRPCError({ code: 'BAD_REQUEST', message: "Kart başka bir board'a taşınamaz." });
+      }
+      if (toList.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
+      }
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, card.boardId))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      if (board.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+      }
+
+      // A card cannot be positioned relative to itself (degenerate).
+      if (input.beforeCardId === card.id || input.afterCardId === card.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bir kart kendisine göre konumlandırılamaz.' });
+      }
+
+      // Target neighbours: each must be an *active* card in `toListId`.
+      const neighbourIds = [input.beforeCardId, input.afterCardId].filter(
+        (id): id is string => typeof id === 'string',
+      );
+      const neighbours = neighbourIds.length
+        ? await tx
+            .select({ id: cards.id, listId: cards.listId, archivedAt: cards.archivedAt, position: cards.position })
+            .from(cards)
+            .where(inArray(cards.id, neighbourIds))
+        : [];
+      const byId = new Map(neighbours.map((n) => [n.id, n] as const));
+
+      const before = input.beforeCardId ? byId.get(input.beforeCardId) : undefined;
+      const after = input.afterCardId ? byId.get(input.afterCardId) : undefined;
+      if (
+        (input.beforeCardId &&
+          (!before || before.listId !== input.toListId || before.archivedAt !== null)) ||
+        (input.afterCardId &&
+          (!after || after.listId !== input.toListId || after.archivedAt !== null))
+      ) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Komşu kartlar hedef listeye ait olmalı.' });
+      }
+
+      const position = resolveMovePosition(
+        input.newPosition,
+        before?.position ?? null,
+        after?.position ?? null,
+      );
+      // TODO(DEM-44/Faz 3C): position uzunluğu POSITION_COMPACTION_MAX_LEN'i aşarsa
+      // compaction job enqueue (worker'a bağlanır; Faz 3A worker'a bağlı değil).
+
+      if (card.listId === input.toListId && card.position === position) {
+        const [current] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
+        if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
+        return { ...current, changed: false as const };
+      }
+
+      const [updated] = await tx
+        .update(cards)
+        .set({ listId: input.toListId, position })
+        .where(eq(cards.id, ctx.card.id))
+        .returning(cardCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        type: 'card.moved',
+        payload: {
+          cardId: card.id,
+          fromListId: input.fromListId,
+          toListId: input.toListId,
+          fromPosition: card.position,
+          toPosition: updated.position,
+        },
       });
 
       await tx

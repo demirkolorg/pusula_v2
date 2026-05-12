@@ -12,7 +12,7 @@ type: "domain"
 axis: "domain"
 status: "active"
 parent: "[[docs/domain/README|İş / Domain Kuralları]]"
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 # 02 — Yetkilendirme Kuralları
 
@@ -159,6 +159,17 @@ Activity: `board.created/renamed/archived`, `list.created/renamed/archived`, `ca
 | `board.invitations.decline` | `protectedProcedure` | (oturum, e-posta eşleşmeli) | `status = declined`; activity yok |
 
 Activity (Faz 2.5'te kullanılan, [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) taksonomisinde tanımlı): `comment.created/updated/deleted`, `checklist.created`, `checklist.item_added/item_checked/item_unchecked/item_removed`, `card.member_added/member_removed`, `card.label_added/label_removed`, `board.member_added/member_removed/member_role_changed`, `board.member_invited`, `board.invitation_revoked` — `ACTIVITY_EVENT_TYPES`'a eksik olanlar (`checklist.item_added/checked/unchecked/removed`, `board.member_role_changed`, `board.member_invited`, `board.invitation_revoked`) append edilir; `checklist.item_completed` kullanım dışı bırakılır. Realtime yayın Faz 5, bildirim outbox Faz 6. Etiket/checklist CRUD ve item edit/reorder activity üretmez ama `boards.version`'ı artırır.
+
+#### Drag-drop / move procedure haritası (Faz 3)
+
+> tRPC procedure → gereken board rolü. Faz 3 ([DEM-26](https://linear.app/demirkol/issue/DEM-26)) = sürükle-bırak; `list.move` + `card.move` backend Faz 3A ([DEM-42](https://linear.app/demirkol/issue/DEM-42)); cross-board `card.moveToList` + `card.copy` Faz 3E ([DEM-69](https://linear.app/demirkol/issue/DEM-69) — kendi satırları o issue turunda eklenir). Enforcement: `list.move` `boardProcedure` ile (`moveListInput` `boardId` taşır, `createListInput` ile aynı disiplin); `card.move` `cardProcedure` ile (`moveCardInput` `cardId` ile anahtarlı — kart context'i `boardId`/`boardRole`/`listId`/`boardArchivedAt` taşır; tüm `card.*` ile tutarlı). İnce kontrol procedure gövdesinde `@pusula/domain/permissions` (`canEditBoardContent` = board `member+`) ile. Arşivli board salt-okunur; tx içinde tekrar okunarak enforce edilir; move'lar `boards.version`'ı artırır. Server akışı: [`../architecture/05-board-mekanigi.md`](../architecture/05-board-mekanigi.md) §5.1; router notları: [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 3 — `list.move` / `card.move`); sıralama semantiği + eşzamanlı taşıma + compaction: [`03-siralama-kurallari.md`](03-siralama-kurallari.md).
+
+| Procedure | Middleware | Gereken rol | Not |
+| --- | --- | --- | --- |
+| `list.move` | `boardProcedure` | board `member+` (`canEditBoardContent`) | Listeyi board içinde reorder; `before`/`after` listelere göre `positionBetween` (veya client `newPosition` doğrulanır); arşivli board reddedilir; `activity_events` (`list.moved` — eski/yeni `position`); idempotent (`clientMutationId`; no-op → `changed:false`); `boards.version` artar |
+| `card.move` | `cardProcedure` | board `member+` (`canEditBoardContent`) | Kartı **aynı board içinde** reorder (`toListId === fromListId`) veya başka listeye taşır; kart hâlâ `fromListId`'de değilse `CONFLICT` (eşzamanlı taşıma); `toListId` aynı board'a ait + arşivli değil (kart ⊆ liste.board invariant'ı — başka board'a taşıma `card.moveToList`, Faz 3E); `positionBetween` (veya client `newPosition` doğrulanır); arşivli board reddedilir; `activity_events` (`card.moved` — `fromListId`/`toListId`, eski/yeni `position`); idempotent (`clientMutationId`; no-op → `changed:false`); `boards.version` artar |
+
+Activity: `list.moved`, `card.moved` ilgili transaction'da `activity_events`'e yazılır ([`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) taksonomisinde + `ACTIVITY_EVENT_TYPES`'ta zaten tanımlı). Realtime yayın Faz 5, bildirim outbox Faz 6.
 
 ### Card (ilgi rolleri — yetki değil)
 

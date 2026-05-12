@@ -28,8 +28,10 @@ export const updateCardInput = z.object({
 
 /**
  * Move a card within or across lists. Mirrors the `moveCard` shape in
- * `docs/PUSULA_TEKNIK_MIMARI.md` §6: the client may send `newPosition`, but the
- * server validates the card is still in `fromListId` and recomputes if needed.
+ * `docs/architecture/05-board-mekanigi.md` §5.1: the client may send
+ * `newPosition`, but the server validates the card is still in `fromListId`
+ * and recomputes if needed. `card.move` is board-internal (`toListId` must be
+ * in the card's board); cross-board moves are `card.moveToList` (Phase 3E).
  */
 export const moveCardInput = z.object({
   cardId: idSchema,

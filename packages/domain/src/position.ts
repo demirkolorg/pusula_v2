@@ -3,7 +3,8 @@
  *
  * Positions are LexoRank-like strings (not integers): inserting between two
  * neighbours only mutates the moved row, never the whole list. See
- * `docs/PUSULA_TEKNIK_MIMARI.md` §5 and §6.
+ * `docs/domain/03-siralama-kurallari.md` (ordering rules) and
+ * `docs/architecture/05-board-mekanigi.md` §5.1 (drag-drop mechanics).
  *
  * Backed by `fractional-indexing` (`generateKeyBetween` / `generateNKeysBetween`).
  * When the gap between two keys gets very long, a background compaction job can

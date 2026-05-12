@@ -19,6 +19,11 @@ export const renameListInput = z.object({
 });
 
 export const moveListInput = z.object({
+  /**
+   * Board the list belongs to — carried so `boardProcedure` can resolve the
+   * caller's board role from the input (same discipline as `createListInput`).
+   */
+  boardId: idSchema,
   listId: idSchema,
   beforeListId: idSchema.nullish(),
   afterListId: idSchema.nullish(),
