@@ -90,6 +90,14 @@ export const strings = {
       archiveConfirmDescription:
         'Bu workspace listenizden kaldırılır. İçerik silinmez; ileride bir yöneticinin geri alması gerekir.',
       archiveConfirm: 'Arşivle',
+      deleteAction: 'Workspace’i kalıcı sil',
+      deleteDialogTitle: 'Workspace’i kalıcı sil',
+      deleteDialogDescription:
+        'Bu işlem geri alınamaz. Workspace ve tüm üyeleri, davetleri, panoları kalıcı olarak silinir.',
+      deleteConfirmNameLabel: 'Workspace adı',
+      deleteConfirmNamePrompt: 'Onaylamak için workspace adını yazın:',
+      deleteConfirm: 'Kalıcı sil',
+      deleting: 'Siliniyor…',
     },
   },
   members: {

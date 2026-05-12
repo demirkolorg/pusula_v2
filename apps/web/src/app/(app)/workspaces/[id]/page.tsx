@@ -20,6 +20,7 @@ import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberDialog } from '../../_components/invite-member-dialog';
 import { ArchiveWorkspaceDialog } from './_components/archive-workspace-dialog';
+import { DeleteWorkspaceDialog } from './_components/delete-workspace-dialog';
 import { MemberList } from './_components/member-list';
 import { SentInvitations } from './_components/sent-invitations';
 import { WorkspaceSettings } from './_components/workspace-settings';
@@ -147,14 +148,25 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
             </CardTitle>
             <CardDescription>{strings.workspace.manage.dangerDescription}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ArchiveWorkspaceDialog
-              workspaceId={workspaceId}
-              onArchived={async () => {
-                await queryClient.invalidateQueries(trpc.workspace.list.queryFilter());
-                router.replace('/');
-              }}
-            />
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-muted-foreground text-sm">
+                {strings.workspace.manage.archiveConfirmDescription}
+              </p>
+              <ArchiveWorkspaceDialog
+                workspaceId={workspaceId}
+                onArchived={async () => {
+                  await queryClient.invalidateQueries(trpc.workspace.list.queryFilter());
+                  router.replace('/');
+                }}
+              />
+            </div>
+            <div className="border-destructive/20 flex items-center justify-between gap-4 border-t pt-4">
+              <p className="text-muted-foreground text-sm">
+                {strings.workspace.manage.deleteDialogDescription}
+              </p>
+              <DeleteWorkspaceDialog workspaceId={workspaceId} workspaceName={ws.name} />
+            </div>
           </CardContent>
         </Card>
       )}
