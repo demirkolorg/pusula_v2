@@ -61,7 +61,7 @@ Card:       assignee · watcher
 | `workspace.get` | member+ | `guest` shell'i görür; board listesi yalnızca davet edildiği board'lar |
 | `workspace.update` | admin+ | Ad/slug değişikliği |
 | `workspace.archive` | owner | Soft-delete (`archived_at`) |
-| `workspace.delete` | owner | Kalıcı silme — şimdilik devre dışı / açık onay gerektirir |
+| `workspace.delete` | owner | **Kalıcı silme** — geri dönüşsüz; input'ta workspace adı (`confirmName`) birebir eşleşmeli, aksi halde `BAD_REQUEST`; `DELETE FROM workspaces` (üye, davet, board… cascade). `archive` (`archived_at`) ayrı kavram (pasif/geri alınabilir). Cascade nedeniyle DB içi iz (activity) tutulmaz. |
 | `workspace.members.list` | member+ | |
 | `workspace.members.updateRole` | admin+ | `owner` rolü atanamaz/kaldırılamaz — owner devri ayrı akış |
 | `workspace.members.remove` | admin+ | Üye kendini çıkarabilir; son `owner` çıkarılamaz |

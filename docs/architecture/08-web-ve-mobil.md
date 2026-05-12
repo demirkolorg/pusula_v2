@@ -54,6 +54,19 @@ Better Auth HTTP route'ları `apps/api` (`${API_URL}/api/auth/*`); web tarafı `
 - **shadcn bileşenleri** (`@pusula/ui`): `Button` mevcut; bu işle eklenenler (`Input`, `Label`, `Card`, `Dialog`, …) — `pnpm dlx shadcn@latest add …` `packages/ui` içinden, sonra `src/index.ts`'den export, `apps/web` zaten `@source` ile `packages/ui/src`'i Tailwind taramasına dâhil ediyor.
 - **Test:** Auth formları için React Testing Library (render + validasyon + `authClient` mock'lu submit). Playwright e2e (sign-up → workspace listesi → workspace oluştur → çıkış) ileri faz / Faz 8 sertleştirmeyle birlikte.
 
+### 8.1.2 Workspace yönetim ekranı (Faz 1)
+
+Backend'de hazır olan workspace yönetim procedure'lerinin (`workspace.update`/`archive`, `workspace.members.{list,updateRole,remove}`, `workspace.invitations.{list,revoke}`) UI'ı. Backend sözleşmesi → [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Workspace yetkilendirme + davet akışı), [`03-backend.md`](03-backend.md).
+
+- **Route:** `app/(app)/workspaces/[id]/page.tsx` (client component) — workspace detay/ayarlar görünümü. `workspaceId` = path param; `trpc.workspace.get` ile shell verisi (ad, slug, rol, üye sayısı). `app/(app)/page.tsx` workspace listesinde kart başlığı bu route'a `Link`'tir. Faz 2'de board listesi/board ekranı bu route'un altına gelir (`workspaces/[id]/boards/[id]`).
+- **Rol-bazlı görünürlük (UI seviyesi; sunucu zaten enforce eder):** ayarlar (rename/slug) ve davet/rol/üye-çıkar aksiyonları yalnızca `owner`/`admin`'e gösterilir; arşivleme yalnızca `owner`'a; gönderilmiş davet listesi `member+`'e görünür ama "iptal et" yalnızca `admin+`'e. Herkes (owner hariç) "workspace'ten ayrıl" görür. `owner` rolü UI'da değiştirilemez/çıkarılamaz olarak işaretlenir.
+- **Ayarlar:** ad + slug düzenleme formu (`@pusula/domain` `workspaceNameSchema`/`workspaceSlugSchema` ile client-side validasyon) → `trpc.workspace.update`; `CONFLICT` (slug çakışması) inline. Tehlikeli bölge: `trpc.workspace.archive` (onaylı `Dialog`) → başarıda `router.replace('/')` + `workspace.list` invalidate.
+- **Üyeler:** `trpc.workspace.members.list` → satır başına ad/e-posta/rol; `admin+` ise non-owner satırlarda rol değiştir (shadcn `Select` — `assignableWorkspaceRoleSchema`: `admin`/`member`/`guest`) → `trpc.workspace.members.updateRole`, ve "çıkar" → `trpc.workspace.members.remove`. Kendi satırında (owner değilse) "workspace'ten ayrıl" → `members.remove` (kendi `userId`) → başarıda `router.replace('/')` + `workspace.list` invalidate. Mutation sonrası `members.list` invalidate.
+- **Gönderilmiş davetler:** `trpc.workspace.invitations.list` → bekleyen davetler (e-posta, rol, davet eden, son tarih); `admin+` ise "iptal et" → `trpc.workspace.invitations.revoke` → `invitations.list` invalidate. "Üye davet et" dialog'u (§8.1.1'deki `InviteMemberDialog`, davet sonrası `invitations.list` invalidate eder) bu ekrana taşınır; workspace listesi kartından kaldırılır.
+- **shadcn:** bu işle eklenenler: `Select` (`@radix-ui/react-select`) — `packages/ui`'a eklenip `src/index.ts`'den export edilir.
+- **`clientMutationId`:** her mutation istemcide üretilir (`crypto.randomUUID()`). Tam optimistic UI Faz 4 (DEM-27); bu fazda mutation sonrası ilgili query'ler invalidate edilir.
+- **Test:** sunum (presentational) bileşenleri için React Testing Library (render + rol-bazlı görünürlük + validasyon + callback).
+
 ---
 
 ## 8.2 Mobil (`apps/mobile`)

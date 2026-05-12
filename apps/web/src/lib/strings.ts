@@ -4,12 +4,22 @@
  * read strings from here instead of inlining literals, so the eventual swap is a
  * single seam. Keep keys grouped by feature; values are plain Turkish strings.
  */
+
+/** Display labels for workspace roles, used in badges and the role <Select>. */
+export const workspaceRoleLabels = {
+  owner: 'Sahip',
+  admin: 'Yönetici',
+  member: 'Üye',
+  guest: 'Misafir',
+} as const;
+
 export const strings = {
   common: {
     appName: 'Pusula',
     loading: 'Yükleniyor…',
     cancel: 'İptal',
     retry: 'Tekrar dene',
+    back: 'Geri',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
   },
   auth: {
@@ -47,6 +57,7 @@ export const strings = {
     empty: 'Henüz workspace yok — ilkini oluştur.',
     newButton: 'Yeni workspace',
     roleBadgePrefix: 'Rol:',
+    openManage: 'Workspace’i aç',
     create: {
       title: 'Yeni workspace',
       description: 'Bir ad verin; sahibi siz olursunuz.',
@@ -55,6 +66,51 @@ export const strings = {
       submit: 'Oluştur',
       submitting: 'Oluşturuluyor…',
     },
+    manage: {
+      backToList: 'Workspace’lere dön',
+      loading: 'Workspace yükleniyor…',
+      loadErrorTitle: 'Workspace yüklenemedi',
+      memberCount: 'üye',
+      settingsTitle: 'Workspace ayarları',
+      settingsDescription: 'Workspace adını ve adresini (slug) güncelleyin.',
+      nameLabel: 'Workspace adı',
+      namePlaceholder: 'Örn. Pazarlama Ekibi',
+      slugLabel: 'Adres (slug)',
+      slugPlaceholder: 'orn-pazarlama-ekibi',
+      slugHelp: 'Yalnızca küçük harf, rakam ve tire.',
+      save: 'Kaydet',
+      saving: 'Kaydediliyor…',
+      saved: 'Değişiklikler kaydedildi.',
+      noChange: 'Değişiklik yok.',
+      dangerTitle: 'Tehlikeli bölge',
+      dangerDescription: 'Workspace’i arşivlemek listeden kaldırır; içerik silinmez.',
+      archiveButton: 'Workspace’i arşivle',
+      archiving: 'Arşivleniyor…',
+      archiveConfirmTitle: 'Workspace arşivlensin mi?',
+      archiveConfirmDescription:
+        'Bu workspace listenizden kaldırılır. İçerik silinmez; ileride bir yöneticinin geri alması gerekir.',
+      archiveConfirm: 'Arşivle',
+    },
+  },
+  members: {
+    sectionTitle: 'Üyeler',
+    sectionDescription: 'Workspace üyelerini görüntüleyin; rollerini değiştirin veya çıkarın.',
+    loading: 'Üyeler yükleniyor…',
+    loadErrorTitle: 'Üyeler yüklenemedi',
+    empty: 'Üye yok.',
+    roleLabel: 'Rol',
+    youBadge: 'Bu sizsiniz',
+    ownerBadge: 'Sahip',
+    remove: 'Çıkar',
+    removing: 'Çıkarılıyor…',
+    removeConfirmTitle: 'Üye çıkarılsın mı?',
+    removeConfirmDescription: 'Bu kişi workspace’ten çıkarılacak. Tekrar erişmesi için yeniden davet edilmesi gerekir.',
+    removeConfirm: 'Çıkar',
+    leave: 'Workspace’ten ayrıl',
+    leaving: 'Ayrılınıyor…',
+    leaveConfirmTitle: 'Workspace’ten ayrılınsın mı?',
+    leaveConfirmDescription: 'Bu workspace’e erişiminizi kaybedersiniz. Tekrar erişmek için yeniden davet edilmeniz gerekir.',
+    leaveConfirm: 'Ayrıl',
   },
   invitations: {
     inviteAction: 'Üye davet et',
@@ -64,7 +120,6 @@ export const strings = {
     inviteEmailPlaceholder: 'ornek@eposta.com',
     inviteSubmit: 'Davet gönder',
     inviteSubmitting: 'Gönderiliyor…',
-    inviteSent: 'Davet gönderildi.',
     pendingTitle: 'Bekleyen davetler',
     accept: 'Kabul et',
     accepting: 'Kabul ediliyor…',
@@ -72,6 +127,13 @@ export const strings = {
     declining: 'Reddediliyor…',
     invitedBy: 'Davet eden',
     expiresAt: 'Son tarih',
-    noPending: 'Bekleyen davet yok.',
+    sentTitle: 'Gönderilmiş davetler',
+    sentDescription: 'Bu workspace’e gönderilen ve henüz yanıtlanmamış davetler.',
+    noSent: 'Bekleyen davet yok.',
+    revoke: 'İptal et',
+    revoking: 'İptal ediliyor…',
+    revokeConfirmTitle: 'Davet iptal edilsin mi?',
+    revokeConfirmDescription: 'Bu davet geçersiz hale gelir. Kişi davet bağlantısını artık kullanamaz.',
+    revokeConfirm: 'Daveti iptal et',
   },
 } as const;

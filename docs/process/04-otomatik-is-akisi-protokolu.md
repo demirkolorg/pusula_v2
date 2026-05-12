@@ -36,17 +36,22 @@ defteri ise repo içi aynadır. Her görevde ikisi birlikte güncellenir.
 
 ## Durum sözlüğü
 
-`docs/process/05-is-kayit-defteri.md` içindeki durumlar aşağıdaki setten seçilir. Linear takımındaki
-durum adları farklıysa en yakın karşılık kullanılır.
+`docs/process/05-is-kayit-defteri.md` içindeki durumlar aşağıdaki setten seçilir. Demirkol takımının
+Linear workflow state'leri sütundaki gibidir; takımda ayrı state olmayan durumlar (`Review`, `Blocked`)
+için "en yakın karşılık + notta belirt" kuralı uygulanır.
 
-| Docs durumu | Linear karşılığı | Anlam |
+| Docs durumu | Linear state (Demirkol takımı) | Anlam |
 | --- | --- | --- |
-| `Todo` | Todo / Backlog | Yapılacak, geliştirme başlamadı |
-| `In Progress` | In Progress | Aktif çalışma başladı |
-| `Blocked` | Blocked | Dış karar, erişim, bağımlılık veya çelişki bekleniyor |
-| `Review` | In Review / Awaiting Review | Kod/doküman hazır, kullanıcı onayı veya inceleme bekliyor |
-| `Done` | Done | Kabul edildi, kapanış yorumu ve docs güncellemesi tamam |
-| `Canceled` | Canceled | Artık yapılmayacak |
+| `Backlog` | `Backlog` | Uzak; henüz sıraya alınmadı |
+| `Sonraki Faz` | `Sonraki Faz` (Unstarted kategorisi, `Backlog` ↔ `Todo` arası) | Önden bölünmüş ama henüz başlamamış "bir sonraki faz"ın işi; faz başlayınca `Todo`'ya alınır |
+| `Todo` | `Todo` | Mevcut fazın bekleyen işi; geliştirme başlamadı |
+| `In Progress` | `In Progress` | Aktif çalışma başladı |
+| `Review` | (ayrı state yok →) `In Progress` + notta "kullanıcı onayı bekliyor" | Kod/doküman hazır, kullanıcı onayı veya inceleme bekliyor |
+| `Blocked` | (ayrı state yok →) `Todo`/`Backlog` + `blockedBy` ilişkisi + notta belirt | Dış karar, erişim, bağımlılık veya çelişki bekleniyor |
+| `Done` | `Done` | Kabul edildi, kapanış yorumu ve docs güncellemesi tamam |
+| `Canceled` | `Canceled` (gerekirse `Duplicate`) | Artık yapılmayacak |
+
+> İhtiyaç olursa Linear takımına `Review` (completed-öncesi) state'i eklenebilir — şu an `Sonraki Faz` gibi bir UI işi olarak ertelenmiştir. Yeni Linear workflow state'leri yalnızca Linear arayüzünden eklenir (MCP'de tool yok); eklenince bu tabloyu güncelle.
 
 ## Her görevde zorunlu akış
 

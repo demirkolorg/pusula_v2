@@ -31,6 +31,8 @@ tutar ve "neyi nerede ararım?" sorusunu netleştirir.
 | **İş / domain** | _Ürün ne yapıyor, kim ne yapabilir?_ | [`domain/`](domain/) | Domain modeli, invariant'lar, yetkilendirme kuralları, bildirim/sıralama/aktivite/arama/ek kuralları |
 | **Süreç** | _Nasıl çalışıyoruz?_ | [`process/`](process/) | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı |
 
+> Bu üç eksen *içerik* eksenidir. Ayrıca [`kontrol-odasi/`](kontrol-odasi/) operasyonel/meta bir klasördür: "kontrol odası" tab'ının görevi + komutları ([`kontrol-odasi/README.md`](kontrol-odasi/README.md)) — içerik ekseni değildir, kurallar yine architecture / domain / process'e yazılır.
+
 ## Obsidian'da başlangıç
 
 Bu dosya ana harita notudur (MOC). Obsidian'da incelemeye buradan başla; Graph View'da
