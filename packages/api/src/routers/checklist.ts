@@ -31,7 +31,7 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — checklist / checklist.item
  * procedure'leri) and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { desc, eq, inArray, sql } from '@pusula/db';
+import { asc, desc, eq, inArray, sql } from '@pusula/db';
 import { activityEvents, boards, checklistItems, checklists } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
@@ -340,6 +340,42 @@ const itemRouter = router({
 });
 
 export const checklistRouter = router({
+  /**
+   * List a card's checklists, each with its items, all in `position` order.
+   * Board `viewer+` (already enforced by `cardProcedure`). Two reads (checklists
+   * for the card, then items for those checklists) — no transaction (read-only).
+   * Returns `[{ id, cardId, title, position, items: [{ id, checklistId, content,
+   * position, completed, completedAt, completedBy }] }]`.
+   */
+  list: cardProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select(checklistCols)
+      .from(checklists)
+      .where(eq(checklists.cardId, ctx.card.id))
+      .orderBy(asc(checklists.position));
+
+    const checklistIds = rows.map((r) => r.id);
+    const itemRows = checklistIds.length
+      ? await ctx.db
+          .select(itemCols)
+          .from(checklistItems)
+          .where(inArray(checklistItems.checklistId, checklistIds))
+          .orderBy(asc(checklistItems.position))
+      : [];
+
+    const itemsByChecklist = new Map<string, typeof itemRows>();
+    for (const item of itemRows) {
+      const bucket = itemsByChecklist.get(item.checklistId);
+      if (bucket) bucket.push(item);
+      else itemsByChecklist.set(item.checklistId, [item]);
+    }
+
+    return rows.map((checklist) => ({
+      ...checklist,
+      items: itemsByChecklist.get(checklist.id) ?? [],
+    }));
+  }),
+
   /**
    * Append a checklist to a card. Board `member+` only. Writes a
    * `checklist.created` activity event and bumps `boards.version`.

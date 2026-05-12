@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -19,7 +20,6 @@ import {
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
-import { EditCardDialog } from './edit-card-dialog';
 
 export type BoardCard = {
   id: string;
@@ -42,17 +42,27 @@ type CardItemProps = {
 };
 
 /**
- * A single card chip in a list column. Clicking the title opens the edit dialog
- * (read-only for board `viewer`). When `canEdit`, an "archive" action (small
- * confirm dialog) is also available. All mutations invalidate `board.get`.
+ * A single card chip in a list column. Clicking the title navigates to
+ * `?card=<id>` (shallow), which opens the card detail modal (board page renders
+ * `CardDetailRoute`); title / description / due editing now lives there. When
+ * `canEdit`, a quick "archive" action (small confirm dialog) is still available
+ * here. All mutations invalidate `board.get`.
  */
 export function CardItem({ boardId, card, canEdit }: CardItemProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const copy = strings.board.card;
 
-  const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+
+  const openCard = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('card', card.id);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const archiveCard = useMutation(
     trpc.card.archive.mutationOptions({
@@ -74,7 +84,7 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"
-          onClick={() => setEditOpen(true)}
+          onClick={openCard}
           className="hover:text-primary flex-1 text-left text-sm font-medium break-words"
         >
           {card.title}
@@ -131,14 +141,6 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
           </Badge>
         </div>
       )}
-
-      <EditCardDialog
-        boardId={boardId}
-        card={card}
-        canEdit={canEdit}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
     </div>
   );
 }

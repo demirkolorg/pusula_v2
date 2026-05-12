@@ -31,7 +31,7 @@
  * cleared → `card.due_cleared`; `card.archive` → `card.archived`.
  */
 import { desc, eq, sql } from '@pusula/db';
-import { activityEvents, boards, cards, lists } from '@pusula/db';
+import { activityEvents, boards, cards, lists, users } from '@pusula/db';
 import {
   archiveCardInput,
   canEditBoardContent,
@@ -341,4 +341,29 @@ export const cardRouter = router({
 
   /** Card ↔ label links — `card.labels.{list,add,remove}`. */
   labels: cardLabelsRouter,
+
+  /** Card activity feed — `card.activity.list`. */
+  activity: router({
+    /**
+     * List a card's `activity_events`, newest first, capped at 50, joined with
+     * the actor's display name. Board `viewer+` (already enforced by
+     * `cardProcedure`). No transaction (read-only).
+     */
+    list: cardProcedure.query(async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: activityEvents.id,
+          type: activityEvents.type,
+          actorId: activityEvents.actorId,
+          actorName: users.name,
+          payload: activityEvents.payload,
+          createdAt: activityEvents.createdAt,
+        })
+        .from(activityEvents)
+        .leftJoin(users, eq(users.id, activityEvents.actorId))
+        .where(eq(activityEvents.cardId, ctx.card.id))
+        .orderBy(desc(activityEvents.createdAt))
+        .limit(50);
+    }),
+  }),
 });

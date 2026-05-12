@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { Suspense, use } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle, Badge } from '@pusula/ui';
@@ -8,6 +8,7 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { ArchiveBoardDialog } from './_components/archive-board-dialog';
 import { BoardColumns } from './_components/board-columns';
+import { CardDetailRoute } from './_components/card-detail/card-detail-route';
 import { RenameBoardForm } from './_components/rename-board-form';
 
 /**
@@ -83,6 +84,12 @@ export default function BoardDetailPage({
         lists={lists}
         cards={cards}
       />
+
+      {/* Card detail modal — driven by `?card=<id>`; needs a Suspense boundary
+          for `useSearchParams` (App Router). */}
+      <Suspense fallback={null}>
+        <CardDetailRoute boardId={boardId} />
+      </Suspense>
     </div>
   );
 }
