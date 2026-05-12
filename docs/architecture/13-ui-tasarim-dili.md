@@ -34,13 +34,13 @@ updated: 2026-05-12
 > **Kararlar (kullanıcı seçimi, 2026-05-12):** (1) palet = **Trello-vari** — parlak mavi primary + canlı çoklu accent + 12-renk
 > etiket paleti; board zemini açık mavi-gri (board-başına özelleştirme ileri faz). (2) yoğunluk = **compact-balanced** —
 > kart `p-2`, kolon `w-72`, kolonlar arası `gap-3`. (3) font = **Inter** (next/font self-host). (4) rich text = **Tiptap**
-> (headless editör; storage = Tiptap JSON — bkz. §9.5). (5) Faz 2.7'de eklenecek shadcn primitive'leri: `Tooltip` / `DropdownMenu`
+> (headless editör; storage = Tiptap JSON — bkz. §13.5). (5) Faz 2.7'de eklenecek shadcn primitive'leri: `Tooltip` / `DropdownMenu`
 > / `Checkbox` / `Tabs` (hepsi Radix tabanlı, "yalnız shadcn/ui" kuralı içinde).
 >
 > § içindeki OKLCH değerleri **önerilen** palettir; 2.7A implementasyonunda ince ayar yapılabilir. Bağlayıcı olan: token isimleri,
 > token rolleri, board/kart/modal anatomisi ve bileşen sözleşmeleri.
 
-## 9.1 Design token sistemi
+## 13.1 Design token sistemi
 
 Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `packages/ui/src/styles/theme.css` yapısı). Renkler OKLCH;
 `:root` light, `.dark` dark. Inline hex/rgb yasak — her renk token'dan gelir.
@@ -129,7 +129,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 }
 ```
 
-## 9.2 Board ekranı anatomisi
+## 13.2 Board ekranı anatomisi
 
 ### Board zemini & üst bar
 
@@ -170,7 +170,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 - **Filter bar** (board ekranı üstünde — DEM-54'ten var, cilalama): etiket çipleri (`LabelChip` soft; aktif → `ring-2 ring-primary/60` veya solid) + "arşivli listeleri göster" toggle. `flex flex-wrap items-center gap-2 rounded-md border bg-card p-2`.
 - **Loading skeleton:** kolon iskeleti (`w-72 rounded-lg border bg-muted/40` + 3-4 kart iskeleti `h-16 rounded-md bg-muted animate-pulse`).
 
-## 9.3 Kart detay modalı anatomisi
+## 13.3 Kart detay modalı anatomisi
 
 shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-49]). Boyut: `w-[min(960px,92vw)] h-[min(85vh,800px)] flex flex-col gap-0 overflow-hidden p-0`.
 
@@ -189,7 +189,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 - **Sticky başlık alanı** (`sticky top-0 bg-background z-10 pb-2 -mt-4 pt-4`): `CardCompleteToggle` (yuvarlak, hep görünür) + başlık inline-edit (`textarea`, `text-lg font-semibold leading-tight`, `field-sizing-content`).
 - **Meta chip satırı (`CardModalMetaChips`)** — `flex flex-wrap items-center gap-1`; chip shell `group inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground`: `ShieldIcon`+üye sayısı (→ üye picker `Popover`) · `CalendarIcon`+due (→ date picker; gecikmiş kırmızı + "GECİKTİ" rozeti, soon amber nokta) · `TagIcon`+etiket sayısı (→ etiket picker) · `PaletteIcon`+kapak rengi (→ renk picker) · `+` ekle.
-- **AÇIKLAMA** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §9.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` ` | ` **H1 H2 H3** ` | ` bullet ordered ` | ` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
+- **AÇIKLAMA** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` ` | ` **H1 H2 H3** ` | ` bullet ordered ` | ` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
 - **KONTROL LİSTESİ** — `SectionHeader` (`CheckSquareIcon` + "KONTROL LİSTESİ" + sağda toplam `Progress` mini-bar `w-20` + `x/y` `text-primary text-[11px] font-semibold` + "+ Liste ekle" `Button variant=outline size=sm border-dashed`): her checklist `border rounded-md p-3 space-y-1.5` — başlık (inline edit) + `x/y` + `Progress` (`h-1`, dolu → `bg-success`) + maddeler (`flex items-center gap-2`: `Checkbox` yuvarlak + madde metni inline-edit [tamsa `line-through text-muted-foreground`] + sağda atanan `Avatar size-xs` + chip "Ad S." `text-[10px] text-muted-foreground` + sil ikonu hover) + "+ Madde ekle" ghost.
 
 **Sağ panel (`CardModalSidebar`)** — `bg-muted/40 backdrop-blur border-t md:border-t-0 md:border-l overflow-y-auto flex flex-col`:
@@ -201,7 +201,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 **Mobil (`md:` altında):** tek kolon — sağ panel alta düşer, sekme strip yatay kalır; modal full-width Dialog (üst başlık çubuğu sticky). (Mobil app = Faz 7, ayrı.)
 
-## 9.4 Ortak desenler + bileşenler (`packages/ui`'ye eklenecek)
+## 13.4 Ortak desenler + bileşenler (`packages/ui`'ye eklenecek)
 
 | Bileşen | Spec |
 | --- | --- |
@@ -219,15 +219,15 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 **Section başlık deseni:** her modal bölümü (AÇIKLAMA / KONTROL LİSTESİ / sağ panel sekmeleri) ve workspace/board ayar bölümleri aynı `SectionHeader` desenini kullanır. **Hover/focus:** kartlarda `hover:border-foreground/30 hover:shadow-card-hover`; ikon butonlarında `hover:bg-accent`; chip'lerde `hover:bg-muted hover:text-foreground`; tüm odaklanabilirlerde `--ring` ile görünür `focus-visible:ring-2 ring-ring/60` (a11y).
 
-## 9.5 Tiptap rich text entegrasyonu
+## 13.5 Tiptap rich text entegrasyonu
 
 - **Paketler:** `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-placeholder` (+ ileride `@tiptap/extension-mention` — Faz 6 @mention). Headless editör — component library değil; "yalnız shadcn/ui + Tailwind + lucide" kuralının istisnası değil, ek (bkz. `02-teknoloji-kararlari.md` Karar kaydı 2026-05-12).
 - **Bileşenler** (`packages/ui` veya `apps/web/_components`): `RichTextEditor` (toolbar + `EditorContent` — editable) ve `RichTextContent` (read-only `EditorContent` — yoruma/açıklamaya render). Kart açıklaması = full toolbar (B I S code · H1-3 · bullet/ordered · link); yorum = mini toolbar (B I · link).
 - **Storage = Tiptap JSON.** Mevcut `cards.description` ve `comments.body` `text` kolonları değişmez — Tiptap `getJSON()` çıktısı JSON string olarak saklanır. **Geriye dönük:** mevcut plain-text içerikler render/edit anında düz paragrafa parse edilir (`{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:eski}]}]}`); migration **gerekmez** (parse-time fallback). **XSS:** içerik Tiptap'ın controlled şema'sıyla üretilir + read-only render Tiptap `EditorContent` ile (DOM'a Tiptap basar) → `dangerouslySetInnerHTML` yok, ekstra sanitizer gerekmez.
 - **Sıralama/yetki etkisi yok:** Tiptap yalnızca `description`/`body` alanlarının *biçimini* değiştirir; `card.update` / `comment.{create,update}` procedure imzaları aynı (string in, string out). Faz 2.7 görsel — backend mantığı değişmez.
 
-## 9.6 Kapsam dışı + uygulama sırası
+## 13.6 Kapsam dışı + uygulama sırası
 
-**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §9.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
+**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
 **Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` genişletilir).

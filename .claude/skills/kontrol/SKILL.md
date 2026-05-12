@@ -55,7 +55,8 @@ Use these decisions as defaults:
 | Push | Expo Notifications |
 | Drag-drop | Atlassian Pragmatic Drag and Drop |
 | Auth | Better Auth |
-| Web UI | shadcn/ui only |
+| Web UI | shadcn/ui only (Radix as the shadcn primitive layer); UI design language (tokens, board/card/modal anatomy, shared components) → `docs/architecture/13-ui-tasarim-dili.md` |
+| Rich text | Tiptap (headless editor — not a component library; card description / comments; storage = Tiptap JSON) — Faz 2.7 |
 | Icons | lucide-react |
 | Deployment | Self-hosted Dokploy — single "Docker Compose" service (`compose.prod.yml` in repo) |
 | Object storage | Self-hosted MinIO through S3-compatible APIs |
