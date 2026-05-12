@@ -1,0 +1,28 @@
+{
+  "name": "@pusula/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./constants": "./src/constants.ts",
+    "./roles": "./src/roles.ts",
+    "./permissions": "./src/permissions.ts",
+    "./position": "./src/position.ts",
+    "./events": "./src/events.ts",
+    "./schemas": "./src/schemas/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fractional-indexing": "^3.2.0",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@pusula/config": "workspace:*",
+    "eslint": "^9",
+    "typescript": "^5"
+  }
+}

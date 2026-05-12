@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Dependencies whose install/postinstall scripts are allowed to run.
+# (pnpm 10+ blocks build scripts by default.)
+allowBuilds:
+  esbuild: true
+  sharp: true
+  msgpackr-extract: true

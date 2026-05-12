@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+@import '@pusula/ui/theme.css';
+
+/* Make Tailwind scan the shared UI package (it lives outside this app dir). */
+@source '../../../../packages/ui/src/**/*.{ts,tsx}';

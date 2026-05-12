@@ -1,0 +1,37 @@
+{
+  "name": "@pusula/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/migrate.ts",
+    "push": "drizzle-kit push",
+    "studio": "drizzle-kit studio",
+    "seed": "tsx src/seed.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pusula/domain": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "nanoid": "^5.1.6",
+    "pg": "^8.20.0",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@pusula/config": "workspace:*",
+    "@types/node": "^22",
+    "@types/pg": "^8.11.10",
+    "dotenv": "^17.2.0",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "tsx": "^4.20.0",
+    "typescript": "^5"
+  }
+}

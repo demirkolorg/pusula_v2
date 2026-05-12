@@ -1,0 +1,118 @@
+# 04 — Otomatik İş Akışı Protokolü
+
+> Eksen: **süreç**. Amaç: Claude Code geliştirme yaparken Linear MCP ve `docs/` aynı iş
+> durumunu taşısın; kullanıcı süreci iki taraftan da izleyebilsin.
+
+## Kaynaklar ve roller
+
+| Kaynak | Rol |
+| --- | --- |
+| Linear issue | Operasyonel iş kaydı: durum, sahip, yorumlar, kabul kriterleri, bağlantılı işler |
+| `docs/process/05-is-kayit-defteri.md` | Linear'ın repo içindeki takip aynası: iş listesi, durum, son senkron, etkilenen dosyalar |
+| `docs/process/02-mvp-faz-plani.md` | Faz seviyesinde ilerleme kaydı |
+| `docs/architecture/*` | Teknik karar ve tasarım kaynağı |
+| `docs/domain/*` | Ürün, yetki, bildirim, sıralama ve domain kuralı kaynağı |
+
+Teknik/domain kararlarında kaynak `docs/`tur. İş durumunda Linear operasyonel kaynak, iş kayıt
+defteri ise repo içi aynadır. Her görevde ikisi birlikte güncellenir.
+
+## Durum sözlüğü
+
+`docs/process/05-is-kayit-defteri.md` içindeki durumlar aşağıdaki setten seçilir. Linear takımındaki
+durum adları farklıysa en yakın karşılık kullanılır.
+
+| Docs durumu | Linear karşılığı | Anlam |
+| --- | --- | --- |
+| `Todo` | Todo / Backlog | Yapılacak, geliştirme başlamadı |
+| `In Progress` | In Progress | Aktif çalışma başladı |
+| `Blocked` | Blocked | Dış karar, erişim, bağımlılık veya çelişki bekleniyor |
+| `Review` | In Review / Awaiting Review | Kod/doküman hazır, kullanıcı onayı veya inceleme bekliyor |
+| `Done` | Done | Kabul edildi, kapanış yorumu ve docs güncellemesi tamam |
+| `Canceled` | Canceled | Artık yapılmayacak |
+
+## Her görevde zorunlu akış
+
+1. **Giriş kontrolü**
+   - `CLAUDE.md`, `.claude/skills/kontrol/SKILL.md` ve ilgili `docs/` dosyalarını oku.
+   - `docs/process/05-is-kayit-defteri.md` ve Linear içinde aynı işi temsil eden mevcut kayıt var mı kontrol et.
+   - Çelişki varsa kodlamaya başlamadan kullanıcıya bildir.
+
+2. **İş kaydı oluştur veya eşle**
+   - Linear MCP erişilebilir durumdaysa mevcut issue'yu kullan veya yeni issue oluştur.
+   - Issue açıklamasına hedef, teknik gereksinimler, kabul kriterleri, etkilenen katmanlar ve
+     etkilenen `docs/` dosyalarını yaz.
+   - Durumu `In Progress` yap ve kullanıcı aksini istemediyse kullanıcıya ata.
+   - Aynı işi `docs/process/05-is-kayit-defteri.md` içinde tek satır olarak kaydet.
+   - Linear MCP erişilebilir değilse kayıt defterinde `Linear` alanına `MCP bekliyor` yaz, işi
+     `Blocked` yapma; ama final yanıtta Linear senkronunun beklediğini açıkça belirt.
+
+3. **Koddan önce belge**
+   - Yeni teknik karar, domain kuralı, tRPC procedure, Drizzle şema değişikliği veya süreç kuralı
+     varsa önce doğru `docs/` dosyasını güncelle.
+   - Teknoloji kararı değiştiyse `docs/architecture/02-teknoloji-kararlari.md` karar kaydına tarihli
+     satır ekle.
+   - Faz çıktısı veya faz durumu değiştiyse `docs/process/02-mvp-faz-plani.md`yi güncelle.
+
+4. **Geliştirme sırasında senkron**
+   - Durum değişirse aynı çalışma turunda hem Linear hem iş kayıt defteri güncellenir.
+   - Yeni alt iş çıkarsa küçükse mevcut issue checklist'ine, bağımsızsa yeni Linear issue + yeni
+     kayıt defteri satırına taşınır.
+   - Her anlamlı yorumda Linear'a şu bilgiler yazılır: özet, değişen dosyalar, test/verification
+     durumu, açık risk veya blokaj.
+
+5. **Kapanış**
+   - Kod ve docs değişiklikleri tamamlanınca test/verification çalıştır.
+   - Linear issue'ya kapanış yorumu ekle: yapılanlar, güncellenen docs, test sonucu, kalan riskler.
+   - Kullanıcı onayı gerekiyorsa durum `Review`; onaylandıysa veya görev açıkça tamamlanabilir
+     nitelikteyse durum `Done`.
+   - `docs/process/05-is-kayit-defteri.md` aynı duruma çekilir ve `Son senkron` tarihi güncellenir.
+
+## Çift yönlü senkron kuralı
+
+Her yeni çalışma turunun başında Linear ve iş kayıt defteri karşılaştırılır.
+
+- Linear daha güncelse iş kayıt defteri Linear'a göre güncellenir.
+- İş kayıt defteri daha güncelse Linear issue açıklaması/yorumu/durumu güncellenir.
+- Hangisinin güncel olduğu anlaşılamıyorsa kullanıcıdan kısa karar istenir.
+- Aynı iş için iki Linear issue veya iki docs satırı oluştuysa yeni iş yapılmadan önce tek kayda
+  indirgenir.
+
+## Issue açıklama şablonu
+
+```txt
+## Hedef
+<bir cümle>
+
+## Teknik gereksinimler
+- ...
+
+## Etkilenen katmanlar
+- apps/... / packages/... / docs/...
+
+## Etkilenen belgeler
+- docs/architecture/... veya docs/domain/... veya docs/process/...
+
+## Kabul kriterleri
+- [ ] ...
+- [ ] Test/verification tamamlandı
+
+## Docs senkron
+- İş kayıt defteri: docs/process/05-is-kayit-defteri.md
+- Son senkron: YYYY-MM-DD
+```
+
+## Kapanış yorumu şablonu
+
+```txt
+## Özet
+- ...
+
+## Güncellenen docs
+- docs/...
+
+## Test / verification
+- ...
+
+## Kalan risk / takip işi
+- Yok / ...
+```

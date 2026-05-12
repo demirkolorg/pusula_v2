@@ -1,0 +1,35 @@
+{
+  "name": "pusula",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rimraf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
+    "db:generate": "pnpm --filter @pusula/db generate",
+    "db:migrate": "pnpm --filter @pusula/db migrate",
+    "db:push": "pnpm --filter @pusula/db push",
+    "db:studio": "pnpm --filter @pusula/db studio",
+    "db:seed": "pnpm --filter @pusula/db seed",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@pusula/config": "workspace:*",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.9.12",
+    "typescript": "^5"
+  }
+}

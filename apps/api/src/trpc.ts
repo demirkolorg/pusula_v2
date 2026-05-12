@@ -1,0 +1,30 @@
+import type { Context as HonoContext } from 'hono';
+import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
+import { createContext, type Context } from '@pusula/api';
+import { auth } from './auth';
+
+/** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
+export async function buildTrpcContext(
+  _opts: FetchCreateContextFnOptions,
+  c: HonoContext,
+): Promise<Context> {
+  const headers = c.req.raw.headers;
+  const sessionData = await auth.api.getSession({ headers });
+
+  return createContext({
+    session: sessionData
+      ? {
+          user: {
+            id: sessionData.user.id,
+            email: sessionData.user.email,
+            name: sessionData.user.name,
+            image: sessionData.user.image ?? null,
+          },
+          sessionId: sessionData.session.id,
+        }
+      : null,
+    requestId: c.get('requestId') as string | undefined,
+    ip: c.req.header('x-forwarded-for') ?? null,
+    userAgent: c.req.header('user-agent') ?? null,
+  });
+}

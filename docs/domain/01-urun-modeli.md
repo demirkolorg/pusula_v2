@@ -1,0 +1,54 @@
+# 01 — Ürün Modeli ve Çekirdek Invariant'lar
+
+> Eksen: **iş / domain**. Şema implementasyonu (tablolar, kolonlar) → [`../architecture/04-veri-katmani.md`](../architecture/04-veri-katmani.md).
+
+## Entity'ler
+
+| Entity | Anlam |
+| --- | --- |
+| **Workspace** | Takım/organizasyon alanı. Üst kapsam. |
+| **Workspace member** | Workspace seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
+| **Board** | Trello panosu. Bir workspace'e aittir. `version` alanı taşır (realtime sequence kontrolü). |
+| **Board member** | Board seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
+| **Label** | Board'a ait etiket; kartlara atanır (`card_labels`). |
+| **List** | Board içindeki kolon. Bir board'a aittir. Arşivlenebilir. |
+| **Card** | Liste içindeki görev kartı. Bir listeye aittir. Arşivlenebilir. `due_at` taşıyabilir. |
+| **Card member** | Karta atanan kullanıcı (assignee / watcher — bkz. [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md)). |
+| **Checklist / Checklist item** | Kart içi yapılacaklar listesi ve maddeleri. |
+| **Comment** | Karta yorum. |
+| **Attachment** | Karta dosya eki (metadata DB'de, içerik MinIO'da). Bkz. [`07-ek-kurallari.md`](07-ek-kurallari.md). |
+| **Activity event** | Kart/liste/board üzerinde oluşan işlem geçmişi. Bkz. [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md). |
+| **Realtime event** | Düşük gecikmeli yayın için kaydedilen olay (kalıcı kurtarma + sequence). |
+| **Notification** | Atama, mention, son tarih, yorum, taşıma, davet gibi olaylardan üretilen bildirim. |
+| **Notification preference** | Kullanıcının workspace/board/card bazlı bildirim tercihleri (mute level, mention-only, push/email). |
+| **Notification outbox** | İşlenmeyi bekleyen bildirim kayıtları (worker tüketir). |
+| **Push token** | Cihaz bazlı Expo push token. |
+| **Search document** | Board/card/comment/label metinlerinin denormalize arama kaydı. Bkz. [`06-arama-kapsami.md`](06-arama-kapsami.md). |
+| **(Better Auth)** User, Session, Account, Verification | Kimlik doğrulama varlıkları. Bkz. [`../architecture/07-auth.md`](../architecture/07-auth.md). |
+
+## Hiyerarşi
+
+```txt
+Workspace
+  └─ Board (version)
+       ├─ List (arşivlenebilir)
+       │    └─ Card (arşivlenebilir, due_at)
+       │         ├─ Card member (assignee / watcher)
+       │         ├─ Checklist → Checklist item
+       │         ├─ Comment
+       │         ├─ Attachment
+       │         └─ Card label
+       └─ Label
+```
+
+## Çekirdek invariant'lar
+
+1. Bir kart **aynı anda tek bir listeye** aittir.
+2. Bir liste **tek bir board'a** aittir.
+3. Bir kart, **listesiyle aynı board'tadır** (kart taşınırken `board_id` tutarlı kalmalı).
+4. **Arşivli liste aktif kart taşıması almaz** — açık bir restore akışı yoksa.
+5. **Permission kontrolü her tRPC procedure'de server-side** yapılır; frontend state'e güvenilmez.
+6. **Realtime room erişimi** server-side board/workspace permission'dan türetilir.
+7. **Activity event + notification outbox + realtime event + domain mutasyonu** mümkünse aynı transaction'da oluşturulur.
+8. **Idempotency:** aynı `clientMutationId` ile iki kez gelen mutation duplicate activity/bildirim üretmez; aynı domain event'inden duplicate bildirim üretilmez (`event_id` ile dedup).
+9. **Position** alanı ardışık tam sayı değildir (fractional/string); bkz. [`03-siralama-kurallari.md`](03-siralama-kurallari.md).

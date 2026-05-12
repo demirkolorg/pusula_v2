@@ -1,0 +1,28 @@
+{
+  "name": "@pusula/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./trpc": "./src/trpc.ts",
+    "./context": "./src/context.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pusula/db": "workspace:*",
+    "@pusula/domain": "workspace:*",
+    "@trpc/server": "^11.17.0",
+    "superjson": "^2.2.6",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@pusula/config": "workspace:*",
+    "@types/node": "^22",
+    "eslint": "^9",
+    "typescript": "^5"
+  }
+}
