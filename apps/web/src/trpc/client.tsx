@@ -8,6 +8,7 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import superjson from 'superjson';
 import type { AppRouter } from '@pusula/api';
+import { env } from '@/env';
 import { makeQueryClient } from './query-client';
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
@@ -20,8 +21,7 @@ function getQueryClient() {
 }
 
 function getTrpcUrl() {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-  return `${base.replace(/\/$/, '')}/trpc`;
+  return `${env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/trpc`;
 }
 
 export function TRPCReactProvider({ children }: { children: ReactNode }) {

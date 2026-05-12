@@ -42,6 +42,17 @@ keyboard accessibility · drag overlay · multi-list reorder · optimistic cache
 - **i18n & hardcode:** UI bileşenleri hardcode metin **içermez**; entity-bağımsız ve yerelleştirme (i18n) standartlarına uygun. Metinler çeviri katmanından gelir, etiketler/format locale-aware olur.
 - Accessibility: keyboard navigation, focus yönetimi, ARIA — özellikle board ekranı ve modal akışları.
 
+### 8.1.1 Auth ekranları & oturum yönetimi (Faz 1)
+
+Better Auth HTTP route'ları `apps/api` (`${API_URL}/api/auth/*`); web tarafı `apps/web/src/lib/auth-client.ts` (`better-auth/react`) ile bunları çağırır. Web ve API farklı origin'de (dev: `:3000` / `:3001`) — session cookie API origin'inde set edilir, tRPC ve auth istekleri `credentials: 'include'` ile gider; bu yüzden **oturum yönetimi client-side**'dır (Next.js RSC, API origin'inin cookie'sine erişemez — server-side session kontrolü bu fazda yok).
+
+- **Public route'lar:** `app/(auth)/sign-in`, `app/(auth)/sign-up`. `(auth)/layout.tsx` zaten oturum açıksa `/`'a yönlendirir. Formlar native `<form>` + `@pusula/domain` zod şemalarıyla client-side validasyon; `authClient.signUp.email(...)` / `signIn.email(...)`; hata mesajı inline; başarıda `?redirect=` (varsa) ya da `/`'a gider.
+- **Korumalı kabuk:** `app/(app)/layout.tsx` (client component) `authClient.useSession()` kullanır — `pending` → iskelet/spinner; oturum yok → `router.replace('/sign-in?redirect=…')`; oturum var → app shell (header: kullanıcı adı + çıkış). `app/(app)/page.tsx` = workspace listesi (`trpc.workspace.list`). Çıkış: `authClient.signOut()` → `/sign-in`.
+- **Workspace oluşturma:** shadcn `Dialog` + ad input → `trpc.workspace.create` mutation (`clientMutationId` istemcide üretilir, ör. `crypto.randomUUID()`); başarıda `workspace.list` invalidate. Tam optimistic UI Faz 4'te.
+- **Form kütüphanesi:** Faz 1 auth formları basit (email/parola) — native form + zod yeterli; ayrı form kütüphanesi (react-hook-form vb.) eklenmez. Karmaşık form ihtiyacı doğarsa ayrı karar.
+- **shadcn bileşenleri** (`@pusula/ui`): `Button` mevcut; bu işle eklenenler (`Input`, `Label`, `Card`, `Dialog`, …) — `pnpm dlx shadcn@latest add …` `packages/ui` içinden, sonra `src/index.ts`'den export, `apps/web` zaten `@source` ile `packages/ui/src`'i Tailwind taramasına dâhil ediyor.
+- **Test:** Auth formları için React Testing Library (render + validasyon + `authClient` mock'lu submit). Playwright e2e (sign-up → workspace listesi → workspace oluştur → çıkış) ileri faz / Faz 8 sertleştirmeyle birlikte.
+
 ---
 
 ## 8.2 Mobil (`apps/mobile`)

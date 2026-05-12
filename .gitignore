@@ -42,6 +42,10 @@ Thumbs.db
 !.vscode/extensions.json
 .obsidian/
 
+# claude code (agent worktrees / local cache — keep .claude/skills tracked)
+.claude/worktrees/
+.claude/cache/
+
 # drizzle
 packages/db/drizzle/meta/_journal.json.lock
 

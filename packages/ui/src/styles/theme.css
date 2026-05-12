@@ -2,6 +2,8 @@
  * Pusula shared design tokens (shadcn/ui — new-york, neutral base, Tailwind v4).
  * Consumed by apps that also `@import "tailwindcss"`; do NOT import Tailwind here.
  */
+@import 'tw-animate-css';
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

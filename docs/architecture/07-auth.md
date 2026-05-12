@@ -23,7 +23,7 @@ updated: 2026-05-12
 
 - Kimlik doğrulama: **Better Auth**. Self-hosted, TypeScript odaklı; Hono ve Expo gibi farklı istemci katmanlarıyla kullanılabilir.
 - Instance: `apps/api/src/auth.ts`. Hono üzerinde `${API_URL}/api/auth/*` route'larını Better Auth sahiplenir.
-- Web client: `apps/web/src/lib/auth-client.ts`.
+- Web client: `apps/web/src/lib/auth-client.ts` (`better-auth/react`). Web ↔ API ayrı origin olduğundan oturum yönetimi **client-side** (`useSession`); istekler `credentials: 'include'`. Web auth ekran akışı (sign-up/in/out, korumalı kabuk, route group düzeni) → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.1.
 - Tabloları (`users`, `sessions`, `accounts`, `verifications`) `@pusula/db` içinde — bkz. [`04-veri-katmani.md`](04-veri-katmani.md).
 - Better Auth session, kullanıcı, hesap bağlantıları ve güvenli kimlik doğrulama akışlarını yönetir.
 
