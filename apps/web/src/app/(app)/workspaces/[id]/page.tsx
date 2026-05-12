@@ -20,6 +20,7 @@ import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberDialog } from '../../_components/invite-member-dialog';
 import { ArchiveWorkspaceDialog } from './_components/archive-workspace-dialog';
+import { BoardListSection } from './_components/board-list-section';
 import { DeleteWorkspaceDialog } from './_components/delete-workspace-dialog';
 import { MemberList } from './_components/member-list';
 import { SentInvitations } from './_components/sent-invitations';
@@ -73,6 +74,8 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
   const ws = workspace.data;
   const isOwner = ws.role === 'owner';
   const canManage = workspaceRoleAtLeast(ws.role, 'admin');
+  // Workspace `guest` cannot create boards; the server enforces this on `board.create`.
+  const canCreateBoard = workspaceRoleAtLeast(ws.role, 'member');
 
   return (
     <div className="space-y-6">
@@ -92,6 +95,16 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{strings.board.listSectionTitle}</CardTitle>
+          <CardDescription>{strings.board.listSectionDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BoardListSection workspaceId={workspaceId} canCreateBoard={canCreateBoard} />
+        </CardContent>
+      </Card>
 
       {canManage && (
         <Card>

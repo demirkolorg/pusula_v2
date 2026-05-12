@@ -25,6 +25,7 @@ export {
 } from './components/dialog';
 export { Alert, AlertDescription, AlertTitle, alertVariants } from './components/alert';
 export { Badge, badgeVariants, type BadgeProps } from './components/badge';
+export { Textarea } from './components/textarea';
 export {
   Select,
   SelectContent,
