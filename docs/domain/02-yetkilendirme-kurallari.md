@@ -1,3 +1,19 @@
+---
+title: "02 — Yetkilendirme Kuralları"
+description: "Workspace, board ve card rolleri ile authorization kuralları."
+aliases:
+  - "Yetkilendirme Kuralları"
+  - "Authorization Rules"
+tags:
+  - "pusula"
+  - "domain/authorization"
+  - "security"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 02 — Yetkilendirme Kuralları
 
 > Eksen: **iş / domain**. Auth ≠ authorization: kimlik doğrulama altyapısı (Better Auth) ve
@@ -33,6 +49,28 @@ Card:       assignee · watcher
 | Board oluştur | ✓ | ✓ | ✓ | — |
 | Workspace'i ve board listesini gör | ✓ | ✓ | ✓ | (davet edildiği board'lar) |
 | Workspace genel activity feed | ✓ | ✓ | ✓ | — |
+
+#### Workspace procedure haritası (Faz 1)
+
+> tRPC procedure → gereken workspace rolü. Enforcement: `workspaceProcedure` (bkz. [`../architecture/03-backend.md`](../architecture/03-backend.md)) `workspaceId`'den üyeliği çözer — workspace yoksa `NOT_FOUND`, üyelik yoksa `FORBIDDEN`. İnce kontrol (`admin+` / `owner`) procedure gövdesinde `@pusula/domain/permissions` ile yapılır.
+
+| Procedure | Gereken rol | Not |
+| --- | --- | --- |
+| `workspace.list` | (oturum) | Yalnızca kullanıcının üyesi olduğu workspace'ler döner |
+| `workspace.create` | (oturum) | Oluşturan otomatik `owner` üye olur |
+| `workspace.get` | member+ | `guest` shell'i görür; board listesi yalnızca davet edildiği board'lar |
+| `workspace.update` | admin+ | Ad/slug değişikliği |
+| `workspace.archive` | owner | Soft-delete (`archived_at`) |
+| `workspace.delete` | owner | Kalıcı silme — şimdilik devre dışı / açık onay gerektirir |
+| `workspace.members.list` | member+ | |
+| `workspace.members.updateRole` | admin+ | `owner` rolü atanamaz/kaldırılamaz — owner devri ayrı akış |
+| `workspace.members.remove` | admin+ | Üye kendini çıkarabilir; son `owner` çıkarılamaz |
+| `workspace.members.invite` | admin+ | Davet token akışıyla gelir (süreli, tek kullanımlık) — ayrı iş; bkz. [`../architecture/10-platform.md`](../architecture/10-platform.md) §10.6 |
+
+Activity: `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_role_changed`,
+`workspace.member_removed` ilgili transaction içinde `activity_events`'e yazılır (bkz.
+[`05-aktivite-kurallari.md`](05-aktivite-kurallari.md)). `workspace.member_added` davet-token akışıyla
+birlikte gelecek (ayrı iş). Realtime yayın ve `notification_outbox` (davet bildirimi) ilerleyen fazlarda eklenir.
 
 ### Board
 

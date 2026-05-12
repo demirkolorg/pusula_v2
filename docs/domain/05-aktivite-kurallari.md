@@ -1,3 +1,18 @@
+---
+title: "05 — Aktivite Kuralları"
+description: "Activity event ilkeleri ve event taksonomisi."
+aliases:
+  - "Aktivite Kuralları"
+  - "Activity Events"
+tags:
+  - "pusula"
+  - "domain/activity"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 05 — Aktivite Kuralları (Activity Events)
 
 > Eksen: **iş / domain**. Tablo/şema → [`../architecture/04-veri-katmani.md`](../architecture/04-veri-katmani.md); realtime yayını → [`../architecture/05-board-mekanigi.md`](../architecture/05-board-mekanigi.md) §5.3.
@@ -20,7 +35,7 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 | Checklist | `checklist.created`, `checklist.item_added`, `checklist.item_checked`, `checklist.item_unchecked`, `checklist.item_removed` | checklist id, item id, metin |
 | Comment | `comment.added`, `comment.edited`, `comment.deleted` | comment id, (mention listesi) |
 | Attachment | `attachment.added`, `attachment.removed` | attachment id, dosya adı |
-| Workspace | `workspace.created`, `workspace.member_added`, `workspace.member_removed`, `workspace.member_role_changed`, `workspace.board_created` | üye id, rol, board id |
+| Workspace | `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_added`, `workspace.member_removed`, `workspace.member_role_changed`, `workspace.board_created` | eski/yeni ad/slug, üye id, rol, board id |
 
 ## Kurallar
 

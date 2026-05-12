@@ -1,3 +1,19 @@
+---
+title: "03 — Backend"
+description: "Hono HTTP kabuğu, tRPC sözleşmesi ve worker sorumlulukları."
+aliases:
+  - "Backend"
+  - "Hono tRPC Worker"
+tags:
+  - "pusula"
+  - "architecture/backend"
+  - "backend"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 03 — Backend (Hono + tRPC + Worker)
 
 > Eksen: **tasarım / teknik**. Yetkilendirme **kuralları** (kim ne yapabilir) için
@@ -47,6 +63,21 @@ protectedProcedure (session check)
 
 Permission kontrolü her procedure'de **server-side**; frontend state'e güvenilmez. Realtime room
 erişimi de server-side board/workspace permission'dan türetilir.
+
+### Scoped procedure middleware'leri
+
+Yukarıdaki zincir (`session → workspace → board → card/list`) her procedure'de elle tekrarlanmaz;
+katmanlı procedure tipleriyle DRY tutulur. Permission **kuralları** (kim ne yapabilir) `@pusula/domain`
+ve [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md)'da kalır; bu
+middleware'ler yalnızca **enforcement** noktasıdır — "üye mi?" kapısını açar, ince yetki kontrolünü
+(`canManageWorkspace`, `canEditBoardContent`, …) procedure gövdesi yapar.
+
+- `workspaceProcedure` = `protectedProcedure` + `workspaceId`'yi input'tan okuyup kullanıcının `workspace_members` kaydını çözen middleware. Workspace yoksa `NOT_FOUND`, üyelik yoksa `FORBIDDEN`; varsa `ctx.workspace = { id, role }` eklenir. (Faz 1)
+- `boardProcedure` = board'u çözer ve `effectiveBoardRole` sonucunu (workspace + board üyeliğinden, `@pusula/domain/permissions`) hesaplar; `ctx.board = { id, workspaceId, role }` ekler. (Faz 2)
+- `cardProcedure` = board context + kullanıcının kart ilişkisi (`assignee`/`watcher`); `ctx.card` ekler. (İlgili faz)
+
+`@pusula/api` içindeki `permission middleware`'leri bu katmanı uygular; rate-limit middleware'i de aynı
+zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 
 ## Worker (background job)
 

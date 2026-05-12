@@ -17,11 +17,19 @@ export const BOARD_ROLES = ['admin', 'member', 'viewer'] as const;
 /** Card-level relationships a user can have. */
 export const CARD_ROLES = ['assignee', 'watcher'] as const;
 
-/** Activity event types written to `activity_events`. Extend as features land. */
+/**
+ * Activity event types written to `activity_events`. Backs the `activity_event_type`
+ * Postgres enum in `@pusula/db` — **APPEND ONLY**: never reorder or remove entries
+ * (Postgres can't drop or reorder enum values without a destructive type recreation).
+ * Add new values, then run `pnpm db:generate`. Extend as features land.
+ */
 export const ACTIVITY_EVENT_TYPES = [
   'workspace.created',
+  'workspace.updated',
+  'workspace.archived',
   'workspace.member_added',
   'workspace.member_removed',
+  'workspace.member_role_changed',
   'board.created',
   'board.updated',
   'board.archived',

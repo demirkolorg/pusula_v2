@@ -8,6 +8,13 @@
       "when": 1778573547226,
       "tag": "0000_nasty_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778578898663,
+      "tag": "0001_loud_kinsey_walden",
+      "breakpoints": true
     }
   ]
 }
