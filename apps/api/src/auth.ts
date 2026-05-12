@@ -28,11 +28,12 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // Onboarding bootstrap: give a brand-new user a default workspace + empty
-        // "İlk Pano" so they don't land on a blank screen. Best-effort — a failure
-        // here must not fail signup, so we log and move on (the user lands on the
-        // onboarding empty state instead). Runs after the user row is committed;
-        // see `./bootstrap.ts` and `docs/architecture/08-web-ve-mobil.md` §8.1.3.
+        // Onboarding bootstrap: give a brand-new user a default workspace + an
+        // "İlk Pano" board seeded with default lists + welcome cards, so they don't
+        // land on a blank screen. Best-effort — a failure here must not fail signup,
+        // so we log and move on (the user then lands on the onboarding empty state).
+        // Runs after the user row is committed; see `./bootstrap.ts` and
+        // `docs/architecture/08-web-ve-mobil.md` §8.1.3.
         after: async (user) => {
           try {
             await bootstrapNewUser(user.id);
