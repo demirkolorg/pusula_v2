@@ -27,6 +27,8 @@ Next.js App Router. App `apps/web/src/app`; `@/*` → `apps/web/src/*`.
 Sorumluluklar: board ekranı, drag-drop deneyimi, workspace & board yönetimi, notification center,
 activity feed, search, settings, auth ekranları.
 
+> **UI tasarım dili (token'lar, board/kolon/kart/modal anatomisi, ortak desenler, `packages/ui` bileşen spec'leri) → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md)** (Faz 2.7). Bu dosya web tarafının teknik/işlevsel ihtiyaçlarını tutar; *görsel/anatomi* kararları 13'te. Faz 2.7 uygulamasında §8.1.4–8.1.6'daki ekranlar 13'teki tasarım diline çekilir.
+
 Kullanım ilkeleri:
 
 - Ana API Next içinde **değil**, `apps/api` içinde. Route Handler'lar yalnızca web-BFF veya özel web endpoint'leri için.

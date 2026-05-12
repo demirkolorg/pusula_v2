@@ -43,6 +43,7 @@ Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açm
 | 10 | [`10-platform.md`](10-platform.md) | Test stratejisi, CI/CD, deployment (Dokploy "Docker Compose" servis tipi), environment, observability, güvenlik başlıkları, performans |
 | 11 | [`11-referanslar.md`](11-referanslar.md) | Dış dokümantasyon linkleri |
 | 12 | [`12-deployment-runbook.md`](12-deployment-runbook.md) | Üretim deploy runbook'u: `compose.prod.yml`/`Dockerfile` template'leri, VDS temizliği (v1'i indirme), ilk deploy + migration, smoke test, erişimi açma, sürekli deploy, rollback, yedekleme, sorun giderme |
+| 13 | [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) | UI tasarım dili (Faz 2.7): design token sistemi (Trello-vari mavi palet / radius / shadow / spacing / Inter), board-kolon-kart anatomisi + metadata satırı, kart detay modalı (iki-kolon + kapak-renkli başlık + sağ panel), ortak desenler + `packages/ui` bileşen spec'leri (`Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`), Tiptap entegrasyonu |
 
 ## Kaçınılması gerekenler (teknik)
 
