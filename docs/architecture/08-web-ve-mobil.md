@@ -1,3 +1,19 @@
+---
+title: "08 — Web ve Mobil"
+description: "Next.js web ve ileri faz Expo mobile teknik kuralları."
+aliases:
+  - "Web ve Mobil"
+  - "Frontend"
+tags:
+  - "pusula"
+  - "architecture/frontend"
+  - "mobile"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 08 — Web ve Mobil
 
 > Eksen: **tasarım / teknik**. Board mekaniği (drag-drop/optimistic/realtime) ayrı: [`05-board-mekanigi.md`](05-board-mekanigi.md).

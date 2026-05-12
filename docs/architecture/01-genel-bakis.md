@@ -1,3 +1,18 @@
+---
+title: "01 — Genel Bakış"
+description: "Ürün hedefi, kalite hedefleri, monorepo yapısı ve teknoloji özeti."
+aliases:
+  - "Genel Bakış"
+  - "Pusula Teknik Genel Bakış"
+tags:
+  - "pusula"
+  - "architecture/genel-bakis"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 01 — Genel Bakış
 
 > Eksen: **tasarım / teknik**. Ürün modeli ve domain kuralları için [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md).

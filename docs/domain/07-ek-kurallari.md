@@ -1,3 +1,18 @@
+---
+title: "07 — Ek Kuralları"
+description: "Attachment yükleme, silme, validasyon, işleme ve temizlik kuralları."
+aliases:
+  - "Ek Kuralları"
+  - "Attachment Rules"
+tags:
+  - "pusula"
+  - "domain/attachments"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 07 — Ek (Attachment) Kuralları
 
 > Eksen: **iş / domain** — _kim yükleyebilir, ne yüklenebilir, limitler_. Depolama altyapısı

@@ -1,3 +1,19 @@
+---
+title: "05 — Board Mekaniği"
+description: "Drag-drop, optimistic UI ve realtime board senkronizasyonu."
+aliases:
+  - "Board Mekaniği"
+  - "Drag Drop Optimistic Realtime"
+tags:
+  - "pusula"
+  - "architecture/board"
+  - "realtime"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
 
 > Eksen: **tasarım / teknik**. Bunlar board ekranının çalışma mekanikleridir ve sıkı

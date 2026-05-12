@@ -1,3 +1,21 @@
+---
+title: "Pusula"
+description: "Pusula v2 monorepo başlangıç, çalışma ve yol haritası notu."
+aliases:
+  - "Pusula Ana Sayfa"
+  - "Pusula v2"
+tags:
+  - "pusula"
+  - "project/index"
+  - "obsidian/vault"
+type: "project-index"
+axis: "root"
+status: "active"
+related:
+  - "[[docs/README|Pusula Belgeleri]]"
+  - "[[CLAUDE|Çalışma Protokolü]]"
+updated: 2026-05-12
+---
 # Pusula
 
 Trello benzeri görev yönetim ürünü — monorepo (pnpm + Turborepo).
@@ -11,6 +29,15 @@ Trello benzeri görev yönetim ürünü — monorepo (pnpm + Turborepo).
 > [`docs/architecture/`](docs/architecture/README.md) · [`docs/domain/`](docs/domain/README.md) · [`docs/process/`](docs/process/README.md).
 > Çalışma protokolü: [`CLAUDE.md`](CLAUDE.md) · Implementasyon sözleşmesi (Claude Code skill `kontrol`):
 > [`.claude/skills/kontrol/SKILL.md`](.claude/skills/kontrol/SKILL.md).
+
+## Obsidian kasası
+
+Bu proje kökü Obsidian kasası olarak açılabilir. Başlangıç için [`docs/README.md`](docs/README.md)
+ana harita notunu kullan; teknik mimari, domain kuralları ve süreç belgeleri alt MOC dosyalarından
+gezilir. Tüm proje Markdown notları Obsidian Properties için frontmatter, hızlı açma için `aliases`
+ve graph/tag filtreleri için `tags` taşır.
+
+Yeni veya değişen dokümanlarda yazım standardı: [`docs/process/06-obsidian-dokumantasyon-kurallari.md`](docs/process/06-obsidian-dokumantasyon-kurallari.md).
 
 ## Yapı
 

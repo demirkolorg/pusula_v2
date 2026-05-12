@@ -1,3 +1,18 @@
+---
+title: "06 — Arama Kapsamı"
+description: "Aranabilir içerik ve permission filtreli arama sonuç kuralları."
+aliases:
+  - "Arama Kapsamı"
+  - "Search Scope"
+tags:
+  - "pusula"
+  - "domain/search"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 06 — Arama Kapsamı
 
 > Eksen: **iş / domain** — _neler aranabilir, sonuçlar nasıl filtrelenir_. Arama altyapısı

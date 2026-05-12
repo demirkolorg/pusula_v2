@@ -1,3 +1,19 @@
+---
+title: "Pusula — Tasarım / Teknik Mimari"
+description: "Teknik mimari ve tasarım kararları için harita notu."
+aliases:
+  - "Architecture MOC"
+  - "Teknik Mimari"
+tags:
+  - "pusula"
+  - "architecture/moc"
+  - "docs/moc"
+type: "moc"
+axis: "architecture"
+status: "active"
+parent: "[[docs/README|Pusula Belgeleri]]"
+updated: 2026-05-12
+---
 # Pusula — Tasarım / Teknik Mimari (`docs/architecture/`)
 
 Bu klasör **"nasıl inşa ediyoruz?"** sorusunu yanıtlar: stack, monorepo yapısı,
@@ -5,6 +21,11 @@ pattern'ler, altyapı, transport, deployment. İş kuralları / domain modeli i�
 [`../domain/`](../domain/), süreç için [`../process/`](../process/).
 
 Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açma.
+
+> [!note] Obsidian
+> Bu klasördeki notlar `axis: architecture` ve `architecture/*` tag'leriyle işaretlenir.
+> Yeni teknik not açarken [`../process/06-obsidian-dokumantasyon-kurallari.md`](../process/06-obsidian-dokumantasyon-kurallari.md)
+> standardını uygula ve bu içindekiler tablosuna ekle.
 
 ## İçindekiler
 

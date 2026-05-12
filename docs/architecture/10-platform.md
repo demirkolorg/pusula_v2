@@ -1,3 +1,19 @@
+---
+title: "10 — Platform"
+description: "Test, CI/CD, deployment, environment, observability, güvenlik ve performans ilkeleri."
+aliases:
+  - "Platform"
+  - "Deployment Observability"
+tags:
+  - "pusula"
+  - "architecture/platform"
+  - "deployment"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 10 — Platform (Test · CI/CD · Deployment · Environment · Observability · Güvenlik · Performans)
 
 > Eksen: **tasarım / teknik**.

@@ -1,3 +1,19 @@
+---
+title: "03 — Sıralama Kuralları"
+description: "Position alanının iş anlamı, before/after semantiği ve compaction kuralları."
+aliases:
+  - "Sıralama Kuralları"
+  - "Ranking Rules"
+tags:
+  - "pusula"
+  - "domain/ranking"
+  - "position"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 03 — Sıralama Kuralları (Ranking)
 
 > Eksen: **iş / domain** — sıralamanın _anlamı_ ve _kuralları_. İmplementasyon (helper'lar,

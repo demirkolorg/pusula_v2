@@ -1,9 +1,26 @@
+---
+title: "Pusula v2 — Faz 0 Devir Notu"
+description: "Faz 0 kapanış, kurulum, doğrulama ve sonraki adım notları."
+aliases:
+  - "Faz 0 Devir Notu"
+  - "Phase 0 Handoff"
+tags:
+  - "pusula"
+  - "process/handoff"
+  - "phase-0"
+type: "handoff"
+axis: "process"
+status: "done"
+parent: "[[docs/process/README|Süreç]]"
+updated: 2026-05-12
+---
 # Pusula v2 — Faz 0 Devir Notu
 
-> Bu dosya bir **anlık durum / handoff** notudur. Faz planının kanonik kaynağı
-> [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md); bu dosya "Faz 0 bittiğinde elde
-> ne var, yeni bir oturumda nereden devam edilir" sorusunu yanıtlar. İstersen
-> içeriğini `02-mvp-faz-plani.md`'ye taşıyıp bu dosyayı silebilirsin.
+> Bu dosya bir **anlık durum / handoff** notudur. Yeni işlerde varsayılan başlangıç
+> kaynağı değildir. Her yeni iş/oturum için genel başlangıç dosyası
+> [`00-calisma-baslangic-rehberi.md`](00-calisma-baslangic-rehberi.md), faz planının
+> kanonik kaynağı ise [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md). Bu dosya yalnızca
+> Faz 0 sonunda elde ne olduğunu ve kurulum bağlamını hatırlamak için kullanılır.
 
 ## Durum
 

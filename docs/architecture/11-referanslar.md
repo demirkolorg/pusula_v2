@@ -1,3 +1,19 @@
+---
+title: "11 — Referanslar"
+description: "Pusula mimarisinde başvurulan dış dokümantasyon linkleri."
+aliases:
+  - "Referanslar"
+  - "Dış Dokümanlar"
+tags:
+  - "pusula"
+  - "architecture/references"
+  - "references"
+type: "reference"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 11 — Referanslar
 
 > Eksen: **tasarım / teknik**. Dış dokümantasyon linkleri.

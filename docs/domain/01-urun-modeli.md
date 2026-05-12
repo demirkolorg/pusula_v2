@@ -1,3 +1,19 @@
+---
+title: "01 — Ürün Modeli ve Çekirdek Invariantlar"
+description: "Entity listesi, hiyerarşi ve çekirdek domain invariantları."
+aliases:
+  - "Ürün Modeli"
+  - "Çekirdek Invariantlar"
+tags:
+  - "pusula"
+  - "domain/model"
+  - "invariants"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 01 — Ürün Modeli ve Çekirdek Invariant'lar
 
 > Eksen: **iş / domain**. Şema implementasyonu (tablolar, kolonlar) → [`../architecture/04-veri-katmani.md`](../architecture/04-veri-katmani.md).

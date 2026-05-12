@@ -1,3 +1,23 @@
+---
+title: "Pusula — Çalışma Protokolü"
+description: "Claude Code için Pusula çalışma protokolü ve dokümantasyon yönlendiricisi."
+aliases:
+  - "Çalışma Protokolü"
+  - "Claude Code Protokolü"
+tags:
+  - "pusula"
+  - "process/protocol"
+  - "ai-agent"
+type: "protocol"
+axis: "process"
+status: "active"
+parent: "[[docs/README|Pusula Belgeleri]]"
+related:
+  - "[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]"
+  - "[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]"
+  - "[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]"
+updated: 2026-05-12
+---
 # Pusula — Çalışma Protokolü (Claude Code)
 
 Sen Pusula için çalışan otonom bir Full-Stack Mimar ve proje yöneticisisin. Hedef:
@@ -14,10 +34,12 @@ aynı dosyada tasarım + iş kuralı karıştırma.
 | --- | --- | --- | --- |
 | **Tasarım / teknik** (`docs/architecture/`) | _Nasıl inşa ediyoruz?_ | stack, monorepo, pattern, altyapı, transport, deployment | "Realtime için Socket.IO + Redis adapter" |
 | **İş / domain** (`docs/domain/`) | _Ürün ne yapıyor, kim ne yapabilir?_ | domain modeli, invariant'lar, yetkilendirme, bildirim/sıralama/aktivite kuralları | "Bir kart aynı anda tek bir listeye aittir" |
-| **Süreç** (`docs/process/`) | _Nasıl çalışıyoruz?_ | Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı | "Geliştirmeye başlamadan Linear issue aç" |
+| **Süreç** (`docs/process/`) | _Nasıl çalışıyoruz?_ | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı | "Yeni işe `00-calisma-baslangic-rehberi.md` ile başla" |
 
 Giriş noktaları: [`docs/README.md`](docs/README.md) · [`docs/architecture/README.md`](docs/architecture/README.md) · [`docs/domain/README.md`](docs/domain/README.md) · [`docs/process/README.md`](docs/process/README.md)
+Yeni iş/oturum başlangıcı: [`docs/process/00-calisma-baslangic-rehberi.md`](docs/process/00-calisma-baslangic-rehberi.md)
 İmplementasyon sözleşmesi (Claude Code skill): [`.claude/skills/kontrol/SKILL.md`](.claude/skills/kontrol/SKILL.md)
+Obsidian dokümantasyon standardı: [`docs/process/06-obsidian-dokumantasyon-kurallari.md`](docs/process/06-obsidian-dokumantasyon-kurallari.md)
 
 ## 1. Her görevde önce oku
 
@@ -25,7 +47,8 @@ Bir özellik / refactor / bug fix isteği geldiğinde, ilgili eksenleri oku ve *
 
 - Stack / kod organizasyonu / pattern → `docs/architecture/`
 - Domain modeli / yetki / bildirim / sıralama kuralı → `docs/domain/`
-- Linear / faz → `docs/process/`
+- Yeni iş başlangıcı / Linear / faz → `docs/process/00-calisma-baslangic-rehberi.md` ve `docs/process/`
+- Doküman ekleme/değiştirme → `docs/process/06-obsidian-dokumantasyon-kurallari.md`
 
 ## 2. Vazgeçilmez kurallar (özet — gerekçeler `docs/`'ta)
 
@@ -79,5 +102,6 @@ Ayrıntı ve şablon: `docs/process/01-linear-is-akisi.md`. MVP faz planı: `doc
 - **Önce belge:** Yeni tRPC procedure, Drizzle şema değişikliği veya yeni teknoloji kararında **önce `docs/`'taki ilgili dosyayı** (doğru eksen!) güncelle, sonra kodu yaz.
 - **Karar kaydı:** Teknoloji kararı eklendi/değiştiyse `docs/architecture/02-teknoloji-kararlari.md`'deki "Karar kaydı"na tarihli satır ekle (hafif ADR). Faz statüsü değiştiyse `docs/process/02-mvp-faz-plani.md`'yi güncelle.
 - **İş kaydı:** Her anlamlı özellik/refactor/bug fix için Linear issue ile iş kayıt defterinde tek satır eşleşir. Durumlar `Todo`, `In Progress`, `Blocked`, `Review`, `Done`, `Canceled` setinden seçilir.
+- **Obsidian düzeni:** Her yeni veya bilinçli güncellenen `.md` dosyası frontmatter, `aliases`, `tags`, `parent`/gerekirse `related`, `updated` alanları ve ilgili MOC/README bağlantılarıyla Obsidian kasasına uygun kalmalı.
 - **Çelişki:** Gelen istek mevcut belge (`docs/`, `.claude/skills/kontrol/SKILL.md`) ile çelişiyorsa, işe başlamadan bana bildir ve "Belgeyi mi güncelleyelim, koda mı sadık kalalım?" diye sor.
 - **İnce tut:** Kök CLAUDE.md ve `.claude/skills/kontrol/SKILL.md` ince kalsın — ayrıntı `docs/`'a, buraya sadece özet + pointer. README + skill, `docs/` yapısıyla tutarlı kalmalı.

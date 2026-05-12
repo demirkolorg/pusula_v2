@@ -1,3 +1,18 @@
+---
+title: "04 — Bildirim Kuralları"
+description: "Bildirim kanalları, event kaynakları, tercih ve bastırma kuralları."
+aliases:
+  - "Bildirim Kuralları"
+  - "Notification Rules"
+tags:
+  - "pusula"
+  - "domain/notifications"
+type: "domain"
+axis: "domain"
+status: "active"
+parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+updated: 2026-05-12
+---
 # 04 — Bildirim Kuralları
 
 > Eksen: **iş / domain** — _hangi olay hangi bildirimi üretir, kime, hangi kanaldan, ne zaman

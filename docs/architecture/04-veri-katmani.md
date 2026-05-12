@@ -1,3 +1,19 @@
+---
+title: "04 — Veri Katmanı"
+description: "PostgreSQL, Drizzle, temel tablolar, position implementasyonu ve transaction disiplini."
+aliases:
+  - "Veri Katmanı"
+  - "PostgreSQL Drizzle"
+tags:
+  - "pusula"
+  - "architecture/data"
+  - "database"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 04 — Veri Katmanı (PostgreSQL + Drizzle)
 
 > Eksen: **tasarım / teknik**. Sıralamanın **iş anlamı** (before/after, compaction tetiği,

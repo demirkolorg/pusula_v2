@@ -1,3 +1,19 @@
+---
+title: "02 — Teknoloji Kararları"
+description: "Sabit teknoloji kararları, ADR-lite kayıtları ve açık karar noktaları."
+aliases:
+  - "Teknoloji Kararları"
+  - "ADR Lite"
+tags:
+  - "pusula"
+  - "architecture/decisions"
+  - "adr"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 02 — Teknoloji Kararları
 
 > Eksen: **tasarım / teknik**. Bu dosya **kararların kaydıdır** — yerleşik kabul edilir;

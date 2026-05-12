@@ -1,3 +1,19 @@
+---
+title: "06 — Bildirim Altyapısı"
+description: "Outbox, worker, push ve email teslim mimarisi."
+aliases:
+  - "Bildirim Altyapısı"
+  - "Outbox Worker"
+tags:
+  - "pusula"
+  - "architecture/notifications"
+  - "worker"
+type: "architecture"
+axis: "architecture"
+status: "active"
+parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+updated: 2026-05-12
+---
 # 06 — Bildirim Altyapısı (Outbox + Worker)
 
 > Eksen: **tasarım / teknik** — bildirimin _mekanizması_ (outbox, worker, teslim). Hangi event

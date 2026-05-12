@@ -1,6 +1,19 @@
 ---
 name: kontrol
+title: "Pusula Project Skill"
 description: Use when building, reviewing, refactoring, planning, or making technology decisions for Pusula, a Trello-like task management product with Next.js web, Hono backend, Expo mobile, tRPC, optimistic UI, realtime board sync, notifications, shadcn/ui, Better Auth, Dokploy, MinIO, Resend, PostgreSQL, Drizzle, Redis, and Pragmatic Drag and Drop. Apply this skill whenever the task touches Pusula architecture, code structure, API design, drag-drop, notifications, realtime, auth, deployment, search, UI components, or implementation rules.
+aliases:
+  - "Pusula kontrol skill"
+  - "Implementation Contract"
+tags:
+  - "pusula"
+  - "skill/claude-code"
+  - "process/protocol"
+type: "skill"
+axis: "process"
+status: "active"
+parent: "[[CLAUDE|Çalışma Protokolü]]"
+updated: 2026-05-12
 ---
 
 # Pusula Project (skill: `kontrol`)
@@ -17,9 +30,11 @@ The full rules are in `docs/`, split by axis — never mix design and business r
 
 - **Design / technical** (`docs/architecture/`) — _how we build it_: stack, monorepo, patterns (optimistic UI, outbox, transactions), infra, transport, deployment, observability, testing. Index: `docs/architecture/README.md`.
 - **Business / domain** (`docs/domain/`) — _what the product does, who can do what, what triggers what_: domain model & invariants, authorization rules, ranking/notification/activity/search/attachment rules. Index: `docs/domain/README.md`.
-- **Process** (`docs/process/`) — _how we work_: Linear workflow, automatic docs ↔ Linear sync protocol, work register, MVP phase plan. Index: `docs/process/README.md`.
+- **Process** (`docs/process/`) — _how we work_: default start guide, Linear workflow, automatic docs ↔ Linear sync protocol, work register, MVP phase plan. Index: `docs/process/README.md`.
 
-Top-level index: `docs/README.md`. Working protocol: `CLAUDE.md`. Automatic workflow protocol: `docs/process/04-otomatik-is-akisi-protokolu.md`; repo-side work register: `docs/process/05-is-kayit-defteri.md`. This skill is the condensed contract; when a task needs detail, open the matching `docs/` file (and update it before writing code — design rule → `docs/architecture/`, business rule → `docs/domain/`, process rule → `docs/process/`).
+Top-level index: `docs/README.md`. Working protocol: `CLAUDE.md`. Default start guide for every new task/session: `docs/process/00-calisma-baslangic-rehberi.md`. Automatic workflow protocol: `docs/process/04-otomatik-is-akisi-protokolu.md`; repo-side work register: `docs/process/05-is-kayit-defteri.md`. This skill is the condensed contract; when a task needs detail, open the matching `docs/` file (and update it before writing code — design rule → `docs/architecture/`, business rule → `docs/domain/`, process rule → `docs/process/`).
+
+The repo is also an Obsidian vault. Keep Markdown docs compatible with `docs/process/06-obsidian-dokumantasyon-kurallari.md`: frontmatter properties, aliases, tags, parent/related links, and MOC/README entries must stay current for every new or intentionally updated `.md` file.
 
 ## Fixed Technology Decisions
 
@@ -336,9 +351,11 @@ Always test: permission edge cases, position/ranking calculations, optimistic ro
 ## Workflow Sync Requirements
 
 - Before non-trivial development, create or reuse a Linear MCP issue and mirror it in `docs/process/05-is-kayit-defteri.md`.
+- Start from `docs/process/00-calisma-baslangic-rehberi.md` for task selection and source priority; use `docs/process/03-faz-0-devir-notu.md` only as Phase 0 historical handoff context.
 - Keep status values in sync across Linear and the work register: `Todo`, `In Progress`, `Blocked`, `Review`, `Done`, `Canceled`.
 - If Linear MCP is not reachable, record `MCP bekliyor` in the work register and state the sync debt in the final response.
 - Update affected `docs/architecture/*`, `docs/domain/*`, or `docs/process/*` before code when the task changes decisions, rules, schemas, procedures, or workflow.
+- For Markdown changes, preserve the Obsidian vault standard: frontmatter, tags, aliases, parent/related links, `updated`, and parent MOC entries.
 - At closeout, comment on the Linear issue with summary, updated docs, verification result, and follow-up risk; then update the work register in the same status.
 
 ## Avoid
@@ -355,12 +372,13 @@ Always test: permission edge cases, position/ranking calculations, optimistic ro
 - Adding billing/subscription implementation.
 - Scaffolding `apps/mobile` before the user asks.
 - Mixing design/technical rules with business/domain rules in the same doc — design rule → `docs/architecture/`, business rule → `docs/domain/`, process → `docs/process/`.
+- Creating orphan Markdown docs that are missing frontmatter, tags, parent links, or MOC/README entries.
 - Duplicating domain rules into `apps/*` / `packages/api` / `packages/db` — the source is `@pusula/domain`.
 - Using a package manager other than `pnpm` (no npm/yarn/bun/npx).
 
 ## Implementation Order
 
-Source of truth for phase status: `docs/process/02-mvp-faz-plani.md`. Source for task-level workflow sync: `docs/process/04-otomatik-is-akisi-protokolu.md` + `docs/process/05-is-kayit-defteri.md`. Phase 0 (monorepo, packages, web/api/worker skeletons, Drizzle schema, Better Auth wiring, docker-compose) is **done**. Continue:
+Default start guide: `docs/process/00-calisma-baslangic-rehberi.md`. Source of truth for phase status: `docs/process/02-mvp-faz-plani.md`. Source for task-level workflow sync: `docs/process/04-otomatik-is-akisi-protokolu.md` + `docs/process/05-is-kayit-defteri.md`. Phase 0 (monorepo, packages, web/api/worker skeletons, Drizzle schema, Better Auth wiring, docker-compose) is **done**. Continue:
 
 1. ✅ Monorepo, tooling, local Docker Compose for PostgreSQL/Redis/MinIO.
 2. Better Auth sign-in/up/out flows, session handling, workspace model + member model, permission helpers wired into procedures.
