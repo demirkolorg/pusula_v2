@@ -24,6 +24,7 @@ updated: 2026-05-12
 | --- | --- |
 | **Workspace** | Takım/organizasyon alanı. Üst kapsam. |
 | **Workspace member** | Workspace seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
+| **Workspace invitation** | E-postayla gönderilen workspace daveti; gizli `token` taşır, süreli (expiration) ve **tek kullanımlık**. Durum: `pending` / `accepted` / `declined` / `revoked` / `expired`. Kabul edilince ilgili `workspace_members` satırı oluşur. Davet eden `admin+` olmalı; rol asla `owner` olamaz. Bkz. [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md). |
 | **Board** | Trello panosu. Bir workspace'e aittir. `version` alanı taşır (realtime sequence kontrolü). |
 | **Board member** | Board seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
 | **Label** | Board'a ait etiket; kartlara atanır (`card_labels`). |
@@ -68,3 +69,4 @@ Workspace
 7. **Activity event + notification outbox + realtime event + domain mutasyonu** mümkünse aynı transaction'da oluşturulur.
 8. **Idempotency:** aynı `clientMutationId` ile iki kez gelen mutation duplicate activity/bildirim üretmez; aynı domain event'inden duplicate bildirim üretilmez (`event_id` ile dedup).
 9. **Position** alanı ardışık tam sayı değildir (fractional/string); bkz. [`03-siralama-kurallari.md`](03-siralama-kurallari.md).
+10. **Workspace daveti tek kullanımlıktır:** `accepted`/`declined`/`revoked`/`expired` olduktan sonra tekrar kullanılamaz; bir (workspace, e-posta) çifti için aynı anda yalnızca bir `pending` davet bulunur. Davet ancak token'daki e-postaya sahip, oturum açmış kullanıcı tarafından kabul/ret edilebilir; zaten üye olan kullanıcı için davet kabul akışı no-op (idempotent) sonuçlanır.

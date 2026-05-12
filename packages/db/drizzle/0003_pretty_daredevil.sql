@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "workspace_invitations_pending_email_uq" ON "workspace_invitations" USING btree ("workspace_id",lower("email")) WHERE "workspace_invitations"."status" = 'pending';

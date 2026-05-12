@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { emailSchema } from './auth';
 import { idSchema, withClientMutationId } from './common';
 import { workspaceRoleSchema } from '../roles';
 
@@ -53,7 +54,9 @@ export const removeWorkspaceMemberInput = z.object({
 
 export const inviteWorkspaceMemberInput = z.object({
   workspaceId: idSchema,
-  email: z.email(),
+  // `emailSchema` trims + lowercases before validating, so the value is already
+  // normalized by the time it reaches the procedure body / the database.
+  email: emailSchema,
   role: assignableWorkspaceRoleSchema.default('member'),
   ...withClientMutationId,
 });

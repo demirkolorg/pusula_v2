@@ -32,7 +32,7 @@ relational model doğru seçim. Drizzle: type-safe SQL, migration kontrolü, tra
 
 ```txt
 users · sessions · accounts · verifications            (Better Auth)
-workspaces · workspace_members
+workspaces · workspace_members · workspace_invitations
 boards · board_members · labels
 lists
 cards · card_members · card_labels · checklists · checklist_items
@@ -48,10 +48,14 @@ search_documents
 lists:  id, board_id, title, position, archived_at, created_at, updated_at
 cards:  id, board_id, list_id, title, description, position, due_at, archived_at, created_at, updated_at
 boards: id, workspace_id, title, version, ...           (version → client realtime sequence kontrolü)
+workspace_invitations: id, workspace_id, email, role, token (uniq), invited_by_id, status (invitation_status enum: pending/accepted/declined/revoked/expired), expires_at, accepted_by_id, accepted_at, created_at, updated_at
 activity_events:  id, workspace_id, board_id, card_id, actor_id, type, payload, created_at
 realtime_events:  id, workspace_id, board_id, card_id, actor_id, type, payload, client_mutation_id, sequence, created_at
-notification_outbox: id, event_id, channel, recipient_id, payload, status, attempts, scheduled_at, processed_at, created_at
+notification_outbox: id, event_id, channel, recipient_id (nullable — e-posta daveti hesabı olmayan adrese gidebilir; alıcı payload'taki email), type, payload, status, attempts, scheduled_at, processed_at, created_at
 ```
+
+> `workspace_invitations`: `token` rastgele ve gizli (yalnızca davet e-postasında), tek kullanımlık;
+> bir (workspace_id, email) çifti için aynı anda en fazla bir `pending` satır. Detay → [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Workspace davet akışı).
 
 ## Sıralama implementasyonu (position)
 

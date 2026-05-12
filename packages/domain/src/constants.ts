@@ -30,6 +30,8 @@ export const ACTIVITY_EVENT_TYPES = [
   'workspace.member_added',
   'workspace.member_removed',
   'workspace.member_role_changed',
+  'workspace.member_invited',
+  'workspace.invitation_revoked',
   'board.created',
   'board.updated',
   'board.archived',
@@ -57,6 +59,16 @@ export const ACTIVITY_EVENT_TYPES = [
   'attachment.added',
   'attachment.removed',
 ] as const;
+
+/**
+ * Lifecycle states of a `workspace_invitations` row. Backs the `invitation_status`
+ * Postgres enum in `@pusula/db` — same APPEND-ONLY discipline as the activity enum
+ * (Postgres can't drop/reorder enum values without a destructive recreation).
+ */
+export const INVITATION_STATUSES = ['pending', 'accepted', 'declined', 'revoked', 'expired'] as const;
+
+/** Default lifetime of a workspace invitation, in days. */
+export const WORKSPACE_INVITATION_TTL_DAYS = 7;
 
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;
@@ -90,6 +102,7 @@ export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type BoardRole = (typeof BOARD_ROLES)[number];
 export type CardRole = (typeof CARD_ROLES)[number];
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
+export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 export type RealtimeRoomKind = (typeof REALTIME_ROOM_KINDS)[number];
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

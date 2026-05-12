@@ -69,9 +69,10 @@ export const notificationOutbox = pgTable(
     id: primaryId(),
     eventId: text().references(() => activityEvents.id, { onDelete: 'set null' }),
     channel: notificationChannelEnum().notNull(),
-    recipientId: text()
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    // Nullable: an email invitation can target an address with no account yet —
+    // the recipient address then lives in `payload.email`. In-app rows always
+    // carry a `recipient_id`.
+    recipientId: text().references(() => users.id, { onDelete: 'cascade' }),
     type: notificationTypeEnum().notNull(),
     payload: jsonb().notNull().default({}),
     status: outboxStatusEnum().notNull().default('pending'),

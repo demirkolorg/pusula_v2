@@ -65,12 +65,26 @@ Card:       assignee · watcher
 | `workspace.members.list` | member+ | |
 | `workspace.members.updateRole` | admin+ | `owner` rolü atanamaz/kaldırılamaz — owner devri ayrı akış |
 | `workspace.members.remove` | admin+ | Üye kendini çıkarabilir; son `owner` çıkarılamaz |
-| `workspace.members.invite` | admin+ | Davet token akışıyla gelir (süreli, tek kullanımlık) — ayrı iş; bkz. [`../architecture/10-platform.md`](../architecture/10-platform.md) §10.6 |
+| `workspace.members.invite` | admin+ | `workspace_invitations`'a `pending` satır + `notification_outbox` (email; alıcı hesaplıysa in-app de) yazar — aşağıdaki davet akışı |
 
-Activity: `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_role_changed`,
+#### Workspace davet akışı (Faz 1.3)
+
+> `workspace_invitations` tablosu (bkz. [`../architecture/04-veri-katmani.md`](../architecture/04-veri-katmani.md)). Davet, gizli rastgele bir `token` taşır (yalnızca davet e-postasında), süreli (varsayılan ~7 gün) ve **tek kullanımlık**. Bir (workspace, e-posta) için aynı anda en fazla bir `pending` davet. Durum lifecycle: `pending → accepted | declined | revoked | expired`.
+
+| Procedure | Gereken rol | Not |
+| --- | --- | --- |
+| `workspace.members.invite` | admin+ (`workspaceProcedure`) | `email` küçük harfe normalize; davet edilen zaten üye ise `CONFLICT`; (workspace, email) için `pending` davet zaten varsa `CONFLICT`; rol `owner` olamaz (`assignableWorkspaceRoleSchema`, varsayılan `member`). `workspace_invitations` insert + `activity_events` (`workspace.member_invited`) + `notification_outbox` (`workspace_invitation`, channel `email`; davet edilenin hesabı varsa ek `in_app` satır, `recipient_id` o kullanıcı) — hepsi aynı transaction'da. |
+| `workspace.invitations.list` | member+ (`workspaceProcedure`) | Workspace'in `pending` davetleri (admin+ yönetim için; member+ görüntüleyebilir — UI yönetim aksiyonunu admin+'a gösterir). |
+| `workspace.invitations.revoke` | admin+ (`workspaceProcedure`) | Davet `pending` değilse `BAD_REQUEST`; aksi halde `status = revoked` + `activity_events` (`workspace.invitation_revoked`). |
+| `workspace.invitations.mine` | (oturum, `protectedProcedure`) | Oturum açmış kullanıcının e-postasına gelen, `pending` ve süresi dolmamış davetler (workspace adı, rol, davet eden, `expires_at`, `token`). |
+| `workspace.invitations.accept` | (oturum, `protectedProcedure` — üye değil) | Token ile bulunur; `pending` değil/süresi dolmuşsa `BAD_REQUEST` (süresi dolmuşsa `status = expired` set edilir); oturum kullanıcısının e-postası davet e-postasıyla eşleşmiyorsa `FORBIDDEN`. Transaction: kullanıcı zaten üye değilse `workspace_members` insert (rol davetten); `status = accepted`, `accepted_by_id`, `accepted_at`; `activity_events` (`workspace.member_added`). Zaten üyeyse davet `accepted`'a çekilir, no-op (idempotent), workspace döner. |
+| `workspace.invitations.decline` | (oturum, `protectedProcedure`) | Token ile bulunur; e-posta eşleşmiyorsa `FORBIDDEN`; `pending` değilse `BAD_REQUEST`; aksi halde `status = declined`. |
+
+Activity: `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_invited`,
+`workspace.member_added`, `workspace.member_role_changed`, `workspace.invitation_revoked`,
 `workspace.member_removed` ilgili transaction içinde `activity_events`'e yazılır (bkz.
-[`05-aktivite-kurallari.md`](05-aktivite-kurallari.md)). `workspace.member_added` davet-token akışıyla
-birlikte gelecek (ayrı iş). Realtime yayın ve `notification_outbox` (davet bildirimi) ilerleyen fazlarda eklenir.
+[`05-aktivite-kurallari.md`](05-aktivite-kurallari.md)). Davet bildirimi `notification_outbox`'a yazılır;
+gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsünde gönderim yok. Realtime yayın ileri fazlarda.
 
 ### Board
 

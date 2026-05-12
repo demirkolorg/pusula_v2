@@ -6,7 +6,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  notificationOutbox,
+  users,
+  workspaceInvitations,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -54,7 +61,6 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     for (const id of createdUserIds) {
       await db().delete(users).where(dbMod.eq(users.id, id));
     }
-    await probe!.pool.end();
   });
 
   it('create: makes the creator an owner member and writes a workspace.created activity', async () => {
@@ -209,4 +215,530 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     const list = await ownerCaller.workspace.list();
     expect(list.some((w) => w.id === workspaceId)).toBe(false);
   });
+});
+
+describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
+  const db = () => probe!.db;
+
+  const invOwnerId = newId('u-inv-owner');
+  const invAdminId = newId('u-inv-admin');
+  const invMemberId = newId('u-inv-member');
+  const inviteeId = newId('u-inv-invitee'); // has an account
+  const otherUserId = newId('u-inv-other'); // wrong-email user
+  const invUserIds = [invOwnerId, invAdminId, invMemberId, inviteeId, otherUserId];
+  const emailOf = (id: string) => `${id}@example.test`;
+  const inviteeEmail = emailOf(inviteeId).toLowerCase();
+  const noAccountEmail = `no-account-${Math.random().toString(36).slice(2, 10)}@example.test`;
+
+  let workspaceId: string;
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values(invUserIds.map((id) => ({ id, name: id, email: emailOf(id) })));
+    const ws = await callerFor(invOwnerId).workspace.create({
+      name: 'Invite Co',
+      slug: newSlug('invite-co'),
+      clientMutationId: newId('cmid'),
+    });
+    workspaceId = ws.id;
+    await db()
+      .insert(workspaceMembers)
+      .values([
+        { workspaceId, userId: invAdminId, role: 'admin' },
+        { workspaceId, userId: invMemberId, role: 'member' },
+      ]);
+  });
+
+  afterAll(async () => {
+    if (workspaceId) {
+      // notification_outbox rows for an account-less invitee don't cascade on
+      // user delete (recipient_id is null), so clean them up explicitly via payload.
+      await db()
+        .delete(notificationOutbox)
+        .where(dbMod.sql`(payload->>'workspaceId') = ${workspaceId}`);
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, workspaceId));
+    }
+    for (const id of invUserIds) {
+      await db().delete(users).where(dbMod.eq(users.id, id));
+    }
+  });
+
+  const pendingInvites = (wsId: string) =>
+    db()
+      .select()
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.workspaceId, wsId));
+
+  it('members.invite: a plain member cannot invite', async () => {
+    await expect(
+      callerFor(invMemberId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(otherUserId),
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('members.invite: rejects the `owner` role at the schema layer', async () => {
+    // `assignableWorkspaceRoleSchema` excludes `owner` — this is a type error at
+    // compile time and a Zod (BAD_REQUEST) error at runtime; cast to exercise it.
+    const badInput = {
+      workspaceId,
+      email: emailOf(otherUserId),
+      role: 'owner',
+      clientMutationId: newId('cmid'),
+    } as unknown as Parameters<
+      ReturnType<typeof callerFor>['workspace']['members']['invite']
+    >[0];
+    await expect(callerFor(invOwnerId).workspace.members.invite(badInput)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+  });
+
+  it('members.invite: creates a pending invitation + activity + outbox rows (email + in-app for an account holder)', async () => {
+    const res = await callerFor(invAdminId).workspace.members.invite({
+      workspaceId,
+      email: emailOf(inviteeId),
+      role: 'member',
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ email: inviteeEmail, role: 'member', status: 'pending' });
+    expect(res.expiresAt).toBeInstanceOf(Date);
+    expect(res).not.toHaveProperty('token');
+
+    const invites = await pendingInvites(workspaceId);
+    const row = invites.find((i) => i.email === inviteeEmail);
+    expect(row).toBeDefined();
+    expect(row?.status).toBe('pending');
+    expect(row?.invitedById).toBe(invAdminId);
+    expect(row?.token?.length).toBeGreaterThanOrEqual(20);
+
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.workspaceId, workspaceId));
+    expect(acts.some((a) => a.type === 'workspace.member_invited')).toBe(true);
+
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.sql`(payload->>'workspaceId') = ${workspaceId}`);
+    const forInvitee = outbox.filter(
+      (o) =>
+        o.type === 'workspace_invitation' &&
+        ((o.payload as { email?: string }).email === inviteeEmail || o.recipientId === inviteeId),
+    );
+    expect(forInvitee.some((o) => o.channel === 'email')).toBe(true);
+    expect(forInvitee.some((o) => o.channel === 'in_app' && o.recipientId === inviteeId)).toBe(true);
+    // token only travels in the email row's payload, never the in-app one
+    const emailRow = forInvitee.find((o) => o.channel === 'email');
+    expect((emailRow?.payload as { token?: string }).token?.length).toBeGreaterThanOrEqual(20);
+    const inAppRow = forInvitee.find((o) => o.channel === 'in_app');
+    expect((inAppRow?.payload as { token?: string }).token).toBeUndefined();
+  });
+
+  it('members.invite: a second pending invitation for the same email is CONFLICT', async () => {
+    await expect(
+      callerFor(invOwnerId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(inviteeId),
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('members.invite: inviting an existing member is CONFLICT', async () => {
+    await expect(
+      callerFor(invOwnerId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(invMemberId),
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+
+  it('members.invite: works for an email with no account yet (email outbox row only, recipientId null)', async () => {
+    const res = await callerFor(invOwnerId).workspace.members.invite({
+      workspaceId,
+      email: noAccountEmail,
+      role: 'guest',
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ email: noAccountEmail, role: 'guest', status: 'pending' });
+
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.sql`(payload->>'workspaceId') = ${workspaceId}`);
+    const forNoAccount = outbox.filter(
+      (o) => (o.payload as { email?: string }).email === noAccountEmail,
+    );
+    expect(forNoAccount).toHaveLength(1);
+    expect(forNoAccount[0]?.channel).toBe('email');
+    expect(forNoAccount[0]?.recipientId).toBeNull();
+  });
+
+  it('invitations.list: returns only pending invitations', async () => {
+    const list = await callerFor(invMemberId).workspace.invitations.list({ workspaceId });
+    const emails = list.map((i) => i.email);
+    expect(emails).toContain(inviteeEmail);
+    expect(emails).toContain(noAccountEmail);
+    expect(list.every((i) => 'expiresAt' in i)).toBe(true);
+  });
+
+  it('invitations.list: a non-member is FORBIDDEN', async () => {
+    await expect(
+      callerFor(otherUserId).workspace.invitations.list({ workspaceId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('invitations.revoke: a non-member is FORBIDDEN', async () => {
+    const created = await callerFor(invOwnerId).workspace.members.invite({
+      workspaceId,
+      email: `revoke-fb-${Math.random().toString(36).slice(2, 10)}@example.test`,
+      clientMutationId: newId('cmid'),
+    });
+    await expect(
+      callerFor(otherUserId).workspace.invitations.revoke({
+        workspaceId,
+        invitationId: created.invitationId,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('members.invite: two concurrent invites for the same email — one wins, the other is CONFLICT', async () => {
+    // Race test: the partial unique index `workspace_invitations_pending_email_uq`
+    // is the DB-level guarantee; this exercises the 23505 → CONFLICT translation.
+    const raceEmail = `race-${Math.random().toString(36).slice(2, 10)}@example.test`;
+    const owner = callerFor(invOwnerId);
+    const results = await Promise.allSettled([
+      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: newId('cmid') }),
+      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: newId('cmid') }),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ code: 'CONFLICT' });
+
+    const rows = await db()
+      .select()
+      .from(workspaceInvitations)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceInvitations.workspaceId, workspaceId),
+          dbMod.eq(workspaceInvitations.email, raceEmail),
+          dbMod.eq(workspaceInvitations.status, 'pending'),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('invitations.accept: a revoked invitation token → BAD_REQUEST', async () => {
+    const created = await callerFor(invOwnerId).workspace.members.invite({
+      workspaceId,
+      email: `revoked-accept-${Math.random().toString(36).slice(2, 10)}@example.test`,
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(invAdminId).workspace.invitations.revoke({
+      workspaceId,
+      invitationId: created.invitationId,
+      clientMutationId: newId('cmid'),
+    });
+    const [row] = await db()
+      .select({ token: workspaceInvitations.token })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, created.invitationId))
+      .limit(1);
+    if (!row) throw new Error('expected the revoked invitation row');
+    await expect(
+      callerFor(otherUserId).workspace.invitations.accept({
+        token: row.token,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('invitations.revoke: admin+ can revoke a pending invitation; activity recorded', async () => {
+    // create a fresh invitation to revoke
+    const created = await callerFor(invOwnerId).workspace.members.invite({
+      workspaceId,
+      email: emailOf(otherUserId),
+      clientMutationId: newId('cmid'),
+    });
+    // member+ cannot revoke
+    await expect(
+      callerFor(invMemberId).workspace.invitations.revoke({
+        workspaceId,
+        invitationId: created.invitationId,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const res = await callerFor(invAdminId).workspace.invitations.revoke({
+      workspaceId,
+      invitationId: created.invitationId,
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ invitationId: created.invitationId, revoked: true });
+
+    const rows = await pendingInvites(workspaceId);
+    expect(rows.find((r) => r.id === created.invitationId)?.status).toBe('revoked');
+
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.workspaceId, workspaceId));
+    expect(acts.some((a) => a.type === 'workspace.invitation_revoked')).toBe(true);
+
+    // revoking a non-pending invitation → BAD_REQUEST
+    await expect(
+      callerFor(invAdminId).workspace.invitations.revoke({
+        workspaceId,
+        invitationId: created.invitationId,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('invitations.mine: returns pending, non-expired invitations addressed to the caller', async () => {
+    const mine = await callerFor(inviteeId).workspace.invitations.mine();
+    expect(mine.some((m) => m.workspaceId === workspaceId && m.role === 'member')).toBe(true);
+    expect(mine[0]).toMatchObject({ workspaceName: 'Invite Co', invitedByName: invAdminId });
+    expect(mine[0]?.token?.length).toBeGreaterThanOrEqual(20);
+
+    // a different user does not see this invitation
+    const others = await callerFor(otherUserId).workspace.invitations.mine();
+    expect(others.some((m) => m.workspaceId === workspaceId)).toBe(false);
+  });
+
+  it('invitations.accept: wrong email → FORBIDDEN; bad/expired token → BAD_REQUEST', async () => {
+    const [row] = await db()
+      .select({ token: workspaceInvitations.token })
+      .from(workspaceInvitations)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceInvitations.workspaceId, workspaceId),
+          dbMod.eq(workspaceInvitations.email, inviteeEmail),
+          dbMod.eq(workspaceInvitations.status, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new Error('expected a pending invitation for the invitee');
+
+    // wrong-email user trying to accept
+    await expect(
+      callerFor(otherUserId).workspace.invitations.accept({
+        token: row.token,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // unknown token
+    await expect(
+      callerFor(inviteeId).workspace.invitations.accept({
+        token: 'this-token-does-not-exist-padding',
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    // expired invitation → BAD_REQUEST, status flipped to `expired`
+    const [expired] = await db()
+      .insert(workspaceInvitations)
+      .values({
+        workspaceId,
+        email: emailOf(otherUserId).toLowerCase(),
+        role: 'member',
+        token: `expired-${Math.random().toString(36).slice(2, 12)}-padding`,
+        invitedById: invOwnerId,
+        status: 'pending',
+        expiresAt: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: workspaceInvitations.id, token: workspaceInvitations.token });
+    await expect(
+      callerFor(otherUserId).workspace.invitations.accept({
+        token: expired!.token,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    const [afterExpired] = await db()
+      .select({ status: workspaceInvitations.status })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, expired!.id))
+      .limit(1);
+    expect(afterExpired?.status).toBe('expired');
+  });
+
+  it('invitations.accept: a valid invitation adds the member, closes the invitation, writes workspace.member_added', async () => {
+    const [row] = await db()
+      .select({ token: workspaceInvitations.token, id: workspaceInvitations.id })
+      .from(workspaceInvitations)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceInvitations.workspaceId, workspaceId),
+          dbMod.eq(workspaceInvitations.email, inviteeEmail),
+          dbMod.eq(workspaceInvitations.status, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new Error('expected a pending invitation for the invitee');
+
+    const res = await callerFor(inviteeId).workspace.invitations.accept({
+      token: row.token,
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ id: workspaceId, name: 'Invite Co', role: 'member' });
+
+    const member = await db()
+      .select()
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, workspaceId),
+          dbMod.eq(workspaceMembers.userId, inviteeId),
+        ),
+      );
+    expect(member).toHaveLength(1);
+    expect(member[0]?.role).toBe('member');
+
+    const [closed] = await db()
+      .select()
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, row.id))
+      .limit(1);
+    expect(closed?.status).toBe('accepted');
+    expect(closed?.acceptedById).toBe(inviteeId);
+    expect(closed?.acceptedAt).toBeInstanceOf(Date);
+
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.workspaceId, workspaceId));
+    expect(
+      acts.some(
+        (a) =>
+          a.type === 'workspace.member_added' &&
+          (a.payload as { viaInvitation?: string }).viaInvitation === row.id,
+      ),
+    ).toBe(true);
+  });
+
+  it('invitations.accept: accepting again when already a member is an idempotent no-op (invitation still accepted)', async () => {
+    // `invite` rejects re-inviting an existing member, so seed the row directly:
+    // a fresh `pending` invitation addressed to a user who is already a member.
+    const [created] = await db()
+      .insert(workspaceInvitations)
+      .values({
+        workspaceId,
+        email: inviteeEmail,
+        role: 'admin',
+        token: `idem-${Math.random().toString(36).slice(2, 14)}-padding`,
+        invitedById: invOwnerId,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      })
+      .returning({ id: workspaceInvitations.id, token: workspaceInvitations.token });
+
+    const before = await db()
+      .select()
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, workspaceId),
+          dbMod.eq(workspaceMembers.userId, inviteeId),
+        ),
+      );
+    expect(before).toHaveLength(1);
+
+    const res = await callerFor(inviteeId).workspace.invitations.accept({
+      token: created!.token,
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ id: workspaceId, role: 'admin' });
+
+    const after = await db()
+      .select()
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, workspaceId),
+          dbMod.eq(workspaceMembers.userId, inviteeId),
+        ),
+      );
+    // membership unchanged — accept does not re-set the role for an existing member
+    expect(after).toHaveLength(1);
+    expect(after[0]?.role).toBe(before[0]?.role);
+
+    const [closed] = await db()
+      .select({ status: workspaceInvitations.status })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, created!.id))
+      .limit(1);
+    expect(closed?.status).toBe('accepted');
+
+    // and no extra workspace.member_added activity was written for this accept
+    const memberAddedActs = await db()
+      .select()
+      .from(activityEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(activityEvents.workspaceId, workspaceId),
+          dbMod.eq(activityEvents.type, 'workspace.member_added'),
+        ),
+      );
+    expect(
+      memberAddedActs.some((a) => (a.payload as { viaInvitation?: string }).viaInvitation === created!.id),
+    ).toBe(false);
+  });
+
+  it('invitations.decline: wrong email → FORBIDDEN; matching email → status `declined`', async () => {
+    const created = await callerFor(invOwnerId).workspace.members.invite({
+      workspaceId,
+      email: emailOf(otherUserId),
+      clientMutationId: newId('cmid'),
+    });
+    const [row] = await db()
+      .select({ token: workspaceInvitations.token })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, created.invitationId))
+      .limit(1);
+
+    await expect(
+      callerFor(inviteeId).workspace.invitations.decline({
+        token: row!.token,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const res = await callerFor(otherUserId).workspace.invitations.decline({
+      token: row!.token,
+      clientMutationId: newId('cmid'),
+    });
+    expect(res).toMatchObject({ declined: true });
+
+    const [closed] = await db()
+      .select({ status: workspaceInvitations.status })
+      .from(workspaceInvitations)
+      .where(dbMod.eq(workspaceInvitations.id, created.invitationId))
+      .limit(1);
+    expect(closed?.status).toBe('declined');
+
+    // declining again → BAD_REQUEST
+    await expect(
+      callerFor(otherUserId).workspace.invitations.decline({
+        token: row!.token,
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+});
+
+// File-scoped teardown: the suites above share `probe`'s pool — close it once,
+// after every suite in this file has finished.
+afterAll(async () => {
+  await probe?.pool.end();
 });

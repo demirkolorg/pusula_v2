@@ -3,6 +3,7 @@ import {
   ACTIVITY_EVENT_TYPES,
   BOARD_ROLES,
   CARD_ROLES,
+  INVITATION_STATUSES,
   MUTE_LEVELS,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
@@ -16,6 +17,7 @@ export const workspaceRoleEnum = pgEnum('workspace_role', WORKSPACE_ROLES);
 export const boardRoleEnum = pgEnum('board_role', BOARD_ROLES);
 export const cardRoleEnum = pgEnum('card_role', CARD_ROLES);
 export const activityEventTypeEnum = pgEnum('activity_event_type', ACTIVITY_EVENT_TYPES);
+export const invitationStatusEnum = pgEnum('invitation_status', INVITATION_STATUSES);
 export const notificationChannelEnum = pgEnum('notification_channel', NOTIFICATION_CHANNELS);
 export const notificationTypeEnum = pgEnum('notification_type', NOTIFICATION_TYPES);
 export const muteLevelEnum = pgEnum('mute_level', MUTE_LEVELS);

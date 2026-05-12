@@ -35,7 +35,7 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 | Checklist | `checklist.created`, `checklist.item_added`, `checklist.item_checked`, `checklist.item_unchecked`, `checklist.item_removed` | checklist id, item id, metin |
 | Comment | `comment.added`, `comment.edited`, `comment.deleted` | comment id, (mention listesi) |
 | Attachment | `attachment.added`, `attachment.removed` | attachment id, dosya adı |
-| Workspace | `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_added`, `workspace.member_removed`, `workspace.member_role_changed`, `workspace.board_created` | eski/yeni ad/slug, üye id, rol, board id |
+| Workspace | `workspace.created`, `workspace.updated`, `workspace.archived`, `workspace.member_invited`, `workspace.member_added`, `workspace.member_removed`, `workspace.member_role_changed`, `workspace.invitation_revoked`, `workspace.board_created` | eski/yeni ad/slug, üye/davet id, e-posta, rol, board id |
 
 ## Kurallar
 
