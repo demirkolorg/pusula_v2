@@ -34,7 +34,7 @@ export default function BoardDetailPage({
   const backLink = (
     <Link
       href={`/workspaces/${workspaceId}`}
-      className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-xs underline-offset-4 hover:underline"
+      className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 rounded-md text-xs underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
     >
       <ArrowLeftIcon className="size-3.5" />
       {strings.board.detail.backToWorkspace}
@@ -43,7 +43,7 @@ export default function BoardDetailPage({
 
   if (board.isPending) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4 px-4 py-6">
         {backLink}
         <BoardSkeleton />
       </div>
@@ -52,7 +52,7 @@ export default function BoardDetailPage({
 
   if (board.isError) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4 px-4 py-6">
         {backLink}
         <Alert variant="destructive">
           <AlertTitle>{strings.board.detail.loadErrorTitle}</AlertTitle>
@@ -67,7 +67,7 @@ export default function BoardDetailPage({
   const isBoardAdmin = b.role === 'admin';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-4 px-4 py-4">
       <BoardTopBar
         boardId={boardId}
         workspaceId={workspaceId}

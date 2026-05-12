@@ -117,7 +117,7 @@ export function BoardLabelRow({
                   {pending ? copy.labelDeleting : copy.labelDelete}
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent closeLabel={strings.common.close}>
                 <DialogHeader>
                   <DialogTitle>{copy.labelDeleteConfirmTitle}</DialogTitle>
                   <DialogDescription>{copy.labelDeleteConfirmDescription}</DialogDescription>
@@ -166,7 +166,8 @@ export function BoardLabelRow({
                   aria-pressed={editColor === color}
                   disabled={controlsDisabled}
                   className={cn(
-                    'size-5 rounded-full ring-offset-1 disabled:opacity-50',
+                    'size-5 rounded-full ring-offset-1 outline-none disabled:opacity-50',
+                    'focus-visible:ring-ring/60 focus-visible:ring-2',
                     LABEL_SWATCH[color],
                     editColor === color && 'ring-foreground ring-2',
                   )}

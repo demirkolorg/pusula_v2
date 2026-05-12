@@ -152,7 +152,7 @@ function SentInvitationRow({
                 : strings.invitations.revoke}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent closeLabel={strings.common.close}>
             <DialogHeader>
               <DialogTitle>{strings.invitations.revokeConfirmTitle}</DialogTitle>
               <DialogDescription>{strings.invitations.revokeConfirmDescription}</DialogDescription>

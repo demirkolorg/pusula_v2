@@ -118,7 +118,10 @@ export default function AccountPage() {
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold tracking-tight">{strings.account.pageTitle}</h1>
-          <Link href="/" className="text-muted-foreground text-sm underline-offset-4 hover:underline">
+          <Link
+            href="/"
+            className="text-muted-foreground hover:text-foreground rounded-md text-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
             {strings.account.backToWorkspaces}
           </Link>
         </div>

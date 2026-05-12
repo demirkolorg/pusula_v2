@@ -144,7 +144,7 @@ export function DeleteWorkspaceDialog({ workspaceId, workspaceName }: DeleteWork
       <DialogTrigger asChild>
         <Button variant="destructive">{copy.deleteAction}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.deleteDialogTitle}</DialogTitle>
           <DialogDescription>{copy.deleteDialogDescription}</DialogDescription>

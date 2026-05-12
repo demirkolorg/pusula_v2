@@ -61,12 +61,17 @@ export function BoardListSection({ workspaceId, canCreateBoard }: BoardListSecti
             const archived = board.archivedAt != null;
             return (
               <li key={board.id}>
-                <Card className={cn(archived && 'opacity-60')}>
+                <Card
+                  className={cn(
+                    'transition-[box-shadow,border-color] hover:border-foreground/30 hover:shadow-card-hover',
+                    archived && 'opacity-60',
+                  )}
+                >
                   <CardHeader>
                     <CardTitle>
                       <Link
                         href={`/workspaces/${workspaceId}/boards/${board.id}`}
-                        className="underline-offset-4 hover:underline"
+                        className="rounded-md underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
                       >
                         {board.title}
                       </Link>

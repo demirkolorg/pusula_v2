@@ -221,7 +221,7 @@ function CommentRow({
               <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>
                 {copy.delete}
               </Button>
-              <DialogContent>
+              <DialogContent closeLabel={strings.common.close}>
                 <DialogHeader>
                   <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
                   <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>

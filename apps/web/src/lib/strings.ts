@@ -31,6 +31,7 @@ export const strings = {
     appName: 'Pusula',
     loading: 'Yükleniyor…',
     cancel: 'İptal',
+    close: 'Kapat',
     retry: 'Tekrar dene',
     back: 'Geri',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',

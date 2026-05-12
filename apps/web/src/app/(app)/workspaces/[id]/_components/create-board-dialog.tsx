@@ -74,7 +74,7 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
       <DialogTrigger asChild>
         <Button size="sm">{strings.board.newButton}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>

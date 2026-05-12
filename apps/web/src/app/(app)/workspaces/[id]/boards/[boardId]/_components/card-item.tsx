@@ -178,7 +178,10 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
             </TooltipTrigger>
             <TooltipContent>{copy.archive}</TooltipContent>
           </Tooltip>
-          <DialogContent onClick={(event) => event.stopPropagation()}>
+          <DialogContent
+            closeLabel={strings.common.close}
+            onClick={(event) => event.stopPropagation()}
+          >
             <DialogHeader>
               <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
               <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>

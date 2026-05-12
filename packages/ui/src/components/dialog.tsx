@@ -41,9 +41,17 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeLabel = 'Kapat',
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  /**
+   * Accessible label for the built-in close button (the visible "X" icon's
+   * screen-reader text). `@pusula/ui` is i18n-agnostic, so this defaults to the
+   * Turkish "Kapat"; app code should pass its own translated string (e.g.
+   * `strings.common.close`).
+   */
+  closeLabel?: string;
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -63,7 +71,7 @@ function DialogContent({
             className="ring-offset-background focus-visible:ring-ring/60 data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
-            <span className="sr-only">Kapat</span>
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

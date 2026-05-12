@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { MailIcon, TagsIcon, UsersIcon } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -9,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  SectionHeader,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { BoardLabelsSection } from './board-labels-section';
@@ -77,34 +79,46 @@ export function BoardSettingsDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent
+        closeLabel={strings.common.close}
+        className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+      >
         <DialogHeader>
           <DialogTitle>{copy.dialogTitle}</DialogTitle>
           <DialogDescription>{copy.dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-8">
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold">{copy.membersTitle}</h3>
-              <p className="text-muted-foreground text-sm">{copy.membersDescription}</p>
-            </div>
+          <section className="space-y-2">
+            <SectionHeader
+              icon={<UsersIcon className="size-3.5" />}
+              className="mb-0"
+            >
+              {copy.membersTitle}
+            </SectionHeader>
+            <p className="text-muted-foreground text-sm">{copy.membersDescription}</p>
             <BoardMembersSection boardId={boardId} workspaceId={workspaceId} canManage={canManage} />
           </section>
 
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold">{copy.sentInvitationsTitle}</h3>
-              <p className="text-muted-foreground text-sm">{copy.sentInvitationsDescription}</p>
-            </div>
+          <section className="space-y-2">
+            <SectionHeader
+              icon={<MailIcon className="size-3.5" />}
+              className="mb-0"
+            >
+              {copy.sentInvitationsTitle}
+            </SectionHeader>
+            <p className="text-muted-foreground text-sm">{copy.sentInvitationsDescription}</p>
             <BoardSentInvitations boardId={boardId} canManage={canManage} />
           </section>
 
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold">{copy.labelsTitle}</h3>
-              <p className="text-muted-foreground text-sm">{copy.labelsDescription}</p>
-            </div>
+          <section className="space-y-2">
+            <SectionHeader
+              icon={<TagsIcon className="size-3.5" />}
+              className="mb-0"
+            >
+              {copy.labelsTitle}
+            </SectionHeader>
+            <p className="text-muted-foreground text-sm">{copy.labelsDescription}</p>
             <BoardLabelsSection boardId={boardId} canEdit={canEditLabels} />
           </section>
         </div>

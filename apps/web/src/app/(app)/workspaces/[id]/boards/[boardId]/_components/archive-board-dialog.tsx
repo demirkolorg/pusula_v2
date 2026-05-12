@@ -106,7 +106,7 @@ export function ArchiveBoardDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
           <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>

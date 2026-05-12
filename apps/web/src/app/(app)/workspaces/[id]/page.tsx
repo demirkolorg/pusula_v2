@@ -3,6 +3,7 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -42,9 +43,10 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
   const backLink = (
     <Link
       href="/"
-      className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+      className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 rounded-md text-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
     >
-      ← {strings.workspace.manage.backToList}
+      <ArrowLeftIcon className="size-3.5" />
+      {strings.workspace.manage.backToList}
     </Link>
   );
 

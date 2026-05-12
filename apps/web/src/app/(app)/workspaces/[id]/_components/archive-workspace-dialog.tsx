@@ -53,7 +53,7 @@ export function ArchiveWorkspaceDialog({ workspaceId, onArchived }: ArchiveWorks
       <DialogTrigger asChild>
         <Button variant="destructive">{strings.workspace.manage.archiveButton}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{strings.workspace.manage.archiveConfirmTitle}</DialogTitle>
           <DialogDescription>

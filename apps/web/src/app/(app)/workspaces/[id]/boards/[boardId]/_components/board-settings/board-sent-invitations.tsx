@@ -142,7 +142,7 @@ function BoardSentInvitationRow({
               {revokeInvitation.isPending ? copy.revoking : copy.revoke}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent closeLabel={strings.common.close}>
             <DialogHeader>
               <DialogTitle>{copy.revokeConfirmTitle}</DialogTitle>
               <DialogDescription>{copy.revokeConfirmDescription}</DialogDescription>

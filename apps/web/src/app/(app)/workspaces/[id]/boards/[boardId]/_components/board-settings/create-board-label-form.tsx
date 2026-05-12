@@ -49,7 +49,8 @@ export function CreateBoardLabelForm({ onSubmit, pending = false, error }: Creat
               aria-pressed={color === c}
               disabled={pending}
               className={cn(
-                'size-5 rounded-full ring-offset-1 disabled:opacity-50',
+                'size-5 rounded-full ring-offset-1 outline-none disabled:opacity-50',
+                'focus-visible:ring-ring/60 focus-visible:ring-2',
                 LABEL_SWATCH[c],
                 color === c && 'ring-foreground ring-2',
               )}

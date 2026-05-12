@@ -95,7 +95,7 @@ export function CardDetailLabels({
                   onClick={() => onRemove(label.labelId)}
                   disabled={pending}
                   aria-label={`${copy.remove}: ${label.name.trim() || copy.unnamed}`}
-                  className="text-muted-foreground hover:text-foreground ml-0.5 disabled:opacity-50"
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 ml-0.5 rounded-full outline-none focus-visible:ring-2 disabled:opacity-50"
                 >
                   ×
                 </button>
@@ -152,7 +152,8 @@ export function CardDetailLabels({
                     aria-pressed={newColor === color}
                     disabled={pending}
                     className={cn(
-                      'size-5 rounded-full ring-offset-1 disabled:opacity-50',
+                      'size-5 rounded-full ring-offset-1 outline-none disabled:opacity-50',
+                      'focus-visible:ring-ring/60 focus-visible:ring-2',
                       LABEL_SWATCH[color],
                       newColor === color && 'ring-foreground ring-2',
                     )}

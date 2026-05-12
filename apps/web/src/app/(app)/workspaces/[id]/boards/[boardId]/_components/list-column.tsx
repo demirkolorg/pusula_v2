@@ -248,7 +248,7 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
 
       {canEdit && (
         <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
-          <DialogContent>
+          <DialogContent closeLabel={strings.common.close}>
             <DialogHeader>
               <DialogTitle>
                 {listArchived ? columnCopy.restore : columnCopy.archiveConfirmTitle}

@@ -89,7 +89,10 @@ export function DeleteAccountSection({
             <AlertTitle>{copy.blockedOwnerTitle}</AlertTitle>
             <AlertDescription>
               <p>{copy.blockedOwnerDescription}</p>
-              <Link href="/" className="underline underline-offset-4">
+              <Link
+                href="/"
+                className="focus-visible:ring-ring/60 inline-flex rounded-md underline underline-offset-4 outline-none focus-visible:ring-2"
+              >
                 {copy.goToWorkspaces}
               </Link>
             </AlertDescription>
@@ -105,7 +108,7 @@ export function DeleteAccountSection({
             <DialogTrigger asChild>
               <Button variant="destructive">{copy.deleteAction}</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent closeLabel={strings.common.close}>
               <DialogHeader>
                 <DialogTitle>{copy.dialogTitle}</DialogTitle>
                 <DialogDescription>{copy.dialogDescription}</DialogDescription>

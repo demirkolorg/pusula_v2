@@ -1,6 +1,7 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pusula/ui';
+import { SparklesIcon } from 'lucide-react';
+import { Card, CardContent, EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
 
@@ -16,13 +17,20 @@ export function OnboardingEmptyState() {
   const copy = strings.onboarding;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{copy.title}</CardTitle>
-        <CardDescription>{copy.intro}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground text-sm">{copy.hint}</p>
-        <CreateWorkspaceDialog triggerLabel={copy.createCta} />
+      <CardContent>
+        <EmptyState
+          icon={<SparklesIcon className="size-8" />}
+          message={
+            <span className="flex flex-col items-center gap-1.5">
+              <span className="text-foreground text-lg font-semibold tracking-tight">
+                {copy.title}
+              </span>
+              <span>{copy.intro}</span>
+              <span className="text-muted-foreground">{copy.hint}</span>
+            </span>
+          }
+          action={<CreateWorkspaceDialog triggerLabel={copy.createCta} />}
+        />
       </CardContent>
     </Card>
   );

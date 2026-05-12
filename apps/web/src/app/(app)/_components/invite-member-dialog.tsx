@@ -67,7 +67,7 @@ export function InviteMemberDialog({
           {copy.inviteAction}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.inviteDialogTitle}</DialogTitle>
           <DialogDescription>

@@ -74,7 +74,7 @@ export function CreateWorkspaceDialog({ triggerLabel }: { triggerLabel?: string 
       <DialogTrigger asChild>
         <Button size="sm">{triggerLabel ?? strings.workspace.newButton}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>

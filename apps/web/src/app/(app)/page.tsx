@@ -13,6 +13,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  cn,
 } from '@pusula/ui';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -82,17 +83,21 @@ export default function WorkspacesPage() {
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {workspaces.data.map((workspace) => (
           <li key={workspace.id}>
-            <Card>
+            <Card
+              className={cn(
+                'transition-[box-shadow,border-color] hover:border-foreground/30 hover:shadow-card-hover',
+              )}
+            >
               <CardHeader>
                 <CardTitle>
                   <Link
                     href={`/workspaces/${workspace.id}`}
-                    className="underline-offset-4 hover:underline"
+                    className="rounded-md underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
                   >
                     {workspace.name}
                   </Link>
                 </CardTitle>
-                <CardDescription className="flex items-center gap-2">
+                <CardDescription className="flex flex-wrap items-center gap-2">
                   <span>{workspace.slug}</span>
                   <Badge variant="secondary">
                     {strings.workspace.roleBadgePrefix} {workspaceRoleLabels[workspace.role]}
