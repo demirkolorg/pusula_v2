@@ -30,9 +30,9 @@ describe('<CardDetailActivity>', () => {
     expect(screen.getByText(copy.empty)).toBeInTheDocument();
   });
 
-  it('shows a loading placeholder when pending', () => {
-    render(<CardDetailActivity events={[]} pending />);
-    expect(screen.getByText(strings.common.loading)).toBeInTheDocument();
+  it('shows a busy skeleton when pending', () => {
+    const { container } = render(<CardDetailActivity events={[]} pending />);
+    expect(container.querySelector('[aria-busy]')).toBeInTheDocument();
   });
 
   it('shows the error message when the feed failed to load', () => {

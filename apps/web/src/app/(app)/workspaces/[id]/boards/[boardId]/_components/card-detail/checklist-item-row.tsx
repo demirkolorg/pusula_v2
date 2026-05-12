@@ -2,18 +2,20 @@
 
 import { useState } from 'react';
 import { checklistItemContentSchema } from '@pusula/domain';
-import { Button, Input } from '@pusula/ui';
+import { Avatar, Button, Checkbox, Input } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import type { ChecklistItemView } from './checklist-types';
+import type { ChecklistItemView, NameResolver } from './checklist-types';
 
 /**
- * One checklist item: native checkbox + content, with inline edit/delete for
- * board `member+`. Viewers see a disabled checkbox and no affordances.
+ * One checklist item: a `Checkbox` + content, with inline edit/delete for board
+ * `member+`. A completed item shows the completer's avatar (resolved via
+ * `nameOf`, when known). Viewers see a disabled checkbox and no affordances.
  */
 export function ChecklistItemRow({
   item,
   canEdit,
   pending,
+  nameOf,
   onToggle,
   onEdit,
   onDelete,
@@ -21,6 +23,7 @@ export function ChecklistItemRow({
   item: ChecklistItemView;
   canEdit: boolean;
   pending: boolean;
+  nameOf?: NameResolver;
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
@@ -30,15 +33,17 @@ export function ChecklistItemRow({
   const [value, setValue] = useState(item.content);
   const [error, setError] = useState<string | null>(null);
 
+  const completerName =
+    item.completed && item.completedBy ? nameOf?.(item.completedBy)?.toString().trim() || null : null;
+
   return (
-    <li className="flex items-start gap-2 text-sm">
-      <input
-        type="checkbox"
+    <li className="group/item flex items-start gap-2 text-sm">
+      <Checkbox
         checked={item.completed}
         disabled={!canEdit || pending}
         aria-label={copy.itemToggleLabel}
-        onChange={(event) => onToggle(event.target.checked)}
-        className="mt-0.5 size-4 shrink-0 rounded border"
+        onCheckedChange={(checked) => onToggle(checked === true)}
+        className="mt-0.5 shrink-0"
       />
       {editing && canEdit ? (
         <form
@@ -87,11 +92,18 @@ export function ChecklistItemRow({
         </form>
       ) : (
         <>
-          <span className={item.completed ? 'flex-1 break-words line-through opacity-60' : 'flex-1 break-words'}>
+          <span
+            className={
+              item.completed
+                ? 'text-muted-foreground min-w-0 flex-1 break-words line-through'
+                : 'min-w-0 flex-1 break-words'
+            }
+          >
             {item.content}
           </span>
+          {completerName && <Avatar name={completerName} size="xs" className="shrink-0" />}
           {canEdit && (
-            <span className="flex shrink-0 gap-1">
+            <span className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100">
               <Button
                 type="button"
                 variant="ghost"
@@ -104,13 +116,7 @@ export function ChecklistItemRow({
               >
                 {copy.itemEdit}
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                onClick={onDelete}
-              >
+              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onDelete}>
                 {pending ? copy.itemDeleting : copy.itemDelete}
               </Button>
             </span>

@@ -39,6 +39,21 @@ describe('summarizeCardActivity', () => {
     ).toBe('Ada kartı geri yükledi');
   });
 
+  it('card completion + cover-colour events → readable lines', () => {
+    expect(summarizeCardActivity({ ...base, type: 'card.completed' }, 'X')).toBe(
+      'Ada kartı tamamlandı olarak işaretledi',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'card.uncompleted' }, 'X')).toBe(
+      'Ada kartın tamamlanmasını geri aldı',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'card.cover_changed' }, 'X')).toBe(
+      'Ada kartın kapak rengini değiştirdi',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'card.cover_cleared' }, 'X')).toBe(
+      'Ada kartın kapak rengini kaldırdı',
+    );
+  });
+
   it('comment.created / checklist.item_checked / checklist.item_unchecked → readable lines', () => {
     expect(summarizeCardActivity({ ...base, type: 'comment.created' }, 'X')).toBe('Ada yorum ekledi');
     expect(summarizeCardActivity({ ...base, type: 'checklist.item_checked' }, 'X')).toBe(

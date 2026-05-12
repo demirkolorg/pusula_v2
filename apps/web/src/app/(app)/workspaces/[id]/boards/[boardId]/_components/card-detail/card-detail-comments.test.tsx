@@ -1,10 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
-import { CardDetailComments, type CommentView } from './card-detail-comments';
+import {
+  CardCommentComposer,
+  CardDetailComments,
+  type CommentView,
+} from './card-detail-comments';
 
 const copy = strings.card.comments;
+const detailCopy = strings.card.detail;
 
 const nameOf = (id: string) => ({ u1: 'Ada', u2: 'Bora' })[id as 'u1' | 'u2'] ?? null;
 
@@ -36,7 +41,6 @@ describe('<CardDetailComments>', () => {
         viewerUserId="u1"
         isBoardAdmin={false}
         canComment
-        onCreate={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -52,7 +56,6 @@ describe('<CardDetailComments>', () => {
         viewerUserId="u1"
         isBoardAdmin={false}
         canComment={false}
-        onCreate={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
       />,
@@ -60,28 +63,6 @@ describe('<CardDetailComments>', () => {
     expect(screen.getByText('İlk yorum')).toBeInTheDocument();
     expect(screen.getByText('Ada')).toBeInTheDocument();
     expect(screen.getByText(copy.deletedPlaceholder)).toBeInTheDocument();
-    // No "add comment" form for a viewer.
-    expect(screen.queryByRole('button', { name: copy.addSubmit })).not.toBeInTheDocument();
-  });
-
-  it('member: adding a comment submits the trimmed body', async () => {
-    const user = userEvent.setup();
-    const onCreate = vi.fn();
-    render(
-      <CardDetailComments
-        comments={[]}
-        nameOf={nameOf}
-        viewerUserId="u1"
-        isBoardAdmin={false}
-        canComment
-        onCreate={onCreate}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-    await user.type(screen.getByLabelText(copy.addPlaceholder), '  Merhaba  ');
-    await user.click(screen.getByRole('button', { name: copy.addSubmit }));
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('Merhaba'));
   });
 
   it('author may edit/delete their own comment; not others', () => {
@@ -92,13 +73,65 @@ describe('<CardDetailComments>', () => {
         viewerUserId="u1"
         isBoardAdmin={false}
         canComment
-        onCreate={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
-    // c1 is u1's (the viewer's) → has edit. c2 is deleted → no actions.
     expect(screen.getByRole('button', { name: copy.edit })).toBeInTheDocument();
+  });
+
+  it('editing a legacy plain-text comment and saving without a semantic change is a no-op', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[{ ...first, body: 'Eski düz metin' }]}
+        nameOf={nameOf}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment
+        onEdit={onEdit}
+        onDelete={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: copy.edit }));
+    // Editor seeded from the legacy plain text (now a Tiptap JSON serialisation).
+    const region = await screen.findByLabelText(copy.edit);
+    // Touch the editor so its `onChange` fires with the JSON serialisation, then
+    // restore the original text — body is JSON now but semantically unchanged.
+    await user.click(region);
+    await user.keyboard('X{Backspace}');
+    await user.click(screen.getByRole('button', { name: copy.editSave }));
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it('editing a comment and saving a real change fires the mutation', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[{ ...first, body: 'Eski düz metin' }]}
+        nameOf={nameOf}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment
+        onEdit={onEdit}
+        onDelete={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: copy.edit }));
+    const region = await screen.findByLabelText(copy.edit);
+    await user.click(region);
+    await user.keyboard(' güncel');
+    await user.click(screen.getByRole('button', { name: copy.editSave }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    const { commentId, body } = onEdit.mock.calls[0]?.[0] as { commentId: string; body: string };
+    expect(commentId).toBe(first.id);
+    expect(JSON.parse(body)).toMatchObject({ type: 'doc' });
   });
 
   it('falls back to a generic name when the author cannot be resolved', () => {
@@ -111,12 +144,31 @@ describe('<CardDetailComments>', () => {
         viewerUserId="u1"
         isBoardAdmin={false}
         canComment={false}
-        onCreate={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
-    // Falls back to the userId (then the generic label if even that is empty).
     expect(screen.getByText('ghost')).toBeInTheDocument();
+  });
+});
+
+describe('<CardCommentComposer>', () => {
+  it('Gönder is disabled until the editor has content, then submits a JSON body', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<CardCommentComposer viewerName="Ada" onSubmit={onSubmit} />);
+
+    const send = screen.getByRole('button', { name: new RegExp(detailCopy.composer.submit) });
+    expect(send).toBeDisabled();
+
+    await user.click(screen.getByLabelText(detailCopy.composer.placeholder));
+    await user.keyboard('Merhaba');
+    expect(send).toBeEnabled();
+
+    await user.click(send);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const body = onSubmit.mock.calls[0]?.[0] as string;
+    expect(() => JSON.parse(body)).not.toThrow();
+    expect(JSON.parse(body)).toMatchObject({ type: 'doc' });
   });
 });

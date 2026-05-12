@@ -11,6 +11,8 @@ export type ChecklistItemView = {
   content: string;
   position: string;
   completed: boolean;
+  /** User id who last checked the item (`null` if open or the user was deleted). */
+  completedBy?: string | null;
 };
 
 export type ChecklistView = {
@@ -30,3 +32,6 @@ export type ChecklistHandlers = {
   onEditItem: (input: { checklistId: string; itemId: string; content: string }) => void;
   onDeleteItem: (input: { checklistId: string; itemId: string }) => void;
 };
+
+/** Resolve a user id to a display name (board/card members). */
+export type NameResolver = (userId: string) => string | null | undefined;

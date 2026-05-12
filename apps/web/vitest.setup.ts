@@ -37,3 +37,64 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
   globalThis.ResizeObserver = ResizeObserverShim as unknown as typeof ResizeObserver;
 }
+
+// --- jsdom polyfills for ProseMirror / Tiptap ------------------------------
+// ProseMirror measures DOM rects when computing selections/coordinates, which
+// jsdom stubs out (or omits entirely). These zero-rect shims are enough to let
+// RTL mount and drive a Tiptap editor without throwing.
+if (typeof globalThis.DOMRect === 'undefined') {
+  class DOMRectShim {
+    x = 0;
+    y = 0;
+    width = 0;
+    height = 0;
+    top = 0;
+    right = 0;
+    bottom = 0;
+    left = 0;
+    constructor(x = 0, y = 0, width = 0, height = 0) {
+      this.x = x;
+      this.y = y;
+      this.width = width;
+      this.height = height;
+      this.top = y;
+      this.left = x;
+      this.right = x + width;
+      this.bottom = y + height;
+    }
+    toJSON() {
+      return { ...this };
+    }
+    static fromRect(r?: { x?: number; y?: number; width?: number; height?: number }) {
+      return new DOMRectShim(r?.x, r?.y, r?.width, r?.height);
+    }
+  }
+  globalThis.DOMRect = DOMRectShim as unknown as typeof DOMRect;
+}
+
+if (typeof Range !== 'undefined') {
+  if (!Range.prototype.getBoundingClientRect) {
+    Range.prototype.getBoundingClientRect = () => new DOMRect();
+  }
+  if (!Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = () =>
+      ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+  }
+}
+
+if (typeof document !== 'undefined' && !document.elementFromPoint) {
+  document.elementFromPoint = () => null;
+}
+
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}

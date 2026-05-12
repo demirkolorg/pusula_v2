@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { cardTitleSchema } from '@pusula/domain';
-import { Alert, AlertDescription, Button, Input } from '@pusula/ui';
+import { Alert, AlertDescription, Button, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 type CardDetailTitleProps = {
@@ -16,19 +16,24 @@ type CardDetailTitleProps = {
 };
 
 /**
- * Card title: a heading with an "edit" affordance (board `member+`); on edit, an
- * input + save/cancel, validated client-side against `cardTitleSchema`. A no-op
- * save just closes the editor. Read-only viewers see the heading only.
+ * Card title in the modal's sticky header: a large heading that becomes an
+ * auto-sizing `textarea` on click (board `member+`), validated client-side
+ * against `cardTitleSchema`. A no-op save just closes the editor; read-only
+ * viewers see the heading only.
  */
 export function CardDetailTitle({ title, canEdit, onSave, pending = false, error }: CardDetailTitleProps) {
   const inputId = useId();
   const copy = strings.card.detail;
+  const taRef = useRef<HTMLTextAreaElement>(null);
 
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(title);
   const [valueError, setValueError] = useState<string | null>(null);
 
   useEffect(() => setValue(title), [title]);
+  useEffect(() => {
+    if (editing) taRef.current?.focus();
+  }, [editing]);
 
   const start = () => {
     setValue(title);
@@ -41,8 +46,7 @@ export function CardDetailTitle({ title, canEdit, onSave, pending = false, error
     setEditing(false);
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submit = () => {
     const parsed = cardTitleSchema.safeParse(value);
     if (!parsed.success) {
       setValueError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
@@ -60,9 +64,9 @@ export function CardDetailTitle({ title, canEdit, onSave, pending = false, error
   if (!editing || !canEdit) {
     return (
       <div className="flex items-start gap-2">
-        <h2 className="flex-1 text-lg font-semibold tracking-tight break-words">{title}</h2>
+        <h2 className="flex-1 text-lg leading-tight font-semibold break-words">{title}</h2>
         {canEdit && (
-          <Button type="button" variant="ghost" size="sm" onClick={start}>
+          <Button type="button" variant="ghost" size="sm" onClick={start} className="shrink-0">
             {copy.editTitle}
           </Button>
         )}
@@ -71,17 +75,40 @@ export function CardDetailTitle({ title, canEdit, onSave, pending = false, error
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-2">
-      <Input
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+      noValidate
+      className="space-y-2"
+    >
+      <textarea
+        ref={taRef}
         id={inputId}
         name="cardTitle"
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            submit();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancel();
+          }
+        }}
+        rows={1}
         aria-label={copy.titleLabel}
         disabled={pending}
         autoComplete="off"
         aria-invalid={valueError ? true : undefined}
         aria-describedby={valueError ? `${inputId}-error` : undefined}
+        className={cn(
+          'w-full resize-none rounded-md border bg-card px-2 py-1 text-lg leading-tight font-semibold field-sizing-content focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none',
+          valueError && 'border-destructive',
+        )}
       />
       {valueError && (
         <p id={`${inputId}-error`} className="text-destructive text-sm">

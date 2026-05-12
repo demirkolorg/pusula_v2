@@ -23,8 +23,8 @@ const checklists: ChecklistView[] = [
     title: 'Hazırlık',
     position: 'a0',
     items: [
-      { id: 'i1', checklistId: 'c1', content: 'Birinci', position: 'a0', completed: false },
-      { id: 'i2', checklistId: 'c1', content: 'İkinci', position: 'a1', completed: true },
+      { id: 'i1', checklistId: 'c1', content: 'Birinci', position: 'a0', completed: false, completedBy: null },
+      { id: 'i2', checklistId: 'c1', content: 'İkinci', position: 'a1', completed: true, completedBy: null },
     ],
   },
 ];

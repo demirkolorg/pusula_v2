@@ -73,3 +73,13 @@ export {
 } from './components/dropdown-menu';
 export { Checkbox } from './components/checkbox';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';
+export {
+  RichTextEditor,
+  RichTextContent,
+  parseRichTextValue,
+  serializeRichTextValue,
+  isRichTextEmpty,
+  type RichTextEditorProps,
+  type RichTextEditorLabels,
+  type RichTextContentProps,
+} from './components/rich-text-editor';

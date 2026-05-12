@@ -12,27 +12,30 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Progress,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
 import { ChecklistItemRow } from './checklist-item-row';
-import type { ChecklistHandlers, ChecklistView } from './checklist-types';
+import type { ChecklistHandlers, ChecklistView, NameResolver } from './checklist-types';
 
 /**
  * One checklist card: header (inline rename + confirmed delete for board
- * `member+`), a `done/total` progress line, its items, and an "add item" form.
- * Reorder is out of scope this phase (no drag-and-drop — Phase 3).
+ * `member+`), a `done/total` progress bar + line, its items, and an "add item"
+ * form. Reorder is out of scope this phase (no drag-and-drop — Phase 3).
  */
 export function ChecklistBlock({
   checklist,
   canEdit,
   pending,
   handlers,
+  nameOf,
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
   pending: boolean;
   handlers: ChecklistHandlers;
+  nameOf?: NameResolver;
 }) {
   const copy = strings.card.checklist;
   const [renaming, setRenaming] = useState(false);
@@ -153,7 +156,19 @@ export function ChecklistBlock({
         )}
       </div>
 
-      <p className="text-muted-foreground text-xs">
+      <div className="flex items-center gap-2">
+        <span className="text-primary text-[11px] font-semibold tabular-nums">
+          {done}/{total}
+        </span>
+        <Progress
+          value={done}
+          max={total || 1}
+          complete={total > 0 && done === total}
+          className="h-1 flex-1"
+          aria-label={copy.checklistProgressLabel}
+        />
+      </div>
+      <p className="text-muted-foreground sr-only">
         {done}/{total} {copy.progress} {copy.progressDone}
       </p>
 
@@ -165,6 +180,7 @@ export function ChecklistBlock({
               item={item}
               canEdit={canEdit}
               pending={pending}
+              nameOf={nameOf}
               onToggle={(completed) =>
                 handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
               }

@@ -209,4 +209,16 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  /* Tiptap editor surface — placeholder text + sensible defaults. */
+  .tiptap {
+    @apply text-sm break-words;
+  }
+  .tiptap:focus {
+    @apply outline-none;
+  }
+  .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted-foreground;
+  }
 }

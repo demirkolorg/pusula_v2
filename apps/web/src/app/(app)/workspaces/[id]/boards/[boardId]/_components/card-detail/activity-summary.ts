@@ -49,6 +49,14 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} kartı geri yükledi` : `${who} kartı arşivledi`;
     }
+    case 'card.completed':
+      return `${who} kartı tamamlandı olarak işaretledi`;
+    case 'card.uncompleted':
+      return `${who} kartın tamamlanmasını geri aldı`;
+    case 'card.cover_changed':
+      return `${who} kartın kapak rengini değiştirdi`;
+    case 'card.cover_cleared':
+      return `${who} kartın kapak rengini kaldırdı`;
     case 'card.member_added': {
       const role = str(p, 'role');
       return role === 'assignee'
