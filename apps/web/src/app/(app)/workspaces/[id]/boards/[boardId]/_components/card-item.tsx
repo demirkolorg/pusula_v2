@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArchiveIcon } from 'lucide-react';
+import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -17,6 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   LabelChip,
   Tooltip,
   TooltipContent,
@@ -31,8 +37,12 @@ import {
 } from '@pusula/domain';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { useBoardDndContext } from './board-dnd-context';
+import { BoardDropLine } from './board-drop-line';
+import type { Edge } from './board-dnd-types';
 import { LABEL_PALETTE } from './label-colors';
 import { CardMetaRow, type CardMember } from './card-meta-row';
+import type { BoardList } from './list-column';
 
 export type BoardCardLabel = { labelId: string; name: string; color: string };
 
@@ -68,6 +78,11 @@ type CardItemProps = {
   card: BoardCard;
   /** Whether the viewer may edit/archive this card (board `member+`, list & board active). */
   canEdit: boolean;
+  /**
+   * The board's lists (active + archived), `position`-sorted — used by the ⋮
+   * "move to list" picker. Optional so a `CardItem` rendered in isolation works.
+   */
+  allLists?: BoardList[];
 };
 
 /** Whether `color` is one of the domain's known label colours. */
@@ -109,20 +124,48 @@ const COVER_BAR: Record<CardCoverColor, string> = {
  * the title (struck through when complete), and a compact metadata strip
  * (`CardMetaRow` — due / description / checklist / comments / members). A "card
  * done" toggle sits to the left of the title (always visible once complete,
- * hover-to-reveal otherwise); when `canEdit`, a quick "archive" action (hover
- * icon → confirm dialog) is in the top-right. The complete toggle and the
- * archive dialog `stopPropagation` so they don't also open the card. All
- * mutations invalidate `board.get`. Drag-and-drop is Phase 3 (DEM-26).
+ * hover-to-reveal otherwise); when `canEdit`, a "⋮" menu (hover → "move to
+ * list" picker + archive) and a quick archive icon are in the top-right.
+ *
+ * Within the board's drag-and-drop context (Phase 3B — DEM-43) the card is
+ * draggable and is a card-shaped drop target (top/bottom edge → reorder /
+ * cross-list move); a drop line is drawn on the hovered edge and the card is
+ * ghosted while it's the one being dragged. The complete toggle, the ⋮ menu and
+ * the archive dialog `stopPropagation` so they don't also open the card. All
+ * mutations invalidate `board.get`.
  */
-export function CardItem({ boardId, card, canEdit }: CardItemProps) {
+export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const copy = strings.board.card;
+  const dndCopy = strings.board.dnd;
+  const dnd = useBoardDndContext();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+
+  // --- Drag-and-drop wiring ------------------------------------------------
+  const articleRef = useRef<HTMLElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [dropEdge, setDropEdge] = useState<Edge | null>(null);
+
+  useEffect(() => {
+    if (!dnd) return;
+    const el = articleRef.current;
+    if (!el) return;
+    return dnd.registerCard({
+      element: el,
+      cardId: card.id,
+      listId: card.listId,
+      position: card.position,
+      // A card in an archived list can be dragged *out* but isn't a drop target.
+      isDropTarget: canEdit,
+      onDraggingChange: setDragging,
+      onEdgeChange: setDropEdge,
+    });
+  }, [dnd, card.id, card.listId, card.position, canEdit]);
 
   const openCard = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -161,21 +204,35 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
     if (!next) archiveCard.reset();
   };
 
+  // "Move to list" picker targets: every *active* list. (The current list is
+  // shown too but disabled — there's nowhere else to put the card within its
+  // own list from this minimal picker.) Only available within the DnD context
+  // (board `member+`, active) — which is the same condition as `canEdit`.
+  const moveTargets = dnd
+    ? [...allLists]
+        .filter((l) => l.archivedAt == null)
+        .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+    : [];
+
   const coverColor = asCoverColor(card.coverColor);
 
   return (
     <article
+      ref={articleRef}
       role="button"
       tabIndex={0}
       aria-label={card.title}
       onClick={openCard}
       onKeyDown={handleKeyDown}
+      data-dragging={dragging ? '' : undefined}
       className={cn(
         'bg-card group/kart relative cursor-pointer rounded-md border p-2 text-sm shadow-card outline-none',
-        'transition-[box-shadow,border-color] hover:border-foreground/30 hover:shadow-card-hover',
+        'transition-[box-shadow,border-color,opacity] hover:border-foreground/30 hover:shadow-card-hover',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
+        dragging && 'opacity-40',
       )}
     >
+      {dropEdge && <BoardDropLine edge={dropEdge} gap="0.5rem" />}
       {coverColor && (
         <div className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])} aria-hidden />
       )}
@@ -234,62 +291,113 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
       />
 
       {canEdit && (
-        <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DialogTrigger asChild>
+        <div className="absolute top-1 right-1 flex items-center gap-0.5">
+          {moveTargets.length > 0 && (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={dndCopy.move}
+                      onClick={(event) => event.stopPropagation()}
+                      className="size-6 opacity-0 transition-opacity group-hover/kart:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                    >
+                      <MoreHorizontalIcon className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>{dndCopy.move}</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent
+                align="end"
+                onClick={(event) => event.stopPropagation()}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                <DropdownMenuLabel className="flex items-center gap-1.5">
+                  <MoveIcon className="size-3.5" aria-hidden />
+                  {dndCopy.moveToList}
+                </DropdownMenuLabel>
+                {moveTargets.map((l) => (
+                  <DropdownMenuItem
+                    key={l.id}
+                    disabled={l.id === card.listId}
+                    onSelect={() => dnd?.moveCardToListEnd(card.id, card.listId, l.id)}
+                  >
+                    <span className="truncate">
+                      {l.title}
+                      {l.id === card.listId ? '' : ` · ${dndCopy.moveToListEnd}`}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
+                  <ArchiveIcon />
+                  {copy.archive}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={copy.archive}
+                    onClick={(event) => event.stopPropagation()}
+                    className="size-6 opacity-0 transition-opacity group-hover/kart:opacity-100 focus-visible:opacity-100"
+                  >
+                    <ArchiveIcon className="size-3.5" />
+                  </Button>
+                </DialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{copy.archive}</TooltipContent>
+            </Tooltip>
+            <DialogContent
+              closeLabel={strings.common.close}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <DialogHeader>
+                <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
+                <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>
+              </DialogHeader>
+              {archiveCard.isError && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {archiveCard.error.message || strings.common.unknownError}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={archiveCard.isPending}>
+                    {strings.common.cancel}
+                  </Button>
+                </DialogClose>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={copy.archive}
-                  onClick={(event) => event.stopPropagation()}
-                  className="absolute top-1 right-1 size-6 opacity-0 transition-opacity group-hover/kart:opacity-100 focus-visible:opacity-100"
+                  variant="destructive"
+                  disabled={archiveCard.isPending}
+                  onClick={() =>
+                    archiveCard.mutate({
+                      cardId: card.id,
+                      archived: true,
+                      clientMutationId: crypto.randomUUID(),
+                    })
+                  }
                 >
-                  <ArchiveIcon className="size-3.5" />
+                  {archiveCard.isPending ? copy.archiving : copy.archiveConfirm}
                 </Button>
-              </DialogTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{copy.archive}</TooltipContent>
-          </Tooltip>
-          <DialogContent
-            closeLabel={strings.common.close}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <DialogHeader>
-              <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
-              <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>
-            </DialogHeader>
-            {archiveCard.isError && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {archiveCard.error.message || strings.common.unknownError}
-                </AlertDescription>
-              </Alert>
-            )}
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={archiveCard.isPending}>
-                  {strings.common.cancel}
-                </Button>
-              </DialogClose>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={archiveCard.isPending}
-                onClick={() =>
-                  archiveCard.mutate({
-                    cardId: card.id,
-                    archived: true,
-                    clientMutationId: crypto.randomUUID(),
-                  })
-                }
-              >
-                {archiveCard.isPending ? copy.archiving : copy.archiveConfirm}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       )}
     </article>
   );

@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon, PencilIcon } from 'lucide-react';
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  GripVerticalIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+} from 'lucide-react';
 import { listTitleSchema } from '@pusula/domain';
 import {
   Alert,
@@ -18,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
   cn,
@@ -25,6 +34,9 @@ import {
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { AddCardForm } from './add-card-form';
+import { useBoardDndContext } from './board-dnd-context';
+import { BoardDropLine } from './board-drop-line';
+import type { Edge } from './board-dnd-types';
 import { CardItem, type BoardCard } from './card-item';
 
 export type BoardList = {
@@ -46,22 +58,34 @@ type ListColumnProps = {
    * this is true — handled below.
    */
   canEdit: boolean;
+  /**
+   * All of the board's lists (active + archived), `position`-sorted — used by
+   * the column's ⋮ "move left / right" actions and by each card's ⋮ "move to
+   * list" picker. Optional so a `ListColumn` rendered in isolation still works.
+   */
+  allLists?: BoardList[];
 };
 
 /**
- * Fixed-width board column for a single list: a header (title + card count +
- * a "⋮" menu — rename / archive / restore), the cards, and (when editable) an
- * add-card form. The "⋮" menu actions reuse the existing mutations
- * (`list.update` / `list.archive`); archiving still goes through a confirm
- * dialog. An archived list is dimmed + dashed and read-only (the server gate is
- * authoritative; the UI just hides the actions). Drag-and-drop is Phase 3.
+ * Fixed-width board column for a single list: a header (drag handle + title +
+ * card count + a "⋮" menu — rename / archive / restore, and — when there's a
+ * neighbour that way — "move left / right"), the cards (each draggable), and
+ * (when editable) an add-card form. Within the board's drag-and-drop context
+ * (Phase 3B — DEM-43) the column is draggable by its header handle and is both
+ * a column-shaped drop target (left/right edge → reorder) and — via its cards
+ * area — a "drop a card at the end" target; archived lists are never drop
+ * targets (the server gate is authoritative; the UI just disables it). The "⋮"
+ * menu actions reuse the existing mutations (`list.update` / `list.archive` /
+ * `list.move`); archiving still goes through a confirm dialog.
  */
-export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
+export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: ListColumnProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const renameId = useId();
   const columnCopy = strings.board.column;
   const cardCopy = strings.board.card;
+  const dndCopy = strings.board.dnd;
+  const dnd = useBoardDndContext();
 
   const listArchived = list.archivedAt != null;
   // An archived list never accepts mutations, even if the viewer could otherwise edit.
@@ -71,6 +95,43 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
   const [renameValue, setRenameValue] = useState(list.title);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+
+  // --- Drag-and-drop wiring ------------------------------------------------
+  const columnRef = useRef<HTMLElement | null>(null);
+  const handleRef = useRef<HTMLButtonElement | null>(null);
+  const cardsAreaRef = useRef<HTMLDivElement | null>(null);
+  const [columnDragging, setColumnDragging] = useState(false);
+  const [columnEdge, setColumnEdge] = useState<Edge | null>(null);
+  const [cardsAreaOver, setCardsAreaOver] = useState(false);
+
+  // The column is only draggable / a column drop target when the list is active
+  // (you can drag an archived list around? no — it's read-only) and DnD is on.
+  useEffect(() => {
+    if (!dnd || listArchived || renaming) return;
+    const el = columnRef.current;
+    const handle = handleRef.current;
+    if (!el || !handle) return;
+    return dnd.registerColumn({
+      element: el,
+      dragHandle: handle,
+      listId: list.id,
+      position: list.position,
+      onDraggingChange: setColumnDragging,
+      onEdgeChange: setColumnEdge,
+    });
+  }, [dnd, list.id, list.position, listArchived, renaming]);
+
+  // The cards area is a "drop a card at the end of this list" target (active lists only).
+  useEffect(() => {
+    if (!dnd || listArchived) return;
+    const el = cardsAreaRef.current;
+    if (!el) return;
+    return dnd.registerListCardsArea({
+      element: el,
+      listId: list.id,
+      onOverChange: setCardsAreaOver,
+    });
+  }, [dnd, list.id, listArchived]);
 
   useEffect(() => setRenameValue(list.title), [list.title]);
 
@@ -99,6 +160,17 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
       },
     }),
   );
+
+  // Whether there's a neighbouring list to move to in each direction (uses the
+  // full position-sorted list set, so it's correct even with archived lists
+  // hidden). Only meaningful within the DnD context (board `member+`, active).
+  const orderedListIds = [...allLists]
+    .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+    .map((l) => l.id);
+  const indexInBoard = orderedListIds.indexOf(list.id);
+  const canMoveLeft = !!dnd && listEditable && indexInBoard > 0;
+  const canMoveRight =
+    !!dnd && listEditable && indexInBoard !== -1 && indexInBoard < orderedListIds.length - 1;
 
   const startRenaming = () => {
     setRenameValue(list.title);
@@ -142,12 +214,17 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
 
   return (
     <section
+      ref={columnRef}
       className={cn(
-        'flex max-h-[calc(100vh-9rem)] w-72 shrink-0 flex-col rounded-lg border',
+        'relative flex max-h-[calc(100vh-9rem)] w-72 shrink-0 flex-col rounded-lg border transition-opacity',
         listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/40',
+        columnDragging && 'opacity-40',
+        cardsAreaOver && !listArchived && 'ring-2 ring-ring/50',
       )}
+      data-dragging={columnDragging ? '' : undefined}
       aria-label={list.title}
     >
+      {columnEdge && <BoardDropLine edge={columnEdge} gap="0.75rem" />}
       <header className="flex items-start justify-between gap-1 p-2">
         {renaming ? (
           <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
@@ -191,8 +268,21 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
           </form>
         ) : (
           <>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              {listArchived && <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />}
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              {dnd && !listArchived ? (
+                <button
+                  ref={handleRef}
+                  type="button"
+                  aria-label={dndCopy.listDragHandleLabel}
+                  className="text-muted-foreground hover:text-foreground -ml-1 shrink-0 cursor-grab rounded-sm p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                >
+                  <GripVerticalIcon className="size-3.5" aria-hidden />
+                </button>
+              ) : (
+                listArchived && (
+                  <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                )
+              )}
               <h2 className="truncate text-sm font-semibold">{list.title}</h2>
               <span className="text-muted-foreground shrink-0 text-xs">
                 {cards.length} {columnCopy.cardCount}
@@ -212,6 +302,24 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
                       {columnCopy.menuRename}
                     </DropdownMenuItem>
                   )}
+                  {(canMoveLeft || canMoveRight) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {canMoveLeft && (
+                        <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'left')}>
+                          <ArrowLeftIcon />
+                          {dndCopy.moveLeft}
+                        </DropdownMenuItem>
+                      )}
+                      {canMoveRight && (
+                        <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'right')}>
+                          <ArrowRightIcon />
+                          {dndCopy.moveRight}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
                     {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
                     {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
@@ -223,12 +331,18 @@ export function ListColumn({ boardId, list, cards, canEdit }: ListColumnProps) {
         )}
       </header>
 
-      <div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2">
+      <div ref={cardsAreaRef} className="flex min-h-2 flex-col gap-2 overflow-y-auto px-2 pb-2">
         {cards.length === 0 ? (
           <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
         ) : (
           cards.map((card) => (
-            <CardItem key={card.id} boardId={boardId} card={card} canEdit={listEditable} />
+            <CardItem
+              key={card.id}
+              boardId={boardId}
+              card={card}
+              canEdit={listEditable}
+              allLists={allLists}
+            />
           ))
         )}
       </div>

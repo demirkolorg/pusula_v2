@@ -336,6 +336,22 @@ export const strings = {
       menuArchive: 'Listeyi arşivle',
       menuRestore: 'Listeyi geri yükle',
     },
+    dnd: {
+      // Drag handles + the keyboard/button alternative (card ⋮ "move", column ⋮ "move left/right").
+      listDragHandleLabel: 'Listeyi sürükleyerek taşı',
+      move: 'Taşı',
+      moveToList: 'Listeye taşı',
+      moveToListEnd: 'sonuna ekle',
+      moveLeft: 'Sola taşı',
+      moveRight: 'Sağa taşı',
+      // aria-live announcements while dragging (best-effort).
+      announceCardGrabbed: 'Kart kaldırıldı. Bırakmak için fareyi taşıyın.',
+      announceListGrabbed: 'Liste kaldırıldı. Bırakmak için fareyi taşıyın.',
+      announceDropped: 'Bırakıldı.',
+      // Low-noise feedback when a move fails / conflicts.
+      error: 'Taşıma başarısız oldu. Lütfen tekrar deneyin.',
+      conflict: 'Kart başkası tarafından taşındı; görünüm yenilendi.',
+    },
     card: {
       addCard: 'Kart ekle',
       addCardPlaceholder: 'Kart için bir başlık girin…',

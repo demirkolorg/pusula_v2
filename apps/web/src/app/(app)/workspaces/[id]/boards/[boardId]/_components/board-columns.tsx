@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGridIcon } from 'lucide-react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
-import { EmptyState } from '@pusula/ui';
+import { Alert, AlertDescription, Button, EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
+import { BoardDndProvider } from './board-dnd-context';
 import { BoardFilterBar, type BoardFilterLabel } from './board-filter-bar';
 import {
   countArchivedLists,
@@ -13,6 +14,7 @@ import {
   filterVisibleLists,
 } from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
+import { useBoardDnd } from './use-board-dnd';
 import { type BoardCard } from './card-item';
 
 type BoardColumnsProps = {
@@ -34,7 +36,8 @@ type BoardColumnsProps = {
  * lists in/out of view (hidden by default; shown dimmed when on — restore lives
  * in each column). A trailing "add list" column is shown when the viewer may edit
  * and the board is active. Fixed widths keep the layout stable — no shift on
- * hover/edit. Drag-and-drop is Phase 3 (DEM-26) — not here.
+ * hover/edit. Drag-and-drop is wired here via `useBoardDnd` (Atlassian Pragmatic
+ * DnD — Phase 3B, DEM-43): column reorder + card reorder / cross-list move.
  */
 export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps) {
   const boardActive = board.archivedAt == null;
@@ -92,41 +95,91 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
       return next;
     });
 
+  // --- Drag-and-drop (Phase 3B — DEM-43) -----------------------------------
+  // Enabled only when the viewer may edit and the board is active; the hook
+  // re-reads `lists` / `cards` via refs, so its identity is stable per board.
+  const dnd = useBoardDnd({ boardId, lists, cards, enabled: canEdit });
+  const dndCopy = strings.board.dnd;
+  const liveAnnouncement =
+    dnd.dragState.kind === 'card'
+      ? dndCopy.announceCardGrabbed
+      : dnd.dragState.kind === 'list'
+        ? dndCopy.announceListGrabbed
+        : '';
+
+  // Announce when a drag ends (item dropped). We watch dragState going from
+  // non-idle → idle and emit announceDropped into a separate assertive region
+  // so the "grabbed" message and "dropped" message don't clobber each other.
+  const [dropAnnouncement, setDropAnnouncement] = useState('');
+  const prevDragKindRef = useRef(dnd.dragState.kind);
+  useEffect(() => {
+    const prev = prevDragKindRef.current;
+    const next = dnd.dragState.kind;
+    prevDragKindRef.current = next;
+    if (prev !== 'idle' && next === 'idle') {
+      setDropAnnouncement(dndCopy.announceDropped);
+      // Clear after a short delay so the region can re-announce on the next drop.
+      const t = setTimeout(() => setDropAnnouncement(''), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [dnd.dragState.kind, dndCopy.announceDropped]);
+
   const showFilterBar = boardLabels.length > 0 || archivedListCount > 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      {showFilterBar && (
-        <BoardFilterBar
-          labels={boardLabels}
-          selectedLabelIds={liveSelectedLabelIds}
-          onToggleLabel={toggleLabel}
-          onClearLabels={() => setSelectedLabelIds(new Set())}
-          showArchivedLists={showArchivedLists}
-          onToggleArchivedLists={() => setShowArchivedLists((v) => !v)}
-          archivedListCount={archivedListCount}
-        />
-      )}
+    <BoardDndProvider value={dnd}>
+      <div className="flex flex-col gap-3">
+        {showFilterBar && (
+          <BoardFilterBar
+            labels={boardLabels}
+            selectedLabelIds={liveSelectedLabelIds}
+            onToggleLabel={toggleLabel}
+            onClearLabels={() => setSelectedLabelIds(new Set())}
+            showArchivedLists={showArchivedLists}
+            onToggleArchivedLists={() => setShowArchivedLists((v) => !v)}
+            archivedListCount={archivedListCount}
+          />
+        )}
 
-      {visibleLists.length === 0 && !canEdit ? (
-        <EmptyState
-          icon={<LayoutGridIcon className="size-8" />}
-          message={strings.board.detail.emptyBoard}
-        />
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {visibleLists.map((list) => (
-            <ListColumn
-              key={list.id}
-              boardId={boardId}
-              list={list}
-              cards={cardsByList.get(list.id) ?? []}
-              canEdit={canEdit}
-            />
-          ))}
-          {canEdit && <AddListColumn boardId={boardId} />}
+        {dnd.error && (
+          <Alert variant="destructive" className="flex items-center justify-between gap-3">
+            <AlertDescription>{dnd.error}</AlertDescription>
+            <Button type="button" variant="ghost" size="sm" onClick={dnd.clearError}>
+              {strings.common.close}
+            </Button>
+          </Alert>
+        )}
+
+        {visibleLists.length === 0 && !canEdit ? (
+          <EmptyState
+            icon={<LayoutGridIcon className="size-8" />}
+            message={strings.board.detail.emptyBoard}
+          />
+        ) : (
+          <div ref={dnd.boardStripRef} className="flex gap-3 overflow-x-auto pb-4">
+            {visibleLists.map((list) => (
+              <ListColumn
+                key={list.id}
+                boardId={boardId}
+                list={list}
+                cards={cardsByList.get(list.id) ?? []}
+                canEdit={canEdit}
+                allLists={lists}
+              />
+            ))}
+            {canEdit && <AddListColumn boardId={boardId} />}
+          </div>
+        )}
+
+        {/* Best-effort screen-reader announcement of the drag state. */}
+        <div aria-live="polite" className="sr-only" role="status">
+          {liveAnnouncement}
         </div>
-      )}
-    </div>
+        {/* Drop announcement — assertive so it interrupts the grab message. */}
+        <div aria-live="assertive" className="sr-only" role="status">
+          {dropAnnouncement}
+        </div>
+      </div>
+    </BoardDndProvider>
   );
 }
