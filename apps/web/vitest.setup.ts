@@ -25,3 +25,15 @@ if (typeof Element !== 'undefined') {
     Element.prototype.scrollIntoView = () => {};
   }
 }
+
+// `@radix-ui/react-tooltip` (and other Radix primitives) observe element size
+// via `ResizeObserver`, which jsdom doesn't implement. A no-op shim is enough
+// for RTL to drive these components.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverShim {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  globalThis.ResizeObserver = ResizeObserverShim as unknown as typeof ResizeObserver;
+}

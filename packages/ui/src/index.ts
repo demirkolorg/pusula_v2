@@ -38,3 +38,38 @@ export {
   SelectTrigger,
   SelectValue,
 } from './components/select';
+export { Avatar, type AvatarProps, type PaletteName } from './components/avatar';
+export { SectionHeader, type SectionHeaderProps } from './components/section-header';
+export { Progress, type ProgressProps } from './components/progress';
+export { EmptyState, type EmptyStateProps } from './components/empty-state';
+export { MetaChip, MetaRow, type MetaChipProps, type MetaRowProps } from './components/meta-chip';
+export {
+  LabelChip,
+  LabelSwatch,
+  type LabelChipProps,
+  type LabelSwatchProps,
+} from './components/label-chip';
+export {
+  CardCompleteToggle,
+  type CardCompleteToggleProps,
+} from './components/card-complete-toggle';
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip';
+export {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from './components/dropdown-menu';
+export { Checkbox } from './components/checkbox';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';

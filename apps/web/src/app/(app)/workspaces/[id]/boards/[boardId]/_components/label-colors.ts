@@ -1,20 +1,44 @@
 /**
- * Tailwind swatch classes for the fixed `@pusula/domain` `LABEL_COLORS`
- * palette. Clients hardcode the swatch per token (per the domain doc) — this is
- * the web app's mapping. Kept as plain strings so Tailwind's content scanner
- * picks them up.
+ * Maps the fixed `@pusula/domain` `LABEL_COLORS` palette onto Pusula's design
+ * tokens. The shared `theme.css` exposes a 12-colour `--palet-*` token set;
+ * here we bind the domain's 10 colour tokens to their palette names so the web
+ * app stays token-driven (no raw `bg-green-500` etc.).
+ *
+ * `LABEL_SWATCH[color]` keeps its existing `Record<LabelColor, string>` shape
+ * (a `bg-palet-*` utility class) so current callers don't need changes. The
+ * class names are written out as plain string literals so Tailwind's content
+ * scanner picks them up.
  */
 import type { LabelColor } from '@pusula/domain';
+import type { PaletteName } from '@pusula/ui';
 
+/** Domain label colour → design-token palette name. */
+export const LABEL_PALETTE: Record<LabelColor, PaletteName> = {
+  green: 'yesil',
+  yellow: 'sari',
+  orange: 'turuncu',
+  red: 'kirmizi',
+  purple: 'mor',
+  blue: 'mavi',
+  sky: 'sky',
+  lime: 'lime',
+  pink: 'pembe',
+  black: 'siyah',
+};
+
+/**
+ * Background swatch utility per domain label colour. Literal `bg-palet-*`
+ * strings — keep them spelled out so Tailwind scans them.
+ */
 export const LABEL_SWATCH: Record<LabelColor, string> = {
-  green: 'bg-green-500',
-  yellow: 'bg-yellow-400',
-  orange: 'bg-orange-500',
-  red: 'bg-red-500',
-  purple: 'bg-purple-500',
-  blue: 'bg-blue-500',
-  sky: 'bg-sky-400',
-  lime: 'bg-lime-500',
-  pink: 'bg-pink-500',
-  black: 'bg-neutral-800',
+  green: 'bg-palet-yesil',
+  yellow: 'bg-palet-sari',
+  orange: 'bg-palet-turuncu',
+  red: 'bg-palet-kirmizi',
+  purple: 'bg-palet-mor',
+  blue: 'bg-palet-mavi',
+  sky: 'bg-palet-sky',
+  lime: 'bg-palet-lime',
+  pink: 'bg-palet-pembe',
+  black: 'bg-palet-siyah',
 };
