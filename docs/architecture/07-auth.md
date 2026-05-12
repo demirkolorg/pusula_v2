@@ -26,6 +26,7 @@ updated: 2026-05-12
 - Web client: `apps/web/src/lib/auth-client.ts` (`better-auth/react`). Web ↔ API ayrı origin olduğundan oturum yönetimi **client-side** (`useSession`); istekler `credentials: 'include'`. Web auth ekran akışı (sign-up/in/out, korumalı kabuk, route group düzeni) → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.1.
 - Tabloları (`users`, `sessions`, `accounts`, `verifications`) `@pusula/db` içinde — bkz. [`04-veri-katmani.md`](04-veri-katmani.md).
 - Better Auth session, kullanıcı, hesap bağlantıları ve güvenli kimlik doğrulama akışlarını yönetir.
+- **Signup bootstrap hook'u:** Better Auth instance'ında `databaseHooks.user.create.after`, yeni kullanıcı için **best-effort** olarak bir default workspace + boş "İlk Pano" bootstrap eder (`apps/api/src/bootstrap.ts`, tek transaction). Hook **best-effort**'tur: hata loglanır, exception yeniden fırlatılmaz — signup'ı patlatmaz. Domain kuralı → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) (invariant 11); akış + login sonrası yönlendirme → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.3.
 
 Değerlendirilen alternatifler: Clerk (managed, hızlı), Auth.js (Next.js merkezli — mobil daha fazla
 dikkat ister). Self-hosted + esneklik için Better Auth seçildi.

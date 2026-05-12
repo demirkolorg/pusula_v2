@@ -21,8 +21,12 @@ import {
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
-/** "Yeni workspace" trigger + dialog. Creates a workspace, then invalidates the list. */
-export function CreateWorkspaceDialog() {
+/**
+ * "Yeni workspace" trigger + dialog. Creates a workspace, then invalidates the
+ * list. `triggerLabel` overrides the trigger button text (the onboarding empty
+ * state uses a more prominent label).
+ */
+export function CreateWorkspaceDialog({ triggerLabel }: { triggerLabel?: string } = {}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const nameId = useId();
@@ -68,7 +72,7 @@ export function CreateWorkspaceDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm">{strings.workspace.newButton}</Button>
+        <Button size="sm">{triggerLabel ?? strings.workspace.newButton}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

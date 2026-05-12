@@ -76,6 +76,17 @@ export const INVITATION_STATUSES = ['pending', 'accepted', 'declined', 'revoked'
 /** Default lifetime of a workspace invitation, in days. */
 export const WORKSPACE_INVITATION_TTL_DAYS = 7;
 
+/**
+ * Seed data for the new-user onboarding bootstrap (best-effort, runs at signup —
+ * see `docs/domain/01-urun-modeli.md` invariant 11 and `docs/architecture/08-web-ve-mobil.md`
+ * §8.1.3). These are persisted *data* (workspace/board names), not UI chrome — kept
+ * here so the bootstrap (and the later board-template work) share one source.
+ */
+/** Name of the default workspace auto-created for a new user at signup. */
+export const ONBOARDING_WORKSPACE_NAME = 'Çalışma Alanım';
+/** Title of the empty board auto-created inside the onboarding workspace. */
+export const ONBOARDING_BOARD_TITLE = 'İlk Pano';
+
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;
 
