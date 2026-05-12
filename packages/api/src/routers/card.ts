@@ -28,7 +28,13 @@
  * `activity_events` taxonomy (per `docs/architecture/03-backend.md`):
  * `card.create` → `card.created`; `card.update`: title → `card.renamed`,
  * description → `card.description_changed`, `due_at` set → `card.due_set` /
- * cleared → `card.due_cleared`; `card.archive` → `card.archived`.
+ * cleared → `card.due_cleared`, cover colour set → `card.cover_changed` /
+ * cleared → `card.cover_cleared`; `card.archive` → `card.archived`;
+ * `card.complete` → `card.completed`; `card.uncomplete` → `card.uncompleted`.
+ *
+ * Phase 2.7 (DEM-66 / DEM-67): `card.complete` / `card.uncomplete` toggle the
+ * `completed` / `completed_at` / `completed_by` columns; `card.update` also
+ * accepts `coverColor` (one of the 12 palette names, or `null` to clear).
  */
 import { desc, eq, sql } from '@pusula/db';
 import { activityEvents, boards, cards, lists, users } from '@pusula/db';
@@ -36,9 +42,11 @@ import {
   archiveCardInput,
   canEditBoardContent,
   canViewBoard,
+  completeCardInput,
   createCardInput,
   firstPosition,
   positionBetween,
+  uncompleteCardInput,
   updateCardInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
@@ -58,6 +66,10 @@ const cardCols = {
   description: cards.description,
   position: cards.position,
   dueAt: cards.dueAt,
+  completed: cards.completed,
+  completedAt: cards.completedAt,
+  completedBy: cards.completedBy,
+  coverColor: cards.coverColor,
   archivedAt: cards.archivedAt,
   createdAt: cards.createdAt,
   updatedAt: cards.updatedAt,
@@ -154,16 +166,18 @@ export const cardRouter = router({
   }),
 
   /**
-   * Update a card's title / description / due date. Board `member+` only. At
-   * least one of `title` / `description` / `dueAt` must be present (`dueAt: null`
-   * counts as a change — "clear the due date"). An archived *board* is read-only;
-   * an archived *list*'s cards may still be edited (only `card.move` is blocked).
-   * Idempotent per field: if nothing actually changes, returns
-   * `{ ..., changed: false }` without writing activity or bumping `version`.
-   * Writes one `activity_events` row per changed field: title → `card.renamed`,
-   * description → `card.description_changed` (flag only — the body is not put in
-   * the payload), `dueAt` → `card.due_set` (when the new value is non-null) or
-   * `card.due_cleared`.
+   * Update a card's title / description / due date / cover colour. Board
+   * `member+` only. At least one of `title` / `description` / `dueAt` /
+   * `coverColor` must be present (`dueAt: null` / `coverColor: null` count as
+   * changes — "clear the due date" / "clear the cover colour"). An archived
+   * *board* is read-only; an archived *list*'s cards may still be edited (only
+   * `card.move` is blocked). Idempotent per field: if nothing actually changes,
+   * returns `{ ..., changed: false }` without writing activity or bumping
+   * `version`. Writes one `activity_events` row per changed field: title →
+   * `card.renamed`, description → `card.description_changed` (flag only — the
+   * body is not put in the payload), `dueAt` → `card.due_set` (when the new
+   * value is non-null) or `card.due_cleared`, `coverColor` → `card.cover_changed`
+   * (new value non-null) or `card.cover_cleared`.
    */
   update: cardProcedure.input(updateCardInput).mutation(async ({ ctx, input }) => {
     if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
@@ -172,7 +186,8 @@ export const cardRouter = router({
     const wantsTitle = input.title !== undefined;
     const wantsDescription = input.description !== undefined;
     const wantsDueAt = 'dueAt' in input; // `dueAt: null` is a real change → key presence, not value.
-    if (!wantsTitle && !wantsDescription && !wantsDueAt) {
+    const wantsCoverColor = 'coverColor' in input; // `coverColor: null` is a real change → key presence.
+    if (!wantsTitle && !wantsDescription && !wantsDueAt && !wantsCoverColor) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
@@ -207,11 +222,14 @@ export const cardRouter = router({
       const titleChanged = wantsTitle && input.title !== card.title;
       const descriptionChanged =
         wantsDescription && (nextDescription ?? null) !== (card.description ?? null);
+      const coverColorChanged =
+        wantsCoverColor && (card.coverColor ?? null) !== (input.coverColor ?? null);
 
       const patch: Partial<typeof cards.$inferInsert> = {};
       if (titleChanged) patch.title = input.title;
       if (descriptionChanged) patch.description = nextDescription ?? null;
       if (dueAtChanged) patch.dueAt = input.dueAt ?? null;
+      if (coverColorChanged) patch.coverColor = input.coverColor ?? null;
 
       if (Object.keys(patch).length === 0) {
         return { ...card, changed: false as const };
@@ -254,6 +272,18 @@ export const cardRouter = router({
           payload: updated.dueAt
             ? { cardId: card.id, dueAt: updated.dueAt }
             : { cardId: card.id, fromDueAt: card.dueAt },
+        });
+      }
+      if (coverColorChanged) {
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared',
+          payload: updated.coverColor
+            ? { cardId: card.id, coverColor: updated.coverColor }
+            : { cardId: card.id, fromCoverColor: card.coverColor },
         });
       }
 
@@ -333,6 +363,167 @@ export const cardRouter = router({
         .where(eq(boards.id, card.boardId));
 
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
+    });
+  }),
+
+  /**
+   * Mark a card complete (Phase 2.7 — DEM-66). Board `member+` only. Sets
+   * `completed = true`, `completed_at = now()`, `completed_by = caller`. An
+   * archived *board* is read-only. Idempotent: an already-completed card returns
+   * `{ ..., changed: false }` without writing activity or bumping `version`.
+   * Writes a `card.completed` activity event on a real change.
+   */
+  complete: cardProcedure.input(completeCardInput).mutation(async ({ ctx }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı tamamlama yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const [card] = await tx
+        .select({
+          id: cards.id,
+          boardId: cards.boardId,
+          completed: cards.completed,
+          completedAt: cards.completedAt,
+          completedBy: cards.completedBy,
+        })
+        .from(cards)
+        .where(eq(cards.id, ctx.card.id))
+        .limit(1);
+      if (!card) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
+      }
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, card.boardId))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      if (board.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+      }
+
+      if (card.completed) {
+        return {
+          id: card.id,
+          completed: card.completed,
+          completedAt: card.completedAt,
+          completedBy: card.completedBy,
+          changed: false as const,
+        };
+      }
+
+      const now = new Date();
+      const [updated] = await tx
+        .update(cards)
+        .set({ completed: true, completedAt: now, completedBy: ctx.session.user.id })
+        .where(eq(cards.id, ctx.card.id))
+        .returning({
+          id: cards.id,
+          completed: cards.completed,
+          completedAt: cards.completedAt,
+          completedBy: cards.completedBy,
+        });
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        type: 'card.completed',
+        payload: { cardId: card.id },
+      });
+
+      await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, card.boardId));
+
+      return { ...updated, changed: true as const };
+    });
+  }),
+
+  /**
+   * Clear a card's completion (Phase 2.7 — DEM-66). Board `member+` only. Sets
+   * `completed = false`, `completed_at = null`, `completed_by = null`. An
+   * archived *board* is read-only. Idempotent: an already-incomplete card returns
+   * `{ ..., changed: false }` without writing activity or bumping `version`.
+   * Writes a `card.uncompleted` activity event on a real change.
+   */
+  uncomplete: cardProcedure.input(uncompleteCardInput).mutation(async ({ ctx }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartın tamamlanmasını geri alma yetkiniz yok.' });
+    }
+
+    return ctx.db.transaction(async (tx) => {
+      const [card] = await tx
+        .select({
+          id: cards.id,
+          boardId: cards.boardId,
+          completed: cards.completed,
+          completedAt: cards.completedAt,
+          completedBy: cards.completedBy,
+        })
+        .from(cards)
+        .where(eq(cards.id, ctx.card.id))
+        .limit(1);
+      if (!card) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
+      }
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, card.boardId))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      if (board.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+      }
+
+      if (!card.completed) {
+        return {
+          id: card.id,
+          completed: card.completed,
+          completedAt: card.completedAt,
+          completedBy: card.completedBy,
+          changed: false as const,
+        };
+      }
+
+      const [updated] = await tx
+        .update(cards)
+        .set({ completed: false, completedAt: null, completedBy: null })
+        .where(eq(cards.id, ctx.card.id))
+        .returning({
+          id: cards.id,
+          completed: cards.completed,
+          completedAt: cards.completedAt,
+          completedBy: cards.completedBy,
+        });
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        type: 'card.uncompleted',
+        payload: { cardId: card.id },
+      });
+
+      await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, card.boardId));
+
+      return { ...updated, changed: true as const };
     });
   }),
 

@@ -362,6 +362,229 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       true,
     ]);
   });
+
+  // -------------------------------------------------------------- complete (DEM-66)
+
+  it('complete: a member completes a card (completed/completedAt/completedBy set); card.completed activity; version bumps; second complete is an idempotent no-op', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Complete Me card',
+      clientMutationId: newId('cmid'),
+    });
+    expect(card.completed).toBe(false);
+    expect(card.completedAt).toBeNull();
+    expect(card.completedBy).toBeNull();
+
+    const v0 = await boardVersion(boardId);
+    const before = Date.now();
+    const done = await callerFor(memberId).card.complete({
+      cardId: card.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(done).toMatchObject({ id: card.id, completed: true, completedBy: memberId, changed: true });
+    expect(done.completedAt).toBeInstanceOf(Date);
+    expect(done.completedAt!.getTime()).toBeGreaterThanOrEqual(before - 1000);
+    expect(done.completedAt!.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const completedActs1 = (await actsFor(boardId)).filter(
+      (a) => a.type === 'card.completed' && (a.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(completedActs1).toHaveLength(1);
+    expect(completedActs1[0]?.cardId).toBe(card.id);
+
+    // second complete → idempotent no-op (no new activity, version unchanged)
+    const vAfter = await boardVersion(boardId);
+    const noop = await callerFor(memberId).card.complete({
+      cardId: card.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(noop).toMatchObject({ id: card.id, completed: true, changed: false });
+    expect(await boardVersion(boardId)).toBe(vAfter);
+    const completedActs2 = (await actsFor(boardId)).filter(
+      (a) => a.type === 'card.completed' && (a.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(completedActs2).toHaveLength(1);
+  });
+
+  it('uncomplete: clears completion on a completed card (card.uncompleted activity; version bumps); on an already-incomplete card it is an idempotent no-op', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Uncomplete Me card',
+      clientMutationId: newId('cmid'),
+    });
+
+    // not yet completed → uncomplete is a no-op
+    const v0 = await boardVersion(boardId);
+    const earlyNoop = await callerFor(memberId).card.uncomplete({
+      cardId: card.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(earlyNoop).toMatchObject({ id: card.id, completed: false, changed: false });
+    expect(await boardVersion(boardId)).toBe(v0);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'card.uncompleted' && (a.payload as { cardId?: string }).cardId === card.id,
+      ),
+    ).toHaveLength(0);
+
+    // complete, then uncomplete
+    await callerFor(memberId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') });
+    const vBeforeUncomplete = await boardVersion(boardId);
+    const cleared = await callerFor(memberId).card.uncomplete({
+      cardId: card.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(cleared).toMatchObject({
+      id: card.id,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      changed: true,
+    });
+    expect(await boardVersion(boardId)).toBe(vBeforeUncomplete + 1);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'card.uncompleted' && (a.payload as { cardId?: string }).cardId === card.id,
+      ),
+    ).toHaveLength(1);
+
+    // and the card.get projection reflects the cleared state
+    const fetched = await callerFor(ownerId).card.get({ cardId: card.id });
+    expect(fetched.card.completed).toBe(false);
+    expect(fetched.card.completedAt).toBeNull();
+    expect(fetched.card.completedBy).toBeNull();
+  });
+
+  it('complete / uncomplete: a board viewer is FORBIDDEN', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Viewer Cannot Complete card',
+      clientMutationId: newId('cmid'),
+    });
+    await expect(
+      callerFor(guestId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      callerFor(guestId).card.uncomplete({ cardId: card.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  // -------------------------------------------------------------- cover colour (DEM-67)
+
+  it('update: coverColor set → card.cover_changed; same value again → no-op (no extra activity); coverColor:null → card.cover_cleared; an invalid value is rejected; a viewer is FORBIDDEN', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Cover card',
+      clientMutationId: newId('cmid'),
+    });
+    expect(card.coverColor).toBeNull();
+
+    // a viewer cannot set a cover colour
+    await expect(
+      callerFor(guestId).card.update({
+        cardId: card.id,
+        coverColor: 'mavi',
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // an invalid value is rejected by Zod (BAD_REQUEST)
+    await expect(
+      callerFor(memberId).card.update({
+        cardId: card.id,
+        // @ts-expect-error — intentionally invalid value
+        coverColor: 'foo',
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // set it
+    const vBeforeSet = await boardVersion(boardId);
+    const withCover = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverColor: 'mavi',
+      clientMutationId: newId('cmid'),
+    });
+    expect(withCover).toMatchObject({ coverColor: 'mavi', changed: true });
+    expect(await boardVersion(boardId)).toBe(vBeforeSet + 1);
+
+    // same value again → no-op (no activity, version unchanged)
+    const vAfterSet = await boardVersion(boardId);
+    const noop = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverColor: 'mavi',
+      clientMutationId: newId('cmid'),
+    });
+    expect(noop).toMatchObject({ coverColor: 'mavi', changed: false });
+    expect(await boardVersion(boardId)).toBe(vAfterSet);
+
+    // clear it
+    const cleared = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverColor: null,
+      clientMutationId: newId('cmid'),
+    });
+    expect(cleared).toMatchObject({ coverColor: null, changed: true });
+
+    const acts = await actsFor(boardId);
+    const forCard = (t: string) =>
+      acts.filter((a) => a.type === t && (a.payload as { cardId?: string }).cardId === card.id);
+    expect(forCard('card.cover_changed')).toHaveLength(1);
+    expect(forCard('card.cover_changed')[0]?.payload).toMatchObject({ coverColor: 'mavi' });
+    expect(forCard('card.cover_cleared')).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------- archived board guards (DEM-66/67)
+
+  it('complete / uncomplete / update(coverColor): an archived board is BAD_REQUEST', async () => {
+    const archBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Archived For Completion',
+      clientMutationId: newId('cmid'),
+    });
+    const archList = await callerFor(ownerId).list.create({
+      boardId: archBoard.id,
+      title: 'List',
+      clientMutationId: newId('cmid'),
+    });
+    const card = await callerFor(ownerId).card.create({
+      listId: archList.id,
+      title: 'Doomed card',
+      clientMutationId: newId('cmid'),
+    });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+
+    await expect(
+      callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+    await expect(
+      callerFor(ownerId).card.uncomplete({ cardId: card.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+    await expect(
+      callerFor(ownerId).card.update({
+        cardId: card.id,
+        coverColor: 'mavi',
+        clientMutationId: newId('cmid'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+  });
+
+  it('get: a freshly created card carries completed=false / completedAt=null / completedBy=null / coverColor=null', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Defaults card',
+      clientMutationId: newId('cmid'),
+    });
+    const fetched = await callerFor(ownerId).card.get({ cardId: card.id });
+    expect(fetched.card).toMatchObject({
+      id: card.id,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      coverColor: null,
+    });
+  });
 });
 
 // File-scoped teardown: close the probe pool once after every suite in this file.

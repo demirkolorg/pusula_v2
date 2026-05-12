@@ -163,6 +163,10 @@ export const boardRouter = router({
    * the board's card ids (`GROUP BY` / `WHERE card_id IN (...)`) — no per-card
    * round-trip. On an empty board these queries are skipped. See
    * `docs/architecture/03-backend.md` / `docs/architecture/05-board-mekanigi.md`.
+   *
+   * Phase 2.7 (DEM-66/DEM-67): each card also carries
+   * `completed`/`completedAt`/`completedBy`/`coverColor` straight from the `cards`
+   * row (no extra query).
    */
   get: boardProcedure.query(async ({ ctx }) => {
     if (!canViewBoard(accessFromBoardRole(ctx.board.role))) {
@@ -199,6 +203,10 @@ export const boardRouter = router({
         description: cards.description,
         position: cards.position,
         dueAt: cards.dueAt,
+        completed: cards.completed,
+        completedAt: cards.completedAt,
+        completedBy: cards.completedBy,
+        coverColor: cards.coverColor,
         archivedAt: cards.archivedAt,
         createdAt: cards.createdAt,
         updatedAt: cards.updatedAt,

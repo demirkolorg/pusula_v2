@@ -20,6 +20,18 @@ export const cards = pgTable(
     /** LexoRank-like fractional position string within `listId`. */
     position: text().notNull(),
     dueAt: timestamp({ withTimezone: true }),
+    /** Card-completion state (Phase 2.7 — DEM-66). */
+    completed: boolean().notNull().default(false),
+    /** When the card was marked complete (timestamptz); `null` when not completed. */
+    completedAt: timestamp({ withTimezone: true }),
+    /** Who marked the card complete; `set null` on user delete. */
+    completedBy: text().references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * Optional card cover colour (Phase 2.7 — DEM-67): one of the 12 palette
+     * names (`@pusula/domain` `CARD_COVER_COLORS`). Plain `text` like
+     * `labels.color` — no DB CHECK; validated in the API/domain layer.
+     */
+    coverColor: text(),
     archivedAt: archivedAt(),
     ...timestamps,
   },

@@ -1,9 +1,13 @@
 import { z } from 'zod';
+import { CARD_COVER_COLORS } from '../constants';
 import { cardRoleSchema } from '../roles';
 import { idSchema, withClientMutationId } from './common';
 
 export const cardTitleSchema = z.string().trim().min(1).max(500);
 export const cardDescriptionSchema = z.string().max(20_000);
+
+/** A card's cover colour — one of the 12 palette names (`CARD_COVER_COLORS`). */
+export const cardCoverColorSchema = z.enum(CARD_COVER_COLORS);
 
 export const createCardInput = z.object({
   listId: idSchema,
@@ -18,6 +22,7 @@ export const updateCardInput = z.object({
   title: cardTitleSchema.optional(),
   description: cardDescriptionSchema.optional(),
   dueAt: z.coerce.date().nullable().optional(),
+  coverColor: cardCoverColorSchema.nullable().optional(),
   ...withClientMutationId,
 });
 
@@ -42,10 +47,18 @@ export const archiveCardInput = z.object({
   ...withClientMutationId,
 });
 
+/** Mark a card complete (Phase 2.7 — DEM-66). Idempotent server-side. */
+export const completeCardInput = z.object({ cardId: idSchema, ...withClientMutationId });
+
+/** Clear a card's completion (Phase 2.7 — DEM-66). Idempotent server-side. */
+export const uncompleteCardInput = z.object({ cardId: idSchema, ...withClientMutationId });
+
 export type CreateCardInput = z.infer<typeof createCardInput>;
 export type UpdateCardInput = z.infer<typeof updateCardInput>;
 export type MoveCardInput = z.infer<typeof moveCardInput>;
 export type ArchiveCardInput = z.infer<typeof archiveCardInput>;
+export type CompleteCardInput = z.infer<typeof completeCardInput>;
+export type UncompleteCardInput = z.infer<typeof uncompleteCardInput>;
 
 // --------------------------------------------------------------- card members
 // A card member is a board-reachable user (`effectiveBoardRole !== null`) tagged

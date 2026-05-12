@@ -80,6 +80,13 @@ export const ACTIVITY_EVENT_TYPES = [
   'board.member_role_changed',
   'board.member_invited',
   'board.invitation_revoked',
+  // Phase 2.7 (Card completion + cover colour — DEM-66 / DEM-67). `cards` gains
+  // `completed`/`completed_at`/`completed_by` and `cover_color`. Appended to keep
+  // the Postgres enum append-only. See `docs/domain/05-aktivite-kurallari.md`.
+  'card.completed',
+  'card.uncompleted',
+  'card.cover_changed',
+  'card.cover_cleared',
 ] as const;
 
 /**
@@ -133,6 +140,21 @@ export const LABEL_COLORS = [
   'black',
 ] as const;
 export type LabelColor = (typeof LABEL_COLORS)[number];
+
+/**
+ * Card cover colour palette — one of the 12 design-token palette names
+ * (`@pusula/ui` `theme.css` `--palet-*` / `PaletteName`). A card's `cover_color`,
+ * when set, is one of these; `null` = no cover colour. Stored verbatim in
+ * `cards.cover_color` (plain `text` — validated here, not at the DB). Includes
+ * `indigo` and `gri`, which the 10-colour label palette doesn't use.
+ * `@pusula/ui` `PaletteName` mirrors this list (kept in sync by hand — `@pusula/ui`
+ * doesn't depend on `@pusula/domain`).
+ */
+export const CARD_COVER_COLORS = [
+  'kirmizi', 'turuncu', 'sari', 'lime', 'yesil', 'sky',
+  'mavi', 'indigo', 'mor', 'pembe', 'gri', 'siyah',
+] as const;
+export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
 
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;
