@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canAccessWorkspace,
+  canDeleteOwnAccount,
   canEditBoardContent,
   canManageBoard,
   canManageWorkspace,
@@ -84,5 +85,13 @@ describe('board permission helpers', () => {
     expect(canManageBoard(ctx('member', 'admin'))).toBe(true);
     expect(canManageBoard(ctx('guest', 'admin'))).toBe(true);
     expect(canManageBoard(ctx('guest', 'member'))).toBe(false);
+  });
+});
+
+describe('canDeleteOwnAccount', () => {
+  it('allows deletion only when the user owns no workspace', () => {
+    expect(canDeleteOwnAccount(0)).toBe(true);
+    expect(canDeleteOwnAccount(1)).toBe(false);
+    expect(canDeleteOwnAccount(3)).toBe(false);
   });
 });

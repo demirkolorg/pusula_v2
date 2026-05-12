@@ -55,3 +55,18 @@ export function canManageBoard(ctx: AccessContext): boolean {
   const role = effectiveBoardRole(ctx);
   return role !== null && boardRoleAtLeast(role, 'admin');
 }
+
+/**
+ * Whether a user may delete their own account. Blocked while they're the `owner`
+ * of any workspace — there's no ownership transfer yet, so they must delete or
+ * archive those workspaces first. `workspaces.owner_id` is `ON DELETE RESTRICT`,
+ * so the DB would reject the delete anyway; this names the rule and lets the
+ * server (Better Auth's `beforeDelete` hook) return a friendly error instead of
+ * a raw FK violation. Pass the count of workspaces the user owns.
+ *
+ * See `docs/domain/02-yetkilendirme-kurallari.md` (Hesap (User) — öz-yönetim)
+ * and `docs/domain/01-urun-modeli.md` (invariant 14).
+ */
+export function canDeleteOwnAccount(ownedWorkspaceCount: number): boolean {
+  return ownedWorkspaceCount === 0;
+}

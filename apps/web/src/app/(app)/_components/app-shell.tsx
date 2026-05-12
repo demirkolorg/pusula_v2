@@ -37,7 +37,13 @@ export function AppShell({ userName, children }: AppShellProps) {
             {strings.common.appName}
           </Link>
           <div className="flex items-center gap-3">
-            <span className="text-muted-foreground hidden text-sm sm:inline">{userName}</span>
+            <Link
+              href="/account"
+              title={strings.shell.accountSettings}
+              className="text-muted-foreground hover:text-foreground hidden text-sm underline-offset-4 hover:underline sm:inline"
+            >
+              {userName}
+            </Link>
             <Button variant="outline" size="sm" onClick={handleSignOut} disabled={signingOut}>
               {signingOut ? strings.shell.signingOut : strings.shell.signOut}
             </Button>
