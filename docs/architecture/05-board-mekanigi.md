@@ -21,6 +21,19 @@ updated: 2026-05-12
 
 ---
 
+## 5.0 Board ekranı — CRUD veri akışı (Faz 2)
+
+> Faz 2'de board ekranı **salt CRUD**'dur: drag-drop (§5.1) Faz 3 ([DEM-26](https://linear.app/demirkol/issue/DEM-26)), optimistic UI (§5.2) Faz 4 ([DEM-27](https://linear.app/demirkol/issue/DEM-27)), realtime (§5.3) Faz 5 ([DEM-28](https://linear.app/demirkol/issue/DEM-28)). Backend sözleşmesi: [`03-backend.md`](03-backend.md) (Faz 2 — board / list / card procedure'leri) + [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Board / List / Card procedure haritası).
+
+- **Board listesi** (`(app)/workspaces/[id]`): `trpc.board.list` → board kartları; "board oluştur" → `trpc.board.create` + `queryClient.invalidateQueries(trpc.board.list.queryFilter())`.
+- **Board detay** (`(app)/workspaces/[id]/boards/[boardId]`): `trpc.board.get` tek seferde board + listeleri (`position` sıralı) + her listenin aktif kartlarını (`position` sıralı) döndürür → kolon + kart render.
+- **List CRUD**: "liste ekle" (`trpc.list.create`, board sonuna) · "yeniden adlandır" (`trpc.list.update`) · "arşivle" (`trpc.list.archive`) — her biri sonrası `trpc.board.get` invalidate.
+- **Card CRUD**: "kart ekle" (`trpc.card.create`, liste sonuna) · "düzenle" (`trpc.card.update` — başlık/açıklama/`due_at`) · "arşivle" (`trpc.card.archive`) — her biri sonrası `trpc.board.get` invalidate.
+- Bu fazda **optimistic update yok** — mutation → `await` → invalidate → refetch. `clientMutationId` yine de istemcide üretilip gönderilir (idempotency + Faz 4/5 hazırlığı). Yetki: UI board rolüne göre aksiyonları gizler/gösterir; gerçek kapı her procedure'de server-side.
+- Yalnızca shadcn/ui + Tailwind + lucide-react; hardcode metin yok, Türkçe metinler `apps/web/src/lib/strings.ts`'te.
+
+---
+
 ## 5.1 Drag-Drop
 
 Web board/list/card sürükle-bırak: **yalnızca Atlassian Pragmatic Drag and Drop**. Kararın

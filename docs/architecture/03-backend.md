@@ -88,17 +88,17 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | `board` | `list` | `workspaceProcedure` | Kullanıcının erişebildiği board'lar (workspace owner/admin tüm board'lar; guest yalnızca davetli) |
 | `board` | `create` | `workspaceProcedure` | workspace `member+`; oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
 | `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü) |
-| `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.updated`) |
+| `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
 | `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); `activity_events` (`list.created`) |
-| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; `activity_events` (`list.updated`) |
+| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; `activity_events` (`list.renamed`) |
 | `list` | `archive` | `boardProcedure` | board `member+`; `archived_at`; arşivli liste aktif kart almaz; `activity_events` (`list.archived`) |
 | `card` | `create` | `boardProcedure` (+ listeyi doğrula) | board `member+`; liste sonuna `position`; kart `board_id` = listenin board'u; arşivli listeye eklenemez; `activity_events` (`card.created`) |
 | `card` | `get` | `cardProcedure` | Kart detayı |
-| `card` | `update` | `cardProcedure` | board `member+`; başlık/açıklama/`due_at`; `activity_events` (`card.updated`) |
+| `card` | `update` | `cardProcedure` | board `member+`; başlık → `card.renamed`, açıklama → `card.description_changed`, `due_at` → `card.due_set`/`card.due_cleared` |
 | `card` | `archive` | `cardProcedure` | board `member+`; `archived_at`; `activity_events` (`card.archived`) |
 
-Faz 2 dışı (ileri faz): `list.move` / `card.move` (`moveCardInput` — Faz 3); `board.members.*`, `label.*`, `card.members.*`, `checklist.*`, `comment.*`, `attachment.*` (ilgili fazlar). Tüm mutation procedure'leri yukarıdaki **mutation iskeleti**ni izler — Faz 2'de transaction yalnızca `domain mutasyonu + activity_events insert` içerir; `realtime_events` / `notification_outbox` insert'leri Faz 5/6'da devreye girer. Yeni `board.*` / `list.*` / `card.*` activity tipleri `ACTIVITY_EVENT_TYPES`'a eklenir (bkz. [`../domain/05-aktivite-kurallari.md`](../domain/05-aktivite-kurallari.md)).
+Faz 2 dışı (ileri faz): `list.move` / `card.move` (`moveCardInput` — Faz 3); `board.members.*`, `label.*`, `card.members.*`, `checklist.*`, `comment.*`, `attachment.*` (ilgili fazlar). Tüm mutation procedure'leri yukarıdaki **mutation iskeleti**ni izler — Faz 2'de transaction yalnızca `domain mutasyonu + activity_events insert` içerir; `realtime_events` / `notification_outbox` insert'leri Faz 5/6'da devreye girer. Faz 2'de kullanılan activity tipleri (`board.created/renamed/archived`, `list.created/renamed/archived`, `card.created/renamed/description_changed/due_set/due_cleared/archived`) [`../domain/05-aktivite-kurallari.md`](../domain/05-aktivite-kurallari.md) taksonomisinde **zaten tanımlı** — `ACTIVITY_EVENT_TYPES`'a bu alt küme eklenir.
 
 ## Worker (background job)
 

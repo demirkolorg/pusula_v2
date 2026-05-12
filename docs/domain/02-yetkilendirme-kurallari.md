@@ -120,7 +120,7 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 | `card.update` | `cardProcedure` | board `member+` | Başlık/açıklama/`due_at` |
 | `card.archive` | `cardProcedure` | board `member+` | `archived_at` |
 
-Activity: `board.created/updated/archived`, `list.created/updated/archived`, `card.created/updated/archived` ilgili transaction'da `activity_events`'e yazılır (bkz. [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) — Faz 2'de bu tipler eklenir). Realtime yayın Faz 5, bildirim outbox Faz 6.
+Activity: `board.created/renamed/archived`, `list.created/renamed/archived`, `card.created/renamed/description_changed/due_set/due_cleared/archived` ilgili transaction'da `activity_events`'e yazılır (bu tipler [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md) taksonomisinde zaten tanımlı; Faz 2'de bu alt küme `ACTIVITY_EVENT_TYPES`'a eklenir). Realtime yayın Faz 5, bildirim outbox Faz 6.
 
 ### Card (ilgi rolleri — yetki değil)
 

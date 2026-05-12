@@ -25,7 +25,7 @@ updated: 2026-05-12
 | **Workspace** | Takım/organizasyon alanı. Üst kapsam. |
 | **Workspace member** | Workspace seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
 | **Workspace invitation** | E-postayla gönderilen workspace daveti; gizli `token` taşır, süreli (expiration) ve **tek kullanımlık**. Durum: `pending` / `accepted` / `declined` / `revoked` / `expired`. Kabul edilince ilgili `workspace_members` satırı oluşur. Davet eden `admin+` olmalı; rol asla `owner` olamaz. Bkz. [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md). |
-| **Board** | Trello panosu. Bir workspace'e aittir. `version` alanı taşır (realtime sequence kontrolü). |
+| **Board** | Trello panosu. Bir workspace'e aittir. Arşivlenebilir (arşivli board salt-okunur — yeni liste/kart eklenemez, içerik düzenlenemez). `version` alanı taşır (realtime sequence kontrolü). |
 | **Board member** | Board seviyesinde yetkilendirilmiş kullanıcı (rol taşır). |
 | **Label** | Board'a ait etiket; kartlara atanır (`card_labels`). |
 | **List** | Board içindeki kolon. Bir board'a aittir. Arşivlenebilir. |
