@@ -16,6 +16,7 @@ related:
   - "[[docs/domain/README|İş / Domain Kuralları]]"
   - "[[docs/process/README|Süreç]]"
   - "[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]"
+  - "[[docs/kontrol-odasi/README|Kontrol Odası]]"
 updated: 2026-05-12
 ---
 # Pusula Belgeleri
@@ -50,6 +51,7 @@ Doküman yazım standardı ve yeni not kontrol listesi: [`process/06-obsidian-do
 - Kök çalışma protokolü (Claude Code): [`../CLAUDE.md`](../CLAUDE.md)
 - Yeni iş/oturum başlangıç rehberi: [`process/00-calisma-baslangic-rehberi.md`](process/00-calisma-baslangic-rehberi.md)
 - İmplementasyon sözleşmesi (Claude Code skill `kontrol`): [`../.claude/skills/kontrol/SKILL.md`](../.claude/skills/kontrol/SKILL.md)
+- Süreç kontrol odası tab'ının görevi: [`kontrol-odasi/README.md`](kontrol-odasi/README.md)
 - Proje README: [`../README.md`](../README.md)
 - Obsidian dokümantasyon kuralları: [`process/06-obsidian-dokumantasyon-kurallari.md`](process/06-obsidian-dokumantasyon-kurallari.md)
 
