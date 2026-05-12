@@ -107,6 +107,26 @@ export const ONBOARDING_WELCOME_CARDS = [
   'Bu örnek kartları ve listeleri silip panonu sıfırdan kurabilirsin',
 ] as const;
 
+/**
+ * Trello-style fixed label palette. A card label's `color` is one of these
+ * tokens (UI maps each to a swatch); the colour picker offers exactly this set.
+ * Stored verbatim in `labels.color`. Extend with care — clients hardcode the
+ * swatch for each token.
+ */
+export const LABEL_COLORS = [
+  'green',
+  'yellow',
+  'orange',
+  'red',
+  'purple',
+  'blue',
+  'sky',
+  'lime',
+  'pink',
+  'black',
+] as const;
+export type LabelColor = (typeof LABEL_COLORS)[number];
+
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;
 

@@ -46,6 +46,8 @@ import { accessFromBoardRole } from '../middleware/board';
 import { resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
 import { protectedProcedure, router } from '../trpc';
+import { cardLabelsRouter } from './card-labels';
+import { cardMembersRouter } from './card-members';
 
 /** Columns of a full card row returned to clients. */
 const cardCols = {
@@ -333,4 +335,10 @@ export const cardRouter = router({
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
   }),
+
+  /** Card members (`assignee` / `watcher`) — `card.members.{list,add,remove}`. */
+  members: cardMembersRouter,
+
+  /** Card ↔ label links — `card.labels.{list,add,remove}`. */
+  labels: cardLabelsRouter,
 });
