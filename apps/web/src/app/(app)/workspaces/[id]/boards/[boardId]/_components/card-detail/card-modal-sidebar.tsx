@@ -1,12 +1,21 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PaperclipIcon } from 'lucide-react';
+import { ActivityIcon, PaperclipIcon } from 'lucide-react';
 import { EmptyState, Tabs, TabsContent, TabsList, TabsTrigger } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardDetailActivity } from './card-detail-activity';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
 import type { CardActivityEvent } from './activity-summary';
+
+/** A tab label + its count, with the count rendered as a muted suffix. */
+function TabLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <>
+      {label} <span className="text-muted-foreground">{count}</span>
+    </>
+  );
+}
 
 type CardModalSidebarProps = {
   comments: CommentView[];
@@ -111,16 +120,16 @@ export function CardModalSidebar({
         <div className="bg-muted/40 sticky top-0 z-10 shrink-0 space-y-3 border-b px-4 py-2.5 backdrop-blur">
           <TabsList className="w-full">
             <TabsTrigger value="comments">
-              {copy.tabs.comments} {visibleCommentCount}
+              <TabLabel label={copy.tabs.comments} count={visibleCommentCount} />
             </TabsTrigger>
             <TabsTrigger value="activity">
-              {copy.tabs.activity} {activityCount}
+              <TabLabel label={copy.tabs.activity} count={activityCount} />
             </TabsTrigger>
             <TabsTrigger value="attachments">
-              {copy.tabs.attachments} {attachmentCount}
+              <TabLabel label={copy.tabs.attachments} count={attachmentCount} />
             </TabsTrigger>
             <TabsTrigger value="all">
-              {copy.tabs.all} {allCount}
+              <TabLabel label={copy.tabs.all} count={allCount} />
             </TabsTrigger>
           </TabsList>
 
@@ -142,7 +151,7 @@ export function CardModalSidebar({
           </TabsContent>
           <TabsContent value="all">
             {allItems.length === 0 ? (
-              <EmptyState icon={<PaperclipIcon className="size-8" />} message={strings.card.activity.empty} />
+              <EmptyState icon={<ActivityIcon className="size-8" />} message={strings.card.activity.empty} />
             ) : (
               <div className="space-y-3">
                 {allItems.map((item) =>

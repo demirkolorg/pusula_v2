@@ -35,6 +35,7 @@ function CardCompleteToggle({
   alwaysVisible = false,
   className,
   onClick,
+  disabled,
   ...props
 }: CardCompleteToggleProps) {
   function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -49,6 +50,8 @@ function CardCompleteToggle({
       type="button"
       role="checkbox"
       aria-checked={checked}
+      disabled={disabled}
+      aria-disabled={disabled || undefined}
       onClick={handleClick}
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full border-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',

@@ -1,14 +1,8 @@
 'use client';
 
 import { CalendarIcon, PaletteIcon, PlusIcon, ShieldIcon, TagIcon } from 'lucide-react';
-import {
-  MetaChip,
-  MetaRow,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  cn,
-} from '@pusula/ui';
+import { type CardCoverColor } from '@pusula/domain';
+import { LabelSwatch, MetaChip, MetaRow, cn } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
 
@@ -25,13 +19,15 @@ function dueState(dueAt: Date | string): 'overdue' | 'soon' | 'normal' {
 }
 
 /** Which inline editor section is open below the meta-chip row (or `null`). */
-export type CardMetaSection = 'members' | 'due' | 'labels' | null;
+export type CardMetaSection = 'members' | 'due' | 'labels' | 'cover' | null;
 
 type CardModalMetaChipsProps = {
   memberCount: number;
   labelCount: number;
   /** Persisted due date (`null` ⇒ none). */
   dueAt: Date | string | null;
+  /** Persisted cover colour (`null` ⇒ none). */
+  coverColor: CardCoverColor | null;
   /** Whether the viewer may add/edit (board `member+`, board/list/card active). */
   canEdit: boolean;
   /** Currently-open inline section. */
@@ -41,17 +37,18 @@ type CardModalMetaChipsProps = {
 };
 
 /**
- * The card-modal meta chip row: members / due date / labels / cover-colour
- * (disabled placeholder — DEM-67 not landed) + an "add" chip. Each chip toggles
- * its inline editor section below (a `Popover` would also satisfy the spec; we
- * use inline sections to avoid pulling in another primitive and to reuse the
- * existing picker components verbatim). The due chip carries the overdue /
- * due-soon emphasis.
+ * The card-modal meta chip row: members / due date / labels / cover-colour + an
+ * "add" chip. Each chip toggles its inline editor section below (a `Popover`
+ * would also satisfy the spec; we use inline sections to avoid pulling in
+ * another primitive and to reuse the existing picker components verbatim). The
+ * due chip carries the overdue / due-soon emphasis; the cover-colour chip shows
+ * the current swatch when set.
  */
 export function CardModalMetaChips({
   memberCount,
   labelCount,
   dueAt,
+  coverColor,
   canEdit,
   open,
   onToggle,
@@ -112,22 +109,21 @@ export function CardModalMetaChips({
         {labelCount}
       </MetaChip>
 
-      {/* Cover colour — disabled placeholder until DEM-67 lands `cards.coverColor`. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <MetaChip
-            variant="modal"
-            interactive
-            disabled
-            icon={<PaletteIcon className="size-3.5" aria-hidden />}
-            aria-label={copy.coverColor}
-            className="cursor-not-allowed opacity-50"
-          >
-            {copy.coverColorSoon}
-          </MetaChip>
-        </TooltipTrigger>
-        <TooltipContent>{copy.coverColorSoon}</TooltipContent>
-      </Tooltip>
+      <MetaChip
+        variant="modal"
+        interactive
+        icon={<PaletteIcon className="size-3.5" aria-hidden />}
+        aria-label={copy.coverColor}
+        aria-expanded={open === 'cover'}
+        className={cn(open === 'cover' && 'bg-muted text-foreground')}
+        onClick={() => onToggle('cover')}
+      >
+        {coverColor != null ? (
+          <LabelSwatch color={coverColor} className="size-2.5" />
+        ) : (
+          copy.coverColor
+        )}
+      </MetaChip>
 
       {canEdit && (
         <MetaChip

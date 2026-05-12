@@ -2,12 +2,17 @@
 
 import { useId, useState } from 'react';
 import { LABEL_COLORS, type LabelColor } from '@pusula/domain';
-import { Alert, AlertDescription, Button, Input, cn } from '@pusula/ui';
+import { Alert, AlertDescription, Button, Input, LabelChip, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { LABEL_SWATCH } from '../label-colors';
+import { LABEL_PALETTE, LABEL_SWATCH } from '../label-colors';
 
 export type BoardLabel = { id: string; name: string; color: string };
 export type CardLabel = { labelId: string; name: string; color: string };
+
+/** Whether `color` is one of the domain's known label colours. */
+function isLabelColor(color: string): color is LabelColor {
+  return (LABEL_COLORS as readonly string[]).includes(color);
+}
 
 type CardDetailLabelsProps = {
   /** Labels currently on the card (joined with name/colour). */
@@ -81,27 +86,32 @@ export function CardDetailLabels({
       {cardLabels.length === 0 ? (
         <p className="text-muted-foreground text-sm">{copy.empty}</p>
       ) : (
-        <ul className="flex flex-wrap gap-2">
-          {cardLabels.map((label) => (
-            <li
-              key={label.labelId}
-              className="bg-muted flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs"
-            >
-              <Swatch color={label.color} />
-              <span>{label.name.trim() || copy.unnamed}</span>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => onRemove(label.labelId)}
-                  disabled={pending}
-                  aria-label={`${copy.remove}: ${label.name.trim() || copy.unnamed}`}
-                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 ml-0.5 rounded-full outline-none focus-visible:ring-2 disabled:opacity-50"
-                >
-                  ×
-                </button>
-              )}
-            </li>
-          ))}
+        <ul className="flex flex-wrap gap-1.5">
+          {cardLabels.map((label) => {
+            const display = label.name.trim() || copy.unnamed;
+            return (
+              <li key={label.labelId} className="inline-flex items-center gap-1">
+                {isLabelColor(label.color) ? (
+                  <LabelChip color={LABEL_PALETTE[label.color]} name={display} variant="solid" />
+                ) : (
+                  <span className="bg-muted text-muted-foreground inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium">
+                    {display}
+                  </span>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(label.labelId)}
+                    disabled={pending}
+                    aria-label={`${copy.remove}: ${display}`}
+                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2 disabled:opacity-50"
+                  >
+                    ×
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

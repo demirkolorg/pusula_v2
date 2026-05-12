@@ -1,8 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { PencilIcon, Trash2Icon } from 'lucide-react';
 import { checklistItemContentSchema } from '@pusula/domain';
-import { Avatar, Button, Checkbox, Input } from '@pusula/ui';
+import {
+  Avatar,
+  Button,
+  Checkbox,
+  Input,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import type { ChecklistItemView, NameResolver } from './checklist-types';
 
@@ -103,22 +112,42 @@ export function ChecklistItemRow({
           </span>
           {completerName && <Avatar name={completerName} size="xs" className="shrink-0" />}
           {canEdit && (
-            <span className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                onClick={() => {
-                  setValue(item.content);
-                  setEditing(true);
-                }}
-              >
-                {copy.itemEdit}
-              </Button>
-              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onDelete}>
-                {pending ? copy.itemDeleting : copy.itemDelete}
-              </Button>
+            <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={copy.itemEdit}
+                    disabled={pending}
+                    className="size-7"
+                    onClick={() => {
+                      setValue(item.content);
+                      setEditing(true);
+                    }}
+                  >
+                    <PencilIcon className="size-3.5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{copy.itemEdit}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={copy.itemDelete}
+                    disabled={pending}
+                    className="text-muted-foreground hover:text-destructive size-7"
+                    onClick={onDelete}
+                  >
+                    <Trash2Icon className="size-3.5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{copy.itemDelete}</TooltipContent>
+              </Tooltip>
             </span>
           )}
         </>

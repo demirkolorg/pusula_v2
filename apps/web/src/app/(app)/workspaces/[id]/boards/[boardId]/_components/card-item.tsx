@@ -8,6 +8,7 @@ import {
   Alert,
   AlertDescription,
   Button,
+  CardCompleteToggle,
   Dialog,
   DialogClose,
   DialogContent,
@@ -22,7 +23,12 @@ import {
   TooltipTrigger,
   cn,
 } from '@pusula/ui';
-import { LABEL_COLORS, type LabelColor } from '@pusula/domain';
+import {
+  CARD_COVER_COLORS,
+  LABEL_COLORS,
+  type CardCoverColor,
+  type LabelColor,
+} from '@pusula/domain';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { LABEL_PALETTE } from './label-colors';
@@ -41,6 +47,10 @@ export type BoardCard = {
   archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+  /** Whether the card is marked complete (`board.get` → `cards[].completed`). */
+  completed: boolean;
+  /** Cover colour name, or `null` (`board.get` → `cards[].coverColor`). */
+  coverColor: string | null;
   /** Labels attached to this card (`board.get` → `cards[].labels`). May be empty. */
   labels: BoardCardLabel[];
   /** Total checklist items across the card's checklists (`board.get`). */
@@ -65,14 +75,43 @@ function isLabelColor(color: string): color is LabelColor {
   return (LABEL_COLORS as readonly string[]).includes(color);
 }
 
+/** Whether `value` is one of the 12 cover-colour palette names. */
+function asCoverColor(value: string | null): CardCoverColor | null {
+  return value != null && (CARD_COVER_COLORS as readonly string[]).includes(value)
+    ? (value as CardCoverColor)
+    : null;
+}
+
+/**
+ * Cover-colour stripe background per palette name. Literal `bg-palet-*` strings —
+ * spelled out so Tailwind's content scanner picks all 12 up.
+ */
+const COVER_BAR: Record<CardCoverColor, string> = {
+  kirmizi: 'bg-palet-kirmizi',
+  turuncu: 'bg-palet-turuncu',
+  sari: 'bg-palet-sari',
+  lime: 'bg-palet-lime',
+  yesil: 'bg-palet-yesil',
+  sky: 'bg-palet-sky',
+  mavi: 'bg-palet-mavi',
+  indigo: 'bg-palet-indigo',
+  mor: 'bg-palet-mor',
+  pembe: 'bg-palet-pembe',
+  gri: 'bg-palet-gri',
+  siyah: 'bg-palet-siyah',
+};
+
 /**
  * A single card chip in a list column. Clicking (or pressing Enter/Space)
  * navigates to `?card=<id>` (shallow), which opens the card detail modal (the
  * board page renders `CardDetailRoute`); title / description / due editing lives
- * there. The chip surfaces a label-chip row, the title, and a compact metadata
- * strip (`CardMetaRow` — due / description / checklist / comments / members).
- * When `canEdit`, a quick "archive" action (hover icon → confirm dialog) is
- * available; the dialog `stopPropagation`s so it doesn't also open the card. All
+ * there. The chip surfaces an optional cover-colour stripe, a label-chip row,
+ * the title (struck through when complete), and a compact metadata strip
+ * (`CardMetaRow` — due / description / checklist / comments / members). A "card
+ * done" toggle sits to the left of the title (always visible once complete,
+ * hover-to-reveal otherwise); when `canEdit`, a quick "archive" action (hover
+ * icon → confirm dialog) is in the top-right. The complete toggle and the
+ * archive dialog `stopPropagation` so they don't also open the card. All
  * mutations invalidate `board.get`. Drag-and-drop is Phase 3 (DEM-26).
  */
 export function CardItem({ boardId, card, canEdit }: CardItemProps) {
@@ -100,20 +139,29 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
     }
   };
 
+  const invalidateBoard = () => queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
+
   const archiveCard = useMutation(
     trpc.card.archive.mutationOptions({
       onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
+        await invalidateBoard();
         setArchiveOpen(false);
       },
     }),
   );
+  const completeCard = useMutation(trpc.card.complete.mutationOptions({ onSuccess: invalidateBoard }));
+  const uncompleteCard = useMutation(
+    trpc.card.uncomplete.mutationOptions({ onSuccess: invalidateBoard }),
+  );
+  const completePending = completeCard.isPending || uncompleteCard.isPending;
 
   const handleArchiveOpenChange = (next: boolean) => {
     if (archiveCard.isPending) return;
     setArchiveOpen(next);
     if (!next) archiveCard.reset();
   };
+
+  const coverColor = asCoverColor(card.coverColor);
 
   return (
     <article
@@ -128,6 +176,10 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
         'focus-visible:ring-2 focus-visible:ring-ring/60',
       )}
     >
+      {coverColor && (
+        <div className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])} aria-hidden />
+      )}
+
       {card.labels.length > 0 && (
         <ul className="mb-1.5 flex flex-wrap gap-1">
           {card.labels.map((label) => (
@@ -148,7 +200,29 @@ export function CardItem({ boardId, card, canEdit }: CardItemProps) {
         </ul>
       )}
 
-      <div className="font-medium leading-snug break-words line-clamp-3">{card.title}</div>
+      <div className="flex items-start gap-1.5">
+        <CardCompleteToggle
+          checked={card.completed}
+          alwaysVisible={card.completed}
+          disabled={!canEdit || completePending}
+          aria-label={card.completed ? copy.completeUntoggle : copy.completeToggle}
+          onClick={(event) => event.stopPropagation()}
+          onCheckedChange={(next) =>
+            next
+              ? completeCard.mutate({ cardId: card.id, clientMutationId: crypto.randomUUID() })
+              : uncompleteCard.mutate({ cardId: card.id, clientMutationId: crypto.randomUUID() })
+          }
+          className="mt-0.5"
+        />
+        <div
+          className={cn(
+            'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
+            card.completed && 'text-muted-foreground line-through',
+          )}
+        >
+          {card.title}
+        </div>
+      </div>
 
       <CardMetaRow
         description={card.description}

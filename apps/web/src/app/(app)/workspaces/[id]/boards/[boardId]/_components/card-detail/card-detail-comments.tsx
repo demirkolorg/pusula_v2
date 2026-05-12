@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquareIcon, SendIcon } from 'lucide-react';
+import { MessageSquareIcon, PaperclipIcon, PencilIcon, SendIcon, Trash2Icon } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -17,6 +17,9 @@ import {
   EmptyState,
   RichTextContent,
   RichTextEditor,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
@@ -96,7 +99,23 @@ export function CardCommentComposer({ viewerName, onSubmit, pending = false, err
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled
+                aria-disabled
+                aria-label={strings.card.detail.modal.attachmentAdd}
+                className="text-muted-foreground size-7 cursor-not-allowed opacity-50"
+              >
+                <PaperclipIcon className="size-3.5" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{strings.card.detail.modal.attachmentAdd}</TooltipContent>
+          </Tooltip>
           <Button type="button" size="sm" disabled={pending || empty} onClick={submit}>
             <SendIcon className="size-3.5" />
             {pending ? copy.composer.submitting : copy.composer.submit}
@@ -198,19 +217,26 @@ function CommentRow({
         )}
 
         {!deleted && canEdit && !editing && (
-          <div className="flex gap-1 pt-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => {
-                setDraft(comment.body);
-                setEditing(true);
-              }}
-            >
-              {copy.edit}
-            </Button>
+          <div className="flex items-center gap-0.5 pt-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={copy.edit}
+                  disabled={pending}
+                  className="size-7"
+                  onClick={() => {
+                    setDraft(comment.body);
+                    setEditing(true);
+                  }}
+                >
+                  <PencilIcon className="size-3.5" aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copy.edit}</TooltipContent>
+            </Tooltip>
             <Dialog
               open={deleteOpen}
               onOpenChange={(next) => {
@@ -218,9 +244,21 @@ function CommentRow({
                 setDeleteOpen(next);
               }}
             >
-              <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>
-                {copy.delete}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={copy.delete}
+                    className="text-muted-foreground hover:text-destructive size-7"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2Icon className="size-3.5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{copy.delete}</TooltipContent>
+              </Tooltip>
               <DialogContent closeLabel={strings.common.close}>
                 <DialogHeader>
                   <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { PencilIcon, Trash2Icon } from 'lucide-react';
 import { checklistTitleSchema } from '@pusula/domain';
 import {
   Button,
@@ -13,6 +14,9 @@ import {
   DialogTitle,
   Input,
   Progress,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
@@ -100,18 +104,24 @@ export function ChecklistBlock({
           <h4 className="flex-1 text-sm font-medium break-words">{checklist.title}</h4>
         )}
         {canEdit && !renaming && (
-          <span className="flex shrink-0 gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setTitleValue(checklist.title);
-                setRenaming(true);
-              }}
-            >
-              {copy.rename}
-            </Button>
+          <span className="flex shrink-0 items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={copy.rename}
+                  onClick={() => {
+                    setTitleValue(checklist.title);
+                    setRenaming(true);
+                  }}
+                >
+                  <PencilIcon className="size-3.5" aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copy.rename}</TooltipContent>
+            </Tooltip>
             <Dialog
               open={deleteOpen}
               onOpenChange={(next) => {
@@ -119,14 +129,21 @@ export function ChecklistBlock({
                 setDeleteOpen(next);
               }}
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setDeleteOpen(true)}
-              >
-                {copy.delete}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={copy.delete}
+                    onClick={() => setDeleteOpen(true)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2Icon className="size-3.5" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{copy.delete}</TooltipContent>
+              </Tooltip>
               <DialogContent closeLabel={strings.common.close}>
                 <DialogHeader>
                   <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>

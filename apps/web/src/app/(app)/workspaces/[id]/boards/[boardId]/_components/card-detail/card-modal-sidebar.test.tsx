@@ -62,8 +62,19 @@ describe('<CardModalSidebar>', () => {
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.activity) }));
     expect(screen.getByText('Bora kartı oluşturdu')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: new RegExp(tabs.activity) })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
     expect(screen.getByText(detailCopy.attachments.empty)).toBeInTheDocument();
+  });
+
+  it('the activity tab is labelled "Aktivite" (not "İşlemler")', () => {
+    setup();
+    expect(tabs.activity).toBe('Aktivite');
+    expect(screen.getByRole('tab', { name: /Aktivite/ })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /İşlemler/ })).not.toBeInTheDocument();
   });
 });

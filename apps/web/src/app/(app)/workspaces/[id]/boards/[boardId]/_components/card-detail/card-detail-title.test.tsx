@@ -51,4 +51,14 @@ describe('<CardDetailTitle>', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByLabelText(copy.titleLabel)).toHaveAttribute('aria-invalid', 'true');
   });
+
+  it('a completed card renders the heading struck through', () => {
+    render(<CardDetailTitle title="Kart A" completed canEdit={false} onSave={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Kart A' })).toHaveClass('line-through');
+  });
+
+  it('a not-completed card heading is not struck through', () => {
+    render(<CardDetailTitle title="Kart A" completed={false} canEdit={false} onSave={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Kart A' })).not.toHaveClass('line-through');
+  });
 });

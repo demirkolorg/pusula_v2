@@ -1,12 +1,23 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { PencilIcon } from 'lucide-react';
 import { cardTitleSchema } from '@pusula/domain';
-import { Alert, AlertDescription, Button, cn } from '@pusula/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  cn,
+} from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 type CardDetailTitleProps = {
   title: string;
+  /** Whether the card is marked complete (renders the heading struck through). */
+  completed?: boolean;
   /** Whether the viewer may rename the card (board `member+`, board/list/card active). */
   canEdit: boolean;
   /** Called with the validated, trimmed title; only invoked when it actually changed. */
@@ -18,10 +29,20 @@ type CardDetailTitleProps = {
 /**
  * Card title in the modal's sticky header: a large heading that becomes an
  * auto-sizing `textarea` on click (board `member+`), validated client-side
- * against `cardTitleSchema`. A no-op save just closes the editor; read-only
- * viewers see the heading only.
+ * against `cardTitleSchema`. The read heading and the editor share the same
+ * `py-1`/`text-lg`/`leading-tight` metrics so toggling doesn't shift the layout;
+ * the editor uses an `aria-label` instead of a placeholder (no placeholder
+ * bleeding). A no-op save just closes the editor; read-only viewers see the
+ * heading only. A completed card shows the heading struck through and muted.
  */
-export function CardDetailTitle({ title, canEdit, onSave, pending = false, error }: CardDetailTitleProps) {
+export function CardDetailTitle({
+  title,
+  completed = false,
+  canEdit,
+  onSave,
+  pending = false,
+  error,
+}: CardDetailTitleProps) {
   const inputId = useId();
   const copy = strings.card.detail;
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -63,12 +84,31 @@ export function CardDetailTitle({ title, canEdit, onSave, pending = false, error
 
   if (!editing || !canEdit) {
     return (
-      <div className="flex items-start gap-2">
-        <h2 className="flex-1 text-lg leading-tight font-semibold break-words">{title}</h2>
+      <div className="flex items-start gap-1.5">
+        <h2
+          className={cn(
+            'flex-1 px-2 py-1 text-lg leading-tight font-semibold break-words',
+            completed && 'text-muted-foreground line-through',
+          )}
+        >
+          {title}
+        </h2>
         {canEdit && (
-          <Button type="button" variant="ghost" size="sm" onClick={start} className="shrink-0">
-            {copy.editTitle}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={start}
+                aria-label={copy.editTitle}
+                className="mt-0.5 shrink-0"
+              >
+                <PencilIcon className="size-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{copy.editTitle}</TooltipContent>
+          </Tooltip>
         )}
       </div>
     );
@@ -107,6 +147,7 @@ export function CardDetailTitle({ title, canEdit, onSave, pending = false, error
         aria-describedby={valueError ? `${inputId}-error` : undefined}
         className={cn(
           'w-full resize-none rounded-md border bg-card px-2 py-1 text-lg leading-tight font-semibold field-sizing-content focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none',
+          completed && 'text-muted-foreground line-through',
           valueError && 'border-destructive',
         )}
       />

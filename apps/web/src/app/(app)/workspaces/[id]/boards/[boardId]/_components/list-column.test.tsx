@@ -32,6 +32,8 @@ vi.mock('@/trpc/client', () => ({
     card: {
       create: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
+      complete: { mutationOptions: (o: unknown) => o },
+      uncomplete: { mutationOptions: (o: unknown) => o },
     },
     board: { get: { queryFilter: () => ({}) } },
   }),
@@ -64,6 +66,8 @@ const card = (id: string, title: string): BoardCard => ({
   archivedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
+  completed: false,
+  coverColor: null,
   labels: [],
   checklistTotal: 0,
   checklistDone: 0,

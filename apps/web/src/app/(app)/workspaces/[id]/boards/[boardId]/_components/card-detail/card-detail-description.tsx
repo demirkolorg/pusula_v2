@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlignLeftIcon } from 'lucide-react';
+import { AlignLeftIcon, PencilIcon, PlusIcon } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -9,6 +9,9 @@ import {
   RichTextContent,
   RichTextEditor,
   SectionHeader,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { isSameRichText } from './rich-text-helpers';
@@ -88,9 +91,26 @@ export function CardDetailDescription({
         icon={<AlignLeftIcon className="size-3.5" aria-hidden />}
         action={
           canEdit && !editing ? (
-            <Button type="button" variant="ghost" size="sm" onClick={start}>
-              {hasContent ? copy.descriptionEditAction : copy.descriptionAdd}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={start}
+                  aria-label={hasContent ? copy.descriptionEditAction : copy.descriptionAdd}
+                >
+                  {hasContent ? (
+                    <PencilIcon className="size-4" aria-hidden />
+                  ) : (
+                    <PlusIcon className="size-4" aria-hidden />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {hasContent ? copy.descriptionEditAction : copy.descriptionAdd}
+              </TooltipContent>
+            </Tooltip>
           ) : null
         }
       >

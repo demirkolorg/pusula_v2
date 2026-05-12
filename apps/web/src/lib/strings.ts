@@ -343,6 +343,8 @@ export const strings = {
       addCardSubmitting: 'Ekleniyor…',
       addCardCancel: 'Vazgeç',
       edit: 'Kartı düzenle',
+      completeToggle: 'Kartı tamamlandı olarak işaretle',
+      completeUntoggle: 'Tamamlandı işaretini kaldır',
       archive: 'Kartı arşivle',
       archiving: 'Arşivleniyor…',
       archiveConfirmTitle: 'Kart arşivlensin mi?',
@@ -425,13 +427,16 @@ export const strings = {
         menuArchive: 'Kartı arşivle',
         menuRestore: 'Kartı geri yükle',
         completeToggle: 'Kartı tamamlandı olarak işaretle',
-        completeToggleSoon: 'Kart tamamlama yakında geliyor.',
+        completeUntoggle: 'Tamamlandı işaretini kaldır',
         coverColor: 'Kapak rengi',
-        coverColorSoon: 'Kapak rengi yakında geliyor.',
+        coverColorPickerTitle: 'Kapak rengi',
+        coverColorOf: 'Kapak rengi:',
+        coverColorClear: 'Kaldır',
         addMeta: 'Ekle',
         membersChip: 'Üye',
         labelsChip: 'Etiket',
         dueChip: 'Son tarih',
+        attachmentAdd: 'Dosya ekle',
       },
       // Rich text editor labels (passed to @pusula/ui RichTextEditor — no hardcoded copy there).
       richText: {
@@ -450,7 +455,7 @@ export const strings = {
       // Right-panel tabs + composer.
       tabs: {
         comments: 'Yorumlar',
-        activity: 'İşlemler',
+        activity: 'Aktivite',
         attachments: 'Ekler',
         all: 'Tümü',
       },
@@ -550,7 +555,7 @@ export const strings = {
     },
     activity: {
       title: 'İşlemler',
-      empty: 'Bu kartta henüz işlem yok.',
+      empty: 'Henüz aktivite yok.',
       loadErrorTitle: 'İşlemler yüklenemedi',
       unknownActor: 'Bir kullanıcı',
     },

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { PlusIcon } from 'lucide-react';
 import { checklistItemContentSchema, checklistTitleSchema } from '@pusula/domain';
-import { Button, Input } from '@pusula/ui';
+import { Button, Input, Tooltip, TooltipContent, TooltipTrigger } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 // ---------------------------------------------------------------------------
-// Inline "add" forms — tiny, self-contained. Collapsed to a button until opened;
-// validate against the domain schema and reset on submit/cancel.
+// Inline "add" forms — tiny, self-contained. Collapsed to an icon-only button
+// until opened; validate against the domain schema and reset on submit/cancel.
 // ---------------------------------------------------------------------------
 
 export function AddChecklistForm({
@@ -24,9 +25,20 @@ export function AddChecklistForm({
 
   if (!open) {
     return (
-      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
-        {copy.addAction}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(true)}
+            aria-label={copy.addAction}
+          >
+            <PlusIcon className="size-4" aria-hidden />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{copy.addAction}</TooltipContent>
+      </Tooltip>
     );
   }
   return (
@@ -93,7 +105,14 @@ export function AddItemForm({
 
   if (!open) {
     return (
-      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="text-muted-foreground hover:text-foreground -ml-1.5 h-7 gap-1.5 px-2"
+      >
+        <PlusIcon className="size-3.5" aria-hidden />
         {copy.itemAddAction}
       </Button>
     );

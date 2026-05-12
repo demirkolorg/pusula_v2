@@ -77,4 +77,38 @@ describe('<CardModalHeader>', () => {
     await user.click(restore);
     expect(props.onArchiveToggle).toHaveBeenCalledWith(false);
   });
+
+  it('plain bar (border-b, no palette class) when no cover colour is set', () => {
+    render(
+      <CardModalHeader
+        boardName="B"
+        listName="L"
+        coverColor={null}
+        archived={false}
+        canArchive
+        onArchiveToggle={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const bar = document.querySelector('[data-slot="card-modal-header"]')!;
+    expect(bar).toHaveClass('border-b');
+    expect(bar.className).not.toMatch(/bg-palet-/);
+  });
+
+  it('coloured bar (bg-palet-*, no border-b) when a cover colour is set', () => {
+    render(
+      <CardModalHeader
+        boardName="B"
+        listName="L"
+        coverColor="mavi"
+        archived={false}
+        canArchive
+        onArchiveToggle={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const bar = document.querySelector('[data-slot="card-modal-header"]')!;
+    expect(bar).toHaveClass('bg-palet-mavi');
+    expect(bar).not.toHaveClass('border-b');
+  });
 });

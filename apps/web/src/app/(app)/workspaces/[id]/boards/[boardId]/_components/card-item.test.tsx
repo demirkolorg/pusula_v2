@@ -21,7 +21,11 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
-    card: { archive: { mutationOptions: (o: unknown) => o } },
+    card: {
+      archive: { mutationOptions: (o: unknown) => o },
+      complete: { mutationOptions: (o: unknown) => o },
+      uncomplete: { mutationOptions: (o: unknown) => o },
+    },
     board: { get: { queryFilter: () => ({}) } },
   }),
 }));
@@ -39,6 +43,8 @@ const baseCard: BoardCard = {
   archivedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
+  completed: false,
+  coverColor: null,
   labels: [],
   checklistTotal: 0,
   checklistDone: 0,
@@ -145,5 +151,32 @@ describe('<CardItem>', () => {
     // Three avatars rendered (initials), and a "+1" overflow badge.
     expect(screen.getByText('+1')).toBeInTheDocument();
     expect(screen.getByText('AL')).toBeInTheDocument(); // Ada Lovelace
+  });
+
+  it('renders a cover-colour stripe when a cover colour is set', () => {
+    render(<CardItem boardId="b1" card={card({ coverColor: 'mavi' })} canEdit={false} />);
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const stripe = article.querySelector('.bg-palet-mavi');
+    expect(stripe).not.toBeNull();
+    expect(stripe).toHaveClass('h-3');
+  });
+
+  it('no cover stripe when the cover colour is unknown', () => {
+    render(<CardItem boardId="b1" card={card({ coverColor: 'not-a-colour' })} canEdit={false} />);
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    expect(article.querySelector('[class*="bg-palet-"]')).toBeNull();
+  });
+
+  it('a completed card: title struck through; the complete toggle is visible and checked', () => {
+    render(<CardItem boardId="b1" card={card({ completed: true })} canEdit />);
+    expect(screen.getByText('Bir kart')).toHaveClass('line-through');
+    const toggle = screen.getByRole('checkbox', { name: /tamamlandı/i });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('a not-completed card: title not struck through; toggle is unchecked', () => {
+    render(<CardItem boardId="b1" card={baseCard} canEdit />);
+    expect(screen.getByText('Bir kart')).not.toHaveClass('line-through');
+    expect(screen.getByRole('checkbox', { name: /tamamlandı/i })).toHaveAttribute('aria-checked', 'false');
   });
 });
