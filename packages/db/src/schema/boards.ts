@@ -1,7 +1,8 @@
-import { index, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { workspaces } from './workspaces';
-import { boardRoleEnum } from './enums';
+import { boardRoleEnum, invitationStatusEnum } from './enums';
 import { archivedAt, primaryId, timestamps } from './_common';
 
 export const boards = pgTable(
@@ -35,6 +36,51 @@ export const boardMembers = pgTable(
   (t) => [primaryKey({ columns: [t.boardId, t.userId] }), index('board_members_user_idx').on(t.userId)],
 );
 
+/**
+ * Pending/closed invitations to join a *board* by email. The board-scoped twin
+ * of `workspace_invitations` (same shape): `token` is a secret random string
+ * surfaced only in the invitation email; an invitation is single-use and
+ * time-limited (`expires_at`). At most one `pending` row per (board, email) is
+ * enforced *in the database* by a partial unique index on
+ * `(board_id, lower(email)) WHERE status = 'pending'` — the API layer keeps a
+ * fast pre-check + friendly message, but the index is the race-proof guarantee.
+ * The `role` is never `owner`-equivalent (board roles are `admin|member|viewer`).
+ * Accepting also (lazily) makes the invitee a workspace `guest` if they aren't a
+ * member yet. See `docs/domain/02-yetkilendirme-kurallari.md` (Board davet akışı)
+ * and `docs/domain/01-urun-modeli.md` invariant 13.
+ */
+export const boardInvitations = pgTable(
+  'board_invitations',
+  {
+    id: primaryId(),
+    boardId: text()
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** Invitee email, stored lowercased. */
+    email: text().notNull(),
+    role: boardRoleEnum().notNull().default('member'),
+    /** Secret, single-use token; only ever sent in the invitation email. */
+    token: text().notNull(),
+    invitedById: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: invitationStatusEnum().notNull().default('pending'),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    acceptedById: text().references(() => users.id, { onDelete: 'set null' }),
+    acceptedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('board_invitations_token_uq').on(t.token),
+    index('board_invitations_board_status_idx').on(t.boardId, t.status),
+    index('board_invitations_email_idx').on(t.email),
+    // At most one `pending` invitation per (board, email) — case-insensitive.
+    uniqueIndex('board_invitations_pending_email_uq')
+      .on(t.boardId, sql`lower(${t.email})`)
+      .where(sql`${t.status} = 'pending'`),
+  ],
+);
+
 export const labels = pgTable(
   'labels',
   {
@@ -56,4 +102,6 @@ export const labels = pgTable(
 export type Board = typeof boards.$inferSelect;
 export type NewBoard = typeof boards.$inferInsert;
 export type BoardMember = typeof boardMembers.$inferSelect;
+export type BoardInvitation = typeof boardInvitations.$inferSelect;
+export type NewBoardInvitation = typeof boardInvitations.$inferInsert;
 export type Label = typeof labels.$inferSelect;

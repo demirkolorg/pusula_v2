@@ -148,7 +148,7 @@ Activity: `board.created/renamed/archived`, `list.created/renamed/archived`, `ca
 | `card.members.remove` | `cardProcedure` | board `member+` (kendini `watcher`/atamadan çıkarma `viewer`'a da açık) | İdempotent; `card.member_removed` |
 | `label.create` / `update` / `delete` | `boardProcedure` | board `member+` | Board scope etiket (`name?`, `color`); `(boardId,color,name)` benzersiz → `CONFLICT`; activity yok |
 | `card.labels.add` / `remove` | `cardProcedure` | board `member+` | Etiket kartın board'una ait olmalı; idempotent; `card.label_added` / `card.label_removed` |
-| `board.members.list` | `boardProcedure` | board `viewer+` | Explicit `board_members` (ad/e-posta/rol); inherited owner/admin'ler UI'da ayrı işaretli |
+| `board.members.list` | `boardProcedure` | board `viewer+` | Explicit `board_members` (ad/rol — e-posta yok, gizlilik) + inherited owner/admin'ler `inherited: true` ile işaretli |
 | `board.members.add` | `boardProcedure` | board `admin` | `email` ile; workspace üyesini doğrudan ekler / hesabı olan non-member'ı `guest` yapıp ekler / hesabı yoksa `board_invitations` daveti; `board.member_added` (+ `workspace.member_added`) ya da `board.member_invited` |
 | `board.members.updateRole` | `boardProcedure` | board `admin` | Yalnızca explicit satır; son board `admin` düşürülemez; `board.member_role_changed` |
 | `board.members.remove` | `boardProcedure` | board `admin` (üye kendini = board'dan ayrıl) | Yalnızca explicit satır; son board `admin` çıkarılamaz; `board.member_removed` |

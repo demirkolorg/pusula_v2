@@ -73,6 +73,13 @@ export const ACTIVITY_EVENT_TYPES = [
   'checklist.item_checked',
   'checklist.item_unchecked',
   'checklist.item_removed',
+  // Phase 2.5C (Board member management / invitations — DEM-52). `board.member_added`
+  // and `board.member_removed` already exist above; these cover an explicit
+  // member's role change and the email-invitation lifecycle. Appended to keep the
+  // Postgres enum append-only. See `docs/domain/05-aktivite-kurallari.md`.
+  'board.member_role_changed',
+  'board.member_invited',
+  'board.invitation_revoked',
 ] as const;
 
 /**

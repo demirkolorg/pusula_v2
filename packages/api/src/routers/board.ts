@@ -25,6 +25,8 @@ import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
+import { boardInvitationsRouter } from './board-invitations';
+import { boardMembersRouter } from './board-members';
 
 /** Columns of a full board row returned to clients (sans internal-only fields — there are none yet). */
 const boardCols = {
@@ -287,4 +289,8 @@ export const boardRouter = router({
       };
     });
   }),
+
+  // Phase 2.5C (DEM-52) — board member management + token-based board invitations.
+  members: boardMembersRouter,
+  invitations: boardInvitationsRouter,
 });
