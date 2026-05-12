@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
 
@@ -34,30 +34,59 @@ updated: 2026-05-12
 
 ---
 
-## 5.1 Drag-Drop
+## 5.1 Drag-Drop (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26))
 
-Web board/list/card sürükle-bırak: **yalnızca Atlassian Pragmatic Drag and Drop**. Kararın
+Web board/list/card sürükle-bırak: **yalnızca Atlassian Pragmatic Drag and Drop**
+(`@atlaskit/pragmatic-drag-and-drop`; dnd-kit vb. **kullanılmaz** — proje kararı). Kararın
 nedeni Trello/Jira tipi pano deneyimine yakınlık, performans odaklı tasarım ve nested taşıma
-modeli. (dnd-kit alternatif; "board hissi" öncelikli olduğu için Pragmatic seçildi.)
+modeli.
 
-Zorunlu ilkeler:
+Faz 3 dağılımı: **3.0** önce-belge ([DEM-41](https://linear.app/demirkol/issue/DEM-41) — bu dosya + [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md) + `@pusula/domain` move-input şekilleri; kontrol odası tab'ı) → **3A** backend ([DEM-42](https://linear.app/demirkol/issue/DEM-42) — `list.move` + `card.move`) → **3B** drag-drop UI ([DEM-43](https://linear.app/demirkol/issue/DEM-43) — board ekranı; bkz. [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.8) ∥ **3C** compaction worker ([DEM-44](https://linear.app/demirkol/issue/DEM-44) — bkz. [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md) "Compaction") → **3D** Playwright testleri ([DEM-45](https://linear.app/demirkol/issue/DEM-45)); **3E** `card.moveToList` (cross-board) + `card.copy` ([DEM-69](https://linear.app/demirkol/issue/DEM-69) — 3A sonrası).
 
-- Drag sırasında backend mutation **atılmaz**; React state local güncellenir.
-- Mutation yalnızca `onDragEnd` sonrası çalışır; optimistic'tir; başarısızlıkta rollback.
-- Realtime event geldiğinde kullanıcı kendi optimistic event'ini tekrar uygulamaz (`clientMutationId`).
+### UI tarafı — zorunlu ilkeler
+
+- Drag sırasında backend mutation **atılmaz**; React state yalnız local güncellenir (placeholder/hayalet gösterimi dahil).
+- Mutation yalnızca `onDragEnd` sonrası **tek** istek olarak çalışır (`list.move` _veya_ `card.move`); optimistic'tir; başarısızlıkta cache rollback + düşük gürültülü hata.
+- `clientMutationId` her move mutation'ında gönderilir; Faz 5'te realtime event geri geldiğinde client kendi `clientMutationId`'sini tanıyıp optimistic değişikliği **tekrar uygulamaz** (echo ayıklama). Faz 3'te realtime henüz yok — bu yalnız ileri-uyum.
+- `before`/`after` komşular `onDragEnd`'deki hedef konuma göre belirlenir; client isteğe bağlı `newPosition` (`@pusula/domain/position` `positionBetween` ile) hesaplayabilir — server doğrular ya da yeniden hesaplar.
 - Büyük board'lar için virtualization stratejisi düşünülür; kart ölçüleri stabil — hover/drag'de layout shift yok.
-- Playwright testleri: aynı liste içi taşıma, listeler arası taşıma, liste reorder, başarısızlık rollback, eşzamanlı kullanıcı.
 
-`moveCard` mutation şekli (bkz. `moveCardInput` in `@pusula/domain`):
+### Mutation şekilleri (`@pusula/domain`)
+
+`card.move` girdisi — `moveCardInput` (`packages/domain/src/schemas/card.ts`):
 
 ```ts
-moveCard({ cardId, fromListId, toListId, beforeCardId, afterCardId, newPosition, clientMutationId });
+moveCard({ cardId, fromListId, toListId, beforeCardId?, afterCardId?, newPosition?, clientMutationId });
 ```
 
-Server move akışı: (1) board edit permission kontrolü → (2) kartın hâlâ beklenen listede olduğu
-doğrulanır → (3) yeni position hesaplanır veya client position doğrulanır → (4) transaction'da
-kart güncellenir → (5) `activity_events` insert → (6) `realtime_events` insert → (7)
-`notification_outbox` kayıtları üretilir.
+`list.move` girdisi — `moveListInput` (`packages/domain/src/schemas/list.ts`):
+
+```ts
+moveList({ listId, beforeListId?, afterListId?, newPosition?, clientMutationId });
+```
+
+> `card.move` yalnız **aynı board içinde** çalışır (board-içi reorder + listeler-arası taşıma) — `toListId` kartla aynı board'a ait olmalı. Başka board'a taşıma `card.moveToList` (Faz 3E / [DEM-69](https://linear.app/demirkol/issue/DEM-69)) — ayrı procedure, kartın `board_id`'sini de değiştirir + hedef board'da yetki kontrolü. Sıralamanın iş anlamı, eşzamanlı taşıma semantiği ve "kart ⊆ liste.board" kuralı → [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md).
+
+### Server move akışı (Faz 3A — backend)
+
+`card.move` (`boardProcedure`, board `member+` = `canEditBoardContent`):
+
+1. Board-edit permission kontrolü (her procedure'de server-side).
+2. Kart hâlâ `fromListId`'de mi? Değilse `CONFLICT` döner (eşzamanlı taşıma — client board'u refetch edip güncel durumu gösterir, kartı sessizce kaybetmez).
+3. `toListId` arşivli **değil** ve kartla **aynı board'a** ait (kart ⊆ liste.board invariant'ı korunur).
+4. Yeni `position`: client `newPosition` gönderdiyse komşulara göre doğrulanır; yoksa `positionBetween(before, after)` ile hesaplanır.
+5. Transaction'da `cards.list_id` + `cards.position` güncellenir; `activity_events` insert (`card.moved` — `fromListId`/`toListId` + eski/yeni `position`); `boards.version` artar.
+6. Idempotent: aynı `clientMutationId` ile ikinci kez gelen istek duplicate activity üretmez / no-op döner.
+
+`list.move` (`boardProcedure`, board `member+`): board içinde reorder; `position` `before`/`after` listelere göre `positionBetween` ile hesaplanır (veya client `newPosition` doğrulanır); transaction'da `lists.position` güncellenir; `activity_events` (`list.moved` — eski/yeni `position`); `boards.version` artar; idempotency `clientMutationId` ile.
+
+> **Faz kapsamı:** Faz 3A yalnız domain + `activity_events` üretir. `realtime_events` insert + room publish → Faz 5 ([DEM-28](https://linear.app/demirkol/issue/DEM-28)); `notification_outbox` → Faz 6 ([DEM-29](https://linear.app/demirkol/issue/DEM-29)). Fractional `position` string'i uzadığında tetiklenen **compaction** → Faz 3C ([DEM-44](https://linear.app/demirkol/issue/DEM-44)); tetik eşiği [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md) "Compaction".
+
+### Test (Faz 3A + 3D)
+
+- Domain birim: `positionBetween`/`positionsBetween` edge case'leri (boş liste, başa/sona ekleme, ardışık taşımalar, çok uzun key).
+- tRPC integration (3A): reorder (liste-içi), cross-list move, kart yer değiştirmiş senaryosu (`CONFLICT`), arşivli hedef liste, başka board'a taşıma reddi, idempotency (`clientMutationId`).
+- Playwright e2e (3D): aynı liste içi taşıma, listeler arası taşıma, liste reorder, başarısızlık rollback, (ops.) eşzamanlı kullanıcı / kart taşınmışken move. Geniş e2e suite → Faz 8 ([DEM-31](https://linear.app/demirkol/issue/DEM-31)).
 
 ---
 
