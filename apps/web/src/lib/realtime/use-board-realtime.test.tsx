@@ -195,6 +195,31 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     expect(fakeSocket.listeners.get('disconnect')?.size ?? 0).toBe(0);
   });
 
+  it('boardId change: leaves the old board and joins the new one (Faz 5D — DEM-86)', () => {
+    const qc = newQueryClient();
+    qc.setQueryData(boardKey('b1'), fixture());
+    qc.setQueryData(boardKey('b2'), { ...fixture(), board: { ...fixture().board, id: 'b2' } });
+
+    const { rerender } = renderHook(
+      ({ boardId }: { boardId: string }) => useBoardRealtime(boardId),
+      {
+        wrapper: wrap(qc),
+        initialProps: { boardId: 'b1' },
+      },
+    );
+
+    expect(fakeSocket.emitted).toContainEqual({ event: 'board:join', args: [{ boardId: 'b1' }] });
+
+    rerender({ boardId: 'b2' });
+
+    // Old-board cleanup fires (board:leave emitted, listeners detached)
+    // before the new effect runs (board:join for b2).
+    expect(fakeSocket.emitted).toContainEqual({ event: 'board:leave', args: [{ boardId: 'b1' }] });
+    expect(fakeSocket.emitted).toContainEqual({ event: 'board:join', args: [{ boardId: 'b2' }] });
+    // Only one realtime listener is registered (the new board's) — the old one detached.
+    expect(fakeSocket.listeners.get('realtime:event')?.size).toBe(1);
+  });
+
   it('unmount BEFORE the socket connects: skips board:leave (no prior join)', () => {
     const qc = newQueryClient();
     qc.setQueryData(boardKey('b1'), fixture());

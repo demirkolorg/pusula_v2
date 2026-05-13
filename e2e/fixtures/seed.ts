@@ -11,6 +11,8 @@
  * by their fixed ids, then re-inserts a known state:
  *   - test user (`E2E.user`) — workspace `owner`, board `admin`;
  *   - `viewer` user (`E2E.viewer`) — workspace `guest`, board `viewer` (RO);
+ *   - `alice` / `bob` (`E2E.alice` / `E2E.bob`) — workspace `member`s, board
+ *     `member`s on the shared board (Faz 5D — DEM-86; realtime two-user specs);
  *   - one workspace (`E2E.workspaceId`), one board (`E2E.boardId`);
  *   - 3 lists at known positions (`E2E.listTitles`);
  *   - 2-3 cards per list at known positions (`E2E.cards`).
@@ -45,16 +47,22 @@ type Db = ReturnType<typeof createDb>['db'];
 async function resetThenSeed(db: Db): Promise<void> {
   // --- Reset (cascades clean up board_members / lists / cards / accounts) ---
   await db.delete(workspaces).where(eq(workspaces.id, E2E.workspaceId));
-  for (const u of [E2E.user, E2E.viewer]) {
+  for (const u of [E2E.user, E2E.viewer, E2E.alice, E2E.bob]) {
     await db.delete(users).where(eq(users.id, u.id));
   }
 
   // --- Users + password credentials ---
-  const passwordHash = await hashPassword(E2E.user.password);
-  const viewerPasswordHash = await hashPassword(E2E.viewer.password);
+  const [passwordHash, viewerPasswordHash, alicePasswordHash, bobPasswordHash] = await Promise.all([
+    hashPassword(E2E.user.password),
+    hashPassword(E2E.viewer.password),
+    hashPassword(E2E.alice.password),
+    hashPassword(E2E.bob.password),
+  ]);
   await db.insert(users).values([
     { id: E2E.user.id, name: E2E.user.name, email: E2E.user.email, emailVerified: true },
     { id: E2E.viewer.id, name: E2E.viewer.name, email: E2E.viewer.email, emailVerified: true },
+    { id: E2E.alice.id, name: E2E.alice.name, email: E2E.alice.email, emailVerified: true },
+    { id: E2E.bob.id, name: E2E.bob.name, email: E2E.bob.email, emailVerified: true },
   ]);
   await db.insert(accounts).values([
     {
@@ -71,6 +79,20 @@ async function resetThenSeed(db: Db): Promise<void> {
       userId: E2E.viewer.id,
       password: viewerPasswordHash,
     },
+    {
+      id: `${E2E.alice.id}-credential`,
+      accountId: E2E.alice.id,
+      providerId: 'credential',
+      userId: E2E.alice.id,
+      password: alicePasswordHash,
+    },
+    {
+      id: `${E2E.bob.id}-credential`,
+      accountId: E2E.bob.id,
+      providerId: 'credential',
+      userId: E2E.bob.id,
+      password: bobPasswordHash,
+    },
   ]);
 
   // --- Workspace + memberships ---
@@ -85,6 +107,10 @@ async function resetThenSeed(db: Db): Promise<void> {
     // The viewer is only a workspace `guest` (no implicit board access) so the
     // explicit board `viewer` row below is what governs their access.
     { workspaceId: E2E.workspaceId, userId: E2E.viewer.id, role: 'guest' },
+    // Faz 5D realtime fixture: alice + bob both have full workspace + board
+    // edit access so either side can drive the mutation under test.
+    { workspaceId: E2E.workspaceId, userId: E2E.alice.id, role: 'member' },
+    { workspaceId: E2E.workspaceId, userId: E2E.bob.id, role: 'member' },
   ]);
 
   // --- Board + members ---
@@ -96,6 +122,8 @@ async function resetThenSeed(db: Db): Promise<void> {
   await db.insert(boardMembers).values([
     { boardId: E2E.boardId, userId: E2E.user.id, role: 'admin' },
     { boardId: E2E.boardId, userId: E2E.viewer.id, role: 'viewer' },
+    { boardId: E2E.boardId, userId: E2E.alice.id, role: 'member' },
+    { boardId: E2E.boardId, userId: E2E.bob.id, role: 'member' },
   ]);
 
   // --- Lists (known positions) ---
