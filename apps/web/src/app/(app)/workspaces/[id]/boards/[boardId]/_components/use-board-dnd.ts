@@ -1,6 +1,14 @@
 'use client';
 
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import {
@@ -56,7 +64,10 @@ type RegisterCardArgs = {
    * dropped *onto* it / into its list). Defaults to `true`.
    */
   isDropTarget?: boolean;
-  onDraggingChange: (dragging: boolean) => void;
+  onDraggingChange: (
+    dragging: boolean,
+    options?: { settleUntilCacheUpdate?: boolean },
+  ) => void;
   /**
    * Latest card data for the drag preview (DEM-87). Read once at drag start so
    * the preview always reflects the current card without forcing the leaf to
@@ -169,7 +180,7 @@ function renderLiftedPreview({
  * `monitorForElements` `onDrag` callback (no React state on the hot path → no
  * board-wide re-render per pointer frame).
  */
-function createCardDragOverlayController() {
+export function createCardDragOverlayController() {
   let el: HTMLDivElement | null = null;
   let root: Root | null = null;
   let pointerOffset = { x: 0, y: 0 };
@@ -210,15 +221,24 @@ function createCardDragOverlayController() {
     update(input: { clientX: number; clientY: number }) {
       applyTransform(input.clientX, input.clientY);
     },
-    hide() {
-      if (root) {
-        root.unmount();
-        root = null;
+    hide(options?: { deferUnmount?: boolean }) {
+      const rootToUnmount = root;
+      const elToRemove = el;
+      root = null;
+      el = null;
+      if (!rootToUnmount && !elToRemove) return;
+
+      if (options?.deferUnmount) {
+        if (elToRemove) elToRemove.style.display = 'none';
+        queueMicrotask(() => {
+          rootToUnmount?.unmount();
+          elToRemove?.remove();
+        });
+        return;
       }
-      if (el) {
-        el.remove();
-        el = null;
-      }
+
+      rootToUnmount?.unmount();
+      elToRemove?.remove();
     },
   };
 }
@@ -259,6 +279,11 @@ export function useBoardDnd(opts: {
   const [cardPlaceholder, setCardPlaceholder] = useState<CardDropPlaceholder | null>(null);
   const [listPlaceholder, setListPlaceholder] = useState<ListDropPlaceholder | null>(null);
   const draggedCardHeightRef = useRef<number | null>(null);
+  const settlingCardDropRef = useRef<{
+    cardId: string;
+    toListId: string;
+    newPosition: string;
+  } | null>(null);
   const draggedListSizeRef = useRef<{ width: number | null; height: number | null }>({
     width: null,
     height: null,
@@ -372,6 +397,57 @@ export function useBoardDnd(opts: {
     );
   }, []);
 
+  const resolveCardDropPlan = useCallback(
+    (
+      sourceData: Record<string | symbol, unknown>,
+      target: { data: Record<string | symbol, unknown> } | undefined,
+    ) => {
+      if (!isCardDragData(sourceData) || !target) return null;
+      const td = target.data;
+      let toListId: string;
+      let targetCardId: string | null;
+      let edge: CardEdge = 'bottom';
+
+      if (isCardDropData(td)) {
+        toListId = td.listId;
+        targetCardId = td.cardId;
+        edge = extractClosestEdge(td) === 'top' ? 'top' : 'bottom';
+      } else if (isListCardsDropData(td)) {
+        toListId = td.listId;
+        targetCardId = null;
+      } else {
+        return null;
+      }
+
+      if (!isListActive(toListId)) return null;
+      return planCardMove({
+        cardId: sourceData.cardId,
+        fromListId: sourceData.fromListId,
+        toListId,
+        targetCardId,
+        edge,
+        cardsByListId,
+      });
+    },
+    [isListActive, cardsByListId],
+  );
+
+  const finishSettlingCardDrop = useCallback(() => {
+    settlingCardDropRef.current = null;
+    draggedCardHeightRef.current = null;
+    clearCardPlaceholder();
+    cardOverlay().hide({ deferUnmount: true });
+  }, [clearCardPlaceholder, cardOverlay]);
+
+  useLayoutEffect(() => {
+    const pending = settlingCardDropRef.current;
+    if (!pending) return;
+    const moved = opts.cards.find((c) => c.id === pending.cardId);
+    if (moved?.listId === pending.toListId && moved.position === pending.newPosition) {
+      finishSettlingCardDrop();
+    }
+  }, [opts.cards, finishSettlingCardDrop]);
+
   const moveCardToListEnd = useCallback(
     (cardId: string, fromListId: string, toListId: string) => {
       if (!enabled || !isListActive(toListId)) return;
@@ -413,6 +489,7 @@ export function useBoardDnd(opts: {
         canMonitor: ({ source }) => isCardDragData(source.data) || isListDragData(source.data),
         onDragStart: ({ source }) => {
           const data = source.data;
+          settlingCardDropRef.current = null;
           clearCardPlaceholder();
           clearListPlaceholder();
           if (isCardDragData(data)) {
@@ -533,45 +610,25 @@ export function useBoardDnd(opts: {
           });
         },
         onDrop: ({ source, location }) => {
-          setDragState({ kind: 'idle' });
-          clearCardPlaceholder();
-          clearListPlaceholder();
-          draggedCardHeightRef.current = null;
-          draggedListSizeRef.current = { width: null, height: null };
-          // DEM-87: safety teardown — the per-card draggable also calls hide,
-          // but the monitor fires for every drop so this guarantees cleanup
-          // even if a card draggable was unregistered mid-drag.
-          cardOverlay().hide();
           const target = location.current.dropTargets[0];
-          if (!target) return;
-
           // --- Card drop ---
           if (isCardDragData(source.data)) {
-            const dragged = source.data;
-            const td = target.data;
-            let toListId: string;
-            let targetCardId: string | null;
-            let edge: CardEdge = 'bottom';
-            if (isCardDropData(td)) {
-              toListId = td.listId;
-              targetCardId = td.cardId;
-              edge = extractClosestEdge(td) === 'top' ? 'top' : 'bottom';
-            } else if (isListCardsDropData(td)) {
-              toListId = td.listId;
-              targetCardId = null;
-            } else {
+            const plan = resolveCardDropPlan(source.data, target);
+            setDragState({ kind: 'idle' });
+            clearListPlaceholder();
+            draggedListSizeRef.current = { width: null, height: null };
+            if (!plan) {
+              settlingCardDropRef.current = null;
+              clearCardPlaceholder();
+              draggedCardHeightRef.current = null;
+              cardOverlay().hide();
               return;
             }
-            if (!isListActive(toListId)) return; // can't drop into an archived list
-            const plan = planCardMove({
-              cardId: dragged.cardId,
-              fromListId: dragged.fromListId,
-              toListId,
-              targetCardId,
-              edge,
-              cardsByListId,
-            });
-            if (!plan) return; // dropped where it already is
+            settlingCardDropRef.current = {
+              cardId: plan.cardId,
+              toListId: plan.toListId,
+              newPosition: plan.newPosition,
+            };
             cardMoveRef.current.mutate({
               cardId: plan.cardId,
               fromListId: plan.fromListId,
@@ -582,6 +639,15 @@ export function useBoardDnd(opts: {
             });
             return;
           }
+
+          setDragState({ kind: 'idle' });
+          settlingCardDropRef.current = null;
+          clearCardPlaceholder();
+          clearListPlaceholder();
+          draggedCardHeightRef.current = null;
+          draggedListSizeRef.current = { width: null, height: null };
+          cardOverlay().hide();
+          if (!target) return;
 
           // --- Column drop ---
           if (isListDragData(source.data)) {
@@ -622,6 +688,7 @@ export function useBoardDnd(opts: {
     showCardPlaceholder,
     showListPlaceholder,
     cardOverlay,
+    resolveCardDropPlan,
   ]);
 
   // --- Registrars (called from each column/card component's effect) --------
@@ -643,9 +710,13 @@ export function useBoardDnd(opts: {
             args.onDraggingChange(true);
             cardOverlay().show(args.getCard(), source.element, location.current.input);
           },
-          onDrop: () => {
-            args.onDraggingChange(false);
-            cardOverlay().hide();
+          onDrop: ({ source, location }) => {
+            const willMove = resolveCardDropPlan(source.data, location.current.dropTargets[0]);
+            args.onDraggingChange(
+              false,
+              willMove ? { settleUntilCacheUpdate: true } : undefined,
+            );
+            if (!willMove) cardOverlay().hide();
           },
         }),
       ];
@@ -665,7 +736,7 @@ export function useBoardDnd(opts: {
       }
       return combine(...cleanups);
     },
-    [enabled, cardOverlay],
+    [enabled, cardOverlay, resolveCardDropPlan],
   );
 
   const registerListCardsArea = useCallback(

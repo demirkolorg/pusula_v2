@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
 import {
@@ -146,6 +146,20 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
   const cardRef = useRef(card);
   cardRef.current = card;
 
+  // For a real move, keep the source card in placeholder mode until the async
+  // optimistic cache write moves its props; invalid/no-op drops reset here.
+  const handleDraggingChange = useCallback(
+    (next: boolean, options?: { settleUntilCacheUpdate?: boolean }) => {
+      if (next) {
+        setDragging(true);
+        return;
+      }
+      if (options?.settleUntilCacheUpdate) return;
+      setDragging(false);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!dnd) return;
     const el = articleRef.current;
@@ -157,10 +171,16 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       position: card.position,
       // A card in an archived list can be dragged *out* but isn't a drop target.
       isDropTarget: canEdit,
-      onDraggingChange: setDragging,
+      onDraggingChange: handleDraggingChange,
       getCard: () => cardRef.current,
     });
-  }, [dnd, card.id, card.listId, card.position, canEdit]);
+  }, [dnd, card.id, card.listId, card.position, canEdit, handleDraggingChange]);
+
+  // Clear `dragging` in the same pre-paint cycle as the cache-update render
+  // that repositioned this card.
+  useLayoutEffect(() => {
+    if (dragging) setDragging(false);
+  }, [card.position, card.listId]);
 
   const openCard = () => {
     const params = new URLSearchParams(searchParams.toString());
