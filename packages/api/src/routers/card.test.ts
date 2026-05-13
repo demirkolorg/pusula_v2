@@ -4,13 +4,13 @@
  * If no database is reachable the suite is skipped rather than failing on a box
  * without infra.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
 import { activityEvents, boardMembers, cardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
-import { positionBetween } from '@pusula/domain';
+import { positionBetween, POSITION_COMPACTION_MAX_LEN } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
-import { createContext } from '../context';
+import { createContext, type EnqueueCompaction } from '../context';
 
 // Probe the database at collection time so `describe.runIf` can react to it.
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
@@ -39,6 +39,13 @@ function callerFor(userId: string) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
   return create(createContext({ session: session(userId), db: probe.db }));
+}
+
+/** A caller whose tRPC context carries a (mock) `enqueueCompaction` hook. */
+function callerWithEnqueue(userId: string, enqueueCompaction: EnqueueCompaction) {
+  if (!probe) throw new Error('db not initialised');
+  const create = createCallerFactory(appRouter);
+  return create(createContext({ session: session(userId), db: probe.db, enqueueCompaction }));
 }
 
 describe.runIf(dbAvailable)('card router (integration)', () => {
@@ -783,6 +790,67 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         clientMutationId: newId('cmid'),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  // ---------------------------------------------------- compaction enqueue (DEM-44)
+
+  it('move: a normal (short) new position does NOT enqueue a compaction job; a no-op move does not either', async () => {
+    const enqueue = vi.fn<EnqueueCompaction>();
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Short List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+
+    // A real reorder: move B in front of A — short key.
+    const moved = await callerWithEnqueue(memberId, enqueue).card.move({
+      cardId: b.id,
+      fromListId: list.id,
+      toListId: list.id,
+      afterCardId: a.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(moved.changed).toBe(true);
+    expect(moved.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
+    expect(enqueue).not.toHaveBeenCalled();
+
+    // A no-op move (same position) — must not enqueue.
+    await callerWithEnqueue(memberId, enqueue).card.move({
+      cardId: b.id,
+      fromListId: list.id,
+      toListId: list.id,
+      afterCardId: a.id,
+      newPosition: moved.position,
+      clientMutationId: newId('cmid'),
+    });
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('move: producing a long fractional position enqueues a list-scope compaction job for the target list (once)', async () => {
+    const enqueue = vi.fn<EnqueueCompaction>();
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Long List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const target = await callerFor(ownerId).card.create({ listId: list.id, title: 'Target', clientMutationId: newId('cmid') });
+
+    // Pin A/B to known adjacent keys so a long-but-valid `newPosition` is easy
+    // to construct: `'a0' < 'a0' + 'V'…V < 'a1'`.
+    await db().update(dbMod.cards).set({ position: 'a0' }).where(dbMod.eq(dbMod.cards.id, a.id));
+    await db().update(dbMod.cards).set({ position: 'a1' }).where(dbMod.eq(dbMod.cards.id, b.id));
+    const longPos = 'a0' + 'V'.repeat(POSITION_COMPACTION_MAX_LEN);
+    expect(longPos.length).toBeGreaterThanOrEqual(POSITION_COMPACTION_MAX_LEN);
+    expect('a0' < longPos && longPos < 'a1').toBe(true);
+
+    const moved = await callerWithEnqueue(memberId, enqueue).card.move({
+      cardId: target.id,
+      fromListId: list.id,
+      toListId: list.id,
+      beforeCardId: a.id,
+      afterCardId: b.id,
+      newPosition: longPos,
+      clientMutationId: newId('cmid'),
+    });
+    expect(moved).toMatchObject({ id: target.id, position: longPos, changed: true });
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).toHaveBeenCalledWith({ kind: 'list', listId: list.id });
   });
 });
 

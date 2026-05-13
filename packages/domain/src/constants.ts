@@ -156,6 +156,17 @@ export const CARD_COVER_COLORS = [
 ] as const;
 export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
 
+/**
+ * Position compaction trigger threshold: if any newly-produced fractional
+ * `position` key reaches this many characters, the affected scope (a list's
+ * cards / a board's lists) is queued for compaction (background re-balance —
+ * `positionsBetween(null, null, n)`). Picked high enough not to fire on normal
+ * use; may later move to a worker env var. See `@pusula/domain` `shouldCompact`
+ * and `docs/domain/03-siralama-kurallari.md` "Compaction" /
+ * `docs/architecture/06-bildirim-altyapisi.md` "Position compaction".
+ */
+export const POSITION_COMPACTION_MAX_LEN = 50;
+
 /** Realtime event channels delivered over Socket.IO rooms. */
 export const REALTIME_ROOM_KINDS = ['workspace', 'board', 'card', 'user'] as const;
 

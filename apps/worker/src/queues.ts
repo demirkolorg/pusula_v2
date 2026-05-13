@@ -10,8 +10,19 @@ export const QUEUE = {
   notifications: 'pusula:notifications',
   /** Publishes pending `realtime_events` rows to Socket.IO rooms. */
   realtimePublish: 'pusula:realtime-publish',
-  /** Due-date reminders, digest emails, cleanup, position compaction. */
+  /** Due-date reminders, digest emails, cleanup. */
   scheduled: 'pusula:scheduled',
+  /**
+   * Re-balances fractional `position` strings for a list (its cards) or a board
+   * (its lists) when they grow too long. Producer: `apps/api` (`list.move` /
+   * `card.move`, via the tRPC context). Job `jobId = compaction:{list|board}:{id}`
+   * debounces per scope (only one pending job per scope). See `jobs/compaction.ts`
+   * and `docs/architecture/06-bildirim-altyapisi.md` "Position compaction".
+   *
+   * Queue name duplicated in `apps/api/src/compaction-queue.ts` (producer side)
+   * — must stay in sync: `'pusula:compaction'`.
+   */
+  compaction: 'pusula:compaction',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -29,5 +40,11 @@ export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
   defaultJobOptions,
 });
 export const scheduledQueue = new Queue(QUEUE.scheduled, { connection, defaultJobOptions });
+export const compactionQueue = new Queue(QUEUE.compaction, { connection, defaultJobOptions });
 
-export const allQueues = [notificationsQueue, realtimePublishQueue, scheduledQueue];
+export const allQueues = [
+  notificationsQueue,
+  realtimePublishQueue,
+  scheduledQueue,
+  compactionQueue,
+];

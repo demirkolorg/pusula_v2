@@ -1,5 +1,13 @@
 export { appRouter, type AppRouter } from './root';
-export { createContext, type Context, type CreateContextOptions, type SessionInfo, type SessionUser } from './context';
+export {
+  createContext,
+  type Context,
+  type CreateContextOptions,
+  type SessionInfo,
+  type SessionUser,
+  type CompactionScope,
+  type EnqueueCompaction,
+} from './context';
 export {
   router,
   middleware,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { firstPosition, positionBetween, positionsBetween } from './position';
+import { POSITION_COMPACTION_MAX_LEN } from './constants';
+import { firstPosition, positionBetween, positionsBetween, shouldCompact } from './position';
 
 /**
  * `position.ts` is a thin wrapper around `fractional-indexing`; the library
@@ -93,5 +94,29 @@ describe('positionsBetween', () => {
 
   it('positionsBetween(_, _, 0) returns an empty array', () => {
     expect(positionsBetween(null, null, 0)).toEqual([]);
+  });
+});
+
+describe('shouldCompact', () => {
+  it('POSITION_COMPACTION_MAX_LEN is 50', () => {
+    expect(POSITION_COMPACTION_MAX_LEN).toBe(50);
+  });
+
+  it('an empty array never triggers compaction', () => {
+    expect(shouldCompact([])).toBe(false);
+  });
+
+  it('normal short keys do not trigger compaction', () => {
+    expect(shouldCompact([firstPosition()])).toBe(false);
+    expect(shouldCompact(['a0', 'a1', 'Zz'])).toBe(false);
+    // a key exactly one char short of the threshold is still fine
+    expect(shouldCompact(['a'.repeat(POSITION_COMPACTION_MAX_LEN - 1)])).toBe(false);
+  });
+
+  it('a key at or beyond the threshold triggers compaction', () => {
+    expect(shouldCompact(['a'.repeat(POSITION_COMPACTION_MAX_LEN)])).toBe(true);
+    expect(shouldCompact(['a'.repeat(POSITION_COMPACTION_MAX_LEN + 10)])).toBe(true);
+    // mixed: one long key among short ones is enough
+    expect(shouldCompact(['a0', 'a'.repeat(POSITION_COMPACTION_MAX_LEN), 'a8'])).toBe(true);
   });
 });

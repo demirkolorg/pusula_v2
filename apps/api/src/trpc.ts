@@ -2,6 +2,7 @@ import type { Context as HonoContext } from 'hono';
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { createContext, type Context } from '@pusula/api';
 import { auth } from './auth';
+import { enqueueCompaction } from './compaction-queue';
 
 /** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
 export async function buildTrpcContext(
@@ -26,5 +27,7 @@ export async function buildTrpcContext(
     requestId: c.get('requestId') as string | undefined,
     ip: c.req.header('x-forwarded-for') ?? null,
     userAgent: c.req.header('user-agent') ?? null,
+    // Best-effort background position compaction (Faz 3C — DEM-44).
+    enqueueCompaction,
   });
 }

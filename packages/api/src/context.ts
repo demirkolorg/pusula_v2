@@ -1,4 +1,5 @@
 import { getDb, type Database } from '@pusula/db';
+import type { EnqueueCompaction } from './lib/compaction';
 
 /** The authenticated user, as resolved by the host app's auth layer (Better Auth). */
 export interface SessionUser {
@@ -24,6 +25,12 @@ export interface CreateContextOptions {
   /** Client-side IP/user-agent for audit, if available. */
   ip?: string | null;
   userAgent?: string | null;
+  /**
+   * Best-effort hook to enqueue a background position-compaction job (Faz 3C —
+   * DEM-44). The host app (`apps/api`) wires this to the BullMQ `pusula:compaction`
+   * queue; omitted in tests / Next route handlers → compaction is a no-op there.
+   */
+  enqueueCompaction?: EnqueueCompaction;
 }
 
 export interface Context {
@@ -32,6 +39,8 @@ export interface Context {
   requestId?: string;
   ip?: string | null;
   userAgent?: string | null;
+  /** See `CreateContextOptions.enqueueCompaction`. `undefined` ⇒ compaction no-op. */
+  enqueueCompaction?: EnqueueCompaction;
 }
 
 /** Builds the per-request tRPC context. Host apps (apps/api, Next route handlers) call this. */
@@ -42,5 +51,8 @@ export function createContext(opts: CreateContextOptions): Context {
     requestId: opts.requestId,
     ip: opts.ip ?? null,
     userAgent: opts.userAgent ?? null,
+    enqueueCompaction: opts.enqueueCompaction,
   };
 }
+
+export type { CompactionScope, EnqueueCompaction } from './lib/compaction';

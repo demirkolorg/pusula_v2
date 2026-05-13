@@ -20,8 +20,10 @@
     "@pusula/domain": "workspace:*",
     "@trpc/server": "^11.17.0",
     "better-auth": "^1.6.10",
+    "bullmq": "^5.76.8",
     "dotenv": "^17.2.0",
     "hono": "^4.12.18",
+    "ioredis": "^5.10.1",
     "resend": "^6.12.3",
     "superjson": "^2.2.6",
     "zod": "^4"

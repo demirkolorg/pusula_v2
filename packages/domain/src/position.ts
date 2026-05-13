@@ -11,6 +11,7 @@
  * re-balance the affected list.
  */
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
+import { POSITION_COMPACTION_MAX_LEN } from './constants';
 
 /**
  * Position string for an item placed between `before` and `after`.
@@ -32,6 +33,16 @@ export function positionsBetween(
 /** First position string for an empty list. */
 export function firstPosition(): string {
   return generateKeyBetween(null, null);
+}
+
+/**
+ * True if any of the given position keys is long enough to warrant compaction
+ * (≥ `POSITION_COMPACTION_MAX_LEN`). Move procedures call this on the key(s)
+ * they just produced; when it's true the affected scope is enqueued for a
+ * background re-balance. See `docs/domain/03-siralama-kurallari.md` "Compaction".
+ */
+export function shouldCompact(positions: readonly string[]): boolean {
+  return positions.some((p) => p.length >= POSITION_COMPACTION_MAX_LEN);
 }
 
 export { generateKeyBetween, generateNKeysBetween };

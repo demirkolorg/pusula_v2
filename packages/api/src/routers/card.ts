@@ -60,6 +60,7 @@ import {
   updateCardInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
 import { accessFromBoardRole } from '../middleware/board';
 import { resolveBoardAccess } from '../middleware/board-access';
@@ -569,7 +570,14 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı taşıma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    const result = await ctx.db.transaction(async (tx) => {
+      // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
+      // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
+      // scope serialize. Scope = target list (`toListId`): that is the list whose
+      // card positions change. The source list's remaining cards keep their positions
+      // on a cross-list move, so one lock on `toListId` is sufficient.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'list', listId: input.toListId })}))`);
+
       const [card] = await tx
         .select({
           id: cards.id,
@@ -656,8 +664,6 @@ export const cardRouter = router({
         before?.position ?? null,
         after?.position ?? null,
       );
-      // TODO(DEM-44/Faz 3C): position uzunluğu POSITION_COMPACTION_MAX_LEN'i aşarsa
-      // compaction job enqueue (worker'a bağlanır; Faz 3A worker'a bağlı değil).
 
       if (card.listId === input.toListId && card.position === position) {
         const [current] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
@@ -694,6 +700,15 @@ export const cardRouter = router({
 
       return { ...updated, changed: true as const };
     });
+
+    // After commit (best-effort, fire-and-forget): if the new fractional key is
+    // long enough, queue a background re-balance of the *target* list's cards
+    // (a within-list reorder targets that same list).
+    if (result.changed) {
+      maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
+    }
+
+    return result;
   }),
 
   /** Card members (`assignee` / `watcher`) — `card.members.{list,add,remove}`. */

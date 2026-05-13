@@ -36,6 +36,7 @@ import {
   renameListInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { router } from '../trpc';
@@ -261,7 +262,13 @@ export const listRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi taşıma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    const result = await ctx.db.transaction(async (tx) => {
+      // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
+      // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
+      // scope serialize. Scope = board (`ctx.board.id`): list positions are
+      // board-scoped, so the lock covers the same key the compaction worker uses.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'board', boardId: ctx.board.id })}))`);
+
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -310,8 +317,6 @@ export const listRouter = router({
         before?.position ?? null,
         after?.position ?? null,
       );
-      // TODO(DEM-44/Faz 3C): position uzunluğu POSITION_COMPACTION_MAX_LEN'i aşarsa
-      // compaction job enqueue (worker'a bağlanır; Faz 3A worker'a bağlı değil).
 
       if (list.position === position) {
         return { ...list, changed: false as const };
@@ -339,5 +344,13 @@ export const listRouter = router({
 
       return { ...updated, changed: true as const };
     });
+
+    // After commit (best-effort, fire-and-forget): if the new fractional key is
+    // long enough, queue a background re-balance of this board's lists.
+    if (result.changed) {
+      maybeEnqueueCompaction(ctx, { kind: 'board', boardId: ctx.board.id }, [result.position]);
+    }
+
+    return result;
   }),
 });
