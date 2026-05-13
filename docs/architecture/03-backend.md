@@ -219,6 +219,75 @@ Test (Faz 3A): domain birim (`positionBetween`/`positionsBetween` edge case'leri
 
 > **Wired (DEM-83, 2026-05-13):** modüller `apps/api/src/socket/` altında: `server.ts` (`createSocketServer` factory + WebSocket-only transport + opsiyonel Redis adapter mount), `auth.ts` (`SocketSessionResolver` injectable, Better Auth `getSession` handshake'i — başarısız/throw → uniform `Unauthorized`), `rooms.ts` (`board:join`/`board:leave` event handler'ları + auto `user:{userId}` join + ack callback), `emit.ts` (`createRealtimeEmit` → `RealtimeEmit { emitToBoard, emitToUser }`), `index.ts` (`setupSocketServer` production wiring — Better Auth + `@pusula/api` `resolveBoardAccess` + ayrı `ioredis` pub/sub pair; arşivli board → null → join reddi). `apps/api/src/index.ts` boot'unda `serve()` sonrası attach; `setRealtimeEmit` → `getRealtimeEmit` (apps/api/src/app.ts) → `buildTrpcContext` (apps/api/src/trpc.ts) → `ctx.realtime`. `RealtimeEventEnvelope` (`@pusula/domain/events`) doc §5.3 spec'ine hizalandı (`actorUserId`, `seq` — eski `actorId`/`sequence`/`boardVersion` kaldırıldı; alıcı yoktu). 12 Vitest (`apps/api/src/socket/socket.test.ts`): auth middleware, board:join/leave, auto user-room, emit izolasyonu. Faz 5B (mutation gövdelerinden outbox → worker → emit) ayrı tab.
 
+### Faz 6 — Notification & push procedure'leri ([DEM-29](https://linear.app/demirkol/issue/DEM-29))
+
+> Faz 6 = bildirim merkezi (in-app + email + push). Activity event → `notification_outbox` üretimi mutation gövdesinde, processor `apps/worker`'da fan-out (in-app insert + Faz 5 `emitToUser` + email Resend + push Expo); UI tüketimi tRPC procedure'leri üzerinden. Domain kuralları → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md); processor mekaniği → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Notification processor (Faz 6)"; tablo şemaları → [`04-veri-katmani.md`](04-veri-katmani.md) "Faz 6 (Bildirim) kapsamı"; UI → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.11.
+
+> **Wired — Faz 6A ([DEM-90](https://linear.app/demirkol/issue/DEM-90), 2026-05-13):** `notifications.list/markRead/markAllRead/unreadCount` (`packages/api/src/routers/notifications.ts`) canlı — cursor `(createdAt, id)` base64, single-statement `markRead` (`COALESCE` + `wasUnread` flag, race-free). Notification rule engine + outbox helper + 10 mutation gövdesi entegrasyonu için → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Notification processor (Faz 6)" wired notu. Commit `5df3bd5`.
+
+| Router | Procedure | Middleware | Not |
+| --- | --- | --- | --- |
+| `notifications` | `list` | `protectedProcedure` | Kullanıcının kendi notification'ları (`WHERE user_id = ctx.session.userId`); cursor pagination (`limit + cursor` veya `before` timestamp); opsiyonel filter `{ read?: boolean }` (unread-only / all). Sıralama: `created_at desc`. Response: `{ items: Notification[], nextCursor?: string }`. |
+| `notifications` | `unreadCount` | `protectedProcedure` | Kullanıcının okunmamış notification sayısı (`WHERE user_id = ctx.session.userId AND read_at IS NULL`). Bell badge için; realtime invalidate ile güncel kalır (5C `useUserRealtime`). Response: `{ count: number }`. |
+| `notifications` | `markRead` | `protectedProcedure` | Tek notification'ı okundu olarak işaretle (`SET read_at = NOW() WHERE id = ? AND user_id = ctx.session.userId AND read_at IS NULL`). Yetki: yalnız kendi notification'ı (`user_id` check); başkası → `NOT_FOUND` (info-leak önler). Idempotent: zaten okunmuşsa no-op (sessizce success). |
+| `notifications` | `markAllRead` | `protectedProcedure` | Kullanıcının tüm okunmamışlarını okundu (`SET read_at = NOW() WHERE user_id = ctx.session.userId AND read_at IS NULL`). Response: `{ marked: number }` (kaç satır güncellendi). Idempotent. |
+| `push` | `tokens.register` | `protectedProcedure` | Mobile client Expo push token kayıt eder. Input: `{ token (Expo format), platform ('ios'\|'android'\|'web'), deviceName? }`. `INSERT ... ON CONFLICT (token) DO UPDATE SET last_used_at = NOW(), revoked_at = NULL` (aynı token tekrar register → reactivate). Yetki: kendi userId; başka user'a token kayıt edilemez. Token format Zod validation (`ExponentPushToken[xxx...]` veya `ExpoPushToken[xxx...]` regex). |
+| `push` | `tokens.revoke` | `protectedProcedure` | Logout veya manuel revoke. Input: `{ token }`. `UPDATE push_tokens SET revoked_at = NOW() WHERE token = ? AND user_id = ctx.session.userId` (silmez — audit kalır). Idempotent: zaten revoked → no-op. |
+
+**Mutation gövdesi pattern (notification_outbox insert):**
+
+```txt
+protectedProcedure (session check)
+  → workspace/board/card access
+  → input validation
+  → Drizzle transaction:
+      - domain mutasyonu
+      - activity_events insert
+      - realtime_events insert (Faz 5B)
+      - notification-rules.ts(activityEvent) → recipients
+      - per-recipient × per-channel: notification_outbox insert (cooldown 60s check)
+  → sonuç
+  → (tx commit sonrası) void ctx.notifications.enqueue({ eventId })
+```
+
+**Notification-rules helper (`packages/api/src/lib/notification-rules.ts`):**
+
+- Pure function: `computeNotifications(activityEvent, ctx) → Array<{ recipientUserId, type, channels[], payload }>`.
+- Recipient hesabı: activity event tipine göre (atama → atanan; mention → mention edilen; yorum → watcher'lar; due → kart üyeleri; davet → davet edilen e-posta; vb. — tam liste `04-bildirim-kurallari.md`).
+- Channel hesabı: `notification_preferences` lookup (workspace > board > card hiyerarşisi; en dar override eder); default in-app + push opt-in + email opt-in.
+- Permission check: recipient board'a erişebiliyor mu (`resolveBoardAccess` veya recipient'in `board_members`/`workspace_members` kaydı kontrolü; silinmiş kullanıcı → skip).
+- Actor self-skip + role merge (assignee+watcher → tek satır) + mute-bypass (`mention`/`davet` her zaman geçer).
+
+**Cooldown 60s check (mutation gövdesinde):**
+
+```sql
+SELECT 1 FROM notification_outbox
+WHERE recipient_id = $1 AND type = $2
+  AND created_at > NOW() - INTERVAL '60 seconds'
+LIMIT 1
+```
+Varsa skip (silently); yoksa insert. İstisnalar: `comment.mentioned` + `*_invited` + `due_reminder_*` (her biri kendi dedupe'una sahip).
+
+**Mention parser (`packages/api/src/lib/mention-parser.ts` — Faz 6C):**
+
+- Input: `comment.body` Tiptap JSON (text node'larında `@username` formatı taranır; mention plugin node'u da desteklenir).
+- Regex: `/(?:^|\s)@([a-zA-Z0-9_-]+)/g` (boşluk veya başlangıç önekli — `email@x` skip).
+- Match edilen username'ler `users` tablosunda lookup (`WHERE LOWER(username) IN (...)`); kart'ın board'una erişimi olanlar filtre.
+- Her geçerli mention için `activity_events` `comment.mentioned` insert (payload: `{ commentId, mentionedUserId, mentionText }`).
+- Notification-rules `comment.mentioned` olayını görür → mention edilen kullanıcıya bildirim (mute-bypass; cooldown'a tabi değil).
+- Dedupe: aynı yorumda aynı user iki kez → tek mention (Set kullanımı).
+
+**Test (Faz 6A + 6B + 6C — özet; detay Faz 6E [DEM-94]):**
+
+- Notification kuralları: her activity tipi için doğru recipient + kanal mapping (mock activity → recipients array).
+- Cooldown 60s window: aynı user + type → tek outbox satırı.
+- Permission: recipient board'a erişemiyor → bildirim üretilmez.
+- Mention parser: `@user` match; `email@x` skip; aynı yorumda dup → tek; yetkisiz user → skip; bilinmeyen username → skip.
+- `notifications.list`/`markRead`/`markAllRead`/`unreadCount` integration testleri (mock seed + tRPC caller).
+- `push.tokens.register`/`revoke` integration (duplicate token → update; revoked → reactivate).
+
+> **Kapsam dışı:** notification tercih ekranı UI (default tercihlerle çalışır; UI sonraki tur), email digest (saatlik/günlük özet — Faz 8), slack/teams entegrasyonu, recurring task'lar.
+
 ## Worker (background job)
 
 `apps/worker` ayrı uygulama (API ile aynı image, farklı command olabilir; ama ayrı process):

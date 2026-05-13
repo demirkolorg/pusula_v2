@@ -93,3 +93,86 @@ Board/list/card mutation'larından gelen collaborative event'lerin **outbox patt
 - **Retention:** `realtime_events.published_at IS NOT NULL AND created_at < NOW() - INTERVAL '7 days'` satırları periyodik cleanup job ile silinir (7 gün audit/debug window'u). Sonraki tur — Faz 8 sertleştirme.
 - **Faz kapsamı:** Faz 5B ([DEM-84](https://linear.app/demirkol/issue/DEM-84)) `realtime_events` insert (mutation gövdelerinde) + producer enqueue + worker processor + envelope üretimi. Faz 5A ([DEM-83](https://linear.app/demirkol/issue/DEM-83)) Socket.IO server + emit helper'ları + Redis pub/sub kanalı. Etkilenen katmanlar: `apps/worker` (processor + sweeper), `packages/api` (mutation gövdesinde outbox insert + enqueue), `apps/api` (queue boot + context inject + Socket.IO server), `packages/db` (`realtime_events` Drizzle şeması — migration), `packages/domain` (envelope tipi + helper'lar).
 - **Kapsam dışı:** comment / mention / due reminder event'leri → Faz 6 (notification kanalı + outbox); presence event'leri → Faz 6/7 (özel taşıma — outbox'a yazmaz, in-memory).
+
+## Notification processor (Faz 6 — [DEM-29](https://linear.app/demirkol/issue/DEM-29))
+
+Activity event'lerinden bildirim üretimi + worker processor + kanal fan-out. **Karar (2026-05-13):** Faz 5 `realtime_events` outbox pattern'iyle simetrik — mutation tx içinde `notification_outbox` insert (kural-tabanlı; `notification-rules.ts` recipient + kanal hesabı yapar) → worker tüketir → in-app/email/push kanallarına fan-out. Domain kuralları (kim ne için bildirim alır) → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md); tablo şemaları → [`04-veri-katmani.md`](04-veri-katmani.md) (`notifications` + `notification_outbox` + `notification_preferences`).
+
+> **Wired (2026-05-13 — Faz 6A / [DEM-90](https://linear.app/demirkol/issue/DEM-90)):** Bu katman canlı. Rule engine `packages/api/src/lib/notification-rules.ts` (activity → recipient × channel, actor self-skip + permission filter + role merge + mute-bypass + narrowest-scope-wins preference lookup). Outbox helper `packages/api/src/lib/notification-outbox.ts` (60 s cooldown — `ne(eventId, current)` ile multi-channel fan-out korunur; bypass tipleri `mention`/`*_invitation`/`due_*`). Dispatcher `dispatchNotificationsForActivity(tx, activityEvent)` 10 mutation gövdesinde çağrılıyor (card.member.add · comment.create · card.update due · card.complete/uncomplete/archive/move (cross-list)/moveToList · checklist.item.toggle (checked) · board.members.add direct). Producer `apps/api/src/notification-queue.ts` (BullMQ `pusula-notifications`, `jobId notify:{eventId}` debounce, best-effort). Worker processor `apps/worker/src/jobs/notification-publish.ts` (`FOR UPDATE SKIP LOCKED` + post-commit Redis pub/sub `pusula:notifications:user`); sweeper `notification-publish-sweeper.ts` (60 s repeatable, 30 s grace, `DISTINCT event_id`). Migration `0009_glorious_mercury` (partial unread + cooldown composite + partial pending) + `0011_eager_punisher` (UNIQUE partial scheduler dedupe `(payload->>'dedupeKey') WHERE event_id IS NULL`). tRPC `notifications.list`/`markRead`/`markAllRead`/`unreadCount` (cursor pagination + single-statement markRead). Vitest 16 yeni (rules 6 · outbox 3 · router 7) + worker 6 yeni (publish 3 · scheduler 3). Commit `5df3bd5`.
+
+- **Queue:** `pusula-notifications` (BullMQ, `apps/worker` — `QUEUE.notifications`); `pusula-notifications-email` + `pusula-notifications-push` (Faz 6B kanal kuyrukları — ad ayracı `-`); `pusula-realtime-publish` (Faz 5) + `pusula-compaction` (Faz 3C) yanında.
+- **Notification kuralları (`packages/api/src/lib/notification-rules.ts`):** activity event tipine göre recipient(s) + kanal(lar) hesabı (pure function). Input: `{ activityEvent, actor, board, card?, list? }`; output: `Array<{ recipientUserId, type, channels: ['in_app' | 'email' | 'push'], payload }>`. Actor self-skip + permission check (board erişimi olmayan recipient atlanır) + role merge (assignee+watcher tek satır). Detay → `04-bildirim-kurallari.md` "Bildirim kaynakları" tablosu.
+- **Cooldown 60s:** insert öncesi son 60s'de aynı `(recipient_id, type)` `notification_outbox` satırı varsa yeni satır eklenmez. İstisnalar: `comment.mentioned` (mute-bypass + her mention önemli), `*_invited` (her davet ayrı token), `due_reminder_*` (scheduler zaten dedupe yapıyor).
+- **Tetik (enqueue):** mutation tx içinde `activity_events` insert'in yanına notification-rules sonucu için her recipient için `notification_outbox` insert (`id`, `event_id` [= activity_events.id], `recipient_id`, `type`, `channel`, `payload`, `status='pending'`, `attempts=0`, `created_at`, `processed_at=NULL`). tx COMMIT sonrası `void ctx.notifications.enqueue({ eventId })` best-effort.
+- **Worker processor (`apps/worker/src/jobs/notification-publish.ts`):**
+  1. `notification_outbox` satırını oku (`SELECT ... WHERE id = $1 AND processed_at IS NULL FOR UPDATE SKIP LOCKED`).
+  2. Yoksa → return.
+  3. Channel'a göre fan-out:
+     - `in_app` → `notifications` tablosuna INSERT (`user_id`, `type`, `payload`, `read_at=NULL`) + Faz 5 `emitToUser(userId, { type: 'notification.created', payload })` (badge realtime push).
+     - `email` → `pusula-notifications-email` kuyruğuna ileri (6B processor — Resend send).
+     - `push` → `pusula-notifications-push` kuyruğuna ileri (6B processor — Expo Push API).
+  4. `notification_outbox.processed_at = NOW()` damgalanır + `status='delivered'`.
+  5. Hata → `attempts+1` + BullMQ retry (3 attempt, exponential); 3 fail → `status='failed'` + dead-letter.
+- **Periyodik sweeper (`pusula-notifications-sweeper`):** `processed_at IS NULL AND created_at < NOW() - INTERVAL '30 seconds'` satırları yeniden enqueue eder (60s aralıklı cron — Faz 5B sweeper pattern'iyle simetrik).
+- **Retention:** `processed_at IS NOT NULL AND created_at < NOW() - INTERVAL '30 days'` satırları periyodik cleanup (sonraki tur / Faz 8).
+- **Faz kapsamı:** Faz 6A ([DEM-90](https://linear.app/demirkol/issue/DEM-90)) `notification-rules.ts` + mutation gövdelerinde `notification_outbox` insert + worker processor + sweeper + `notifications.*` procedure'leri + due-date scheduler. Faz 6B ([DEM-91](https://linear.app/demirkol/issue/DEM-91)) email + push kanal processor'ları. Faz 6C ([DEM-92](https://linear.app/demirkol/issue/DEM-92)) mention parser + comment/checklist realtime. Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)) web notification center UI.
+
+## Email kanalı (Resend, Faz 6B — [DEM-91](https://linear.app/demirkol/issue/DEM-91))
+
+DEM-68 (şifre sıfırlama) auth e-postalarıyla aynı Resend kanalı; notification e-postaları transactional olarak gönderilir (digest sonraki tur).
+
+- **Worker processor (`apps/worker/src/jobs/notification-email.ts`):**
+  1. Input job: `{ outboxId }` (`pusula-notifications-email` kuyruğundan; 6A processor channel='email' için bu kuyruğa push eder).
+  2. `notification_outbox` satırını oku → recipient + payload.
+  3. Recipient'in e-postası `users` tablosundan çekilir (audit-safe — `email_enabled` tercih kontrolü; varsayılan açık).
+  4. Template seç (notification type'ına göre — atama / mention / yorum / due / davet). HTML template `packages/email/templates/` veya inline JSX.
+  5. `resend.emails.send({ from: EMAIL_FROM, to, subject, html })`.
+  6. `notification_outbox.processed_at = NOW()` + `status='delivered'`.
+  7. Hata (Resend rate limit / network) → BullMQ retry (3 attempt); dead-letter.
+- **Template'ler (Faz 6B kapsamı):**
+  - `card.member_added` → "{Actor} sizi '{cardTitle}' kartına atadı" + kart linki
+  - `comment.mentioned` → "{Actor} bir yorumda sizden bahsetti" + yorum içeriği preview + kart linki
+  - `comment.created` (watcher) → "{Actor} '{cardTitle}' kartında yeni bir yorum bıraktı"
+  - `due_reminder_*` → "'{cardTitle}' kartının teslim tarihi yaklaşıyor" / "geçti"
+  - `board.member_invited` → "{Actor} sizi '{boardName}' panosuna davet etti" + accept/decline link (token ile)
+- **Env:** `RESEND_API_KEY` + `EMAIL_FROM` (zaten DEM-68'de eklendi, paylaşılır).
+- **Faz kapsamı:** Faz 6B. Digest (saatlik/günlük özet) sonraki tur — Faz 8 sertleştirme.
+
+## Push kanalı (Expo, Faz 6B — [DEM-91](https://linear.app/demirkol/issue/DEM-91))
+
+Expo Push API üzerinden mobile push gönderimi. **Backend Faz 6'da kurulur; gerçek mobile push aktivasyonu Faz 7** ([DEM-30](https://linear.app/demirkol/issue/DEM-30)) — `apps/mobile` Expo Notifications token'ı kayıt edince processor aktif olur.
+
+- **Push token modeli:** `push_tokens` tablosu (Faz 6B migration — [`04-veri-katmani.md`](04-veri-katmani.md)): `id, user_id, token (uniq), platform (ios/android/web), device_name?, created_at, last_used_at, revoked_at?`. Partial index `WHERE revoked_at IS NULL` (aktif token sorgusu için).
+- **Token yönetimi:** tRPC `push.tokens.register({ token, platform, deviceName? })` + `push.tokens.revoke({ token })` (`protectedProcedure` — bkz. [`03-backend.md`](03-backend.md) "Faz 6 — notification & push procedure'leri"). Mobile client (Faz 7) Expo Notifications token alır → `push.tokens.register` çağırır.
+- **Worker processor (`apps/worker/src/jobs/notification-push.ts`):**
+  1. Input job: `{ outboxId }` (`pusula-notifications-push` kuyruğu; 6A channel='push' için push eder).
+  2. `notification_outbox` satırını oku → recipient + payload.
+  3. Recipient'in aktif `push_tokens` listesini çek (`WHERE user_id = ? AND revoked_at IS NULL`).
+  4. Token=[] → no-op (apps/mobile yokken; log warn `push tokens empty for user X`).
+  5. Token VAR → Expo Push API'ye batch request (`https://exp.host/--/api/v2/push/send`; `expo-server-sdk` Node.js client). Payload: `{ to: token, title, body, data: { type, cardId?, boardId? } }`.
+  6. Response: `DeviceNotRegistered` / `InvalidCredentials` hata → `push_tokens.revoked_at = NOW()` damgalanır (audit; silinmez).
+  7. `notification_outbox.processed_at = NOW()` + `status='delivered'`.
+  8. Hata → BullMQ retry (3 attempt); dead-letter.
+- **Deep link:** mobile tarafın çözebileceği route bilgisi payload'da (`data.type='card.member_added'`, `data.cardId='...'`). [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.2 (mobile) Faz 7'de işler.
+- **Dependency:** `expo-server-sdk` (Node.js Expo Push API client) — `apps/worker` deps'e eklenir.
+- **Env:** `EXPO_PUSH_ACCESS_TOKEN` opsiyonel (Expo enhanced security; ileri faz).
+- **Faz kapsamı:** Faz 6B backend hazırlık (tablo + API + processor iskeleti); Faz 7 mobile token registration ile gerçek gönderim aktive olur.
+
+## Due-date scheduler (Faz 6A — [DEM-90](https://linear.app/demirkol/issue/DEM-90))
+
+Yaklaşan/geçmiş due tarihler için periyodik bildirim üretimi.
+
+- **Queue:** `pusula-due-date-scheduler` (BullMQ repeatable job — cron 5dk aralıklı, `apps/worker`).
+- **Sorgu:** `SELECT ... FROM cards WHERE due_at IS NOT NULL AND archived_at IS NULL AND completed = false`.
+- **Reminder tipleri:**
+  - `due_reminder_1d` — `due_at < NOW() + INTERVAL '24 hours' AND due_at > NOW() + INTERVAL '1 hour'` (24 saat içinde, henüz 1 saat eşiğine değil) + henüz aynı kart için bu tip notification gönderilmemiş.
+  - `due_reminder_1h` — `due_at < NOW() + INTERVAL '1 hour' AND due_at > NOW()` (1 saat içinde) + henüz aynı kart için gönderilmemiş.
+  - `due_overdue` — `due_at < NOW()` (geçmiş) + henüz aynı kart için gönderilmemiş.
+- **Dedupe:** `notification_outbox` `WHERE event_id = card_id AND type = 'due_reminder_*'` ile aynı kart + aynı tip için 2 kez bildirim gitmez. Reminder tipleri sıralı: 1d → 1h → overdue (her tip yalnız bir kez).
+- **Recipient hesabı:** Kart üyeleri (`card_members` — assignee + watcher; `notification-rules.ts`'in `due_reminder_*` kuralı).
+- **Cron sıklığı:** 5dk — daha sık scheduler load'u artırır, daha seyrek precision düşer (1h reminder 5dk gecikmeli gidebilir, kabul edilebilir).
+- **Faz kapsamı:** Faz 6A. Recurring task'lar (tekrarlayan kartlar) sonraki tur.
+
+## Worker job'ları (özet — güncel)
+
+notification outbox tüketme · notification-email (Resend) · notification-push (Expo) · realtime-publish (Faz 5B) · realtime-publish-sweeper (Faz 5B) · notification-publish-sweeper (Faz 6A) · due-date scheduler (Faz 6A) · failed job retry · dead-letter job kaydı · position compaction (Faz 3C). Queue: BullMQ + Redis. Bkz. [`10-platform.md`](10-platform.md).
