@@ -62,7 +62,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'List Co',
       slug: newSlug('list-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -76,7 +76,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'List Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     // The guest gets an explicit `viewer` membership on the board.
@@ -111,7 +111,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const first = await callerFor(memberId).list.create({
       boardId,
       title: 'To Do',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(first).toMatchObject({ boardId, title: 'To Do' });
     expect(first.archivedAt).toBeNull();
@@ -119,12 +119,12 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const second = await callerFor(memberId).list.create({
       boardId,
       title: 'Doing',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const third = await callerFor(ownerId).list.create({
       boardId,
       title: 'Done',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     // positions strictly increase in creation order (append-only)
@@ -141,7 +141,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
 
   it('create: a board viewer (workspace guest with an explicit viewer membership) is FORBIDDEN', async () => {
     await expect(
-      callerFor(guestId).list.create({ boardId, title: 'Nope', clientMutationId: newId('cmid') }),
+      callerFor(guestId).list.create({ boardId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -149,14 +149,14 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const archivedBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Frozen',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archivedBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archivedBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(ownerId).list.create({
         boardId: archivedBoard.id,
         title: 'Nope',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -167,7 +167,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Old List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const vAfterCreate = await boardVersion(boardId);
 
@@ -177,7 +177,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
         boardId,
         listId: list.id,
         title: 'Hax',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -185,7 +185,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       boardId,
       listId: list.id,
       title: 'New List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(updated).toMatchObject({ id: list.id, title: 'New List', changed: true });
     expect(await boardVersion(boardId)).toBe(vAfterCreate + 1);
@@ -203,7 +203,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       boardId,
       listId: list.id,
       title: 'New List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: list.id, title: 'New List', changed: false });
     expect(await boardVersion(boardId)).toBe(vBeforeNoop);
@@ -213,19 +213,19 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Other Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const otherList = await callerFor(ownerId).list.create({
       boardId: otherBoard.id,
       title: 'Their List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(ownerId).list.update({
         boardId, // authenticate against *this* board…
         listId: otherList.id, // …but reference a list in another board
         title: 'Nope',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -236,13 +236,13 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Archive Me',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     const archived = await callerFor(memberId).list.archive({
       boardId,
       listId: list.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(archived).toMatchObject({ id: list.id, changed: true });
     expect(archived.archivedAt).toBeInstanceOf(Date);
@@ -251,7 +251,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const noop = await callerFor(memberId).list.archive({
       boardId,
       listId: list.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: list.id, changed: false });
 
@@ -260,7 +260,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       boardId,
       listId: list.id,
       archived: false,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(restored).toMatchObject({ id: list.id, archivedAt: null, changed: true });
 
@@ -283,11 +283,11 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Move Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
-    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: crypto.randomUUID() });
     expect(a.position < b.position).toBe(true);
     expect(b.position < c.position).toBe(true);
 
@@ -297,7 +297,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       boardId: board.id,
       listId: c.id,
       afterListId: a.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(movedToFront).toMatchObject({ id: c.id, changed: true });
     expect(movedToFront.position < a.position).toBe(true);
@@ -318,7 +318,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       boardId: board.id,
       listId: c.id,
       beforeListId: b.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(movedToEnd.changed).toBe(true);
     expect(b.position < movedToEnd.position).toBe(true);
@@ -329,7 +329,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       listId: c.id,
       beforeListId: a.id,
       afterListId: b.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(movedToMiddle.changed).toBe(true);
     expect(a.position < movedToMiddle.position).toBe(true);
@@ -340,11 +340,11 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'NewPosition Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
-    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: crypto.randomUUID() });
 
     // valid: a position strictly between A and B
     const between = positionBetween(a.position, b.position);
@@ -354,7 +354,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       beforeListId: a.id,
       afterListId: b.id,
       newPosition: between,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(ok).toMatchObject({ id: c.id, position: between, changed: true });
 
@@ -366,7 +366,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
         beforeListId: a.id,
         afterListId: b.id,
         newPosition: b.position,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -376,18 +376,18 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Move Other Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const otherList = await callerFor(ownerId).list.create({
       boardId: otherBoard.id,
       title: 'Their List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(ownerId).list.move({
         boardId, // authenticate against *this* board…
         listId: otherList.id, // …but reference a list in another board
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -395,19 +395,19 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const archBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Move Archived Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const archList = await callerFor(ownerId).list.create({
       boardId: archBoard.id,
       title: 'Doomed',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(ownerId).list.move({
         boardId: archBoard.id,
         listId: archList.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
   });
@@ -416,10 +416,10 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Viewer Cannot Move',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
-      callerFor(guestId).list.move({ boardId, listId: list.id, clientMutationId: newId('cmid') }),
+      callerFor(guestId).list.move({ boardId, listId: list.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -427,10 +427,10 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Noop Move Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(board.id);
     const before0 = (await actsFor(board.id)).filter((e) => e.type === 'list.moved').length;
@@ -441,7 +441,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       listId: b.id,
       beforeListId: a.id,
       newPosition: b.position,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: b.id, position: b.position, changed: false });
     expect(await boardVersion(board.id)).toBe(v0);
@@ -455,17 +455,17 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Compaction Short Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
 
     // A real move into the middle (between A and B) — short key.
     const moved = await callerWithEnqueue(memberId, enqueue).list.move({
       boardId: board.id,
       listId: b.id,
       afterListId: a.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved.changed).toBe(true);
     expect(moved.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
@@ -477,7 +477,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       listId: b.id,
       newPosition: moved.position,
       afterListId: a.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(enqueue).not.toHaveBeenCalled();
   });
@@ -487,14 +487,14 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Compaction Long Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
     const target = await callerFor(ownerId).list.create({
       boardId: board.id,
       title: 'Target',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     // Pin A/B to known adjacent keys so a long-but-valid `newPosition` is easy
@@ -512,7 +512,7 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       beforeListId: a.id,
       afterListId: b.id,
       newPosition: longPos,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: target.id, position: longPos, changed: true });
     expect(enqueue).toHaveBeenCalledTimes(1);

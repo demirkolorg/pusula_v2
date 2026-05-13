@@ -57,7 +57,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Checklist Co',
       slug: newSlug('checklist-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -71,7 +71,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Checklist Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     await db().insert(boardMembers).values({ boardId, userId: guestId, role: 'viewer' });
@@ -79,20 +79,20 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Backlog',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     listId = list.id;
 
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Checklisted card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     cardId = card.id;
     const otherCard = await callerFor(ownerId).card.create({
       listId,
       title: 'Other card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     otherCardId = otherCard.id;
   });
@@ -121,10 +121,10 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
 
   it('create: a member appends a checklist (checklist.created activity, version+1); a board viewer is FORBIDDEN', async () => {
     const v0 = await boardVersion(boardId);
-    const a = await callerFor(memberId).checklist.create({ cardId, title: '  Tasks  ', clientMutationId: newId('cmid') });
+    const a = await callerFor(memberId).checklist.create({ cardId, title: '  Tasks  ', clientMutationId: crypto.randomUUID() });
     expect(a).toMatchObject({ cardId, title: 'Tasks' });
     expect(a.position).toBeTruthy();
-    const b = await callerFor(memberId).checklist.create({ cardId, title: 'More tasks', clientMutationId: newId('cmid') });
+    const b = await callerFor(memberId).checklist.create({ cardId, title: 'More tasks', clientMutationId: crypto.randomUUID() });
     expect(a.position < b.position).toBe(true);
 
     const acts = await actsFor(boardId);
@@ -137,12 +137,12 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 2);
 
     await expect(
-      callerFor(guestId).checklist.create({ cardId, title: 'Nope', clientMutationId: newId('cmid') }),
+      callerFor(guestId).checklist.create({ cardId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('update: renames a checklist (no activity, version+1); same title is idempotent', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Renameable', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Renameable', clientMutationId: crypto.randomUUID() });
     const beforeActs = (await actsFor(boardId)).length;
 
     const v0 = await boardVersion(boardId);
@@ -150,7 +150,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       cardId,
       checklistId: c.id,
       title: 'Renamed checklist',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(renamed).toMatchObject({ id: c.id, title: 'Renamed checklist', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -160,7 +160,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       cardId,
       checklistId: c.id,
       title: 'Renamed checklist',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: c.id, changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -170,12 +170,12 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
   });
 
   it('delete: removes a checklist and cascades its items (no activity, version+1)', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Doomed', clientMutationId: newId('cmid') });
-    const i1 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'one', clientMutationId: newId('cmid') });
-    const i2 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'two', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Doomed', clientMutationId: crypto.randomUUID() });
+    const i1 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'one', clientMutationId: crypto.randomUUID() });
+    const i2 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'two', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
-    const deleted = await callerFor(memberId).checklist.delete({ cardId, checklistId: c.id, clientMutationId: newId('cmid') });
+    const deleted = await callerFor(memberId).checklist.delete({ cardId, checklistId: c.id, clientMutationId: crypto.randomUUID() });
     expect(deleted).toMatchObject({ id: c.id, deleted: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
@@ -187,42 +187,42 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
 
     // a missing checklist is NOT_FOUND
     await expect(
-      callerFor(memberId).checklist.delete({ cardId, checklistId: c.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).checklist.delete({ cardId, checklistId: c.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('NOT_FOUND: a checklistId belonging to another card', async () => {
-    const onOther = await callerFor(ownerId).checklist.create({ cardId: otherCardId, title: 'Other checklist', clientMutationId: newId('cmid') });
+    const onOther = await callerFor(ownerId).checklist.create({ cardId: otherCardId, title: 'Other checklist', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).checklist.update({ cardId, checklistId: onOther.id, title: 'hax', clientMutationId: newId('cmid') }),
+      callerFor(memberId).checklist.update({ cardId, checklistId: onOther.id, title: 'hax', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      callerFor(memberId).checklist.item.create({ cardId, checklistId: onOther.id, content: 'hax', clientMutationId: newId('cmid') }),
+      callerFor(memberId).checklist.item.create({ cardId, checklistId: onOther.id, content: 'hax', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('NOT_FOUND: an itemId belonging to another checklist on the same card', async () => {
-    const a = await callerFor(memberId).checklist.create({ cardId, title: 'Checklist A', clientMutationId: newId('cmid') });
-    const b = await callerFor(memberId).checklist.create({ cardId, title: 'Checklist B', clientMutationId: newId('cmid') });
-    const itemA = await callerFor(memberId).checklist.item.create({ cardId, checklistId: a.id, content: 'a-item', clientMutationId: newId('cmid') });
-    const itemB = await callerFor(memberId).checklist.item.create({ cardId, checklistId: b.id, content: 'b-item', clientMutationId: newId('cmid') });
+    const a = await callerFor(memberId).checklist.create({ cardId, title: 'Checklist A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(memberId).checklist.create({ cardId, title: 'Checklist B', clientMutationId: crypto.randomUUID() });
+    const itemA = await callerFor(memberId).checklist.item.create({ cardId, checklistId: a.id, content: 'a-item', clientMutationId: crypto.randomUUID() });
+    const itemB = await callerFor(memberId).checklist.item.create({ cardId, checklistId: b.id, content: 'b-item', clientMutationId: crypto.randomUUID() });
     expect(itemA.id).not.toBe(itemB.id);
     // toggling B's item through checklist A → NOT_FOUND
     await expect(
-      callerFor(memberId).checklist.item.toggle({ cardId, checklistId: a.id, itemId: itemB.id, completed: true, clientMutationId: newId('cmid') }),
+      callerFor(memberId).checklist.item.toggle({ cardId, checklistId: a.id, itemId: itemB.id, completed: true, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   // ------------------------------------------------------- checklist.item
 
   it('item.create: appends an item (checklist.item_added activity, version+1)', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Item host', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Item host', clientMutationId: crypto.randomUUID() });
     const v0 = await boardVersion(boardId);
     const item = await callerFor(memberId).checklist.item.create({
       cardId,
       checklistId: c.id,
       content: '  do the thing  ',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(item).toMatchObject({ checklistId: c.id, content: 'do the thing', completed: false });
     expect(item.completedAt).toBeNull();
@@ -238,8 +238,8 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
   });
 
   it('item.toggle: check sets completedAt/completedBy + checklist.item_checked; uncheck clears them + checklist.item_unchecked; idempotent', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Toggle host', clientMutationId: newId('cmid') });
-    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'toggle me', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Toggle host', clientMutationId: crypto.randomUUID() });
+    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'toggle me', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const checked = await callerFor(memberId).checklist.item.toggle({
@@ -247,7 +247,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: item.id,
       completed: true,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(checked).toMatchObject({ id: item.id, completed: true, completedBy: memberId, changed: true });
     expect(checked.completedAt).toBeInstanceOf(Date);
@@ -260,7 +260,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: item.id,
       completed: true,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: item.id, changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -270,7 +270,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: item.id,
       completed: false,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(unchecked).toMatchObject({ id: item.id, completed: false, completedAt: null, completedBy: null, changed: true });
 
@@ -282,8 +282,8 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
   });
 
   it('item.update: edits content (no activity, version+1); same content is idempotent', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Edit host', clientMutationId: newId('cmid') });
-    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'before', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Edit host', clientMutationId: crypto.randomUUID() });
+    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'before', clientMutationId: crypto.randomUUID() });
     const beforeActs = (await actsFor(boardId)).length;
 
     const v0 = await boardVersion(boardId);
@@ -292,7 +292,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: item.id,
       content: 'after',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(edited).toMatchObject({ id: item.id, content: 'after', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -302,7 +302,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: item.id,
       content: 'after',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: item.id, changed: false });
 
@@ -310,15 +310,15 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
   });
 
   it('item.delete: removes an item (checklist.item_removed activity, version+1)', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Delete host', clientMutationId: newId('cmid') });
-    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'remove me', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Delete host', clientMutationId: crypto.randomUUID() });
+    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'remove me', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const deleted = await callerFor(memberId).checklist.item.delete({
       cardId,
       checklistId: c.id,
       itemId: item.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(deleted).toMatchObject({ id: item.id, deleted: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -329,15 +329,15 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     ).toHaveLength(1);
 
     await expect(
-      callerFor(memberId).checklist.item.delete({ cardId, checklistId: c.id, itemId: item.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).checklist.item.delete({ cardId, checklistId: c.id, itemId: item.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('item.reorder: moves an item between two neighbours (no activity, version+1); a neighbour from another checklist is BAD_REQUEST', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Reorder host', clientMutationId: newId('cmid') });
-    const i1 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'one', clientMutationId: newId('cmid') });
-    const i2 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'two', clientMutationId: newId('cmid') });
-    const i3 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'three', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Reorder host', clientMutationId: crypto.randomUUID() });
+    const i1 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'one', clientMutationId: crypto.randomUUID() });
+    const i2 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'two', clientMutationId: crypto.randomUUID() });
+    const i3 = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'three', clientMutationId: crypto.randomUUID() });
     expect(i1.position < i2.position && i2.position < i3.position).toBe(true);
     const beforeActs = (await actsFor(boardId)).length;
 
@@ -349,7 +349,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       itemId: i3.id,
       beforeItemId: i1.id,
       afterItemId: i2.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: i3.id, changed: true });
     expect(i1.position < moved.position && moved.position < i2.position).toBe(true);
@@ -362,20 +362,20 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
       checklistId: c.id,
       itemId: i1.id,
       afterItemId: moved.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(movedFront.position < moved.position).toBe(true);
 
     // a neighbour from a different checklist → BAD_REQUEST
-    const other = await callerFor(memberId).checklist.create({ cardId, title: 'Foreign checklist', clientMutationId: newId('cmid') });
-    const foreignItem = await callerFor(memberId).checklist.item.create({ cardId, checklistId: other.id, content: 'foreign', clientMutationId: newId('cmid') });
+    const other = await callerFor(memberId).checklist.create({ cardId, title: 'Foreign checklist', clientMutationId: crypto.randomUUID() });
+    const foreignItem = await callerFor(memberId).checklist.item.create({ cardId, checklistId: other.id, content: 'foreign', clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(memberId).checklist.item.reorder({
         cardId,
         checklistId: c.id,
         itemId: i2.id,
         beforeItemId: foreignItem.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -386,7 +386,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
         checklistId: c.id,
         itemId: i2.id,
         beforeItemId: i2.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
@@ -395,19 +395,19 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
         checklistId: c.id,
         itemId: i2.id,
         afterItemId: i2.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('item.*: a board viewer (workspace guest) cannot mutate checklist items (FORBIDDEN)', async () => {
-    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Guarded host', clientMutationId: newId('cmid') });
-    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'do not touch', clientMutationId: newId('cmid') });
+    const c = await callerFor(memberId).checklist.create({ cardId, title: 'Guarded host', clientMutationId: crypto.randomUUID() });
+    const item = await callerFor(memberId).checklist.item.create({ cardId, checklistId: c.id, content: 'do not touch', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(guestId).checklist.item.toggle({ cardId, checklistId: c.id, itemId: item.id, completed: true, clientMutationId: newId('cmid') }),
+      callerFor(guestId).checklist.item.toggle({ cardId, checklistId: c.id, itemId: item.id, completed: true, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
-      callerFor(guestId).checklist.item.create({ cardId, checklistId: c.id, content: 'sneaky', clientMutationId: newId('cmid') }),
+      callerFor(guestId).checklist.item.create({ cardId, checklistId: c.id, content: 'sneaky', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -415,7 +415,7 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
 
   it('an outsider (not a workspace member) cannot create a checklist (FORBIDDEN)', async () => {
     await expect(
-      callerFor(outsiderId).checklist.create({ cardId, title: 'sneaky', clientMutationId: newId('cmid') }),
+      callerFor(outsiderId).checklist.create({ cardId, title: 'sneaky', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -425,21 +425,21 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'To Be Archived (checklists)',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const listOnOther = await callerFor(ownerId).list.create({
       boardId: otherBoard.id,
       title: 'List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const cardOnOther = await callerFor(ownerId).card.create({
       listId: listOnOther.id,
       title: 'Card on other',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(ownerId).checklist.create({ cardId: cardOnOther.id, title: 'Nope', clientMutationId: newId('cmid') }),
+      callerFor(ownerId).checklist.create({ cardId: cardOnOther.id, title: 'Nope', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

@@ -239,6 +239,7 @@ export const cardRouter = router({
           listId: list.id,
           title: created.title,
           position: created.position,
+          clientMutationId: ctx.clientMutationId,
         },
       });
 
@@ -355,7 +356,7 @@ export const cardRouter = router({
           cardId: card.id,
           actorId: ctx.session.user.id,
           type: 'card.renamed',
-          payload: { cardId: card.id, fromTitle: card.title, toTitle: updated.title },
+          payload: { cardId: card.id, fromTitle: card.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
         });
       }
       if (descriptionChanged) {
@@ -365,7 +366,7 @@ export const cardRouter = router({
           cardId: card.id,
           actorId: ctx.session.user.id,
           type: 'card.description_changed',
-          payload: { cardId: card.id },
+          payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
         });
       }
       if (dueAtChanged) {
@@ -376,8 +377,8 @@ export const cardRouter = router({
           actorId: ctx.session.user.id,
           type: updated.dueAt ? 'card.due_set' : 'card.due_cleared',
           payload: updated.dueAt
-            ? { cardId: card.id, dueAt: updated.dueAt }
-            : { cardId: card.id, fromDueAt: card.dueAt },
+            ? { cardId: card.id, dueAt: updated.dueAt, clientMutationId: ctx.clientMutationId }
+            : { cardId: card.id, fromDueAt: card.dueAt, clientMutationId: ctx.clientMutationId },
         });
       }
       if (coverColorChanged) {
@@ -388,8 +389,8 @@ export const cardRouter = router({
           actorId: ctx.session.user.id,
           type: updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared',
           payload: updated.coverColor
-            ? { cardId: card.id, coverColor: updated.coverColor }
-            : { cardId: card.id, fromCoverColor: card.coverColor },
+            ? { cardId: card.id, coverColor: updated.coverColor, clientMutationId: ctx.clientMutationId }
+            : { cardId: card.id, fromCoverColor: card.coverColor, clientMutationId: ctx.clientMutationId },
         });
       }
 
@@ -460,7 +461,7 @@ export const cardRouter = router({
         cardId: card.id,
         actorId: ctx.session.user.id,
         type: 'card.archived',
-        payload: { cardId: card.id, archived: input.archived },
+        payload: { cardId: card.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -541,7 +542,7 @@ export const cardRouter = router({
         cardId: card.id,
         actorId: ctx.session.user.id,
         type: 'card.completed',
-        payload: { cardId: card.id },
+        payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -621,7 +622,7 @@ export const cardRouter = router({
         cardId: card.id,
         actorId: ctx.session.user.id,
         type: 'card.uncompleted',
-        payload: { cardId: card.id },
+        payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -784,6 +785,7 @@ export const cardRouter = router({
           toListId: input.toListId,
           fromPosition: card.position,
           toPosition: updated.position,
+          clientMutationId: ctx.clientMutationId,
         },
       });
 
@@ -960,6 +962,7 @@ export const cardRouter = router({
           toListId: input.toListId,
           fromPosition: card.position,
           toPosition: updated.position,
+          clientMutationId: ctx.clientMutationId,
           ...(crossBoard ? { fromBoardId: card.boardId, toBoardId: toList.boardId } : {}),
         },
       });
@@ -1169,6 +1172,7 @@ export const cardRouter = router({
           title: created.title,
           position: created.position,
           copiedFromCardId: source.id,
+          clientMutationId: ctx.clientMutationId,
         },
       });
 

@@ -63,7 +63,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Card Co',
       slug: newSlug('card-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -77,7 +77,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Card Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     await db().insert(boardMembers).values({ boardId, userId: guestId, role: 'viewer' });
@@ -85,7 +85,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Backlog',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     listId = list.id;
   });
@@ -118,7 +118,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const first = await callerFor(memberId).card.create({
       listId,
       title: 'First card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(first).toMatchObject({ listId, boardId, title: 'First card' });
     expect(first.boardId).toBe(boardId); // card ⊆ list.board invariant
@@ -129,7 +129,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const second = await callerFor(memberId).card.create({
       listId,
       title: 'Second card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(first.position < second.position).toBe(true);
 
@@ -146,13 +146,13 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
 
   it('create: a board viewer is FORBIDDEN; an unknown listId is NOT_FOUND', async () => {
     await expect(
-      callerFor(guestId).card.create({ listId, title: 'Nope', clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.create({ listId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
       callerFor(memberId).card.create({
         listId: 'does-not-exist',
         title: 'Nope',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
@@ -162,18 +162,18 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const archivedList = await callerFor(ownerId).list.create({
       boardId,
       title: 'Frozen List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await callerFor(ownerId).list.archive({
       boardId,
       listId: archivedList.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(ownerId).card.create({
         listId: archivedList.id,
         title: 'Nope',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -181,19 +181,19 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'To Be Archived',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const listOnOther = await callerFor(ownerId).list.create({
       boardId: otherBoard.id,
       title: 'List On Other',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(ownerId).card.create({
         listId: listOnOther.id,
         title: 'Nope',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -204,7 +204,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Readable card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     // give the member an `assignee` relationship
     await db().insert(cardMembers).values({ cardId: card.id, userId: memberId, role: 'assignee' });
@@ -232,12 +232,12 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Editable card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     // empty input → BAD_REQUEST
     await expect(
-      callerFor(ownerId).card.update({ cardId: card.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.update({ cardId: card.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // a board viewer cannot edit
@@ -245,7 +245,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       callerFor(guestId).card.update({
         cardId: card.id,
         title: 'Hax',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -254,7 +254,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const renamed = await callerFor(memberId).card.update({
       cardId: card.id,
       title: 'Renamed card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(renamed).toMatchObject({ id: card.id, title: 'Renamed card', changed: true });
     expect(await boardVersion(boardId)).toBe(vBeforeRename + 1);
@@ -263,7 +263,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const noop = await callerFor(memberId).card.update({
       cardId: card.id,
       title: 'Renamed card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: card.id, changed: false });
 
@@ -271,7 +271,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const withDescription = await callerFor(memberId).card.update({
       cardId: card.id,
       description: 'Some details here.',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(withDescription).toMatchObject({ description: 'Some details here.', changed: true });
 
@@ -280,7 +280,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const withDue = await callerFor(memberId).card.update({
       cardId: card.id,
       dueAt: due,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(withDue.changed).toBe(true);
     expect(withDue.dueAt?.getTime()).toBe(due.getTime());
@@ -289,7 +289,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const cleared = await callerFor(memberId).card.update({
       cardId: card.id,
       dueAt: null,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(cleared).toMatchObject({ dueAt: null, changed: true });
 
@@ -312,14 +312,14 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Combo card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const v0 = await boardVersion(boardId);
     const updated = await callerFor(memberId).card.update({
       cardId: card.id,
       title: 'Combo card v2',
       description: 'Now with a description.',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(updated).toMatchObject({ title: 'Combo card v2', description: 'Now with a description.', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -337,26 +337,26 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Archive Me card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     const archived = await callerFor(memberId).card.archive({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(archived).toMatchObject({ id: card.id, changed: true });
     expect(archived.archivedAt).toBeInstanceOf(Date);
 
     const noop = await callerFor(memberId).card.archive({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: card.id, changed: false });
 
     const restored = await callerFor(memberId).card.archive({
       cardId: card.id,
       archived: false,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(restored).toMatchObject({ id: card.id, archivedAt: null, changed: true });
 
@@ -377,7 +377,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Complete Me card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(card.completed).toBe(false);
     expect(card.completedAt).toBeNull();
@@ -387,7 +387,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const before = Date.now();
     const done = await callerFor(memberId).card.complete({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(done).toMatchObject({ id: card.id, completed: true, completedBy: memberId, changed: true });
     expect(done.completedAt).toBeInstanceOf(Date);
@@ -405,7 +405,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const vAfter = await boardVersion(boardId);
     const noop = await callerFor(memberId).card.complete({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: card.id, completed: true, changed: false });
     expect(await boardVersion(boardId)).toBe(vAfter);
@@ -419,14 +419,14 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Uncomplete Me card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     // not yet completed → uncomplete is a no-op
     const v0 = await boardVersion(boardId);
     const earlyNoop = await callerFor(memberId).card.uncomplete({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(earlyNoop).toMatchObject({ id: card.id, completed: false, changed: false });
     expect(await boardVersion(boardId)).toBe(v0);
@@ -437,11 +437,11 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     ).toHaveLength(0);
 
     // complete, then uncomplete
-    await callerFor(memberId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') });
+    await callerFor(memberId).card.complete({ cardId: card.id, clientMutationId: crypto.randomUUID() });
     const vBeforeUncomplete = await boardVersion(boardId);
     const cleared = await callerFor(memberId).card.uncomplete({
       cardId: card.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(cleared).toMatchObject({
       id: card.id,
@@ -468,13 +468,13 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Viewer Cannot Complete card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
-      callerFor(guestId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.complete({ cardId: card.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
-      callerFor(guestId).card.uncomplete({ cardId: card.id, clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.uncomplete({ cardId: card.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -484,7 +484,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Cover card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(card.coverColor).toBeNull();
 
@@ -493,7 +493,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       callerFor(guestId).card.update({
         cardId: card.id,
         coverColor: 'mavi',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -503,7 +503,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         cardId: card.id,
         // @ts-expect-error — intentionally invalid value
         coverColor: 'foo',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -512,7 +512,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const withCover = await callerFor(memberId).card.update({
       cardId: card.id,
       coverColor: 'mavi',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(withCover).toMatchObject({ coverColor: 'mavi', changed: true });
     expect(await boardVersion(boardId)).toBe(vBeforeSet + 1);
@@ -522,7 +522,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const noop = await callerFor(memberId).card.update({
       cardId: card.id,
       coverColor: 'mavi',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ coverColor: 'mavi', changed: false });
     expect(await boardVersion(boardId)).toBe(vAfterSet);
@@ -531,7 +531,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const cleared = await callerFor(memberId).card.update({
       cardId: card.id,
       coverColor: null,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(cleared).toMatchObject({ coverColor: null, changed: true });
 
@@ -549,31 +549,31 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const archBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Archived For Completion',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const archList = await callerFor(ownerId).list.create({
       boardId: archBoard.id,
       title: 'List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const card = await callerFor(ownerId).card.create({
       listId: archList.id,
       title: 'Doomed card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
 
     await expect(
-      callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
     await expect(
-      callerFor(ownerId).card.uncomplete({ cardId: card.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.uncomplete({ cardId: card.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
     await expect(
       callerFor(ownerId).card.update({
         cardId: card.id,
         coverColor: 'mavi',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
   });
@@ -582,7 +582,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Defaults card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const fetched = await callerFor(ownerId).card.get({ cardId: card.id });
     expect(fetched.card).toMatchObject({
@@ -598,10 +598,10 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
 
   it('move: reorders a card within its list (in front of / behind / between neighbours); writes card.moved activity (same from/to listId); bumps boards.version', async () => {
     // Fresh list with three cards A < B < C.
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'Reorder List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
-    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Reorder List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: crypto.randomUUID() });
     expect(a.position < b.position).toBe(true);
     expect(b.position < c.position).toBe(true);
 
@@ -612,7 +612,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       fromListId: list.id,
       toListId: list.id,
       afterCardId: a.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(toFront).toMatchObject({ id: c.id, listId: list.id, boardId, changed: true });
     expect(toFront.position < a.position).toBe(true);
@@ -638,7 +638,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       toListId: list.id,
       beforeCardId: a.id,
       afterCardId: b.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(toMiddle.changed).toBe(true);
     expect(a.position < toMiddle.position).toBe(true);
@@ -646,11 +646,11 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   });
 
   it('move: re-parents a card to another list of the same board (listId changes; card.moved records from/to listId; version bumps)', async () => {
-    const src = await callerFor(ownerId).list.create({ boardId, title: 'Src List', clientMutationId: newId('cmid') });
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Dst List', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Travelling card', clientMutationId: newId('cmid') });
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'Src List', clientMutationId: crypto.randomUUID() });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Dst List', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Travelling card', clientMutationId: crypto.randomUUID() });
     // a card already in the destination, to anchor against
-    const anchor = await callerFor(ownerId).card.create({ listId: dst.id, title: 'Anchor', clientMutationId: newId('cmid') });
+    const anchor = await callerFor(ownerId).card.create({ listId: dst.id, title: 'Anchor', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const moved = await callerFor(memberId).card.move({
@@ -658,7 +658,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       fromListId: src.id,
       toListId: dst.id,
       beforeCardId: anchor.id, // place after the anchor → end of dst
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: card.id, listId: dst.id, boardId, changed: true });
     expect(anchor.position < moved.position).toBe(true);
@@ -677,29 +677,29 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   });
 
   it('move: a stale fromListId (the card was already moved away) is CONFLICT', async () => {
-    const l1 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L1', clientMutationId: newId('cmid') });
-    const l2 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L2', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Conflicted card', clientMutationId: newId('cmid') });
+    const l1 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L1', clientMutationId: crypto.randomUUID() });
+    const l2 = await callerFor(ownerId).list.create({ boardId, title: 'Conflict L2', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Conflicted card', clientMutationId: crypto.randomUUID() });
 
     // someone moves it to l2 first
-    await callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l2.id, clientMutationId: newId('cmid') });
+    await callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l2.id, clientMutationId: crypto.randomUUID() });
 
     // a second mover still thinks it's in l1 → CONFLICT
     await expect(
-      callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
   it('move: an archived destination list is BAD_REQUEST; a card may still be moved OUT of an archived list', async () => {
-    const live = await callerFor(ownerId).list.create({ boardId, title: 'Live List', clientMutationId: newId('cmid') });
-    const archived = await callerFor(ownerId).list.create({ boardId, title: 'Archived List', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: archived.id, title: 'Stuck card', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).list.archive({ boardId, listId: archived.id, clientMutationId: newId('cmid') });
+    const live = await callerFor(ownerId).list.create({ boardId, title: 'Live List', clientMutationId: crypto.randomUUID() });
+    const archived = await callerFor(ownerId).list.create({ boardId, title: 'Archived List', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: archived.id, title: 'Stuck card', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).list.archive({ boardId, listId: archived.id, clientMutationId: crypto.randomUUID() });
 
     // can't move INTO the archived list
-    const other = await callerFor(ownerId).card.create({ listId: live.id, title: 'Other card', clientMutationId: newId('cmid') });
+    const other = await callerFor(ownerId).card.create({ listId: live.id, title: 'Other card', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.move({ cardId: other.id, fromListId: live.id, toListId: archived.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.move({ cardId: other.id, fromListId: live.id, toListId: archived.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
 
     // but CAN move OUT of the archived list into a live one
@@ -707,41 +707,41 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       cardId: card.id,
       fromListId: archived.id,
       toListId: live.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(rescued).toMatchObject({ id: card.id, listId: live.id, changed: true });
   });
 
   it('move: moving a card into a list of another board is BAD_REQUEST', async () => {
-    const otherBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Other Board', clientMutationId: newId('cmid') });
-    const otherList = await callerFor(ownerId).list.create({ boardId: otherBoard.id, title: 'Foreign List', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Homesick card', clientMutationId: newId('cmid') });
+    const otherBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Other Board', clientMutationId: crypto.randomUUID() });
+    const otherList = await callerFor(ownerId).list.create({ boardId: otherBoard.id, title: 'Foreign List', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Homesick card', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.move({ cardId: card.id, fromListId: listId, toListId: otherList.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.move({ cardId: card.id, fromListId: listId, toListId: otherList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: "Kart başka bir board'a taşınamaz." });
   });
 
   it('move: a board viewer is FORBIDDEN', async () => {
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Viewer Cannot Move card', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Viewer Cannot Move card', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(guestId).card.move({ cardId: card.id, fromListId: listId, toListId: listId, clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.move({ cardId: card.id, fromListId: listId, toListId: listId, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('move: an archived board is BAD_REQUEST', async () => {
-    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Archived Board', clientMutationId: newId('cmid') });
-    const l1 = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L1', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Doomed card', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Move Archived Board', clientMutationId: crypto.randomUUID() });
+    const l1 = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L1', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: l1.id, title: 'Doomed card', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(ownerId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.move({ cardId: card.id, fromListId: l1.id, toListId: l1.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
   });
 
   it('move: a no-op (already in toListId at the resolved position) is changed:false — no activity, no version bump', async () => {
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'Noop Move List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Noop Move List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const movedActs0 = (await actsFor(boardId)).filter((e) => e.type === 'card.moved').length;
@@ -753,7 +753,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       toListId: list.id,
       beforeCardId: a.id,
       newPosition: b.position,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: b.id, listId: list.id, position: b.position, changed: false });
     expect(await boardVersion(boardId)).toBe(v0);
@@ -761,10 +761,10 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   });
 
   it('move: a client-supplied newPosition is validated — accepted between neighbours, rejected (BAD_REQUEST) when out of bounds', async () => {
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'NewPosition Move List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
-    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'NewPosition Move List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(ownerId).card.create({ listId: list.id, title: 'C', clientMutationId: crypto.randomUUID() });
 
     const between = positionBetween(a.position, b.position);
     const ok = await callerFor(memberId).card.move({
@@ -774,7 +774,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       beforeCardId: a.id,
       afterCardId: b.id,
       newPosition: between,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(ok).toMatchObject({ id: c.id, position: between, changed: true });
 
@@ -787,7 +787,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         beforeCardId: a.id,
         afterCardId: b.id,
         newPosition: b.position, // not < b → invalid
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -796,9 +796,9 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
 
   it('move: a normal (short) new position does NOT enqueue a compaction job; a no-op move does not either', async () => {
     const enqueue = vi.fn<EnqueueCompaction>();
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Short List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Short List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
 
     // A real reorder: move B in front of A — short key.
     const moved = await callerWithEnqueue(memberId, enqueue).card.move({
@@ -806,7 +806,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       fromListId: list.id,
       toListId: list.id,
       afterCardId: a.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved.changed).toBe(true);
     expect(moved.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
@@ -819,17 +819,17 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       toListId: list.id,
       afterCardId: a.id,
       newPosition: moved.position,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('move: producing a long fractional position enqueues a list-scope compaction job for the target list (once)', async () => {
     const enqueue = vi.fn<EnqueueCompaction>();
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Long List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
-    const target = await callerFor(ownerId).card.create({ listId: list.id, title: 'Target', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'Compaction Long List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const target = await callerFor(ownerId).card.create({ listId: list.id, title: 'Target', clientMutationId: crypto.randomUUID() });
 
     // Pin A/B to known adjacent keys so a long-but-valid `newPosition` is easy
     // to construct: `'a0' < 'a0' + 'V'…V < 'a1'`.
@@ -846,7 +846,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       beforeCardId: a.id,
       afterCardId: b.id,
       newPosition: longPos,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: target.id, position: longPos, changed: true });
     expect(enqueue).toHaveBeenCalledTimes(1);
@@ -856,15 +856,15 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   // ---------------------------------------------------- moveToList (DEM-69, Faz 3E)
 
   it('moveToList: same-board move to another list — listId changes, boardId unchanged, card.moved activity (no fromBoardId/toBoardId), version bumps once', async () => {
-    const src = await callerFor(ownerId).list.create({ boardId, title: 'MTL Src', clientMutationId: newId('cmid') });
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'MTL card', clientMutationId: newId('cmid') });
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'MTL Src', clientMutationId: crypto.randomUUID() });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'MTL card', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const moved = await callerFor(memberId).card.moveToList({
       cardId: card.id,
       toListId: dst.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: card.id, listId: dst.id, boardId, changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -884,24 +884,24 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
 
   it('moveToList: cross-board move — boardId+listId change, card_labels emptied, card_members preserved, checklist/comment follow the card, card.moved has from/to boardId, BOTH boards bump version', async () => {
     // second board in the same workspace, the caller (member) can edit it
-    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Board 2', clientMutationId: newId('cmid') });
-    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'MTL B2 List', clientMutationId: newId('cmid') });
-    const srcList = await callerFor(ownerId).list.create({ boardId, title: 'MTL B1 Src', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: srcList.id, title: 'Cross card', clientMutationId: newId('cmid') });
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Board 2', clientMutationId: crypto.randomUUID() });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'MTL B2 List', clientMutationId: crypto.randomUUID() });
+    const srcList = await callerFor(ownerId).list.create({ boardId, title: 'MTL B1 Src', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: srcList.id, title: 'Cross card', clientMutationId: crypto.randomUUID() });
 
     // a label on board 1 attached to the card
-    const label = await callerFor(ownerId).label.create({ boardId, color: 'blue', name: 'Travel', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: newId('cmid') });
+    const label = await callerFor(ownerId).label.create({ boardId, color: 'blue', name: 'Travel', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: crypto.randomUUID() });
     expect(await callerFor(ownerId).card.labels.list({ cardId: card.id })).toHaveLength(1);
 
     // a card member (the workspace member)
-    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: crypto.randomUUID() });
     expect(await callerFor(ownerId).card.members.list({ cardId: card.id })).toHaveLength(1);
 
     // a checklist + item, and a comment
-    const cl = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'Trip steps', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: cl.id, content: 'Pack', clientMutationId: newId('cmid') });
-    const comment = await callerFor(ownerId).comment.create({ cardId: card.id, body: 'Bon voyage', clientMutationId: newId('cmid') });
+    const cl = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'Trip steps', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: cl.id, content: 'Pack', clientMutationId: crypto.randomUUID() });
+    const comment = await callerFor(ownerId).comment.create({ cardId: card.id, body: 'Bon voyage', clientMutationId: crypto.randomUUID() });
 
     const v1Before = await boardVersion(boardId);
     const v2Before = await boardVersion(board2.id);
@@ -909,7 +909,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const moved = await callerFor(memberId).card.moveToList({
       cardId: card.id,
       toListId: list2.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(moved).toMatchObject({ id: card.id, listId: list2.id, boardId: board2.id, changed: true });
 
@@ -943,19 +943,19 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   });
 
   it('moveToList: archived target list → BAD_REQUEST; archived target board → BAD_REQUEST', async () => {
-    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL guard card', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL guard card', clientMutationId: crypto.randomUUID() });
 
-    const archList = await callerFor(ownerId).list.create({ boardId, title: 'MTL Frozen', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: newId('cmid') });
+    const archList = await callerFor(ownerId).list.create({ boardId, title: 'MTL Frozen', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: archList.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: archList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
 
-    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Archived Board', clientMutationId: newId('cmid') });
-    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Archived Board', clientMutationId: crypto.randomUUID() });
+    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(ownerId).card.moveToList({ cardId: card.id, toListId: archBoardList.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.moveToList({ cardId: card.id, toListId: archBoardList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
   });
 
@@ -964,19 +964,19 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     // Use: ownerId can edit board1, but is only a `viewer` on a board they're explicitly downgraded on. Simpler: target board where memberId has NO access.
     // outsiderId has no workspace membership → resolveBoardAccess throws FORBIDDEN. But the source card must be visible to the caller.
     // So: a board the caller (member) is a `viewer` on.
-    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Viewer Board', clientMutationId: newId('cmid') });
+    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Viewer Board', clientMutationId: crypto.randomUUID() });
     await db().insert(dbMod.boardMembers).values({ boardId: viewerBoard.id, userId: memberId, role: 'viewer' });
-    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL forbidden card', clientMutationId: newId('cmid') });
+    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL forbidden card', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: viewerList.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: viewerList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('moveToList: a no-op (already at the target list+position) is changed:false — no activity, no version bump; a duplicate clientMutationId is a natural no-op', async () => {
-    const list = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop List', clientMutationId: newId('cmid') });
-    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
-    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop List', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: crypto.randomUUID() });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
     const movedActs0 = (await actsFor(boardId)).filter((e) => e.type === 'card.moved').length;
@@ -987,15 +987,15 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       toListId: list.id,
       beforeCardId: a.id,
       newPosition: b.position,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ id: b.id, listId: list.id, position: b.position, changed: false });
     expect(await boardVersion(boardId)).toBe(v0);
     expect((await actsFor(boardId)).filter((e) => e.type === 'card.moved').length).toBe(movedActs0);
 
     // and a second moveToList to the same destination — also a no-op
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop Dst', clientMutationId: newId('cmid') });
-    const cmid = newId('cmid');
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop Dst', clientMutationId: crypto.randomUUID() });
+    const cmid = crypto.randomUUID();
     const first = await callerFor(memberId).card.moveToList({ cardId: a.id, toListId: dst.id, clientMutationId: cmid });
     expect(first.changed).toBe(true);
     const again = await callerFor(memberId).card.moveToList({ cardId: a.id, toListId: dst.id, clientMutationId: cmid });
@@ -1005,15 +1005,15 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
   // ---------------------------------------------------- copy (DEM-69, Faz 3E)
 
   it('copy: no includes — new card with copied title (+ " (kopya)") / description / dueAt / coverColor, completed=false, no checklists/members/labels on the copy, card.created activity has copiedFromCardId, target version bumps, source unchanged', async () => {
-    const src = await callerFor(ownerId).list.create({ boardId, title: 'Copy Src', clientMutationId: newId('cmid') });
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Original', clientMutationId: newId('cmid') });
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'Copy Src', clientMutationId: crypto.randomUUID() });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Original', clientMutationId: crypto.randomUUID() });
     const due = new Date('2026-11-30T12:00:00.000Z');
-    await callerFor(ownerId).card.update({ cardId: card.id, description: 'desc here', dueAt: due, coverColor: 'mavi', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.update({ cardId: card.id, description: 'desc here', dueAt: due, coverColor: 'mavi', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: crypto.randomUUID() });
 
     const v0 = await boardVersion(boardId);
-    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: crypto.randomUUID() });
     expect(copy).toMatchObject({ listId: dst.id, boardId, title: 'Original (kopya)', description: 'desc here', coverColor: 'mavi', completed: false });
     expect(copy.dueAt?.getTime()).toBe(due.getTime());
     expect(copy.completedAt).toBeNull();
@@ -1038,22 +1038,22 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(srcFetched.card).toMatchObject({ id: card.id, listId: src.id, title: 'Original', completed: true });
 
     // explicit title overrides the default
-    const copy2 = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, title: 'Custom name', clientMutationId: newId('cmid') });
+    const copy2 = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, title: 'Custom name', clientMutationId: crypto.randomUUID() });
     expect(copy2.title).toBe('Custom name');
   });
 
   it('copy: includeChecklists — checklists + items copied (order preserved, items completed=false)', async () => {
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy CL Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Has checklists', clientMutationId: newId('cmid') });
-    const clA = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List A', clientMutationId: newId('cmid') });
-    const clB = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List B', clientMutationId: newId('cmid') });
-    const itemA1 = await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A1', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A2', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clB.id, content: 'B1', clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy CL Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has checklists', clientMutationId: crypto.randomUUID() });
+    const clA = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List A', clientMutationId: crypto.randomUUID() });
+    const clB = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List B', clientMutationId: crypto.randomUUID() });
+    const itemA1 = await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A1', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A2', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clB.id, content: 'B1', clientMutationId: crypto.randomUUID() });
     // toggle one item complete on the source
-    await callerFor(ownerId).checklist.item.toggle({ cardId: card.id, checklistId: clA.id, itemId: itemA1.id, completed: true, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).checklist.item.toggle({ cardId: card.id, checklistId: clA.id, itemId: itemA1.id, completed: true, clientMutationId: crypto.randomUUID() });
 
-    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeChecklists: true, clientMutationId: newId('cmid') });
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeChecklists: true, clientMutationId: crypto.randomUUID() });
 
     const copyChecklists = await db()
       .select()
@@ -1073,10 +1073,10 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
 
   it('copy: includeMembers — same-board members are copied; a cross-board copy filters out a member without target-board access', async () => {
     // same-board: a member is copied
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Mem Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Has members', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
-    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeMembers: true, clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Mem Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has members', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: crypto.randomUUID() });
+    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeMembers: true, clientMutationId: crypto.randomUUID() });
     expect(await callerFor(ownerId).card.members.list({ cardId: copySame.id })).toEqual([
       expect.objectContaining({ userId: memberId, role: 'assignee' }),
     ]);
@@ -1084,75 +1084,75 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     // cross-board into a board where `memberId` is not a member at all (board with only an explicit owner member; member is workspace member so they DO inherit member... so use a viewer board for the *member* — but then the *caller* needs member+ on the target).
     // Construct: board2 where ownerId is admin (inherits) and memberId is downgraded to `viewer` via an explicit board_members row → memberId still has board access (viewer) so wouldn't be filtered.
     // To get a genuinely-no-access member: card on board1 has `guest`-equivalent? guestId is a workspace `guest` with a board_members viewer row on board1 only. On a fresh board2, guestId (workspace guest, no board_members row) has NO effective access. So: card on board1 with guestId as a member, copy cross-board to board2 with includeMembers → guestId filtered out.
-    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Mem B2', clientMutationId: newId('cmid') });
-    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: newId('cmid') });
-    const card2 = await callerFor(ownerId).card.create({ listId, title: 'Cross members card', clientMutationId: newId('cmid') });
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Mem B2', clientMutationId: crypto.randomUUID() });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: crypto.randomUUID() });
+    const card2 = await callerFor(ownerId).card.create({ listId, title: 'Cross members card', clientMutationId: crypto.randomUUID() });
     // give guest a board_members viewer row on board1 already exists; add guest as a card member
-    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: guestId, role: 'watcher', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
-    const copyCross = await callerFor(ownerId).card.copy({ cardId: card2.id, toListId: list2.id, includeMembers: true, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: guestId, role: 'watcher', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: memberId, role: 'assignee', clientMutationId: crypto.randomUUID() });
+    const copyCross = await callerFor(ownerId).card.copy({ cardId: card2.id, toListId: list2.id, includeMembers: true, clientMutationId: crypto.randomUUID() });
     const copiedMembers = await callerFor(ownerId).card.members.list({ cardId: copyCross.id });
     // member inherits board access (workspace member) → copied; guest has no access on board2 → filtered out
     expect(copiedMembers.map((m) => m.userId).sort()).toEqual([memberId]);
   });
 
   it('copy: includeLabels same-board → labels copied; cross-board with includeLabels:true → labels NOT copied', async () => {
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Lbl Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Has labels', clientMutationId: newId('cmid') });
-    const label = await callerFor(ownerId).label.create({ boardId, color: 'green', name: 'CopyMe', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Lbl Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has labels', clientMutationId: crypto.randomUUID() });
+    const label = await callerFor(ownerId).label.create({ boardId, color: 'green', name: 'CopyMe', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: crypto.randomUUID() });
 
-    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeLabels: true, clientMutationId: newId('cmid') });
+    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeLabels: true, clientMutationId: crypto.randomUUID() });
     expect(await callerFor(ownerId).card.labels.list({ cardId: copySame.id })).toEqual([
       expect.objectContaining({ labelId: label.id }),
     ]);
 
     // cross-board → labels skipped
-    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Lbl B2', clientMutationId: newId('cmid') });
-    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: newId('cmid') });
-    const copyCross = await callerFor(ownerId).card.copy({ cardId: card.id, toListId: list2.id, includeLabels: true, clientMutationId: newId('cmid') });
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Lbl B2', clientMutationId: crypto.randomUUID() });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: crypto.randomUUID() });
+    const copyCross = await callerFor(ownerId).card.copy({ cardId: card.id, toListId: list2.id, includeLabels: true, clientMutationId: crypto.randomUUID() });
     expect(await callerFor(ownerId).card.labels.list({ cardId: copyCross.id })).toHaveLength(0);
   });
 
   it('copy: comments are NEVER copied', async () => {
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Cmt Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Has comments', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).comment.create({ cardId: card.id, body: 'will not be copied', clientMutationId: newId('cmid') });
-    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Cmt Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has comments', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).comment.create({ cardId: card.id, body: 'will not be copied', clientMutationId: crypto.randomUUID() });
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: crypto.randomUUID() });
     const copyComments = await db().select().from(dbMod.comments).where(dbMod.eq(dbMod.comments.cardId, copy.id));
     expect(copyComments).toHaveLength(0);
   });
 
   it('copy: archived target list/board → BAD_REQUEST; no target-board edit access → FORBIDDEN', async () => {
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Copy guard card', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Copy guard card', clientMutationId: crypto.randomUUID() });
 
-    const archList = await callerFor(ownerId).list.create({ boardId, title: 'Copy Frozen', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: newId('cmid') });
+    const archList = await callerFor(ownerId).list.create({ boardId, title: 'Copy Frozen', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.copy({ cardId: card.id, toListId: archList.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.copy({ cardId: card.id, toListId: archList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
-    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Archived Board', clientMutationId: newId('cmid') });
-    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: newId('cmid') });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Archived Board', clientMutationId: crypto.randomUUID() });
+    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(ownerId).card.copy({ cardId: card.id, toListId: archBoardList.id, clientMutationId: newId('cmid') }),
+      callerFor(ownerId).card.copy({ cardId: card.id, toListId: archBoardList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // a board viewer cannot copy a card INTO that board
-    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Viewer Board', clientMutationId: newId('cmid') });
+    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Viewer Board', clientMutationId: crypto.randomUUID() });
     await db().insert(dbMod.boardMembers).values({ boardId: viewerBoard.id, userId: memberId, role: 'viewer' });
-    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: newId('cmid') });
+    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(memberId).card.copy({ cardId: card.id, toListId: viewerList.id, clientMutationId: newId('cmid') }),
+      callerFor(memberId).card.copy({ cardId: card.id, toListId: viewerList.id, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('copy: a normal (short) position does NOT enqueue a compaction job', async () => {
     const enqueue = vi.fn<EnqueueCompaction>();
-    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Compaction Dst', clientMutationId: newId('cmid') });
-    const card = await callerFor(ownerId).card.create({ listId, title: 'Compaction copy card', clientMutationId: newId('cmid') });
-    const copy = await callerWithEnqueue(memberId, enqueue).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Compaction Dst', clientMutationId: crypto.randomUUID() });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Compaction copy card', clientMutationId: crypto.randomUUID() });
+    const copy = await callerWithEnqueue(memberId, enqueue).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: crypto.randomUUID() });
     expect(copy.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
     expect(enqueue).not.toHaveBeenCalled();
   });

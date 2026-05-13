@@ -59,7 +59,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Card Labels Co',
       slug: newSlug('card-labels-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -73,7 +73,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Card Labels Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     await db().insert(boardMembers).values({ boardId, userId: guestId, role: 'viewer' });
@@ -81,14 +81,14 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Backlog',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     listId = list.id;
 
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Card with labels',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     cardId = card.id;
 
@@ -96,7 +96,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
       boardId,
       color: 'green',
       name: 'Bug',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     labelId = label.id;
 
@@ -104,14 +104,14 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Other Labels Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     otherBoardId = otherBoard.id;
     const otherLabel = await callerFor(ownerId).label.create({
       boardId: otherBoardId,
       color: 'blue',
       name: 'Feature',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     otherBoardLabelId = otherLabel.id;
   });
@@ -144,7 +144,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const added = await callerFor(memberId).card.labels.add({
       cardId,
       labelId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(added).toMatchObject({ cardId, labelId, changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -161,7 +161,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const noop = await callerFor(memberId).card.labels.add({
       cardId,
       labelId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ cardId, labelId, changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -172,21 +172,21 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
       callerFor(memberId).card.labels.add({
         cardId,
         labelId: otherBoardLabelId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
       callerFor(memberId).card.labels.add({
         cardId,
         labelId: 'does-not-exist',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('add: a board viewer is FORBIDDEN', async () => {
     await expect(
-      callerFor(guestId).card.labels.add({ cardId, labelId, clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.labels.add({ cardId, labelId, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -197,7 +197,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const removed = await callerFor(memberId).card.labels.remove({
       cardId,
       labelId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(removed).toMatchObject({ cardId, labelId, changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -206,7 +206,7 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     const noop = await callerFor(memberId).card.labels.remove({
       cardId,
       labelId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ cardId, labelId, changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -218,9 +218,9 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
   });
 
   it('remove: a board viewer is FORBIDDEN', async () => {
-    await callerFor(memberId).card.labels.add({ cardId, labelId, clientMutationId: newId('cmid') });
+    await callerFor(memberId).card.labels.add({ cardId, labelId, clientMutationId: crypto.randomUUID() });
     await expect(
-      callerFor(guestId).card.labels.remove({ cardId, labelId, clientMutationId: newId('cmid') }),
+      callerFor(guestId).card.labels.remove({ cardId, labelId, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 

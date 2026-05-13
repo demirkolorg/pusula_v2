@@ -59,7 +59,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Card Members Co',
       slug: newSlug('card-members-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -74,7 +74,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Card Members Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     await db().insert(boardMembers).values({ boardId, userId: guestViewerId, role: 'viewer' });
@@ -82,14 +82,14 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId,
       title: 'Backlog',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     listId = list.id;
 
     const card = await callerFor(ownerId).card.create({
       listId,
       title: 'Card with members',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     cardId = card.id;
   });
@@ -123,7 +123,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: ownerId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(added).toMatchObject({ cardId, userId: ownerId, role: 'assignee', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -144,7 +144,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: ownerId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ cardId, userId: ownerId, role: 'assignee', changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -155,7 +155,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: guestViewerId,
       role: 'watcher',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(selfWatch).toMatchObject({ cardId, userId: guestViewerId, role: 'watcher', changed: true });
 
@@ -165,7 +165,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         cardId,
         userId: guestViewerId,
         role: 'assignee',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -175,7 +175,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         cardId,
         userId: ownerId,
         role: 'watcher',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -190,7 +190,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: guestViewerId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(added).toMatchObject({ cardId, userId: guestViewerId, role: 'assignee', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -213,7 +213,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         cardId,
         userId: guestNonBoardId,
         role: 'assignee',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -224,7 +224,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         cardId,
         userId: outsiderId,
         role: 'watcher',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -235,7 +235,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         cardId,
         userId: outsiderId,
         role: 'watcher',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -247,7 +247,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: memberId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     const v0 = await boardVersion(boardId);
@@ -255,7 +255,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: memberId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(removed).toMatchObject({ cardId, userId: memberId, role: 'assignee', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -265,7 +265,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: memberId,
       role: 'assignee',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ cardId, userId: memberId, role: 'assignee', changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -287,7 +287,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: guestViewerId,
       role: 'watcher',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(removed).toMatchObject({ cardId, userId: guestViewerId, role: 'watcher', changed: true });
 
@@ -296,14 +296,14 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       cardId,
       userId: ownerId,
       role: 'watcher',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(guestViewerId).card.members.remove({
         cardId,
         userId: ownerId,
         role: 'watcher',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -328,25 +328,25 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     const otherBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'To Be Archived (card members)',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const listOnOther = await callerFor(ownerId).list.create({
       boardId: otherBoard.id,
       title: 'List',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const cardOnOther = await callerFor(ownerId).card.create({
       listId: listOnOther.id,
       title: 'Card on other',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(ownerId).card.members.add({
         cardId: cardOnOther.id,
         userId: memberId,
         role: 'assignee',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });

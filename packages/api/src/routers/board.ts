@@ -137,7 +137,11 @@ export const boardRouter = router({
         boardId: board.id,
         actorId: ctx.session.user.id,
         type: 'board.created',
-        payload: { title: board.title },
+        // Phase 4A (DEM-78): the optional `clientMutationId` is carried through
+        // every collaborative activity payload. `undefined` keys are stripped
+        // by jsonb serialisation, so omission leaves no on-disk trace —
+        // Phase 5 dedupe reads `payload->>'clientMutationId'` on present rows.
+        payload: { title: board.title, clientMutationId: ctx.clientMutationId },
       });
 
       return { ...board, role: 'admin' satisfies BoardRole };
@@ -363,7 +367,7 @@ export const boardRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'board.renamed',
-        payload: { fromTitle: current.title, toTitle: input.title },
+        payload: { fromTitle: current.title, toTitle: input.title, clientMutationId: ctx.clientMutationId },
       });
 
       return { ...updated, role: ctx.board.role, changed: true as const };
@@ -415,7 +419,7 @@ export const boardRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'board.archived',
-        payload: { archived: input.archived },
+        payload: { archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
       return {

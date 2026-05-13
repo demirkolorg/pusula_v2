@@ -41,6 +41,18 @@ export interface Context {
   userAgent?: string | null;
   /** See `CreateContextOptions.enqueueCompaction`. `undefined` ⇒ compaction no-op. */
   enqueueCompaction?: EnqueueCompaction;
+  /**
+   * Phase 4A (DEM-78) — collaborative mutations may carry a client-generated
+   * `clientMutationId` (UUID v4 via `crypto.randomUUID()`) on the input. The
+   * `enforceClientMutationId` middleware on `protectedProcedure` reads it from
+   * the raw input and stashes it here so procedure bodies can fold it into
+   * `activity_events.payload` (consumed by Phase 5 realtime echo filtering +
+   * server-side short-window dedupe; Phase 4 is record-only). `undefined` when
+   * the client omitted the field or the raw value is not a string. The
+   * authoritative validation still happens via the procedure's Zod input —
+   * this is a best-effort propagation that never blocks the request.
+   */
+  clientMutationId?: string;
 }
 
 /** Builds the per-request tRPC context. Host apps (apps/api, Next route handlers) call this. */
@@ -52,6 +64,11 @@ export function createContext(opts: CreateContextOptions): Context {
     ip: opts.ip ?? null,
     userAgent: opts.userAgent ?? null,
     enqueueCompaction: opts.enqueueCompaction,
+    // The `enforceClientMutationId` middleware overwrites this for every
+    // protected procedure call; explicit default keeps the shape stable for
+    // call sites that read `ctx.clientMutationId` before the middleware runs
+    // (and stays sound if `exactOptionalPropertyTypes` is ever enabled).
+    clientMutationId: undefined,
   };
 }
 

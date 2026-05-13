@@ -101,7 +101,7 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.created',
-        payload: { listId: created.id, title: created.title, position: created.position },
+        payload: { listId: created.id, title: created.title, position: created.position, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -167,7 +167,7 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.renamed',
-        payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title },
+        payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -234,7 +234,7 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.archived',
-        payload: { listId: updated.id, archived: input.archived },
+        payload: { listId: updated.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
       await tx
@@ -334,7 +334,7 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.moved',
-        payload: { listId: updated.id, fromPosition: list.position, toPosition: updated.position },
+        payload: { listId: updated.id, fromPosition: list.position, toPosition: updated.position, clientMutationId: ctx.clientMutationId },
       });
 
       await tx

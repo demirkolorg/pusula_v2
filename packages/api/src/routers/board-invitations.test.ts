@@ -77,7 +77,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       boardId,
       email,
       role,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const [inv] = await db()
       .select()
@@ -111,7 +111,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Board Invitations Co',
       slug: newSlug('board-invitations-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -126,7 +126,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Invitations Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     await db()
@@ -164,7 +164,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       callerFor(memberId).board.invitations.revoke({
         boardId,
         invitationId: inv.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -172,7 +172,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const revoked = await callerFor(ownerId).board.invitations.revoke({
       boardId,
       invitationId: inv.id,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(revoked).toMatchObject({ id: inv.id, status: 'revoked' });
     const [after] = await db()
@@ -195,7 +195,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       callerFor(ownerId).board.invitations.revoke({
         boardId,
         invitationId: inv.id,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -225,13 +225,13 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // a different user (email mismatch) cannot accept
     await expect(
-      callerFor(mismatchId).board.invitations.accept({ token: inv.token, clientMutationId: newId('cmid') }),
+      callerFor(mismatchId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // the invitee accepts → workspace `guest` + board `member`
     const accepted = await callerFor(accepterId).board.invitations.accept({
       token: inv.token,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(accepted).toMatchObject({ boardId, role: 'member' });
 
@@ -277,7 +277,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // accepting again → BAD_REQUEST (no longer pending)
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: newId('cmid') }),
+      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // it's gone from `mine`
@@ -289,7 +289,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     await expect(
       callerFor(ownerId).board.invitations.accept({
         token: 'this-token-does-not-exist-0000',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
@@ -306,7 +306,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       .where(dbMod.eq(boardInvitations.id, inv.id));
 
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: newId('cmid') }),
+      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     const [after] = await db()
@@ -341,13 +341,13 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const archWs = await callerFor(ownerId).workspace.create({
       name: 'Archived Board Co',
       slug: newSlug('archived-board-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     createdWorkspaceIds.push(archWs.id);
     const archBoard = await callerFor(ownerId).board.create({
       workspaceId: archWs.id,
       title: 'Soon-Archived Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     const accepterId = freshInviteeId();
@@ -355,7 +355,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       boardId: archBoard.id,
       email: emailOf(accepterId),
       role: 'member',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const [inv] = await db()
       .select()
@@ -372,11 +372,11 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     await callerFor(ownerId).board.archive({
       boardId: archBoard.id,
       archived: true,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv!.token, clientMutationId: newId('cmid') }),
+      callerFor(accepterId).board.invitations.accept({ token: inv!.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
@@ -389,12 +389,12 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // email mismatch → FORBIDDEN
     await expect(
-      callerFor(mismatchId).board.invitations.decline({ token: inv.token, clientMutationId: newId('cmid') }),
+      callerFor(mismatchId).board.invitations.decline({ token: inv.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const declined = await callerFor(declinerId).board.invitations.decline({
       token: inv.token,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(declined).toMatchObject({ id: inv.id, status: 'declined' });
     const [after] = await db()
@@ -413,7 +413,7 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // declining again → BAD_REQUEST
     await expect(
-      callerFor(declinerId).board.invitations.decline({ token: inv.token, clientMutationId: newId('cmid') }),
+      callerFor(declinerId).board.invitations.decline({ token: inv.token, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

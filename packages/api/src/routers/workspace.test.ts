@@ -67,7 +67,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Acme Inc',
       slug: newSlug('acme'),
-      clientMutationId: newId('cmid-create'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     expect(ws.name).toBe('Acme Inc');
@@ -89,9 +89,9 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
   it('create: rejects a duplicate slug with CONFLICT', async () => {
     const caller = callerFor(ownerId);
     const slug = newSlug('dup');
-    await caller.workspace.create({ name: 'First', slug, clientMutationId: newId('cmid') });
+    await caller.workspace.create({ name: 'First', slug, clientMutationId: crypto.randomUUID() });
     await expect(
-      caller.workspace.create({ name: 'Second', slug, clientMutationId: newId('cmid') }),
+      caller.workspace.create({ name: 'Second', slug, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
@@ -134,7 +134,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
         workspaceId,
         userId: adminId,
         role: 'member',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -143,7 +143,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
       workspaceId,
       userId: memberId,
       role: 'admin',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ userId: memberId, role: 'admin', changed: true });
     const roleActs = await db()
@@ -158,18 +158,18 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
         workspaceId,
         userId: ownerId,
         role: 'admin',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
-      ownerCaller.workspace.members.remove({ workspaceId, userId: ownerId, clientMutationId: newId('cmid') }),
+      ownerCaller.workspace.members.remove({ workspaceId, userId: ownerId, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // A member can remove themselves.
     const removed = await callerFor(adminId).workspace.members.remove({
       workspaceId,
       userId: adminId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(removed).toMatchObject({ userId: adminId, removed: true });
     const after = await ownerCaller.workspace.members.list({ workspaceId });
@@ -188,7 +188,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
       workspaceId,
       name: 'Acme Renamed',
       slug,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(updated).toMatchObject({ name: 'Acme Renamed', slug, changed: true });
 
@@ -202,11 +202,11 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
   it('archive: only the owner can archive; afterwards the workspace 404s', async () => {
     // memberId was promoted to admin earlier — still not the owner.
     await expect(
-      callerFor(memberId).workspace.archive({ workspaceId, clientMutationId: newId('cmid') }),
+      callerFor(memberId).workspace.archive({ workspaceId, clientMutationId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const ownerCaller = callerFor(ownerId);
-    const archived = await ownerCaller.workspace.archive({ workspaceId, clientMutationId: newId('cmid') });
+    const archived = await ownerCaller.workspace.archive({ workspaceId, clientMutationId: crypto.randomUUID() });
     expect(archived.id).toBe(workspaceId);
     expect(archived.archivedAt).toBeInstanceOf(Date);
 
@@ -239,7 +239,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const ws = await callerFor(invOwnerId).workspace.create({
       name: 'Invite Co',
       slug: newSlug('invite-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     await db()
@@ -275,7 +275,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       callerFor(invMemberId).workspace.members.invite({
         workspaceId,
         email: emailOf(otherUserId),
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -287,7 +287,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       workspaceId,
       email: emailOf(otherUserId),
       role: 'owner',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     } as unknown as Parameters<
       ReturnType<typeof callerFor>['workspace']['members']['invite']
     >[0];
@@ -301,7 +301,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       workspaceId,
       email: emailOf(inviteeId),
       role: 'member',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ email: inviteeEmail, role: 'member', status: 'pending' });
     expect(res.expiresAt).toBeInstanceOf(Date);
@@ -343,7 +343,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       callerFor(invOwnerId).workspace.members.invite({
         workspaceId,
         email: emailOf(inviteeId),
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
@@ -353,7 +353,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       callerFor(invOwnerId).workspace.members.invite({
         workspaceId,
         email: emailOf(invMemberId),
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
@@ -363,7 +363,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       workspaceId,
       email: noAccountEmail,
       role: 'guest',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ email: noAccountEmail, role: 'guest', status: 'pending' });
 
@@ -400,13 +400,13 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const created = await callerFor(invOwnerId).workspace.members.invite({
       workspaceId,
       email: `revoke-fb-${Math.random().toString(36).slice(2, 10)}@example.test`,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(otherUserId).workspace.invitations.revoke({
         workspaceId,
         invitationId: created.invitationId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -417,8 +417,8 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const raceEmail = `race-${Math.random().toString(36).slice(2, 10)}@example.test`;
     const owner = callerFor(invOwnerId);
     const results = await Promise.allSettled([
-      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: newId('cmid') }),
-      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: newId('cmid') }),
+      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: crypto.randomUUID() }),
+      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: crypto.randomUUID() }),
     ]);
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
     const rejected = results.filter(
@@ -445,12 +445,12 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const created = await callerFor(invOwnerId).workspace.members.invite({
       workspaceId,
       email: `revoked-accept-${Math.random().toString(36).slice(2, 10)}@example.test`,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await callerFor(invAdminId).workspace.invitations.revoke({
       workspaceId,
       invitationId: created.invitationId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const [row] = await db()
       .select({ token: workspaceInvitations.token })
@@ -461,7 +461,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(otherUserId).workspace.invitations.accept({
         token: row.token,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -471,21 +471,21 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const created = await callerFor(invOwnerId).workspace.members.invite({
       workspaceId,
       email: emailOf(otherUserId),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     // member+ cannot revoke
     await expect(
       callerFor(invMemberId).workspace.invitations.revoke({
         workspaceId,
         invitationId: created.invitationId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const res = await callerFor(invAdminId).workspace.invitations.revoke({
       workspaceId,
       invitationId: created.invitationId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ invitationId: created.invitationId, revoked: true });
 
@@ -503,7 +503,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       callerFor(invAdminId).workspace.invitations.revoke({
         workspaceId,
         invitationId: created.invitationId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -537,7 +537,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(otherUserId).workspace.invitations.accept({
         token: row.token,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -545,7 +545,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(inviteeId).workspace.invitations.accept({
         token: 'this-token-does-not-exist-padding',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
@@ -565,7 +565,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(otherUserId).workspace.invitations.accept({
         token: expired!.token,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     const [afterExpired] = await db()
@@ -592,7 +592,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
 
     const res = await callerFor(inviteeId).workspace.invitations.accept({
       token: row.token,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ id: workspaceId, name: 'Invite Co', role: 'member' });
 
@@ -659,7 +659,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
 
     const res = await callerFor(inviteeId).workspace.invitations.accept({
       token: created!.token,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ id: workspaceId, role: 'admin' });
 
@@ -702,7 +702,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const created = await callerFor(invOwnerId).workspace.members.invite({
       workspaceId,
       email: emailOf(otherUserId),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const [row] = await db()
       .select({ token: workspaceInvitations.token })
@@ -713,13 +713,13 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(inviteeId).workspace.invitations.decline({
         token: row!.token,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const res = await callerFor(otherUserId).workspace.invitations.decline({
       token: row!.token,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toMatchObject({ declined: true });
 
@@ -734,7 +734,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     await expect(
       callerFor(otherUserId).workspace.invitations.decline({
         token: row!.token,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -770,7 +770,7 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
     const ws = await callerFor(delOwnerId).workspace.create({
       name,
       slug: newSlug('del'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     createdWorkspaceIds.push(ws.id);
     await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: delMemberId, role: 'member' });
@@ -783,7 +783,7 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
       callerFor(delMemberId).workspace.delete({
         workspaceId: ws.id,
         confirmName: ws.name,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     // still there
@@ -796,7 +796,7 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
       callerFor(delOwnerId).workspace.delete({
         workspaceId: ws.id,
         confirmName: `${ws.name} (wrong)`,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect((await callerFor(delOwnerId).workspace.list()).some((w) => w.id === ws.id)).toBe(true);
@@ -827,7 +827,7 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
     const res = await callerFor(delOwnerId).workspace.delete({
       workspaceId: ws.id,
       confirmName: ws.name,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(res).toEqual({ id: ws.id, deleted: true });
 
@@ -862,7 +862,7 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
       callerFor(delOwnerId).workspace.delete({
         workspaceId: 'does-not-exist',
         confirmName: 'whatever',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

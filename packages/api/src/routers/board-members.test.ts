@@ -95,7 +95,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Board Members Co',
       slug: newSlug('board-members-co'),
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     createdWorkspaceIds.push(ws.id);
@@ -112,7 +112,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Members Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     boardId = board.id;
     // explicit board memberships beyond the creator (= ownerId, admin):
@@ -162,7 +162,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       boardId,
       email: emailOf(targetUserId),
       role: 'member',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(added).toMatchObject({ kind: 'added', userId: targetUserId, role: 'member' });
     expect(added).not.toHaveProperty('token');
@@ -191,7 +191,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         email: emailOf(targetUserId),
         role: 'admin',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
@@ -202,7 +202,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       boardId,
       email: emailOf(accountNoWsId),
       role: 'viewer',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(added).toMatchObject({ kind: 'added_as_guest', userId: accountNoWsId, role: 'viewer' });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -251,7 +251,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       boardId,
       email: inviteEmail,
       role: 'member',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(invited).toMatchObject({ kind: 'invited', email: inviteEmail, role: 'member' });
     expect(invited).not.toHaveProperty('token');
@@ -290,7 +290,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         email: inviteEmail,
         role: 'viewer',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
@@ -301,7 +301,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         email: emailOf(outsiderId),
         role: 'member',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
@@ -309,7 +309,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         email: emailOf(outsiderId),
         role: 'member',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -318,15 +318,15 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const archBoard = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Archived For Add',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
     await expect(
       callerFor(ownerId).board.members.add({
         boardId: archBoard.id,
         email: emailOf(memberId),
         role: 'member',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
@@ -340,7 +340,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       boardId,
       userId: targetUserId,
       role: 'viewer',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(changed).toMatchObject({ userId: targetUserId, role: 'viewer', changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
@@ -360,7 +360,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       boardId,
       userId: targetUserId,
       role: 'viewer',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(noop).toMatchObject({ userId: targetUserId, role: 'viewer', changed: false });
     expect(await boardVersion(boardId)).toBe(v1);
@@ -371,7 +371,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         userId: memberId,
         role: 'admin',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -379,14 +379,14 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const soloBoard = await callerFor(memberId).board.create({
       workspaceId,
       title: 'Solo Admin Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(memberId).board.members.updateRole({
         boardId: soloBoard.id,
         userId: memberId,
         role: 'viewer',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
@@ -396,7 +396,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         boardId,
         userId: targetUserId,
         role: 'member',
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -408,7 +408,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const board = await callerFor(ownerId).board.create({
       workspaceId,
       title: 'Remove Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await db()
       .insert(boardMembers)
@@ -421,18 +421,18 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const list = await callerFor(ownerId).list.create({
       boardId: board.id,
       title: 'Backlog',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     const card = await callerFor(ownerId).card.create({
       listId: list.id,
       title: 'Card',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await callerFor(ownerId).card.members.add({
       cardId: card.id,
       userId: targetUserId,
       role: 'watcher',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
 
     // admin removes an explicit member
@@ -440,7 +440,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const removed = await callerFor(ownerId).board.members.remove({
       boardId: board.id,
       userId: targetUserId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(removed).toMatchObject({ userId: targetUserId, changed: true });
     expect(await boardVersion(board.id)).toBe(v0 + 1);
@@ -468,7 +468,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const left = await callerFor(boardViewerId).board.members.remove({
       boardId: board.id,
       userId: boardViewerId,
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     expect(left).toMatchObject({ userId: boardViewerId, changed: true });
 
@@ -477,7 +477,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       callerFor(ownerId).board.members.remove({
         boardId: board.id,
         userId: memberId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
@@ -486,7 +486,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       callerFor(memberId).board.members.remove({
         boardId: board.id,
         userId: boardAdminId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -494,13 +494,13 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const soloBoard = await callerFor(memberId).board.create({
       workspaceId,
       title: 'Solo Admin Remove Board',
-      clientMutationId: newId('cmid'),
+      clientMutationId: crypto.randomUUID(),
     });
     await expect(
       callerFor(memberId).board.members.remove({
         boardId: soloBoard.id,
         userId: memberId,
-        clientMutationId: newId('cmid'),
+        clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
