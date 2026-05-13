@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { useBoardRealtime } from '@/lib/realtime';
 import { BoardColumns } from './_components/board-columns';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
@@ -30,6 +31,10 @@ export default function BoardDetailPage({
   const { id: workspaceId, boardId } = use(params);
   const trpc = useTRPC();
   const board = useQuery(trpc.board.get.queryOptions({ boardId }));
+  // Phase 5C (DEM-85) — keep `board.get` in sync with concurrent edits from
+  // other users. Subscribes to `board:{boardId}` on mount, applies envelopes,
+  // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner.
+  const realtime = useBoardRealtime(boardId);
 
   const backLink = (
     <Link
@@ -75,6 +80,16 @@ export default function BoardDetailPage({
         archived={archived}
         isBoardAdmin={isBoardAdmin}
       />
+
+      {!realtime.connected && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="border-b border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-700 dark:text-amber-300"
+        >
+          {strings.realtime.disconnected}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-hidden p-4">
         <BoardColumns

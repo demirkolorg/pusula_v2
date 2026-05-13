@@ -30,6 +30,10 @@
 
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
+import {
+  addInFlightClientMutationId,
+  removeInFlightClientMutationId,
+} from '@/lib/realtime/in-flight-store';
 import { useBoardCacheKeys } from './keys';
 import type { BoardCache, BoardSummary, CardDetailCache } from './types';
 
@@ -166,6 +170,9 @@ export function useOptimisticBoardMutation<TBuilder extends MutationOptionsBuild
 
   const onMutate = useCallback(
     async (vars: TVars): Promise<OptimisticRollback> => {
+      // Phase 5C — track the in-flight `clientMutationId` so the realtime
+      // listener can echo-skip our own server-side acknowledgement.
+      if (vars.clientMutationId) addInFlightClientMutationId(vars.clientMutationId);
       await queryClient.cancelQueries(boardFilter);
       const previous = queryClient.getQueriesData(boardFilter);
       queryClient.setQueriesData<BoardCache>(boardFilter, (data) =>
@@ -208,6 +215,7 @@ export function useOptimisticBoardMutation<TBuilder extends MutationOptionsBuild
 
   const onSettled = useCallback(
     async (_data: TData | undefined, _err: unknown, vars: TVars) => {
+      if (vars.clientMutationId) removeInFlightClientMutationId(vars.clientMutationId);
       await queryClient.invalidateQueries(boardFilter);
       const id = resolveCardId(vars);
       if (id) await queryClient.invalidateQueries(cacheKeys.card(id));
@@ -282,6 +290,7 @@ export function useOptimisticBoardListMutation<TBuilder extends MutationOptionsB
 
   const onMutate = useCallback(
     async (vars: TVars): Promise<OptimisticBoardListRollback> => {
+      if (vars.clientMutationId) addInFlightClientMutationId(vars.clientMutationId);
       await queryClient.cancelQueries(boardsFilter);
       const previous = queryClient.getQueriesData(boardsFilter);
       queryClient.setQueriesData<readonly BoardSummary[]>(boardsFilter, (data) =>
@@ -307,9 +316,13 @@ export function useOptimisticBoardListMutation<TBuilder extends MutationOptionsB
     [queryClient, boardsFilter, onConflict, onMutationError],
   );
 
-  const onSettled = useCallback(async () => {
-    await queryClient.invalidateQueries(boardsFilter);
-  }, [queryClient, boardsFilter]);
+  const onSettled = useCallback(
+    async (_data: TData | undefined, _err: unknown, vars: TVars) => {
+      if (vars.clientMutationId) removeInFlightClientMutationId(vars.clientMutationId);
+      await queryClient.invalidateQueries(boardsFilter);
+    },
+    [queryClient, boardsFilter],
+  );
 
   const onSuccess = useCallback(
     async (data: TData, vars: TVars) => {

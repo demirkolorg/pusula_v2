@@ -36,6 +36,11 @@ export const strings = {
     back: 'Geri',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
   },
+  realtime: {
+    // Subtle banner shown on the board page while the Socket.IO link is down
+    // (Phase 5C — DEM-85). Reconnect is automatic.
+    disconnected: 'Bağlantı koptu, tekrar bağlanılıyor…',
+  },
   auth: {
     emailLabel: 'E-posta',
     emailPlaceholder: 'ornek@eposta.com',
