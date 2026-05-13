@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 # 10 — Platform (Test · CI/CD · Deployment · Environment · Observability · Güvenlik · Performans)
 
@@ -25,7 +25,7 @@ updated: 2026-05-12
 - **Unit (Vitest):** domain helper, permission, ranking/position hesaplama, notification rule.
 - **Integration:** tRPC procedure, database transaction, outbox üretimi, auth/permission akışı (Testcontainers veya Docker Compose test DB).
 - **Component (React Testing Library):** bileşen davranışı.
-- **E2E (Playwright):** login, board/list/card oluşturma, drag-drop, optimistic rollback, notification center.
+- **E2E (Playwright):** login, board/list/card oluşturma, drag-drop, optimistic rollback, notification center. Harness repo kökünde **`e2e/`** (paket değil — `playwright.config.ts` + `e2e/*.spec.ts` + `e2e/fixtures/`; `@playwright/test` repo-kökü devDep; `playwright.config.ts` `webServer` ile `apps/api` + `apps/web`'i ayağa kaldırır, test DB `docker-compose.yml` Postgres/Redis'e bağlanır + migrate + seed). Faz 3D ([DEM-45](https://linear.app/demirkol/issue/DEM-45)) harness'ı + drag-drop alt kümesini kurar (liste/kart reorder, cross-list move, `card.move` başarısızlık → rollback, ops. `CONFLICT`); geniş suite (auth/board/card tüm akışlar) Faz 8 ([DEM-31](https://linear.app/demirkol/issue/DEM-31)). Pragmatic DnD native drag event'leri kullandığından sürükleme Playwright'ta `mouse.move` adımlarıyla (gerekirse `dragstart`/`drop` event dispatch'iyle) yapılır.
 - **Her zaman test edilir:** permission edge case'leri, position/ranking hesaplama, optimistic rollback, realtime reconciliation, notification outbox üretimi, duplicate mutation / idempotency davranışı, drag-drop aynı liste içi + listeler arası taşıma. Drag-drop özel testleri: aynı listede taşıma, farklı listeye taşıma, liste taşıma, mutation failure → rollback, realtime event → cache reconciliation, iki kullanıcı aynı kartı taşırsa son durum.
 
 ---
