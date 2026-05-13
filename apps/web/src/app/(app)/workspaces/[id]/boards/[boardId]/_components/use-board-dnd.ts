@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
 import {
   draggable,
   dropTargetForElements,
@@ -9,6 +11,7 @@ import {
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { preserveOffsetOnSource } from '@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source';
 import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
+import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview';
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 import {
   attachClosestEdge,
@@ -17,11 +20,7 @@ import {
 import { toast } from '@pusula/ui';
 import { useTRPC } from '@/trpc/client';
 import { strings } from '@/lib/strings';
-import {
-  applyCardMove,
-  applyListMove,
-  useOptimisticBoardMutation,
-} from '@/lib/board-cache';
+import { applyCardMove, applyListMove, useOptimisticBoardMutation } from '@/lib/board-cache';
 import {
   planCardMove,
   planCardMoveToListEnd,
@@ -38,6 +37,8 @@ import {
   isListDropData,
   type BoardDragState,
 } from './board-dnd-types';
+import { CardDragPreview } from './card-drag-preview';
+import type { BoardCard } from './card-item';
 
 /** Minimal list shape the hook needs from `board.get`. */
 type DndList = { id: string; position: string; archivedAt: Date | string | null };
@@ -53,9 +54,15 @@ type RegisterCardArgs = {
    * Whether the card should also be a drop target. A card in an *archived* list
    * is draggable (you can move it *out*) but not a drop target (nothing may be
    * dropped *onto* it / into its list). Defaults to `true`.
-  */
+   */
   isDropTarget?: boolean;
   onDraggingChange: (dragging: boolean) => void;
+  /**
+   * Latest card data for the drag preview (DEM-87). Read once at drag start so
+   * the preview always reflects the current card without forcing the leaf to
+   * re-register on every prop change.
+   */
+  getCard: () => BoardCard;
 };
 
 type RegisterListCardsAreaArgs = {
@@ -136,7 +143,7 @@ function renderLiftedPreview({
   clone.style.transform = kind === 'card' ? 'rotate(2deg)' : 'rotate(1deg)';
   clone.style.boxShadow =
     kind === 'card'
-      ? '0 14px 28px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.12)'
+      ? 'none'
       : '0 18px 36px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.12)';
   clone.style.borderColor = 'rgba(15, 23, 42, 0.18)';
   clone.style.background = 'hsl(var(--card))';
@@ -147,6 +154,73 @@ function renderLiftedPreview({
 
   container.appendChild(clone);
   return () => clone.remove();
+}
+
+/**
+ * Body-portal drag preview controller for cards (DEM-87). The HTML5 drag-image
+ * bitmap path (`setCustomNativeDragPreview`) leaks alpha / shadow / rotated-
+ * corner artefacts that no amount of inline styling fixed. Instead we hide the
+ * native drag image (`disableNativeDragPreview`) and keep a *live* React tree
+ * portal pinned to the cursor — same approach as the legacy Pusula's dnd-kit
+ * `DragOverlay`, just expressed against Pragmatic DnD's primitives.
+ *
+ * The portal is a single body-attached element with `position: fixed` whose
+ * `transform: translate(...)` is updated imperatively from the global
+ * `monitorForElements` `onDrag` callback (no React state on the hot path → no
+ * board-wide re-render per pointer frame).
+ */
+function createCardDragOverlayController() {
+  let el: HTMLDivElement | null = null;
+  let root: Root | null = null;
+  let pointerOffset = { x: 0, y: 0 };
+
+  function ensureEl(): HTMLDivElement {
+    if (el) return el;
+    const node = document.createElement('div');
+    node.style.position = 'fixed';
+    node.style.top = '0';
+    node.style.left = '0';
+    node.style.zIndex = '9999';
+    node.style.pointerEvents = 'none';
+    node.style.willChange = 'transform';
+    document.body.appendChild(node);
+    el = node;
+    root = createRoot(node);
+    return node;
+  }
+
+  function applyTransform(clientX: number, clientY: number) {
+    if (!el) return;
+    el.style.transform = `translate(${clientX - pointerOffset.x}px, ${clientY - pointerOffset.y}px)`;
+  }
+
+  return {
+    show(card: BoardCard, sourceElement: HTMLElement, input: { clientX: number; clientY: number }) {
+      const sourceRect = sourceElement.getBoundingClientRect();
+      pointerOffset = {
+        x: input.clientX - sourceRect.left,
+        y: input.clientY - sourceRect.top,
+      };
+      ensureEl();
+      applyTransform(input.clientX, input.clientY);
+      flushSync(() => {
+        root!.render(createElement(CardDragPreview, { card, width: sourceRect.width }));
+      });
+    },
+    update(input: { clientX: number; clientY: number }) {
+      applyTransform(input.clientX, input.clientY);
+    },
+    hide() {
+      if (root) {
+        root.unmount();
+        root = null;
+      }
+      if (el) {
+        el.remove();
+        el = null;
+      }
+    },
+  };
 }
 
 /**
@@ -193,6 +267,22 @@ export function useBoardDnd(opts: {
   const boardStripElRef = useRef<HTMLElement | null>(null);
   const boardStripRef = useCallback((el: HTMLElement | null) => {
     boardStripElRef.current = el;
+  }, []);
+
+  // --- Card drag-overlay portal (DEM-87) ----------------------------------
+  // Lazy: controller is created on first drag and torn down on hook unmount.
+  const cardOverlayRef = useRef<ReturnType<typeof createCardDragOverlayController> | null>(null);
+  const cardOverlay = useCallback(() => {
+    if (!cardOverlayRef.current) {
+      cardOverlayRef.current = createCardDragOverlayController();
+    }
+    return cardOverlayRef.current;
+  }, []);
+  useEffect(() => {
+    return () => {
+      cardOverlayRef.current?.hide();
+      cardOverlayRef.current = null;
+    };
   }, []);
 
   // --- Optimistic move mutations (shared hook — Phase 4C / DEM-80) ---------
@@ -377,6 +467,8 @@ export function useBoardDnd(opts: {
           if (!isCardDragData(source.data)) {
             return;
           }
+          // DEM-87: keep the body-portal preview pinned to the cursor.
+          cardOverlay().update(location.current.input);
           const target = location.current.dropTargets[0];
           if (!target) {
             clearCardPlaceholder();
@@ -400,7 +492,10 @@ export function useBoardDnd(opts: {
                 target.element.querySelectorAll<HTMLElement>('[data-board-card-id]'),
               ).filter((el) => el.dataset.boardCardId !== dragged.cardId);
               const lastCard = cardElements[cardElements.length - 1];
-              if (lastCard && location.current.input.clientY <= lastCard.getBoundingClientRect().bottom) {
+              if (
+                lastCard &&
+                location.current.input.clientY <= lastCard.getBoundingClientRect().bottom
+              ) {
                 setCardPlaceholder((current) => (current?.listId === toListId ? current : null));
                 return;
               }
@@ -427,7 +522,9 @@ export function useBoardDnd(opts: {
           }
 
           const targetHeight =
-            target.element instanceof HTMLElement ? target.element.getBoundingClientRect().height : 0;
+            target.element instanceof HTMLElement
+              ? target.element.getBoundingClientRect().height
+              : 0;
           showCardPlaceholder({
             listId: toListId,
             targetCardId,
@@ -441,6 +538,10 @@ export function useBoardDnd(opts: {
           clearListPlaceholder();
           draggedCardHeightRef.current = null;
           draggedListSizeRef.current = { width: null, height: null };
+          // DEM-87: safety teardown — the per-card draggable also calls hide,
+          // but the monitor fires for every drop so this guarantees cleanup
+          // even if a card draggable was unregistered mid-drag.
+          cardOverlay().hide();
           const target = location.current.dropTargets[0];
           if (!target) return;
 
@@ -520,6 +621,7 @@ export function useBoardDnd(opts: {
     clearListPlaceholder,
     showCardPlaceholder,
     showListPlaceholder,
+    cardOverlay,
   ]);
 
   // --- Registrars (called from each column/card component's effect) --------
@@ -531,19 +633,20 @@ export function useBoardDnd(opts: {
         draggable({
           element,
           getInitialData: () => ({ type: 'card', cardId, fromListId: listId, position }),
-          onGenerateDragPreview: ({ nativeSetDragImage, location, source }) => {
-            setCustomNativeDragPreview({
-              nativeSetDragImage,
-              getOffset: preserveOffsetOnSource({
-                element: source.element,
-                input: location.current.input,
-              }),
-              render: ({ container }) =>
-                renderLiftedPreview({ container, element: source.element, kind: 'card' }),
-            });
+          // DEM-87: bypass the HTML5 drag-image bitmap entirely. The body
+          // portal in `cardOverlay()` is the *real* preview; any visible
+          // browser drag image would just stack on top.
+          onGenerateDragPreview: ({ nativeSetDragImage }) => {
+            disableNativeDragPreview({ nativeSetDragImage });
           },
-          onDragStart: () => args.onDraggingChange(true),
-          onDrop: () => args.onDraggingChange(false),
+          onDragStart: ({ source, location }) => {
+            args.onDraggingChange(true);
+            cardOverlay().show(args.getCard(), source.element, location.current.input);
+          },
+          onDrop: () => {
+            args.onDraggingChange(false);
+            cardOverlay().hide();
+          },
         }),
       ];
       if (isDropTarget) {
@@ -562,7 +665,7 @@ export function useBoardDnd(opts: {
       }
       return combine(...cleanups);
     },
-    [enabled],
+    [enabled, cardOverlay],
   );
 
   const registerListCardsArea = useCallback(
