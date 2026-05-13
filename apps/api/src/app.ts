@@ -3,10 +3,26 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '@pusula/api';
+import { appRouter, type RealtimeEmit } from '@pusula/api';
 import { auth } from './auth';
 import { env } from './env';
 import { buildTrpcContext } from './trpc';
+
+/**
+ * Faz 5A (DEM-83) — the Socket.IO server is attached *after* the HTTP server
+ * starts listening (it needs the `Server` handle from `@hono/node-server`).
+ * Once it's up, `index.ts` calls `setRealtimeEmit` and from then on every
+ * tRPC request picks the helpers up through `getRealtimeEmit()` inside
+ * `buildTrpcContext`. Until then (and in unit tests that drive `app.fetch`
+ * directly), `ctx.realtime` stays `undefined` and emits are a no-op.
+ */
+let realtimeEmit: RealtimeEmit | undefined;
+export function setRealtimeEmit(emit: RealtimeEmit | undefined): void {
+  realtimeEmit = emit;
+}
+export function getRealtimeEmit(): RealtimeEmit | undefined {
+  return realtimeEmit;
+}
 
 const TRPC_ENDPOINT = '/trpc';
 

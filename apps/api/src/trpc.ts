@@ -1,6 +1,7 @@
 import type { Context as HonoContext } from 'hono';
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { createContext, type Context } from '@pusula/api';
+import { getRealtimeEmit } from './app';
 import { auth } from './auth';
 import { enqueueCompaction } from './compaction-queue';
 
@@ -29,5 +30,9 @@ export async function buildTrpcContext(
     userAgent: c.req.header('user-agent') ?? null,
     // Best-effort background position compaction (Faz 3C — DEM-44).
     enqueueCompaction,
+    // Best-effort realtime emit (Faz 5A — DEM-83). `undefined` until the
+    // Socket.IO server finishes attaching (`apps/api/src/index.ts` calls
+    // `setRealtimeEmit` once `setupSocketServer` resolves).
+    realtime: getRealtimeEmit(),
   });
 }

@@ -1,5 +1,27 @@
 import { getDb, type Database } from '@pusula/db';
+import type { RealtimeEventEnvelope } from '@pusula/domain';
 import type { EnqueueCompaction } from './lib/compaction';
+
+/**
+ * Best-effort realtime emit helpers — wired by the host app (`apps/api` boot
+ * mounts the Socket.IO server and supplies these closures; tests / Next route
+ * handlers omit them → emit is a no-op). Faz 5B mutation bodies route writes
+ * through `realtime_events` outbox, so direct emit from procedures is reserved
+ * for server-initiated events; until 5B lands these are mostly unused.
+ *
+ * Same wiring shape as `enqueueCompaction` (Faz 3C — DEM-44). Both Redis I/O
+ * (`emitToBoard`/`emitToUser` cross-node fan-out via `@socket.io/redis-adapter`)
+ * and BullMQ enqueues are host concerns — the API package stays framework-free.
+ *
+ * See `docs/architecture/03-backend.md` "Faz 5 — Socket.IO server" and
+ * `docs/architecture/05-board-mekanigi.md` §5.3.
+ */
+export interface RealtimeEmit {
+  /** Emit an envelope to every socket joined to `board:{boardId}`. */
+  emitToBoard: (boardId: string, envelope: RealtimeEventEnvelope) => void | Promise<void>;
+  /** Emit an envelope to every socket joined to `user:{userId}`. */
+  emitToUser: (userId: string, envelope: RealtimeEventEnvelope) => void | Promise<void>;
+}
 
 /** The authenticated user, as resolved by the host app's auth layer (Better Auth). */
 export interface SessionUser {
@@ -31,6 +53,13 @@ export interface CreateContextOptions {
    * queue; omitted in tests / Next route handlers → compaction is a no-op there.
    */
   enqueueCompaction?: EnqueueCompaction;
+  /**
+   * Best-effort realtime emit helpers (Faz 5A — DEM-83). Wired by `apps/api`
+   * after the Socket.IO server is mounted; absent in tests / Next route
+   * handlers → emit is a no-op (mutation bodies should treat this field as
+   * optional and check before calling). See `RealtimeEmit` above.
+   */
+  realtime?: RealtimeEmit;
 }
 
 export interface Context {
@@ -41,6 +70,8 @@ export interface Context {
   userAgent?: string | null;
   /** See `CreateContextOptions.enqueueCompaction`. `undefined` ⇒ compaction no-op. */
   enqueueCompaction?: EnqueueCompaction;
+  /** See `CreateContextOptions.realtime`. `undefined` ⇒ realtime emit no-op. */
+  realtime?: RealtimeEmit;
   /**
    * Phase 4A (DEM-78) — collaborative mutations may carry a client-generated
    * `clientMutationId` (UUID v4 via `crypto.randomUUID()`) on the input. The
@@ -64,6 +95,7 @@ export function createContext(opts: CreateContextOptions): Context {
     ip: opts.ip ?? null,
     userAgent: opts.userAgent ?? null,
     enqueueCompaction: opts.enqueueCompaction,
+    realtime: opts.realtime,
     // The `enforceClientMutationId` middleware overwrites this for every
     // protected procedure call; explicit default keeps the shape stable for
     // call sites that read `ctx.clientMutationId` before the middleware runs
