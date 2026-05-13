@@ -852,6 +852,310 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(enqueue).toHaveBeenCalledTimes(1);
     expect(enqueue).toHaveBeenCalledWith({ kind: 'list', listId: list.id });
   });
+
+  // ---------------------------------------------------- moveToList (DEM-69, Faz 3E)
+
+  it('moveToList: same-board move to another list — listId changes, boardId unchanged, card.moved activity (no fromBoardId/toBoardId), version bumps once', async () => {
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'MTL Src', clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'MTL card', clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(boardId);
+    const moved = await callerFor(memberId).card.moveToList({
+      cardId: card.id,
+      toListId: dst.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(moved).toMatchObject({ id: card.id, listId: dst.id, boardId, changed: true });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const movedActs = (await actsFor(boardId)).filter(
+      (e) => e.type === 'card.moved' && (e.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(movedActs).toHaveLength(1);
+    expect(movedActs[0]?.payload).toMatchObject({ fromListId: src.id, toListId: dst.id, fromPosition: card.position });
+    expect((movedActs[0]?.payload as Record<string, unknown>).fromBoardId).toBeUndefined();
+    expect((movedActs[0]?.payload as Record<string, unknown>).toBoardId).toBeUndefined();
+
+    const fetched = await callerFor(ownerId).card.get({ cardId: card.id });
+    expect(fetched.card.listId).toBe(dst.id);
+    expect(fetched.card.boardId).toBe(boardId);
+  });
+
+  it('moveToList: cross-board move — boardId+listId change, card_labels emptied, card_members preserved, checklist/comment follow the card, card.moved has from/to boardId, BOTH boards bump version', async () => {
+    // second board in the same workspace, the caller (member) can edit it
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Board 2', clientMutationId: newId('cmid') });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'MTL B2 List', clientMutationId: newId('cmid') });
+    const srcList = await callerFor(ownerId).list.create({ boardId, title: 'MTL B1 Src', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: srcList.id, title: 'Cross card', clientMutationId: newId('cmid') });
+
+    // a label on board 1 attached to the card
+    const label = await callerFor(ownerId).label.create({ boardId, color: 'blue', name: 'Travel', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: newId('cmid') });
+    expect(await callerFor(ownerId).card.labels.list({ cardId: card.id })).toHaveLength(1);
+
+    // a card member (the workspace member)
+    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
+    expect(await callerFor(ownerId).card.members.list({ cardId: card.id })).toHaveLength(1);
+
+    // a checklist + item, and a comment
+    const cl = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'Trip steps', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: cl.id, content: 'Pack', clientMutationId: newId('cmid') });
+    const comment = await callerFor(ownerId).comment.create({ cardId: card.id, body: 'Bon voyage', clientMutationId: newId('cmid') });
+
+    const v1Before = await boardVersion(boardId);
+    const v2Before = await boardVersion(board2.id);
+
+    const moved = await callerFor(memberId).card.moveToList({
+      cardId: card.id,
+      toListId: list2.id,
+      clientMutationId: newId('cmid'),
+    });
+    expect(moved).toMatchObject({ id: card.id, listId: list2.id, boardId: board2.id, changed: true });
+
+    // labels dropped, members kept
+    expect(await callerFor(ownerId).card.labels.list({ cardId: card.id })).toHaveLength(0);
+    expect(await callerFor(ownerId).card.members.list({ cardId: card.id })).toEqual([
+      expect.objectContaining({ userId: memberId, role: 'assignee' }),
+    ]);
+
+    // checklist + comment still attached (queried directly)
+    const cls = await db().select().from(dbMod.checklists).where(dbMod.eq(dbMod.checklists.cardId, card.id));
+    expect(cls).toHaveLength(1);
+    const cmts = await db().select().from(dbMod.comments).where(dbMod.eq(dbMod.comments.cardId, card.id));
+    expect(cmts.map((c) => c.id)).toContain(comment.id);
+
+    // activity on the *target* board, with from/to boardId
+    const movedActs = (await actsFor(board2.id)).filter(
+      (e) => e.type === 'card.moved' && (e.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(movedActs).toHaveLength(1);
+    expect(movedActs[0]?.payload).toMatchObject({
+      fromListId: srcList.id,
+      toListId: list2.id,
+      fromBoardId: boardId,
+      toBoardId: board2.id,
+    });
+
+    // both boards' versions bumped
+    expect(await boardVersion(boardId)).toBe(v1Before + 1);
+    expect(await boardVersion(board2.id)).toBe(v2Before + 1);
+  });
+
+  it('moveToList: archived target list → BAD_REQUEST; archived target board → BAD_REQUEST', async () => {
+    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL guard card', clientMutationId: newId('cmid') });
+
+    const archList = await callerFor(ownerId).list.create({ boardId, title: 'MTL Frozen', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: archList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
+
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Archived Board', clientMutationId: newId('cmid') });
+    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(ownerId).card.moveToList({ cardId: card.id, toListId: archBoardList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+  });
+
+  it('moveToList: caller has no edit access on the target board → FORBIDDEN', async () => {
+    // a board where `guest` is a viewer; guest tries to move a card they can edit on board1... actually guest can't edit board1 either.
+    // Use: ownerId can edit board1, but is only a `viewer` on a board they're explicitly downgraded on. Simpler: target board where memberId has NO access.
+    // outsiderId has no workspace membership → resolveBoardAccess throws FORBIDDEN. But the source card must be visible to the caller.
+    // So: a board the caller (member) is a `viewer` on.
+    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'MTL Viewer Board', clientMutationId: newId('cmid') });
+    await db().insert(dbMod.boardMembers).values({ boardId: viewerBoard.id, userId: memberId, role: 'viewer' });
+    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'MTL forbidden card', clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.moveToList({ cardId: card.id, toListId: viewerList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('moveToList: a no-op (already at the target list+position) is changed:false — no activity, no version bump; a duplicate clientMutationId is a natural no-op', async () => {
+    const list = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop List', clientMutationId: newId('cmid') });
+    const a = await callerFor(ownerId).card.create({ listId: list.id, title: 'A', clientMutationId: newId('cmid') });
+    const b = await callerFor(ownerId).card.create({ listId: list.id, title: 'B', clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(boardId);
+    const movedActs0 = (await actsFor(boardId)).filter((e) => e.type === 'card.moved').length;
+
+    // move B to exactly its own position in its own list
+    const noop = await callerFor(memberId).card.moveToList({
+      cardId: b.id,
+      toListId: list.id,
+      beforeCardId: a.id,
+      newPosition: b.position,
+      clientMutationId: newId('cmid'),
+    });
+    expect(noop).toMatchObject({ id: b.id, listId: list.id, position: b.position, changed: false });
+    expect(await boardVersion(boardId)).toBe(v0);
+    expect((await actsFor(boardId)).filter((e) => e.type === 'card.moved').length).toBe(movedActs0);
+
+    // and a second moveToList to the same destination — also a no-op
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'MTL Noop Dst', clientMutationId: newId('cmid') });
+    const cmid = newId('cmid');
+    const first = await callerFor(memberId).card.moveToList({ cardId: a.id, toListId: dst.id, clientMutationId: cmid });
+    expect(first.changed).toBe(true);
+    const again = await callerFor(memberId).card.moveToList({ cardId: a.id, toListId: dst.id, clientMutationId: cmid });
+    expect(again).toMatchObject({ id: a.id, listId: dst.id, changed: false });
+  });
+
+  // ---------------------------------------------------- copy (DEM-69, Faz 3E)
+
+  it('copy: no includes — new card with copied title (+ " (kopya)") / description / dueAt / coverColor, completed=false, no checklists/members/labels on the copy, card.created activity has copiedFromCardId, target version bumps, source unchanged', async () => {
+    const src = await callerFor(ownerId).list.create({ boardId, title: 'Copy Src', clientMutationId: newId('cmid') });
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId: src.id, title: 'Original', clientMutationId: newId('cmid') });
+    const due = new Date('2026-11-30T12:00:00.000Z');
+    await callerFor(ownerId).card.update({ cardId: card.id, description: 'desc here', dueAt: due, coverColor: 'mavi', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.complete({ cardId: card.id, clientMutationId: newId('cmid') });
+
+    const v0 = await boardVersion(boardId);
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    expect(copy).toMatchObject({ listId: dst.id, boardId, title: 'Original (kopya)', description: 'desc here', coverColor: 'mavi', completed: false });
+    expect(copy.dueAt?.getTime()).toBe(due.getTime());
+    expect(copy.completedAt).toBeNull();
+    expect(copy.completedBy).toBeNull();
+    expect(copy.id).not.toBe(card.id);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    // no sub-rows on the copy
+    expect(await callerFor(ownerId).card.labels.list({ cardId: copy.id })).toHaveLength(0);
+    expect(await callerFor(ownerId).card.members.list({ cardId: copy.id })).toHaveLength(0);
+    expect(await db().select().from(dbMod.checklists).where(dbMod.eq(dbMod.checklists.cardId, copy.id))).toHaveLength(0);
+
+    // activity
+    const createdActs = (await actsFor(boardId)).filter(
+      (e) => e.type === 'card.created' && (e.payload as { cardId?: string }).cardId === copy.id,
+    );
+    expect(createdActs).toHaveLength(1);
+    expect(createdActs[0]?.payload).toMatchObject({ copiedFromCardId: card.id, title: 'Original (kopya)' });
+
+    // source unchanged
+    const srcFetched = await callerFor(ownerId).card.get({ cardId: card.id });
+    expect(srcFetched.card).toMatchObject({ id: card.id, listId: src.id, title: 'Original', completed: true });
+
+    // explicit title overrides the default
+    const copy2 = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, title: 'Custom name', clientMutationId: newId('cmid') });
+    expect(copy2.title).toBe('Custom name');
+  });
+
+  it('copy: includeChecklists — checklists + items copied (order preserved, items completed=false)', async () => {
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy CL Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has checklists', clientMutationId: newId('cmid') });
+    const clA = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List A', clientMutationId: newId('cmid') });
+    const clB = await callerFor(ownerId).checklist.create({ cardId: card.id, title: 'List B', clientMutationId: newId('cmid') });
+    const itemA1 = await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A1', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clA.id, content: 'A2', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).checklist.item.create({ cardId: card.id, checklistId: clB.id, content: 'B1', clientMutationId: newId('cmid') });
+    // toggle one item complete on the source
+    await callerFor(ownerId).checklist.item.toggle({ cardId: card.id, checklistId: clA.id, itemId: itemA1.id, completed: true, clientMutationId: newId('cmid') });
+
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeChecklists: true, clientMutationId: newId('cmid') });
+
+    const copyChecklists = await db()
+      .select()
+      .from(dbMod.checklists)
+      .where(dbMod.eq(dbMod.checklists.cardId, copy.id))
+      .orderBy(dbMod.asc(dbMod.checklists.position));
+    expect(copyChecklists.map((c) => c.title)).toEqual(['List A', 'List B']);
+    const aChecklistId = copyChecklists[0]!.id;
+    const aItems = await db()
+      .select()
+      .from(dbMod.checklistItems)
+      .where(dbMod.eq(dbMod.checklistItems.checklistId, aChecklistId))
+      .orderBy(dbMod.asc(dbMod.checklistItems.position));
+    expect(aItems.map((i) => i.content)).toEqual(['A1', 'A2']);
+    expect(aItems.every((i) => i.completed === false && i.completedAt === null && i.completedBy === null)).toBe(true);
+  });
+
+  it('copy: includeMembers — same-board members are copied; a cross-board copy filters out a member without target-board access', async () => {
+    // same-board: a member is copied
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Mem Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has members', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.members.add({ cardId: card.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
+    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeMembers: true, clientMutationId: newId('cmid') });
+    expect(await callerFor(ownerId).card.members.list({ cardId: copySame.id })).toEqual([
+      expect.objectContaining({ userId: memberId, role: 'assignee' }),
+    ]);
+
+    // cross-board into a board where `memberId` is not a member at all (board with only an explicit owner member; member is workspace member so they DO inherit member... so use a viewer board for the *member* — but then the *caller* needs member+ on the target).
+    // Construct: board2 where ownerId is admin (inherits) and memberId is downgraded to `viewer` via an explicit board_members row → memberId still has board access (viewer) so wouldn't be filtered.
+    // To get a genuinely-no-access member: card on board1 has `guest`-equivalent? guestId is a workspace `guest` with a board_members viewer row on board1 only. On a fresh board2, guestId (workspace guest, no board_members row) has NO effective access. So: card on board1 with guestId as a member, copy cross-board to board2 with includeMembers → guestId filtered out.
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Mem B2', clientMutationId: newId('cmid') });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: newId('cmid') });
+    const card2 = await callerFor(ownerId).card.create({ listId, title: 'Cross members card', clientMutationId: newId('cmid') });
+    // give guest a board_members viewer row on board1 already exists; add guest as a card member
+    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: guestId, role: 'watcher', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.members.add({ cardId: card2.id, userId: memberId, role: 'assignee', clientMutationId: newId('cmid') });
+    const copyCross = await callerFor(ownerId).card.copy({ cardId: card2.id, toListId: list2.id, includeMembers: true, clientMutationId: newId('cmid') });
+    const copiedMembers = await callerFor(ownerId).card.members.list({ cardId: copyCross.id });
+    // member inherits board access (workspace member) → copied; guest has no access on board2 → filtered out
+    expect(copiedMembers.map((m) => m.userId).sort()).toEqual([memberId]);
+  });
+
+  it('copy: includeLabels same-board → labels copied; cross-board with includeLabels:true → labels NOT copied', async () => {
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Lbl Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has labels', clientMutationId: newId('cmid') });
+    const label = await callerFor(ownerId).label.create({ boardId, color: 'green', name: 'CopyMe', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).card.labels.add({ cardId: card.id, labelId: label.id, clientMutationId: newId('cmid') });
+
+    const copySame = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, includeLabels: true, clientMutationId: newId('cmid') });
+    expect(await callerFor(ownerId).card.labels.list({ cardId: copySame.id })).toEqual([
+      expect.objectContaining({ labelId: label.id }),
+    ]);
+
+    // cross-board → labels skipped
+    const board2 = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Lbl B2', clientMutationId: newId('cmid') });
+    const list2 = await callerFor(ownerId).list.create({ boardId: board2.id, title: 'B2 list', clientMutationId: newId('cmid') });
+    const copyCross = await callerFor(ownerId).card.copy({ cardId: card.id, toListId: list2.id, includeLabels: true, clientMutationId: newId('cmid') });
+    expect(await callerFor(ownerId).card.labels.list({ cardId: copyCross.id })).toHaveLength(0);
+  });
+
+  it('copy: comments are NEVER copied', async () => {
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Cmt Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Has comments', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).comment.create({ cardId: card.id, body: 'will not be copied', clientMutationId: newId('cmid') });
+    const copy = await callerFor(memberId).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    const copyComments = await db().select().from(dbMod.comments).where(dbMod.eq(dbMod.comments.cardId, copy.id));
+    expect(copyComments).toHaveLength(0);
+  });
+
+  it('copy: archived target list/board → BAD_REQUEST; no target-board edit access → FORBIDDEN', async () => {
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Copy guard card', clientMutationId: newId('cmid') });
+
+    const archList = await callerFor(ownerId).list.create({ boardId, title: 'Copy Frozen', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).list.archive({ boardId, listId: archList.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.copy({ cardId: card.id, toListId: archList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    const archBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Archived Board', clientMutationId: newId('cmid') });
+    const archBoardList = await callerFor(ownerId).list.create({ boardId: archBoard.id, title: 'L', clientMutationId: newId('cmid') });
+    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(ownerId).card.copy({ cardId: card.id, toListId: archBoardList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // a board viewer cannot copy a card INTO that board
+    const viewerBoard = await callerFor(ownerId).board.create({ workspaceId, title: 'Copy Viewer Board', clientMutationId: newId('cmid') });
+    await db().insert(dbMod.boardMembers).values({ boardId: viewerBoard.id, userId: memberId, role: 'viewer' });
+    const viewerList = await callerFor(ownerId).list.create({ boardId: viewerBoard.id, title: 'Viewer List', clientMutationId: newId('cmid') });
+    await expect(
+      callerFor(memberId).card.copy({ cardId: card.id, toListId: viewerList.id, clientMutationId: newId('cmid') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('copy: a normal (short) position does NOT enqueue a compaction job', async () => {
+    const enqueue = vi.fn<EnqueueCompaction>();
+    const dst = await callerFor(ownerId).list.create({ boardId, title: 'Copy Compaction Dst', clientMutationId: newId('cmid') });
+    const card = await callerFor(ownerId).card.create({ listId, title: 'Compaction copy card', clientMutationId: newId('cmid') });
+    const copy = await callerWithEnqueue(memberId, enqueue).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: newId('cmid') });
+    expect(copy.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
 });
 
 // File-scoped teardown: close the probe pool once after every suite in this file.

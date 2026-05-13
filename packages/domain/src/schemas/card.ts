@@ -43,6 +43,48 @@ export const moveCardInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * Move a card to any list — the same board or another board (Phase 3E — DEM-69).
+ * Unlike `moveCardInput` (Phase 3A, board-internal), `toListId` may belong to a
+ * different board; a cross-board move also updates `cards.board_id` and re-checks
+ * the caller's permission on the target board. Cross-board moves reset
+ * board-scoped relations (`card_labels` are dropped). `card_members` are kept,
+ * and `checklists` / `checklist_items` / `comments` / `activity_events` follow
+ * the card (they have no `board_id`). Idempotent (`clientMutationId`): a card
+ * already at the target list+position is a no-op. See invariant 16.
+ */
+export const moveCardToListInput = z.object({
+  cardId: idSchema,
+  toListId: idSchema,
+  beforeCardId: idSchema.nullish(),
+  afterCardId: idSchema.nullish(),
+  newPosition: z.string().optional(),
+  ...withClientMutationId,
+});
+
+/**
+ * Copy a card to any list (Phase 3E — DEM-69). `comments` / `activity_events`
+ * are never copied; `title` (defaults to the source title + " (kopya)"),
+ * `description`, `due_at`, `cover_color` are always copied; `completed` /
+ * `completed_at` / `completed_by` are always reset. `checklists` /
+ * `card_members` / `card_labels` are opt-in (members are filtered to those with
+ * effective access to the target board; labels are copied only when the target
+ * board equals the source board). NOT idempotent — every call creates a new row
+ * (`clientMutationId` is carried but there's no dedup, like `card.create`).
+ * See invariant 16.
+ */
+export const copyCardInput = z.object({
+  cardId: idSchema,
+  toListId: idSchema,
+  beforeCardId: idSchema.nullish(),
+  afterCardId: idSchema.nullish(),
+  title: cardTitleSchema.optional(),
+  includeChecklists: z.boolean().default(false),
+  includeMembers: z.boolean().default(false),
+  includeLabels: z.boolean().default(false),
+  ...withClientMutationId,
+});
+
 export const archiveCardInput = z.object({
   cardId: idSchema,
   archived: z.boolean().default(true),
@@ -58,6 +100,8 @@ export const uncompleteCardInput = z.object({ cardId: idSchema, ...withClientMut
 export type CreateCardInput = z.infer<typeof createCardInput>;
 export type UpdateCardInput = z.infer<typeof updateCardInput>;
 export type MoveCardInput = z.infer<typeof moveCardInput>;
+export type MoveCardToListInput = z.infer<typeof moveCardToListInput>;
+export type CopyCardInput = z.infer<typeof copyCardInput>;
 export type ArchiveCardInput = z.infer<typeof archiveCardInput>;
 export type CompleteCardInput = z.infer<typeof completeCardInput>;
 export type UncompleteCardInput = z.infer<typeof uncompleteCardInput>;
