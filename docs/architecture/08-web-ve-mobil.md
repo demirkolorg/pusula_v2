@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 08 — Web ve Mobil
 
@@ -28,6 +28,8 @@ Sorumluluklar: board ekranı, drag-drop deneyimi, workspace & board yönetimi, n
 activity feed, search, settings, auth ekranları.
 
 > **UI tasarım dili (token'lar, board/kolon/kart/modal anatomisi, ortak desenler, `packages/ui` bileşen spec'leri) → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md)** (Faz 2.7). Bu dosya web tarafının teknik/işlevsel ihtiyaçlarını tutar; *görsel/anatomi* kararları 13'te. Faz 2.7 uygulamasında §8.1.4–8.1.6'daki ekranlar 13'teki tasarım diline çekilir.
+>
+> **Dark/light tema desteği:** root layout'ta `next-themes` `ThemeProvider` (`attribute="class"`, `defaultTheme="light"`, `enableSystem={false}`, `themes=["light","dark"]`, `storageKey="pusula-theme"`); app-shell header sağ tarafında `ThemeToggle` (Sun/Moon ikon swap, `Button variant=ghost size=icon`); persistence = localStorage; auth route'larında toggle yok (ilk tur). Tüm ekranlar (`(auth)/*`, `(app)/*`, board, board settings, card detail modal, filter bar, Tiptap prose) light + dark token cascade'inden besleniyor — yeni renk eklenmez; §13.7 [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md#137-tema-modu-lightdark) "önce belge"si + DEM-96 uygulaması. Mod seti **ikili** (`system` algılaması yok), default `light`.
 
 Kullanım ilkeleri:
 
@@ -144,7 +146,7 @@ Board ekranına (§8.1.4 Board ekranı / §8.1.5 kart detayı; tasarım dili [`1
 
 - **Bağımlılık & kapsam:** Faz 3A ([DEM-42](https://linear.app/demirkol/issue/DEM-42) — `list.move`/`card.move`) ve Faz 2D ([DEM-37](https://linear.app/demirkol/issue/DEM-37) — board ekranı) hazır olmalı. Tam optimistic cache modeli **Faz 4** ([DEM-27](https://linear.app/demirkol/issue/DEM-27)); bu fazda drag UX akıcıdır ama kalıcılaştırma `trpc.board.get` cache'i lokal güncelle → mutation → `onSettled` invalidate + refetch (server'ın kesin `position`'ıyla reconcile) düzeyinde tutulur. Realtime echo (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28)) ve compaction worker (Faz 3C — [DEM-44](https://linear.app/demirkol/issue/DEM-44)) ayrı işler; bu UI yalnızca `clientMutationId` üretir/gönderir (ileri-uyum, henüz tüketici yok).
 - **Drag sırasında:** backend mutation **atılmaz**. React state yalnız local güncellenir — sürüklenen kartın/kolonun "hayalet" gösterimi + hedef konumda placeholder; kart/kolon ölçüleri stabil (layout shift yok). Pragmatic DnD `draggable` (kart/kolon) + `dropTargetForElements` (kolon gövdesi = kart hedefi; board şeridi = kolon hedefi) + `monitorForElements` ile yönetilir; `closestEdge` ile kart için "üst/alt", kolon için "sol/sağ" edge'i belirlenir. Otomatik kenar-kaydırma (auto-scroll) için Pragmatic DnD'nin scroll paketi kullanılır.
-- **Custom drag preview** (DEM-87): kart için `setCustomNativeDragPreview` + `CardDragPreview` React komponenti (`card-drag-preview.tsx` — sade kart kopyası, opaque + `rotate-[2deg]` + drop-shadow; cover şerit + başlık + temel meta) detached container'a `createRoot` ile render edilir; sürüklenen kartın orijinali `opacity-0` ile **anlık** gizlenir (opacity transition listede yok → ikili görüntü tortusu olmaz). Kolon preview'i hâlâ DOM clone (`renderLiftedPreview` — kolon yapısı ağır, clone basit kalır). Tasarım dili → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.2.
+- **Custom drag preview — kart için body-portal pattern** (DEM-87): Pragmatic DnD'nin `setCustomNativeDragPreview` HTML5 drag-image bitmap yolu kart için terk edildi (alpha kanalı, soft-shadow keskinleşmesi, `rotate` ile transparent köşe sızıntısı bug'ları). Yerine: `disableNativeDragPreview` (1×1 transparent gif → browser preview görünmez) + `useBoardDnd` hook'unun lazy `createCardDragOverlayController()` factory'si — `position: fixed; pointer-events: none; z-index: 9999` body element'ı oluşturur, `createRoot` + `flushSync` ile `CardDragPreview` React komponentini canlı tree'de mount eder, `monitorForElements.onDrag` callback'inde DOM `style.transform = translate(...)` ile cursor pozisyonuna pinler (her frame React state yok → board re-render yok). `onDrop` ve hook unmount cleanup'ta portal kapatılır. Sürüklenen kartın orijinali "**rüya modu**"na geçer (eski Pusula `dnd-kit DragOverlay` deneyiminden esinlenildi): outer `<article>` `border-dashed border-primary/60 bg-primary/5` placeholder olur, içerik wrapper `invisible` (yer korunur, layout shift yok). Kolon preview'i hâlâ DOM clone (`renderLiftedPreview` + `setCustomNativeDragPreview` — kolon büyük + yatay tilt soft, bug pratikte hissedilmiyor). Tasarım dili → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.2.
 - **`onDrop` (drag bitişi):** hedef konuma göre `before`/`after` komşular belirlenir; client `@pusula/domain/position` `positionBetween(before?.position, after?.position)` ile `newPosition` hesaplar (server doğrular veya yeniden hesaplar). Konum değişmediyse (aynı yere bırakıldı) mutation atılmaz. **Tek** mutation çalışır:
   - kart → `trpc.card.move({ cardId, fromListId, toListId, beforeCardId?, afterCardId?, newPosition?, clientMutationId })` — `toListId === fromListId` ise liste-içi reorder, farklıysa cross-list (yalnız **aynı board**; başka board'a taşıma ileri faz `card.moveToList`, Faz 3E — [DEM-69](https://linear.app/demirkol/issue/DEM-69)).
   - kolon → `trpc.list.move({ listId, beforeListId?, afterListId?, newPosition?, clientMutationId })`.
@@ -208,6 +210,52 @@ Faz 4 optimistic UI (§8.1.9) tek-kullanıcı UX'i çözdü; Faz 5 **çoklu-kull
   - Vitest birim: event handler'ların cache primitives doğru çağırması (her event tipi için); echo ayıklama (in-flight set'ten gelen event skip); `seq` gap → refetch tetiklenir; `seq` stale → skip; reconnect → `boardKey` invalidate; `useBoardRealtime` mount/unmount cleanup.
   - Playwright e2e iki kullanıcı (`alice` + `bob` fixture; ortak board): card move sync · list create sync · card archive sync · reconnect resync · echo ayıklama doğruluğu. Faz 3D ([DEM-45](https://linear.app/demirkol/issue/DEM-45)) Playwright harness'ı üstüne.
 - **Wired (Faz 5C — [DEM-85](https://linear.app/demirkol/issue/DEM-85), 2026-05-13):** `apps/web/src/lib/realtime/` modülü kuruldu: `client.ts` (`socket.io-client` singleton `getRealtimeSocket()` — `withCredentials: true` + `transports: ['websocket']` + `autoConnect: false`; `REALTIME_EVENT_CHANNEL = 'realtime:event'` apps/api `emit.ts` ile birebir aynı tek-channel envelope ile); `in-flight-store.ts` (modül-scope `Set<string>` — `add/has/remove/clear`); `event-handlers.ts` `dispatchRealtimeEvent(qc, filters, envelope)` (12 event tipi → `board-cache/primitives` çağrısı; `card.completed`/`uncompleted` superjson `Date` dönüşümü; `card.updated` `card.get` cache cascade; unknown event tipi → `console.warn` + skip — forward compat); `use-board-realtime.ts` `useBoardRealtime(boardId)` (mount: singleton connect + `board:join` emit + `realtime:event`/`connect`/`disconnect` listener'ları register; her envelope için **echo skip → seq gating [seq+1 apply + cache.board.version bump / seq>+1 invalidate / seq≤version stale drop / no-baseline invalidate] → reconnect handler invalidate+rejoin**; unmount: listener detach + `board:leave` emit — yalnız `joined` flag set'liyse [connect-then-join guard]); `index.ts` barrel. `useOptimisticBoardMutation` + `useOptimisticBoardListMutation` (Faz 4C) `onMutate`'te `addInFlightClientMutationId`, `onSettled`'da `removeInFlightClientMutationId` ile entegre (additive — public yüzey değişmedi; Faz 4D 14/14 testi yeşil kaldı). Board sayfası `page.tsx` `useBoardRealtime(boardId)` mount + disconnect amber banner (`strings.realtime.disconnected` + `role="status" aria-live="polite"`). `cacheKeys` referansı `useRef` ile sabitlenip effect deps `[boardId, queryClient, socket]`'e indirgendi (sonsuz reconnect döngüsü önleme). Dep: `socket.io-client ^4.8.1`. Vitest 31/31 — `in-flight-store.test.ts` (6), `event-handlers.test.ts` (14 — her tip + unknown + card.get cascade), `use-board-realtime.test.tsx` (11 — mount/unmount/listener-detach/echo/apply/gap/stale/no-baseline/reconnect/connect-then-join/connection-status). Toplam apps/web 386/386 PASS. Playwright e2e + load test 5D ([DEM-86](https://linear.app/demirkol/issue/DEM-86)).
+
+---
+
+### 8.1.11 Notification center (Faz 6 — [DEM-29](https://linear.app/demirkol/issue/DEM-29))
+
+Faz 5C realtime altyapısının (§8.1.10) `user:{userId}` room'una yayınlanan `notification.created` event'lerini tüketen kullanıcı bildirim merkezi. App shell header'da bell ikonu + unread badge + Popover dropdown panel. Backend: `notifications.*` procedure'leri (Faz 6A — [`03-backend.md`](03-backend.md) "Faz 6 — notification & push procedure'leri"); domain kuralları → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md); processor → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Notification processor (Faz 6)".
+
+- **Modül konvansiyonu:**
+  - `apps/web/src/lib/realtime/use-user-realtime.ts` (yeni) — Faz 5C `useBoardRealtime` pattern'iyle paralel: `user:{userId}` room zaten otomatik join (5A bağlantıda); listener `notification.created` event'ini dinler → `trpc.notifications.list` ve `trpc.notifications.unreadCount` cache invalidate (badge anlık güncellenir). Echo ayıklama gerekmez (`notification.created` server-initiated; client `clientMutationId`'si yok). App shell layout'unda `(app)/layout.tsx`'te bir kez mount edilir; tüm sayfalarda aktif.
+  - `apps/web/src/app/(app)/_components/notification-bell.tsx` (yeni) — header'da bell:
+    - `lucide-react` `Bell` icon + unread count badge (>0 ise sayı; `>9` için `9+`; Tailwind absolute positioning; `aria-label="{unread} okunmamış bildirim"`).
+    - onClick → shadcn `Popover` (`NotificationCenterPanel`).
+  - `apps/web/src/app/(app)/_components/notification-center.tsx` (yeni) — Popover içeriği:
+    - Başlık: "Bildirimler" + "Tümünü okundu işaretle" buton (`trpc.notifications.markAllRead`).
+    - Liste: `trpc.notifications.list.useInfiniteQuery()` (cursor pagination; scroll'la fetch next; veya manuel "Daha fazla" buton).
+    - Her satır: `Avatar size-xs` (actor varsa) + `activitySummary` Türkçe başlık (DEM-53 çeviri katmanı yeniden kullanılır) + zaman ("2 dakika önce" — `date-fns` veya `Intl.RelativeTimeFormat`); unread satır = `bg-accent/30` + sol kenar mavi şerit.
+    - onClick → `router.push(...)` (ilgili karta/board'a yönlendir) + `trpc.notifications.markRead({ id })` (optimistic; cache'ten unread set'inden çıkar).
+    - Boş durum: shadcn `EmptyState` ("Henüz bildirim yok").
+    - Yükleme: skeleton (3-4 satır).
+- **Realtime entegrasyon:** `useUserRealtime` `notification.created` aldığında:
+  1. `trpc.notifications.list` cache invalidate → arkadan refetch (yeni notification listede görünür).
+  2. `trpc.notifications.unreadCount` cache invalidate → badge anlık artar.
+  3. Toast yok (gürültü); badge artışı yeterli görsel sinyal.
+- **Tıklayınca davranış:** notification satırına tıkla → `payload.linkTo` (`/workspaces/{wsId}/boards/{boardId}?card={cardId}` veya benzer) URL'i hesapla → `router.push` + mark-read. Modal açma (kart detay) URL'deki `?card=` param'ı yakalar (DEM-53 mevcut pattern).
+- **Bildirim tipi → görsel ikon eşleme (`packages/ui/notification-type-icon.tsx` veya inline):**
+  - `card.member_added` → `UserPlus` (mavi)
+  - `comment.mentioned` → `AtSign` (sarı/önemli)
+  - `comment.created` → `MessageSquare` (gri)
+  - `due_reminder_*` → `Clock` (turuncu/kırmızı overdue için)
+  - `board.member_invited` → `Mail` (mavi)
+  - `card.archived` → `Archive` (gri)
+  - vb. (DEM-93 implementation turunda kararlaştırılır)
+- **i18n strings (`apps/web/src/lib/strings.ts`):** `strings.notifications.*`:
+  - `bellAria` — bell ikonu aria-label
+  - `title` — "Bildirimler"
+  - `markAllRead` — "Tümünü okundu işaretle"
+  - `empty` — "Henüz bildirim yok"
+  - `unreadCountLabel` — "{n} okunmamış"
+  - `loadMore` — "Daha fazla yükle"
+  - Notification type başlık template'leri (`{actor} sana '{card}' kartını atadı` vb.) — DEM-53 `activitySummary` çeviri katmanı yeniden kullanılır.
+- **Yetki:** notifications.list yalnız kendi userId'ye filtreli; `protectedProcedure` enforce eder. Notification center'da silinmiş karta link → karta gidince 404 → UI graceful fallback ("Bu kart artık mevcut değil").
+- **Tercih ekranı:** **Faz 6'da yok.** Default tercihler (in-app her zaman + push opt-in + email opt-in) ile çalışır; tercih ekranı UI sonraki tur. Backend tablo + API hazır (`notification_preferences`).
+- **Test (Faz 6D + 6E):**
+  - Vitest RTL: `NotificationBell` (unread count render + Popover açılır), `NotificationCenter` (`notifications.list` render + markRead optimistic + markAllRead toplu + tıkla → router.push + mark-read), `useUserRealtime` (`notification.created` event → cache invalidate + badge artar).
+  - Playwright e2e (Faz 6E — alice/bob fixture): atama bildirimi (bob bell badge 0→1 + tıkla → karta yönlendir + mark-read → badge 0), mention bildirimi, realtime push (panel açık iken anlık güncelleme).
+- **Faz kapsamı:** Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)) implementasyon. Mobile notification UI Faz 7 ([DEM-30](https://linear.app/demirkol/issue/DEM-30)) — Expo `apps/mobile`.
 
 ---
 

@@ -102,6 +102,8 @@ export const strings = {
     signOut: 'Çıkış',
     signingOut: 'Çıkış yapılıyor…',
     accountSettings: 'Hesap ayarları',
+    themeToggleToLight: 'Açık temaya geç',
+    themeToggleToDark: 'Koyu temaya geç',
   },
   workspace: {
     listTitle: 'Workspace’lerin',

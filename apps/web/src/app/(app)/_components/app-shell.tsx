@@ -8,6 +8,7 @@ import { LayoutGridIcon } from 'lucide-react';
 import { Button, cn } from '@pusula/ui';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
+import { ThemeToggle } from './theme-toggle';
 
 type AppShellProps = {
   userName: string;
@@ -73,6 +74,7 @@ export function AppShell({ userName, children }: AppShellProps) {
             {strings.common.appName}
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Link
               href="/account"
               title={strings.shell.accountSettings}

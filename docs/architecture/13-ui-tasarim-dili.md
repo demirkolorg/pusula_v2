@@ -18,7 +18,7 @@ related:
   - "[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]"
   - "[[docs/architecture/05-board-mekanigi|Board Mekaniği]]"
   - "[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 13 — UI Tasarım Dili
 
@@ -232,4 +232,89 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 **Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
-**Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` genişletilir).
+**Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]) → **dark/light tema desteği** ([DEM-96](https://linear.app/demirkol/issue/DEM-96) — kapanış-sonrası #2: §13.7 "Tema modu" + `next-themes` wire + app-shell `ThemeToggle`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` / `strings.common.theme.*` genişletilir).
+
+## 13.7 Tema modu (light/dark)
+
+> Eksen: **tasarım / teknik**. Bu bölüm, [DEM-96](https://linear.app/demirkol/issue/DEM-96) (Faz 2.7 kapanış-sonrası follow-up #2) "önce belge" çıktısıdır: design token sistemi (§13.1) `:root` light + `.dark` setlerini zaten taşıyor; eksik olan **kullanıcı tarafı bağlantı** (provider + toggle + persistence + tüm ekran görsel pass). Uygulama DEM-96'da; **kod değişikliği bu belgede yok**.
+
+### 13.7.1 Kararlar (kullanıcı seçimi, 2026-05-14)
+
+- **Mod seti = `light` + `dark` ikili.** OS algılaması (`system`) **yok**. Default = `light` (Trello-vari palet light-first; eski Pusula projesi de light-first).
+- **Strateji = `next-themes`.** shadcn'in resmi tema entegrasyonu; SSR mismatch'i `suppressHydrationWarning` + provider script ile çözer; minimal kod; ekosistem standardı.
+- **Toggle = app-shell header sağ üst.** `Sun` (light aktifken) / `Moon` (dark aktifken) ikon swap, `Button variant=ghost size=icon`. İkili mod → DropdownMenu **gerekmez** (tıklayınca diğer moda flip).
+- **Persistence = `localStorage`** (next-themes default). `storageKey="pusula-theme"` (namespaced — diğer Pusula key'leriyle aynı disiplin). Cihaz başına ayrı tercih; server preference YOK (sonraki tur — `users` tablosuna kolon eklemek istenirse Faz 8 / `bosluk-tara` benzeri ayrı iş).
+- **Cookie modu YOK.** Kullanıcı seçimi: SSR'da ilk render her zaman `light` ile gelir; client mount sonrası localStorage'tan okunan tercih `<html class>` üzerinden uygulanır. Hydration flash riskini next-themes script'i (provider'ın eklediği inline `<script>`) küçültür; ilk render flash'ı kabul edilir (UX trade-off; `system` algılama olmadığı için daha az kritik).
+- **Auth route'larında toggle:** opsiyonel; ilk turda **dışarıda** (sign-in/sign-up basit kalır). Kullanıcı isterse sonraki tur eklenir.
+
+### 13.7.2 ThemeProvider entegrasyonu
+
+`apps/web/src/app/layout.tsx` (root layout):
+
+```tsx
+<html lang="tr" suppressHydrationWarning>
+  <body className="font-sans antialiased">
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      themes={["light", "dark"]}
+      storageKey="pusula-theme"
+    >
+      {children}
+    </ThemeProvider>
+  </body>
+</html>
+```
+
+`attribute="class"` → next-themes `<html class="dark">` veya class'sız (light) toggle eder; §13.1 `:root` light, `.dark` dark token cascade buna bağlıdır (zaten `@custom-variant dark (&:is(.dark *))` `theme.css`'te tanımlı).
+
+`enableSystem={false}` → OS preference dinlenmez; `defaultTheme="light"` ilk ziyarette uygulanır.
+
+### 13.7.3 `ThemeToggle` bileşeni
+
+`apps/web/src/components/theme-toggle.tsx` (yeni) — app-shell'de tutulur, `packages/ui`'a şu an çıkarılmaz (`apps/mobile` yok; mobile gelirse cross-platform ayrı tartışılır):
+
+- `useTheme()` ile mevcut tema; `mounted` state ile hidrasyon flash önleme (mount öncesi placeholder boyutunda `Button` render edilir — `aria-hidden`).
+- Tıklayınca `setTheme(theme === "dark" ? "light" : "dark")`.
+- İkon: light aktifken `Sun` (next moda geçmeyi vurgular: `Moon` da gösterilebilir; pattern = "hedef ikon" — Trello/Linear "açıklık seviyesi" hissi; final ikon kararı 2.7-dark uygulamasında ince-ayar).
+- Boyut: `variant="ghost"` `size="icon"`, `h-9 w-9` (header tipik aksiyon boyutu).
+- `aria-label` = `strings.common.theme.toggle` (örn. "Temayı değiştir").
+- `tooltip` (`packages/ui` shadcn `Tooltip`): mevcut tema + tıklayınca neye geçileceğini gösterir.
+
+### 13.7.4 App-shell yerleşimi
+
+`apps/web/src/components/app-shell.tsx` header düzeni (mevcut: sol → marka + workspace adı; sağ → kullanıcı menüsü / hesap linki). `ThemeToggle` **kullanıcı menüsünden önce / `NotificationBell` (Faz 6D — DEM-93) bittiğinde onunla aynı grupta** durur:
+
+```
+[ Marka / WS ]                                          [ ThemeToggle ] [ NotificationBell ] [ Account ]
+```
+
+Auth (`(auth)/layout.tsx`) toggle barındırmaz (ilk tur kararı).
+
+### 13.7.5 Dark mode görsel pass — checklist
+
+Tüm ekranlarda her ikisinde test:
+
+- **Auth**: sign-in, sign-up, forgot-password, reset-password — form input/label/error mesaj/link/button contrast.
+- **App-shell**: header bg + border + ThemeToggle/Bell/Account ikonları + kullanıcı menüsü + breadcrumb.
+- **Workspaces**: workspace listesi, kart hover, empty state, onboarding ekranı.
+- **Workspace settings**: rename/slug formu, üye listesi, davet et dialog'u, gönderilmiş davetler, tehlikeli bölge.
+- **Account**: profil form, parola form, hesap silme dialog'u.
+- **Board ekranı**: zemin (`bg-background`), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
+- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler.
+- **Card detail modal**: header (kapak-renksiz `bg-background border-b` + kapak-renkli `bg-palet-{ad}`), sol kolon (sticky başlık + meta chip satırı + AÇIKLAMA Tiptap editör + KONTROL LİSTESİ + Progress bar), sağ panel (`bg-muted/40 backdrop-blur` — dark'ta backdrop-blur okunabilir kalmalı), Tabs strip, yorum composer, yorum kartı, aktivite satırı.
+- **Tiptap prose**: editör + read-only `RichTextContent` — `.dark` altında başlık/paragraf/bullet/link/inline-code/blockquote okunabilir (token-bazlı: `[&_h1]:text-foreground` vb. veya `prose-invert` alternatifi tartışılır; tercih: token-bazlı, palet tutarlı kalır).
+- **`--palet-*` etiket chip'leri**: solid (`bg-palet-{ad} text-palet-{ad}-foreground`) + soft (`bg-palet-{ad}/15 text-palet-{ad}`) — light + dark'ta WCAG **AA** kontrast (4.5:1 normal metin / 3:1 büyük metin); `-foreground` eşleri §13.1'de tanımlı — implementasyonda kontrol et.
+- **Kart kapak rengi**: kart şeridi (`bg-palet-{ad}` `h-3`) + modal başlık çubuğu (`bg-palet-{ad} text-palet-{ad}-foreground`) — kapak rengi seçilebilir 12 renk dark mode'da da WCAG AA.
+- **Focus halkası**: `--ring` light + dark'ta primary-türevli görünür (a11y zorunlu).
+- **Scrollbar**: `.pusula-scrollbar` light + dark thumb (`--scrollbar-thumb` / `--scrollbar-thumb-hover` token'ları zaten ikili tanımlı — kontrol et).
+
+### 13.7.6 Kapsam dışı
+
+- **OS `system` preference algılama** — kullanıcı kararı: ikili yeter. Eklenirse `enableSystem={true}` + `system` mode + `useTheme().resolvedTheme` ile gerçek tema okunur.
+- **Server-side preference** — `users.theme` kolonu, Better Auth profil entegrasyonu, çoklu cihaz tutarlılık. Sonraki tur (`bosluk-tara` / Faz 8 / kullanıcı isteği).
+- **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
+- **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
+- **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
+- **Board-başına özelleştirilebilir zemin** — §13.2'deki gibi ileri faz ([DEM-57](https://linear.app/demirkol/issue/DEM-57), Faz 8); tema modundan bağımsız.
