@@ -90,30 +90,85 @@ moveList({ listId, beforeListId?, afterListId?, newPosition?, clientMutationId }
 
 ---
 
-## 5.2 Optimistic UI
+## 5.2 Optimistic UI (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27))
 
-TanStack Query + tRPC (`@trpc/tanstack-react-query`; web client `apps/web/src/trpc`). Optimistic
-UI burada görsel iyileştirme değil, **ürün kalitesinin parçasıdır**.
+TanStack Query + tRPC (`@trpc/tanstack-react-query`; web client `apps/web/src/trpc`). Optimistic UI burada görsel iyileştirme değil **ürün kalitesinin parçasıdır** — kullanıcı kart taşıdığında / yeniden adlandırdığında / arşivlediğinde UI network beklemez, anında tepki verir; rollback ve `CONFLICT` refetch ile hata yolu kapatılır. Faz 3B drag-drop ([DEM-43](https://linear.app/demirkol/issue/DEM-43)) `card.move`/`list.move` için optimistic akışı zaten kuruyor; Faz 4 bunu **tüm board/list/card collaborative mutation'larına** genelleştirir, ortak cache modelini + helper'ları çıkarır.
 
-Mutation lifecycle:
+### Board cache şekli
+
+Board ekranının ihtiyaçlarına göre normalize edilmiş ağaç (`apps/web/src/lib/board-cache/`):
 
 ```txt
-onMutate:   ilgili query'ler cancel; mevcut cache snapshot; optimistic update; rollback context döndür
-onError:    snapshot cache'e geri yaz; düşük gürültülü hata göster
-onSuccess:  server sonucuyla cache reconcile
-onSettled:  ilgili board/card query invalidate (gerektiğinde)
+BoardCache = { board: { id, workspaceId, title, version, ... }, lists: ListCache[] }   // lists position artan
+ListCache  = { id, boardId, title, position, archivedAt, cards: CardCache[] }          // cards position artan
+CardCache  = { id, listId, title, position, dueAt, coverColor, completed, ... }
 ```
 
-Protokol kuralları:
+Tipler tRPC output tiplerinden türetilir (`trpc.board.get`'in dönüşü); tek kaynak `@pusula/api`.
 
-- Collaborative state değiştiren her mutation `clientMutationId` taşır (`@pusula/domain`: `clientMutationIdSchema` / `withClientMutationId`).
-- Mutation'lar mümkün olduğunca idempotent; aynı mutation iki kez gelirse backend duplicate activity/bildirim üretmez.
-- Client cache board ekranının ihtiyaçlarına göre normalize edilir.
-- Realtime event'ler aynı client'ın optimistic güncellemesini iki kez uygulamaz.
+### Query key konvansiyonu
 
-Genel akış: kullanıcı kartı taşır → UI cache hemen güncellenir → mutation server'a gider →
-server transaction'ı tamamlar → server realtime event yayınlar → client kendi `clientMutationId`
-değerini tanır, event'i tekrar uygulamaz → mutation başarısızsa cache rollback → gerekirse query invalidate.
+| Key                            | Anlamı                                | Doldurma                            |
+| ------------------------------ | ------------------------------------- | ----------------------------------- |
+| `['board', boardId]`           | Tek board (lists + cards dahil)       | `trpc.board.get({ boardId })`       |
+| `['boards', workspaceId]`      | Workspace board listesi (özetli)      | `trpc.board.list({ workspaceId })`  |
+| `['card', cardId]`             | Kart detayı (yorumlar/checklist/üye)  | `trpc.card.get({ cardId })`         |
+| `['workspace', workspaceId]`   | Workspace meta + üye listesi          | mevcut Faz 1 query                  |
+| `['notifications']`            | Bildirim merkezi                      | Faz 6 ([DEM-29](https://linear.app/demirkol/issue/DEM-29)) |
+
+`apps/web/src/lib/board-cache/keys.ts` factory'si tek kaynaktır; component'lar literal array yazmaz. tRPC'nin kendi query key'leri (procedure path + input) ile manuel key'ler **karıştırılmaz** — `board-cache` modülü `trpc.board.get` / `card.get` / `board.list` için tRPC'nin ürettiği key'lere referans verir, manuel `['board', boardId]` formu helper'ların imzasında yer alır.
+
+### Cache update primitives
+
+`apps/web/src/lib/board-cache/` modülünde **pure** fonksiyonlar (queryClient ile değil, cache snapshot ile çağrılabilir; 4B Vitest birim testleriyle [4D] doğrulanır):
+
+- `updateCardInCache(qc, boardId, cardId, patch)` — kartı `['board', boardId]` ağacında bulup patch'ler; ilgili `['card', cardId]` query'sini de günceller.
+- `moveCardInCache(qc, { cardId, fromListId, toListId, newPosition })` — kaynak liste cache'inden çıkarır, hedef listeye komşu sırada ekler (`positionBetween` ile).
+- `moveListInCache(qc, { listId, newPosition })` — liste reorder.
+- `addCardToCache` / `removeCardFromCache` / `archiveCardInCache` / `archiveListInCache` / `addListToCache` / `updateListInCache` / `updateBoardInCache` / ...
+
+### Mutation lifecycle
+
+```txt
+onMutate:    ['board', boardId] cancel; cache snapshot al; cache primitive ile optimistic update; { snapshot } rollback context döndür
+onError:     ctx.snapshot ile cache'i geri yaz; düşük gürültülü hata toast (CONFLICT hariç — aşağıda)
+onSuccess:   server sonucuyla cache reconcile (örn. server'ın kesin `position`'ı ile son düzeltme — gerekiyorsa)
+onSettled:   ['board', boardId] (gerekirse ['card', cardId]) invalidate → arka planda refetch
+```
+
+### `clientMutationId` semantiği
+
+Collaborative state değiştiren her mutation `clientMutationId: string` (UUID v4) taşır — client `crypto.randomUUID()` ile üretir, input'a ekler. Üç amaç:
+
+1. **Idempotency** — backend aynı `clientMutationId` ile gelen retry'ı tekrar uygulamaz (Faz 4'te yalnız **log/audit kaydı** — gerçek dedupe Faz 5'te outbox + short-window cache ile).
+2. **Realtime echo ayıklama (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28))** — server activity event'leri `clientMutationId` ile yayar; client kendi gönderdiği `clientMutationId`'yi event'te tanırsa optimistic update'i tekrar uygulamaz (echo). Faz 4'te altyapı kurulur (input + log + activity event alanı); tüketici Faz 5'te.
+3. **Audit / debug** — log'ta hangi UI eylemi hangi server transaction'ına denk geldiği izlenir.
+
+Şema: `@pusula/domain` mutation input'larında `clientMutationId: z.string().uuid().optional()` (gönderim opsiyonel; Faz 4C UI tüm collaborative mutation'larda **mutlaka** üretir — opsiyonel olması Faz 5 sonrası backward-compat ve test kolaylığı içindir).
+
+### `CONFLICT` davranışı
+
+Server `TRPCError({ code: 'CONFLICT', ... })` döndüğünde (eşzamanlı move — bkz. [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md) "Eşzamanlılık"):
+
+1. Optimistic update rollback edilir (`ctx.snapshot`).
+2. `['board', boardId]` invalidate + refetch — backend güncel state alınır.
+3. Kullanıcıya kısa bilgi: "Liste başka bir yerde güncellendi, yeniden yüklendi." (`strings.board.conflict.refreshed`).
+
+Kart sessizce kaybolmaz / yanlış yerde kalmaz — kullanıcı en son backend gerçeğini görür.
+
+### Network / server error
+
+`CONFLICT` dışındaki hatalar (`INTERNAL_SERVER_ERROR`, `UNAUTHORIZED`, network timeout, ...) → cache rollback + `strings.board.dnd.error` (drag-drop) ya da mutation-spesifik hata mesajı + "tekrar dene" CTA. **Otomatik retry yok** (yan etki riski — kullanıcı kontrollü).
+
+### Kapsam (Faz 4)
+
+**Optimistic edilir** (4C): `card.move` · `card.moveToList` · `card.copy` · `card.create` · `card.update` · `card.archive` · `card.complete` · `card.uncomplete` · `list.move` · `list.create` · `list.update` · `list.archive` · `board.create` · `board.update` · `board.archive`.
+
+**Optimistic edilmez** (Faz 5/6'ya bırakılır): `comment.*` · `checklist.*` · `label.*` · `board.members.*` — bu mutation'lar realtime echo + activity feed (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28)) ile birlikte optimistic edilecek; Faz 4'te `await` + invalidate pattern korunur.
+
+### Test (Faz 4D — [DEM-81](https://linear.app/demirkol/issue/DEM-81))
+
+Vitest + Testing Library + msw/tRPC mock ile failure modları (mutation başına en az 1 senaryo): network hata (rollback), `CONFLICT` (refetch + toast), race (eşzamanlı `card.move`), rollback doğrulaması (cache snapshot eski state), `clientMutationId` injection (UUID v4 regex). Cache update primitives'in pure-function birim testleri 4B'de ([DEM-79](https://linear.app/demirkol/issue/DEM-79)). E2E (Playwright) Faz 8'e ([DEM-31](https://linear.app/demirkol/issue/DEM-31)), realtime echo ayıklama testleri Faz 5'e bırakılır.
 
 ---
 
