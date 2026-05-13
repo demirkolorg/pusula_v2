@@ -72,7 +72,10 @@ export function CardModalSidebar({
   const copy = strings.card.detail;
   const [tab, setTab] = useState<'comments' | 'activity' | 'attachments' | 'all'>('comments');
 
-  const visibleCommentCount = useMemo(() => comments.filter((c) => c.deletedAt == null).length, [comments]);
+  const visibleCommentCount = useMemo(
+    () => comments.filter((c) => c.deletedAt == null).length,
+    [comments],
+  );
   const activityCount = activity.length;
   const attachmentCount = 0;
   const allCount = comments.length + activityCount;
@@ -84,8 +87,16 @@ export function CardModalSidebar({
   );
   const allItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [
-      ...comments.map((comment) => ({ kind: 'comment' as const, at: timeOf(comment.createdAt), comment })),
-      ...activity.map((event) => ({ kind: 'activity' as const, at: timeOf(event.createdAt), event })),
+      ...comments.map((comment) => ({
+        kind: 'comment' as const,
+        at: timeOf(comment.createdAt),
+        comment,
+      })),
+      ...activity.map((event) => ({
+        kind: 'activity' as const,
+        at: timeOf(event.createdAt),
+        event,
+      })),
     ];
     return items.sort((a, b) => b.at - a.at);
   }, [comments, activity]);
@@ -110,25 +121,25 @@ export function CardModalSidebar({
   return (
     <aside
       data-slot="card-modal-sidebar"
-      className="bg-muted/40 flex flex-col overflow-hidden border-t backdrop-blur md:border-t-0 md:border-l"
+      className="relative flex flex-col overflow-hidden border-t bg-muted/40 backdrop-blur md:border-t-0 md:border-l"
     >
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as typeof tab)}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="bg-muted/40 sticky top-0 z-10 shrink-0 space-y-3 border-b px-4 py-2.5 backdrop-blur">
-          <TabsList className="w-full">
-            <TabsTrigger value="comments">
+        <div className="sticky top-0 z-10 shrink-0 space-y-3 bg-muted/40 p-4 backdrop-blur sm:p-[18px]">
+          <TabsList>
+            <TabsTrigger value="comments" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.comments} count={visibleCommentCount} />
             </TabsTrigger>
-            <TabsTrigger value="activity">
+            <TabsTrigger value="activity" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.activity} count={activityCount} />
             </TabsTrigger>
-            <TabsTrigger value="attachments">
+            <TabsTrigger value="attachments" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.attachments} count={attachmentCount} />
             </TabsTrigger>
-            <TabsTrigger value="all">
+            <TabsTrigger value="all" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.all} count={allCount} />
             </TabsTrigger>
           </TabsList>
@@ -143,15 +154,21 @@ export function CardModalSidebar({
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-[18px] sm:pb-[18px]">
           <TabsContent value="comments">{commentsList}</TabsContent>
           <TabsContent value="activity">{activityList}</TabsContent>
           <TabsContent value="attachments">
-            <EmptyState icon={<PaperclipIcon className="size-8" />} message={copy.attachments.empty} />
+            <EmptyState
+              icon={<PaperclipIcon className="size-8" />}
+              message={copy.attachments.empty}
+            />
           </TabsContent>
           <TabsContent value="all">
             {allItems.length === 0 ? (
-              <EmptyState icon={<ActivityIcon className="size-8" />} message={strings.card.activity.empty} />
+              <EmptyState
+                icon={<ActivityIcon className="size-8" />}
+                message={strings.card.activity.empty}
+              />
             ) : (
               <div className="space-y-3">
                 {allItems.map((item) =>

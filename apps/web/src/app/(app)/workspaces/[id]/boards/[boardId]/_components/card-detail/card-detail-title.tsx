@@ -1,17 +1,8 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { PencilIcon } from 'lucide-react';
 import { cardTitleSchema } from '@pusula/domain';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  cn,
-} from '@pusula/ui';
+import { Alert, AlertDescription, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 type CardDetailTitleProps = {
@@ -27,13 +18,10 @@ type CardDetailTitleProps = {
 };
 
 /**
- * Card title in the modal's sticky header: a large heading that becomes an
- * auto-sizing `textarea` on click (board `member+`), validated client-side
- * against `cardTitleSchema`. The read heading and the editor share the same
- * `py-1`/`text-lg`/`leading-tight` metrics so toggling doesn't shift the layout;
- * the editor uses an `aria-label` instead of a placeholder (no placeholder
- * bleeding). A no-op save just closes the editor; read-only viewers see the
- * heading only. A completed card shows the heading struck through and muted.
+ * Card title in the modal's sticky header: v1-style, always-visible autosizing
+ * textarea for editors, validated client-side against `cardTitleSchema`.
+ * Read-only viewers see the heading only. A completed card shows the heading
+ * struck through and muted.
  */
 export function CardDetailTitle({
   title,
@@ -46,26 +34,16 @@ export function CardDetailTitle({
   const inputId = useId();
   const copy = strings.card.detail;
   const taRef = useRef<HTMLTextAreaElement>(null);
-
-  const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(title);
   const [valueError, setValueError] = useState<string | null>(null);
 
   useEffect(() => setValue(title), [title]);
   useEffect(() => {
-    if (editing) taRef.current?.focus();
-  }, [editing]);
-
-  const start = () => {
-    setValue(title);
-    setValueError(null);
-    setEditing(true);
-  };
-  const cancel = () => {
-    setValue(title);
-    setValueError(null);
-    setEditing(false);
-  };
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
 
   const submit = () => {
     const parsed = cardTitleSchema.safeParse(value);
@@ -74,69 +52,42 @@ export function CardDetailTitle({
       return;
     }
     setValueError(null);
-    if (parsed.data === title) {
-      setEditing(false);
-      return;
-    }
+    if (parsed.data === title) return;
     onSave(parsed.data);
-    setEditing(false);
   };
 
-  if (!editing || !canEdit) {
+  if (!canEdit) {
     return (
-      <div className="flex items-start gap-1.5">
-        <h2
-          className={cn(
-            'flex-1 px-2 py-1 text-lg leading-tight font-semibold break-words',
-            completed && 'text-muted-foreground line-through',
-          )}
-        >
-          {title}
-        </h2>
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={start}
-                aria-label={copy.editTitle}
-                className="mt-0.5 shrink-0"
-              >
-                <PencilIcon className="size-4" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{copy.editTitle}</TooltipContent>
-          </Tooltip>
+      <h2
+        className={cn(
+          'flex-1 px-1 py-0.5 text-[20px] leading-tight font-semibold break-words sm:text-[22px]',
+          completed && 'text-muted-foreground line-through',
         )}
-      </div>
+      >
+        {title}
+      </h2>
     );
   }
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        submit();
-      }}
-      noValidate
-      className="space-y-2"
-    >
+    <div className="space-y-2">
       <textarea
         ref={taRef}
         id={inputId}
         name="cardTitle"
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onBlur={() => submit()}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
-            submit();
+            event.currentTarget.blur();
           }
           if (event.key === 'Escape') {
             event.preventDefault();
-            cancel();
+            setValue(title);
+            setValueError(null);
+            event.currentTarget.blur();
           }
         }}
         rows={1}
@@ -146,9 +97,10 @@ export function CardDetailTitle({
         aria-invalid={valueError ? true : undefined}
         aria-describedby={valueError ? `${inputId}-error` : undefined}
         className={cn(
-          'w-full resize-none rounded-md border bg-card px-2 py-1 text-lg leading-tight font-semibold field-sizing-content focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none',
+          'w-full resize-none rounded-md border-0 bg-transparent px-1 py-0.5 text-[20px] leading-tight font-semibold outline-none transition-colors field-sizing-content sm:text-[22px]',
+          'hover:bg-muted/50 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/40',
           completed && 'text-muted-foreground line-through',
-          valueError && 'border-destructive',
+          valueError && 'ring-2 ring-destructive/40',
         )}
       />
       {valueError && (
@@ -161,14 +113,6 @@ export function CardDetailTitle({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? copy.titleSaving : copy.titleSave}
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={cancel} disabled={pending}>
-          {copy.titleCancel}
-        </Button>
-      </div>
-    </form>
+    </div>
   );
 }

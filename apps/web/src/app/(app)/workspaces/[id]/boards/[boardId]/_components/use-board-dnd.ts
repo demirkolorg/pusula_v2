@@ -31,7 +31,6 @@ import {
   isListDragData,
   isListDropData,
   type BoardDragState,
-  type Edge,
 } from './board-dnd-types';
 
 /** Minimal list shape the hook needs from `board.get`. */
@@ -48,16 +47,14 @@ type RegisterCardArgs = {
    * Whether the card should also be a drop target. A card in an *archived* list
    * is draggable (you can move it *out*) but not a drop target (nothing may be
    * dropped *onto* it / into its list). Defaults to `true`.
-   */
+  */
   isDropTarget?: boolean;
   onDraggingChange: (dragging: boolean) => void;
-  onEdgeChange: (edge: Edge | null) => void;
 };
 
 type RegisterListCardsAreaArgs = {
   element: HTMLElement;
   listId: string;
-  onOverChange: (over: boolean) => void;
 };
 
 type RegisterColumnArgs = {
@@ -66,17 +63,34 @@ type RegisterColumnArgs = {
   listId: string;
   position: string;
   onDraggingChange: (dragging: boolean) => void;
-  onEdgeChange: (edge: Edge | null) => void;
 };
 
 /** Rollback context returned from `onMutate` and consumed by `onError`. */
 type MoveRollback = { previous: [readonly unknown[], unknown][] };
+
+export type CardDropPlaceholder = {
+  listId: string;
+  targetCardId: string | null;
+  edge: CardEdge;
+  height: number | null;
+};
+
+export type ListDropPlaceholder = {
+  targetListId: string;
+  edge: ColumnEdge;
+  width: number | null;
+  height: number | null;
+};
 
 export type BoardDnd = {
   /** Whether drag-and-drop is active (board `member+` and the board is not archived). */
   enabled: boolean;
   /** What's currently being dragged (drives ghost styling). */
   dragState: BoardDragState;
+  /** Visual-only card drop target marker; never feeds the move mutation. */
+  cardPlaceholder: CardDropPlaceholder | null;
+  /** Visual-only list drop target marker; never feeds the move mutation. */
+  listPlaceholder: ListDropPlaceholder | null;
   /** A move failed mid-flight; a low-noise message to surface. `null` when clear. */
   error: string | null;
   clearError: () => void;
@@ -135,8 +149,15 @@ export function useBoardDnd(opts: {
   cardsRef.current = opts.cards;
 
   const [dragState, setDragState] = useState<BoardDragState>({ kind: 'idle' });
+  const [cardPlaceholder, setCardPlaceholder] = useState<CardDropPlaceholder | null>(null);
+  const [listPlaceholder, setListPlaceholder] = useState<ListDropPlaceholder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const clearError = useCallback(() => setError(null), []);
+  const draggedCardHeightRef = useRef<number | null>(null);
+  const draggedListSizeRef = useRef<{ width: number | null; height: number | null }>({
+    width: null,
+    height: null,
+  });
 
   const boardStripElRef = useRef<HTMLElement | null>(null);
   const boardStripRef = useCallback((el: HTMLElement | null) => {
@@ -238,6 +259,36 @@ export function useBoardDnd(opts: {
     [],
   );
 
+  const clearCardPlaceholder = useCallback(() => {
+    setCardPlaceholder((current) => (current == null ? current : null));
+  }, []);
+
+  const showCardPlaceholder = useCallback((next: CardDropPlaceholder) => {
+    setCardPlaceholder((current) =>
+      current?.listId === next.listId &&
+      current.targetCardId === next.targetCardId &&
+      current.edge === next.edge &&
+      current.height === next.height
+        ? current
+        : next,
+    );
+  }, []);
+
+  const clearListPlaceholder = useCallback(() => {
+    setListPlaceholder((current) => (current == null ? current : null));
+  }, []);
+
+  const showListPlaceholder = useCallback((next: ListDropPlaceholder) => {
+    setListPlaceholder((current) =>
+      current?.targetListId === next.targetListId &&
+      current.edge === next.edge &&
+      current.width === next.width &&
+      current.height === next.height
+        ? current
+        : next,
+    );
+  }, []);
+
   const moveCardToListEnd = useCallback(
     (cardId: string, fromListId: string, toListId: string) => {
       if (!enabled || !isListActive(toListId)) return;
@@ -283,14 +334,124 @@ export function useBoardDnd(opts: {
         canMonitor: ({ source }) => isCardDragData(source.data) || isListDragData(source.data),
         onDragStart: ({ source }) => {
           const data = source.data;
+          clearCardPlaceholder();
+          clearListPlaceholder();
           if (isCardDragData(data)) {
+            const height = source.element.getBoundingClientRect().height;
+            draggedCardHeightRef.current = height > 0 ? height : null;
+            draggedListSizeRef.current = { width: null, height: null };
             setDragState({ kind: 'card', cardId: data.cardId, fromListId: data.fromListId });
           } else if (isListDragData(data)) {
+            draggedCardHeightRef.current = null;
+            const rect = source.element.getBoundingClientRect();
+            draggedListSizeRef.current = {
+              width: rect.width > 0 ? rect.width : null,
+              height: rect.height > 0 ? rect.height : null,
+            };
             setDragState({ kind: 'list', listId: data.listId });
           }
         },
+        onDrag: ({ source, location }) => {
+          if (isListDragData(source.data)) {
+            clearCardPlaceholder();
+            const target = location.current.dropTargets[0];
+            if (!target) {
+              clearListPlaceholder();
+              return;
+            }
+            const targetData = target.data;
+            if (!isListDropData(targetData)) {
+              clearListPlaceholder();
+              return;
+            }
+            const edge: ColumnEdge = extractClosestEdge(targetData) === 'left' ? 'left' : 'right';
+            const plan = planListMove({
+              listId: source.data.listId,
+              targetListId: targetData.listId,
+              edge,
+              lists: listsForPlan(),
+            });
+            if (!plan) {
+              clearListPlaceholder();
+              return;
+            }
+            showListPlaceholder({
+              targetListId: targetData.listId,
+              edge,
+              width: draggedListSizeRef.current.width,
+              height: draggedListSizeRef.current.height,
+            });
+            return;
+          }
+
+          clearListPlaceholder();
+          if (!isCardDragData(source.data)) {
+            return;
+          }
+          const target = location.current.dropTargets[0];
+          if (!target) {
+            clearCardPlaceholder();
+            return;
+          }
+
+          const dragged = source.data;
+          const td = target.data;
+          let toListId: string;
+          let targetCardId: string | null;
+          let edge: CardEdge = 'bottom';
+          if (isCardDropData(td)) {
+            toListId = td.listId;
+            targetCardId = td.cardId;
+            edge = extractClosestEdge(td) === 'top' ? 'top' : 'bottom';
+          } else if (isListCardsDropData(td)) {
+            toListId = td.listId;
+            targetCardId = null;
+            if (target.element instanceof HTMLElement) {
+              const cardElements = Array.from(
+                target.element.querySelectorAll<HTMLElement>('[data-board-card-id]'),
+              ).filter((el) => el.dataset.boardCardId !== dragged.cardId);
+              const lastCard = cardElements[cardElements.length - 1];
+              if (lastCard && location.current.input.clientY <= lastCard.getBoundingClientRect().bottom) {
+                setCardPlaceholder((current) => (current?.listId === toListId ? current : null));
+                return;
+              }
+            }
+          } else {
+            clearCardPlaceholder();
+            return;
+          }
+          if (!isListActive(toListId)) {
+            clearCardPlaceholder();
+            return;
+          }
+          const plan = planCardMove({
+            cardId: dragged.cardId,
+            fromListId: dragged.fromListId,
+            toListId,
+            targetCardId,
+            edge,
+            cardsByListId,
+          });
+          if (!plan) {
+            clearCardPlaceholder();
+            return;
+          }
+
+          const targetHeight =
+            target.element instanceof HTMLElement ? target.element.getBoundingClientRect().height : 0;
+          showCardPlaceholder({
+            listId: toListId,
+            targetCardId,
+            edge,
+            height: draggedCardHeightRef.current ?? (targetHeight > 0 ? targetHeight : null),
+          });
+        },
         onDrop: ({ source, location }) => {
           setDragState({ kind: 'idle' });
+          clearCardPlaceholder();
+          clearListPlaceholder();
+          draggedCardHeightRef.current = null;
+          draggedListSizeRef.current = { width: null, height: null };
           const target = location.current.dropTargets[0];
           if (!target) return;
 
@@ -362,7 +523,17 @@ export function useBoardDnd(opts: {
       cleanups.push(autoScrollForElements({ element: boardStripElRef.current }));
     }
     return combine(...cleanups);
-  }, [enabled, boardId, isListActive, cardsByListId, listsForPlan]);
+  }, [
+    enabled,
+    boardId,
+    isListActive,
+    cardsByListId,
+    listsForPlan,
+    clearCardPlaceholder,
+    clearListPlaceholder,
+    showCardPlaceholder,
+    showListPlaceholder,
+  ]);
 
   // --- Registrars (called from each column/card component's effect) --------
   const registerCard = useCallback(
@@ -387,15 +558,7 @@ export function useBoardDnd(opts: {
                 { type: 'card', cardId, listId, position },
                 { element: el, input, allowedEdges: ['top', 'bottom'] },
               ),
-            onDrag: ({ self, source }) => {
-              if (!isCardDragData(source.data) || source.data.cardId === cardId) {
-                args.onEdgeChange(null);
-                return;
-              }
-              args.onEdgeChange(extractClosestEdge(self.data));
-            },
-            onDragLeave: () => args.onEdgeChange(null),
-            onDrop: () => args.onEdgeChange(null),
+            getIsSticky: () => true,
           }),
         );
       }
@@ -412,9 +575,7 @@ export function useBoardDnd(opts: {
         element,
         canDrop: ({ source }) => isCardDragData(source.data) && isListActive(listId),
         getData: () => ({ type: 'list-cards', listId }),
-        onDragEnter: () => args.onOverChange(true),
-        onDragLeave: () => args.onOverChange(false),
-        onDrop: () => args.onOverChange(false),
+        getIsSticky: () => true,
       });
     },
     [enabled, isListActive],
@@ -440,15 +601,7 @@ export function useBoardDnd(opts: {
               { type: 'list', listId, position },
               { element: el, input, allowedEdges: ['left', 'right'] },
             ),
-          onDrag: ({ self, source }) => {
-            if (!isListDragData(source.data) || source.data.listId === listId) {
-              args.onEdgeChange(null);
-              return;
-            }
-            args.onEdgeChange(extractClosestEdge(self.data));
-          },
-          onDragLeave: () => args.onEdgeChange(null),
-          onDrop: () => args.onEdgeChange(null),
+          getIsSticky: () => true,
         }),
       );
     },
@@ -463,6 +616,8 @@ export function useBoardDnd(opts: {
     () => ({
       enabled,
       dragState,
+      cardPlaceholder,
+      listPlaceholder,
       error,
       clearError,
       boardStripRef,
@@ -475,6 +630,8 @@ export function useBoardDnd(opts: {
     [
       enabled,
       dragState,
+      cardPlaceholder,
+      listPlaceholder,
       error,
       clearError,
       boardStripRef,

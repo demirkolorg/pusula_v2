@@ -12,25 +12,25 @@
   --radius: 0.5rem;
 
   /* Surfaces & text */
-  --background: oklch(0.96 0.02 240);
-  --foreground: oklch(0.18 0.01 250);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.01 250);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.01 250);
-  --muted: oklch(0.97 0.01 240);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --border: oklch(0.91 0.01 240);
-  --input: oklch(0.91 0.01 240);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
 
   /* Brand & accents */
-  --primary: oklch(0.55 0.16 245);
+  --primary: oklch(0.27 0.06 265);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0.01 240);
-  --secondary-foreground: oklch(0.2 0.01 250);
-  --accent: oklch(0.96 0.02 245);
-  --accent-foreground: oklch(0.2 0.01 250);
-  --ring: oklch(0.55 0.16 245);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --ring: var(--primary);
 
   /* Status */
   --success: oklch(0.62 0.16 150);

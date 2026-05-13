@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 
 // Hoisted mocks shared by the factories below.
@@ -30,6 +30,7 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
     },
     card: {
+      update: { mutationOptions: (o: unknown) => o },
       create: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
@@ -41,6 +42,8 @@ vi.mock('@/trpc/client', () => ({
 
 import { ListColumn, type BoardList } from './list-column';
 import { type BoardCard } from './card-item';
+import { BoardDndProvider } from './board-dnd-context';
+import type { BoardDnd } from './use-board-dnd';
 
 const columnCopy = strings.board.column;
 
@@ -75,7 +78,27 @@ const card = (id: string, title: string): BoardCard => ({
   members: [],
 });
 
+const makeDnd = (over: Partial<BoardDnd> = {}): BoardDnd => ({
+  enabled: true,
+  dragState: { kind: 'idle' },
+  cardPlaceholder: null,
+  listPlaceholder: null,
+  error: null,
+  clearError: vi.fn(),
+  registerCard: () => () => {},
+  registerListCardsArea: () => () => {},
+  registerColumn: () => () => {},
+  moveCardToListEnd: vi.fn(),
+  moveColumnByOne: vi.fn(),
+  ...over,
+});
+
 describe('<ListColumn>', () => {
+  beforeEach(() => {
+    h.mutate.mockReset();
+    h.invalidateQueries.mockReset();
+  });
+
   it('renders the list title and the card count', () => {
     render(<ListColumn boardId="b1" list={list} cards={[card('c1', 'Bir'), card('c2', 'İki')]} canEdit={false} />);
     expect(screen.getByRole('heading', { name: 'Yapılacak' })).toBeInTheDocument();
@@ -96,6 +119,24 @@ describe('<ListColumn>', () => {
     expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
   });
 
+  it('editor can rename the list inline by clicking the title', async () => {
+    const user = userEvent.setup();
+    render(<ListColumn boardId="b1" list={list} cards={[]} canEdit />);
+
+    await user.click(screen.getByRole('button', { name: list.title }));
+    const input = screen.getByLabelText(columnCopy.renamePlaceholder);
+    await user.clear(input);
+    await user.type(input, 'Devam Eden');
+    await user.tab();
+
+    expect(h.mutate).toHaveBeenCalledWith({
+      boardId: 'b1',
+      listId: 'l1',
+      title: 'Devam Eden',
+      clientMutationId: expect.any(String),
+    });
+  });
+
   it('an archived list is read-only: shows the archived label, no add-card form, "⋮" offers restore', async () => {
     const user = userEvent.setup();
     render(<ListColumn boardId="b1" list={archivedList} cards={[]} canEdit />);
@@ -110,5 +151,27 @@ describe('<ListColumn>', () => {
   it('shows the empty hint when the list has no cards', () => {
     render(<ListColumn boardId="b1" list={list} cards={[]} canEdit={false} />);
     expect(screen.getByText(columnCopy.empty)).toBeInTheDocument();
+  });
+
+  it('renders a card drop placeholder before the hovered target card', () => {
+    const dnd = makeDnd({
+      dragState: { kind: 'card', cardId: 'c1', fromListId: 'l1' },
+      cardPlaceholder: { listId: 'l1', targetCardId: 'c2', edge: 'top', height: 52 },
+    });
+    render(
+      <BoardDndProvider value={dnd}>
+        <ListColumn
+          boardId="b1"
+          list={list}
+          cards={[card('c1', 'One'), card('c2', 'Two')]}
+          canEdit
+        />
+      </BoardDndProvider>,
+    );
+
+    const placeholder = screen.getByTestId('card-drop-placeholder');
+    const targetCard = screen.getByRole('button', { name: 'Two' });
+    expect(placeholder).toHaveStyle({ height: '52px' });
+    expect(Boolean(placeholder.compareDocumentPosition(targetCard) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });

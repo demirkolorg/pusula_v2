@@ -49,7 +49,7 @@ export function BoardFilterBar({
   const archivedToggleId = useId();
 
   return (
-    <div className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
+    <div className="bg-card flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm shadow-xs">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground font-medium">{copy.labelsTitle}:</span>
         {labels.length === 0 ? (

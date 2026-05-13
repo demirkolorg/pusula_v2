@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarIcon, PaletteIcon, PlusIcon, ShieldIcon, TagIcon } from 'lucide-react';
+import { CalendarIcon, PaletteIcon, ShieldIcon, TagIcon } from 'lucide-react';
 import { type CardCoverColor } from '@pusula/domain';
 import { LabelSwatch, MetaChip, MetaRow, cn } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
@@ -49,7 +49,6 @@ export function CardModalMetaChips({
   labelCount,
   dueAt,
   coverColor,
-  canEdit,
   open,
   onToggle,
 }: CardModalMetaChipsProps) {
@@ -59,7 +58,7 @@ export function CardModalMetaChips({
   const soon = state === 'soon';
 
   return (
-    <MetaRow variant="modal">
+    <MetaRow variant="modal" className="-ml-2 gap-0.5">
       <MetaChip
         variant="modal"
         interactive
@@ -124,18 +123,6 @@ export function CardModalMetaChips({
           copy.coverColor
         )}
       </MetaChip>
-
-      {canEdit && (
-        <MetaChip
-          variant="modal"
-          interactive
-          icon={<PlusIcon className="size-3.5" aria-hidden />}
-          aria-label={copy.addMeta}
-          onClick={() => onToggle('labels')}
-        >
-          {copy.addMeta}
-        </MetaChip>
-      )}
     </MetaRow>
   );
 }

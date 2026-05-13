@@ -6,7 +6,6 @@ import {
   ActivityIcon,
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ArrowLeftIcon,
   LayoutGridIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -56,7 +55,14 @@ function ComingSoonAction({
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex">
-          <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={label} disabled>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label={label}
+            disabled
+          >
             {icon}
           </Button>
         </span>
@@ -102,18 +108,23 @@ function BoardViewSwitch() {
 }
 
 /**
- * The board screen's top bar: a back link, the board identity (icon + "Pano"
- * eyebrow + name with inline rename for admins + a "favourite" placeholder), the
- * "Pano / Liste / Etiketler" view switch (only "Pano" active), and the actions
+ * The board screen's top bar: the board identity (back-linked icon + "Pano"
+ * eyebrow + name + a "favourite" placeholder), the "Pano / Liste / Etiketler"
+ * view switch (only "Pano" active), and the actions
  * (invite → board settings, search/activity placeholders, "⋮" menu → rename /
  * archive / restore / settings). Mutation flow is unchanged — rename goes
  * through `RenameBoardForm` (`board.update`), archive/restore through
  * `ArchiveBoardDialog` / `useRestoreBoard` (`board.archive`). Drag-and-drop and
  * the "Liste"/"Etiketler" views are out of scope (Phase 3 / later).
  */
-export function BoardTopBar({ boardId, workspaceId, title, archived, isBoardAdmin }: BoardTopBarProps) {
+export function BoardTopBar({
+  boardId,
+  workspaceId,
+  title,
+  archived,
+  isBoardAdmin,
+}: BoardTopBarProps) {
   const copy = strings.board.topBar;
-  const detailCopy = strings.board.detail;
 
   const [renaming, setRenaming] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -121,129 +132,132 @@ export function BoardTopBar({ boardId, workspaceId, title, archived, isBoardAdmi
   const restoreBoard = useRestoreBoard(boardId);
 
   return (
-    <div className="bg-background flex flex-col gap-2 border-b pb-3">
-      <Link
-        href={`/workspaces/${workspaceId}`}
-        className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-xs underline-offset-4 hover:underline"
-      >
-        <ArrowLeftIcon className="size-3.5" />
-        {detailCopy.backToWorkspace}
-      </Link>
-
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Identity */}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span
-            className="bg-primary inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-            aria-hidden
-          >
-            <LayoutGridIcon className="text-primary-foreground size-4" />
+    <header className="flex min-h-14 items-center gap-3 bg-background px-4 py-2 sm:gap-4">
+      {/* Identity */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Link
+          href={`/workspaces/${workspaceId}`}
+          aria-label={strings.board.detail.backToWorkspace}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive text-destructive-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/60"
+        >
+          <LayoutGridIcon className="size-4" aria-hidden />
+        </Link>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+            {copy.eyebrow}
           </span>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-muted-foreground text-[10px] font-medium uppercase">{copy.eyebrow}</span>
-            {isBoardAdmin && !archived ? (
-              <RenameBoardForm
-                boardId={boardId}
-                title={title}
-                editing={renaming}
-                onEditingChange={setRenaming}
-              />
-            ) : (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <h1 className="truncate text-sm font-semibold">{title}</h1>
-                {archived && <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />}
-              </div>
-            )}
-          </div>
-          {archived && <Badge variant="outline">{copy.archivedBadge}</Badge>}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  aria-label={copy.favorite}
-                  disabled
-                >
-                  <StarIcon className="size-4" />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{copy.favoriteSoon}</TooltipContent>
-          </Tooltip>
-        </div>
-
-        {/* View switch */}
-        <BoardViewSwitch />
-
-        {/* Actions */}
-        <div className="flex items-center gap-1">
-          {isBoardAdmin && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <UserPlusIcon className="size-4" />
-              {copy.invite}
-            </Button>
+          {isBoardAdmin && !archived ? (
+            <RenameBoardForm
+              boardId={boardId}
+              title={title}
+              editing={renaming}
+              onEditingChange={setRenaming}
+              hideTrigger
+            />
+          ) : (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h1 className="truncate text-[15px] font-semibold">{title}</h1>
+              {archived && (
+                <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              )}
+            </div>
           )}
-          <ComingSoonAction
-            icon={<SearchIcon className="size-4" />}
-            label={copy.search}
-            hint={copy.searchSoon}
-          />
-          <ComingSoonAction
-            icon={<ActivityIcon className="size-4" />}
-            label={copy.activity}
-            hint={copy.activitySoon}
-          />
-          {isBoardAdmin && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={copy.more}>
-                  <MoreHorizontalIcon className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {!archived && (
-                  <DropdownMenuItem onSelect={() => setRenaming(true)}>
-                    <PencilIcon />
-                    {copy.menuRename}
-                  </DropdownMenuItem>
-                )}
-                {archived ? (
-                  <DropdownMenuItem
-                    onSelect={() =>
-                      restoreBoard.mutate({
-                        boardId,
-                        archived: false,
-                        clientMutationId: crypto.randomUUID(),
-                      })
-                    }
-                    disabled={restoreBoard.isPending}
-                  >
-                    <ArchiveRestoreIcon />
-                    {copy.menuRestore}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem variant="destructive" onSelect={() => setArchiveDialogOpen(true)}>
-                    <ArchiveIcon />
-                    {copy.menuArchive}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                  <Settings2Icon />
-                  {copy.menuSettings}
+        </div>
+        {archived && <Badge variant="outline">{copy.archivedBadge}</Badge>}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                aria-label={copy.favorite}
+                disabled
+              >
+                <StarIcon className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{copy.favoriteSoon}</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* View switch */}
+      <BoardViewSwitch />
+
+      {/* Actions */}
+      <div className="flex items-center gap-1">
+        {isBoardAdmin && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSettingsOpen(true)}
+            className="font-semibold"
+          >
+            <UserPlusIcon className="size-4" />
+            {copy.invite}
+          </Button>
+        )}
+        <ComingSoonAction
+          icon={<SearchIcon className="size-4" />}
+          label={copy.search}
+          hint={copy.searchSoon}
+        />
+        <ComingSoonAction
+          icon={<ActivityIcon className="size-4" />}
+          label={copy.activity}
+          hint={copy.activitySoon}
+        />
+        {isBoardAdmin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                aria-label={copy.more}
+              >
+                <MoreHorizontalIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!archived && (
+                <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                  <PencilIcon />
+                  {copy.menuRename}
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+              )}
+              {archived ? (
+                <DropdownMenuItem
+                  onSelect={() =>
+                    restoreBoard.mutate({
+                      boardId,
+                      archived: false,
+                      clientMutationId: crypto.randomUUID(),
+                    })
+                  }
+                  disabled={restoreBoard.isPending}
+                >
+                  <ArchiveRestoreIcon />
+                  {copy.menuRestore}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem variant="destructive" onSelect={() => setArchiveDialogOpen(true)}>
+                  <ArchiveIcon />
+                  {copy.menuArchive}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                <Settings2Icon />
+                {copy.menuSettings}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* External-trigger dialogs (rendered once; opened from the menu / invite button). */}
@@ -267,6 +281,6 @@ export function BoardTopBar({ boardId, workspaceId, title, archived, isBoardAdmi
           />
         </>
       )}
-    </div>
+    </header>
   );
 }

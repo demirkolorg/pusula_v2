@@ -373,6 +373,7 @@ export const strings = {
       overdueTooltip: 'Süresi geçti',
       dueSoonTooltip: 'Son tarih yaklaşıyor',
       descriptionTooltip: 'Açıklama var',
+      labelsTooltip: 'Etiketler',
       checklistTooltip: 'Yapılacaklar',
       commentsTooltip: 'Yorumlar',
       membersTooltip: 'Üyeler',

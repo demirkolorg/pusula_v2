@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGridIcon } from 'lucide-react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { Alert, AlertDescription, Button, EmptyState } from '@pusula/ui';
@@ -8,11 +8,7 @@ import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardDndProvider } from './board-dnd-context';
 import { BoardFilterBar, type BoardFilterLabel } from './board-filter-bar';
-import {
-  countArchivedLists,
-  filterCardsByLabels,
-  filterVisibleLists,
-} from './board-filter';
+import { countArchivedLists, filterCardsByLabels, filterVisibleLists } from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
 import { useBoardDnd } from './use-board-dnd';
 import { type BoardCard } from './card-item';
@@ -26,6 +22,23 @@ type BoardColumnsProps = {
   /** Active cards, already sorted by `position` (each carries its `labels`). */
   cards: BoardCard[];
 };
+
+function ListDropPlaceholderMarker({
+  width,
+  height,
+}: {
+  width: number | null;
+  height: number | null;
+}) {
+  return (
+    <div
+      aria-hidden
+      data-testid="list-drop-placeholder"
+      className="border-primary/60 bg-primary/5 pointer-events-none box-border shrink-0 self-start rounded-lg border border-dashed"
+      style={{ width: width ?? 288, height: height ?? 240 }}
+    />
+  );
+}
 
 /**
  * Horizontal column layout for a board: one fixed-width column per list (in
@@ -58,7 +71,9 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
         }
       }
     }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr') || a.color.localeCompare(b.color));
+    return [...byId.values()].sort(
+      (a, b) => a.name.localeCompare(b.name, 'tr') || a.color.localeCompare(b.color),
+    );
   }, [cards]);
 
   // Drop any selected label ids that no longer exist (e.g. a label was deleted
@@ -128,7 +143,7 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
 
   return (
     <BoardDndProvider value={dnd}>
-      <div className="flex flex-col gap-3">
+      <div className="flex h-full min-h-0 flex-col gap-3">
         {showFilterBar && (
           <BoardFilterBar
             labels={boardLabels}
@@ -156,16 +171,34 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
             message={strings.board.detail.emptyBoard}
           />
         ) : (
-          <div ref={dnd.boardStripRef} className="flex gap-3 overflow-x-auto pb-4">
+          <div
+            ref={dnd.boardStripRef}
+            className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto pb-4"
+          >
             {visibleLists.map((list) => (
-              <ListColumn
-                key={list.id}
-                boardId={boardId}
-                list={list}
-                cards={cardsByList.get(list.id) ?? []}
-                canEdit={canEdit}
-                allLists={lists}
-              />
+              <Fragment key={list.id}>
+                {dnd.listPlaceholder?.targetListId === list.id &&
+                  dnd.listPlaceholder.edge === 'left' && (
+                    <ListDropPlaceholderMarker
+                      width={dnd.listPlaceholder.width}
+                      height={dnd.listPlaceholder.height}
+                    />
+                  )}
+                <ListColumn
+                  boardId={boardId}
+                  list={list}
+                  cards={cardsByList.get(list.id) ?? []}
+                  canEdit={canEdit}
+                  allLists={lists}
+                />
+                {dnd.listPlaceholder?.targetListId === list.id &&
+                  dnd.listPlaceholder.edge === 'right' && (
+                    <ListDropPlaceholderMarker
+                      width={dnd.listPlaceholder.width}
+                      height={dnd.listPlaceholder.height}
+                    />
+                  )}
+              </Fragment>
             ))}
             {canEdit && <AddListColumn boardId={boardId} />}
           </div>

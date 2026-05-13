@@ -5,16 +5,9 @@ import {
   CalendarIcon,
   CheckSquareIcon,
   MessageSquareIcon,
+  TagIcon,
 } from 'lucide-react';
-import {
-  Avatar,
-  MetaChip,
-  MetaRow,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  cn,
-} from '@pusula/ui';
+import { Avatar, MetaChip, MetaRow, Tooltip, TooltipContent, TooltipTrigger, cn } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
 
@@ -29,6 +22,7 @@ export type CardMember = {
 type CardMetaRowProps = {
   description: string | null;
   dueAt: Date | string | null;
+  labelCount?: number;
   checklistTotal: number;
   checklistDone: number;
   commentCount: number;
@@ -63,6 +57,7 @@ const MAX_AVATARS = 3;
 export function CardMetaRow({
   description,
   dueAt,
+  labelCount = 0,
   checklistTotal,
   checklistDone,
   commentCount,
@@ -73,12 +68,13 @@ export function CardMetaRow({
   const nowMs = now ?? Date.now();
 
   const hasDescription = description != null && description.trim() !== '';
+  const hasLabels = labelCount > 0;
   const hasChecklist = checklistTotal > 0;
   const hasComments = commentCount > 0;
   const hasMembers = members.length > 0;
   const hasDue = dueAt != null;
 
-  if (!hasDescription && !hasChecklist && !hasComments && !hasMembers && !hasDue) {
+  if (!hasDescription && !hasLabels && !hasChecklist && !hasComments && !hasMembers && !hasDue) {
     return null;
   }
 
@@ -132,6 +128,17 @@ export function CardMetaRow({
         </Tooltip>
       )}
 
+      {hasLabels && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <MetaChip icon={<TagIcon className="size-3" aria-hidden />}>{labelCount}</MetaChip>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{`${copy.labelsTooltip} · ${labelCount}`}</TooltipContent>
+        </Tooltip>
+      )}
+
       {hasChecklist && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -166,7 +173,13 @@ export function CardMetaRow({
           <TooltipTrigger asChild>
             <span className="ml-auto inline-flex items-center -space-x-1">
               {members.slice(0, MAX_AVATARS).map((m) => (
-                <Avatar key={`${m.userId}-${m.role}`} name={m.name} image={m.image} size="xs" ring />
+                <Avatar
+                  key={`${m.userId}-${m.role}`}
+                  name={m.name}
+                  image={m.image}
+                  size="xs"
+                  ring
+                />
               ))}
               {members.length > MAX_AVATARS && (
                 <span className="bg-muted text-muted-foreground ring-card relative inline-flex size-4 items-center justify-center rounded-full text-[9px] font-medium ring-2">

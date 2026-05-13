@@ -1,15 +1,21 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 
+const h = vi.hoisted(() => ({ mutate: vi.fn() }));
+
 vi.mock('@tanstack/react-query', () => ({
-  useMutation: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null }),
+  useMutation: () => ({
+    mutate: h.mutate,
+    reset: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
-// The settings dialog pulls in member/invitation/label sections that fetch data;
-// stub it to a minimal marker so the top bar can be tested in isolation.
 vi.mock('./board-settings/board-settings-dialog', () => ({
   BoardSettingsDialog: ({ open }: { open?: boolean }) =>
     open ? <div role="dialog" aria-label="board-settings" /> : null,
@@ -30,23 +36,43 @@ import { BoardTopBar } from './board-top-bar';
 const topCopy = strings.board.topBar;
 
 describe('<BoardTopBar>', () => {
-  it('renders the board name and the "Pano" eyebrow', () => {
-    render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint Panosu" archived={false} isBoardAdmin />);
+  beforeEach(() => {
+    h.mutate.mockReset();
+  });
+
+  it('renders the board name and eyebrow', () => {
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint Panosu"
+        archived={false}
+        isBoardAdmin
+      />,
+    );
     expect(screen.getByRole('heading', { name: 'Sprint Panosu' })).toBeInTheDocument();
   });
 
-  it('shows the "Arşivli" badge and an archive icon when the board is archived', () => {
+  it('shows the archived badge when the board is archived', () => {
     render(<BoardTopBar boardId="b1" workspaceId="w1" title="Eski Pano" archived isBoardAdmin />);
     expect(screen.getByText(topCopy.archivedBadge)).toBeInTheDocument();
   });
 
-  it('non-admin: no invite button, no "⋮" menu', () => {
-    render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived={false} isBoardAdmin={false} />);
+  it('non-admin: no invite button, no more menu', () => {
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        archived={false}
+        isBoardAdmin={false}
+      />,
+    );
     expect(screen.queryByRole('button', { name: topCopy.invite })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: topCopy.more })).not.toBeInTheDocument();
   });
 
-  it('admin (active board): the "⋮" menu offers rename / archive / board settings', async () => {
+  it('admin active board: the more menu offers rename, archive, and settings', async () => {
     const user = userEvent.setup();
     render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived={false} isBoardAdmin />);
     await user.click(screen.getByRole('button', { name: topCopy.more }));
@@ -55,7 +81,24 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('menuitem', { name: topCopy.menuSettings })).toBeInTheDocument();
   });
 
-  it('admin (archived board): the "⋮" menu offers restore instead of archive, and no rename', async () => {
+  it('admin can rename the board inline by clicking the title', async () => {
+    const user = userEvent.setup();
+    render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived={false} isBoardAdmin />);
+
+    await user.click(screen.getByRole('button', { name: 'Sprint' }));
+    const input = screen.getByLabelText(strings.board.detail.renamePlaceholder);
+    await user.clear(input);
+    await user.type(input, 'Yeni Sprint');
+    await user.tab();
+
+    expect(h.mutate).toHaveBeenCalledWith({
+      boardId: 'b1',
+      title: 'Yeni Sprint',
+      clientMutationId: expect.any(String),
+    });
+  });
+
+  it('admin archived board: the more menu offers restore and no rename', async () => {
     const user = userEvent.setup();
     render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived isBoardAdmin />);
     await user.click(screen.getByRole('button', { name: topCopy.more }));
@@ -64,7 +107,7 @@ describe('<BoardTopBar>', () => {
     expect(screen.queryByRole('menuitem', { name: topCopy.menuRename })).not.toBeInTheDocument();
   });
 
-  it('admin: the "Davet et / paylaş" button opens the board settings dialog', async () => {
+  it('admin: invite opens board settings', async () => {
     const user = userEvent.setup();
     render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived={false} isBoardAdmin />);
     expect(screen.queryByRole('dialog', { name: 'board-settings' })).not.toBeInTheDocument();

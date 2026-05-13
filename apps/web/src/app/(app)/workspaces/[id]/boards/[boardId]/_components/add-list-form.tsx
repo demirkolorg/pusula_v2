@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { listTitleSchema } from '@pusula/domain';
-import { Button, Input } from '@pusula/ui';
+import { Button, Input, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 export type AddListFormProps = {
@@ -12,6 +12,11 @@ export type AddListFormProps = {
   pending?: boolean;
   /** Server-side error message to surface inline. */
   error?: string | null;
+  /** Called after a valid submit is handed to the caller. */
+  onSubmitted?: () => void;
+  /** Optional cancel affordance for the Trello-style expanded form. */
+  onCancel?: () => void;
+  variant?: 'default' | 'compact';
 };
 
 /**
@@ -19,7 +24,14 @@ export type AddListFormProps = {
  * client-side against the shared `listTitleSchema` (so the rule matches the
  * server). No tRPC dependency — the column container wires the mutation.
  */
-export function AddListForm({ onSubmit, pending = false, error }: AddListFormProps) {
+export function AddListForm({
+  onSubmit,
+  pending = false,
+  error,
+  onSubmitted,
+  onCancel,
+  variant = 'default',
+}: AddListFormProps) {
   const inputId = useId();
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -35,6 +47,7 @@ export function AddListForm({ onSubmit, pending = false, error }: AddListFormPro
     setTitleError(null);
     onSubmit(parsed.data);
     setTitle('');
+    onSubmitted?.();
   };
 
   return (
@@ -48,6 +61,7 @@ export function AddListForm({ onSubmit, pending = false, error }: AddListFormPro
         aria-label={copy.addListPlaceholder}
         disabled={pending}
         autoComplete="off"
+        className={cn(variant === 'compact' && 'h-8 bg-background')}
         aria-invalid={titleError ? true : undefined}
         aria-describedby={titleError ? `${inputId}-error` : undefined}
       />
@@ -57,9 +71,16 @@ export function AddListForm({ onSubmit, pending = false, error }: AddListFormPro
         </p>
       )}
       {error && <p className="text-destructive text-sm">{error}</p>}
-      <Button type="submit" size="sm" className="w-full" disabled={pending}>
-        {pending ? copy.addListSubmitting : copy.addListSubmit}
-      </Button>
+      <div className={cn('flex gap-1', !onCancel && 'block')}>
+        <Button type="submit" size="sm" className={cn(!onCancel && 'w-full')} disabled={pending}>
+          {pending ? copy.addListSubmitting : copy.addListSubmit}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+            {strings.common.cancel}
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

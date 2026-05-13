@@ -23,6 +23,7 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
     },
     card: {
+      update: { mutationOptions: (o: unknown) => o },
       create: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
@@ -31,11 +32,6 @@ vi.mock('@/trpc/client', () => ({
     board: { get: { queryFilter: () => ({}) } },
   }),
 }));
-
-// `BoardDropLine` pulls in the Atlassian drop-indicator (ESM-only, fine in
-// jsdom) — but we never render an edge in these tests, so a no-op stub keeps
-// the test light.
-vi.mock('./board-drop-line', () => ({ BoardDropLine: () => null }));
 
 import { BoardDndProvider } from './board-dnd-context';
 import { ListColumn, type BoardList } from './list-column';
@@ -52,6 +48,8 @@ function makeDnd(over: Partial<BoardDnd> = {}): BoardDnd & {
   return {
     enabled: true,
     dragState: { kind: 'idle' },
+    cardPlaceholder: null,
+    listPlaceholder: null,
     error: null,
     clearError: vi.fn(),
     registerCard: () => () => {},

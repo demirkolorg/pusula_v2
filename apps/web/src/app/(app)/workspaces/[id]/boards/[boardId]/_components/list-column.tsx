@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  GripVerticalIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  PlusIcon,
 } from 'lucide-react';
 import { listTitleSchema } from '@pusula/domain';
 import {
@@ -35,9 +35,8 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { AddCardForm } from './add-card-form';
 import { useBoardDndContext } from './board-dnd-context';
-import { BoardDropLine } from './board-drop-line';
-import type { Edge } from './board-dnd-types';
 import { CardItem, type BoardCard } from './card-item';
+import type { CardDropPlaceholder } from './use-board-dnd';
 
 export type BoardList = {
   id: string;
@@ -65,6 +64,17 @@ type ListColumnProps = {
    */
   allLists?: BoardList[];
 };
+
+function CardDropPlaceholderMarker({ height }: { height: number | null }) {
+  return (
+    <div
+      aria-hidden
+      data-testid="card-drop-placeholder"
+      className="border-primary/60 bg-primary/5 box-border shrink-0 rounded-md border border-dashed"
+      style={{ height: height ?? 64 }}
+    />
+  );
+}
 
 /**
  * Fixed-width board column for a single list: a header (drag handle + title +
@@ -95,14 +105,14 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
   const [renameValue, setRenameValue] = useState(list.title);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [addingCard, setAddingCard] = useState(false);
+  const skipRenameCommitRef = useRef(false);
 
   // --- Drag-and-drop wiring ------------------------------------------------
   const columnRef = useRef<HTMLElement | null>(null);
-  const handleRef = useRef<HTMLButtonElement | null>(null);
+  const handleRef = useRef<HTMLDivElement | null>(null);
   const cardsAreaRef = useRef<HTMLDivElement | null>(null);
   const [columnDragging, setColumnDragging] = useState(false);
-  const [columnEdge, setColumnEdge] = useState<Edge | null>(null);
-  const [cardsAreaOver, setCardsAreaOver] = useState(false);
 
   // The column is only draggable / a column drop target when the list is active
   // (you can drag an archived list around? no — it's read-only) and DnD is on.
@@ -117,7 +127,6 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       listId: list.id,
       position: list.position,
       onDraggingChange: setColumnDragging,
-      onEdgeChange: setColumnEdge,
     });
   }, [dnd, list.id, list.position, listArchived, renaming]);
 
@@ -129,7 +138,6 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
     return dnd.registerListCardsArea({
       element: el,
       listId: list.id,
-      onOverChange: setCardsAreaOver,
     });
   }, [dnd, list.id, listArchived]);
 
@@ -171,8 +179,11 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
   const canMoveLeft = !!dnd && listEditable && indexInBoard > 0;
   const canMoveRight =
     !!dnd && listEditable && indexInBoard !== -1 && indexInBoard < orderedListIds.length - 1;
+  const cardPlaceholder: CardDropPlaceholder | null =
+    dnd?.cardPlaceholder?.listId === list.id ? dnd.cardPlaceholder : null;
 
   const startRenaming = () => {
+    skipRenameCommitRef.current = false;
     setRenameValue(list.title);
     setRenameError(null);
     renameList.reset();
@@ -180,14 +191,19 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
   };
 
   const cancelRenaming = () => {
+    skipRenameCommitRef.current = true;
     setRenameValue(list.title);
     setRenameError(null);
     renameList.reset();
     setRenaming(false);
   };
 
-  const handleRenameSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const commitRename = () => {
+    if (skipRenameCommitRef.current) {
+      skipRenameCommitRef.current = false;
+      return;
+    }
+    if (renameList.isPending) return;
     const parsed = listTitleSchema.safeParse(renameValue);
     if (!parsed.success) {
       setRenameError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
@@ -206,6 +222,11 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
     });
   };
 
+  const handleRenameSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    commitRename();
+  };
+
   const handleArchiveOpenChange = (next: boolean) => {
     if (archiveList.isPending) return;
     setArchiveOpen(next);
@@ -216,16 +237,14 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
     <section
       ref={columnRef}
       className={cn(
-        'relative flex max-h-[calc(100vh-9rem)] w-72 shrink-0 flex-col rounded-lg border transition-opacity',
-        listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/40',
+        'relative flex max-h-[calc(100svh-9rem)] w-72 shrink-0 flex-col self-start rounded-lg border transition-opacity',
+        listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/30',
         columnDragging && 'opacity-40',
-        cardsAreaOver && !listArchived && 'ring-2 ring-ring/50',
       )}
       data-dragging={columnDragging ? '' : undefined}
       aria-label={list.title}
     >
-      {columnEdge && <BoardDropLine edge={columnEdge} gap="0.75rem" />}
-      <header className="flex items-start justify-between gap-1 p-2">
+      <header className="flex items-center justify-between gap-1 p-2">
         {renaming ? (
           <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
             <Input
@@ -233,28 +252,26 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
               name="listTitle"
               value={renameValue}
               onChange={(event) => setRenameValue(event.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelRenaming();
+                }
+              }}
               placeholder={columnCopy.renamePlaceholder}
               aria-label={columnCopy.renamePlaceholder}
               disabled={renameList.isPending}
               autoComplete="off"
               autoFocus
+              className="h-7 border-0 bg-muted/40 px-1.5 text-sm font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
               aria-invalid={renameError || renameList.isError ? true : undefined}
               aria-describedby={renameError ? `${renameId}-error` : undefined}
             />
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={renameList.isPending}>
-                {renameList.isPending ? columnCopy.renameSaving : columnCopy.renameSave}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={cancelRenaming}
-                disabled={renameList.isPending}
-              >
-                {strings.common.cancel}
-              </Button>
-            </div>
             {renameError && (
               <p id={`${renameId}-error`} className="text-destructive text-sm">
                 {renameError}
@@ -268,22 +285,30 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
           </form>
         ) : (
           <>
-            <div className="flex min-w-0 flex-1 items-center gap-1">
-              {dnd && !listArchived ? (
-                <button
-                  ref={handleRef}
-                  type="button"
-                  aria-label={dndCopy.listDragHandleLabel}
-                  className="text-muted-foreground hover:text-foreground -ml-1 shrink-0 cursor-grab rounded-sm p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                >
-                  <GripVerticalIcon className="size-3.5" aria-hidden />
-                </button>
-              ) : (
-                listArchived && (
-                  <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                )
+            <div
+              ref={dnd && !listArchived ? handleRef : undefined}
+              className={cn(
+                'flex min-w-0 flex-1 items-center gap-1 rounded-sm',
+                dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
               )}
-              <h2 className="truncate text-sm font-semibold">{list.title}</h2>
+              aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
+            >
+              {listArchived && (
+                <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              )}
+              {listEditable ? (
+                <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  <button
+                    type="button"
+                    className="block min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
+                    onClick={startRenaming}
+                  >
+                    {list.title}
+                  </button>
+                </h2>
+              ) : (
+                <h2 className="truncate text-sm font-semibold">{list.title}</h2>
+              )}
               <span className="text-muted-foreground shrink-0 text-xs">
                 {cards.length} {columnCopy.cardCount}
               </span>
@@ -291,7 +316,13 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
             {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0" aria-label={columnCopy.more}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0"
+                    aria-label={columnCopy.more}
+                  >
                     <MoreHorizontalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -332,31 +363,69 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       </header>
 
       <div ref={cardsAreaRef} className="flex min-h-2 flex-col gap-2 overflow-y-auto px-2 pb-2">
-        {cards.length === 0 ? (
+        {cards.length === 0 && !listEditable ? (
           <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
         ) : (
-          cards.map((card) => (
-            <CardItem
-              key={card.id}
-              boardId={boardId}
-              card={card}
-              canEdit={listEditable}
-              allLists={allLists}
-            />
-          ))
+          <>
+            {cards.map((card) => (
+              <Fragment key={card.id}>
+                {cardPlaceholder?.targetCardId === card.id && cardPlaceholder.edge === 'top' && (
+                  <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+                )}
+                <CardItem
+                  boardId={boardId}
+                  card={card}
+                  canEdit={listEditable}
+                  allLists={allLists}
+                />
+                {cardPlaceholder?.targetCardId === card.id &&
+                  cardPlaceholder.edge === 'bottom' && (
+                    <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+                  )}
+              </Fragment>
+            ))}
+            {cardPlaceholder && cardPlaceholder.targetCardId == null && (
+              <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+            )}
+          </>
         )}
       </div>
 
       {listEditable && (
-        <footer className="border-t p-2">
-          <p className="text-muted-foreground mb-2 text-xs font-medium">{cardCopy.addCard}</p>
-          <AddCardForm
-            onSubmit={(title) =>
-              createCard.mutate({ listId: list.id, title, clientMutationId: crypto.randomUUID() })
-            }
-            pending={createCard.isPending}
-            error={createCard.isError ? createCard.error.message || strings.common.unknownError : null}
-          />
+        <footer className="p-2">
+          {addingCard ? (
+            <div className="rounded-md bg-card p-2 shadow-sm">
+              <AddCardForm
+                variant="compact"
+                onSubmit={(title) =>
+                  createCard.mutate({
+                    listId: list.id,
+                    title,
+                    clientMutationId: crypto.randomUUID(),
+                  })
+                }
+                onSubmitted={() => setAddingCard(false)}
+                onCancel={() => setAddingCard(false)}
+                pending={createCard.isPending}
+                error={
+                  createCard.isError
+                    ? createCard.error.message || strings.common.unknownError
+                    : null
+                }
+              />
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setAddingCard(true)}
+              className="h-8 w-full justify-start text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <PlusIcon className="size-4" />
+              {cardCopy.addCard}
+            </Button>
+          )}
         </footer>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { cardTitleSchema } from '@pusula/domain';
-import { Button, Textarea } from '@pusula/ui';
+import { Button, Textarea, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 export type AddCardFormProps = {
@@ -12,6 +12,11 @@ export type AddCardFormProps = {
   pending?: boolean;
   /** Server-side error message to surface inline. */
   error?: string | null;
+  /** Called after a valid submit is handed to the caller. */
+  onSubmitted?: () => void;
+  /** Optional cancel affordance for the Trello-style expanded form. */
+  onCancel?: () => void;
+  variant?: 'default' | 'compact';
 };
 
 /**
@@ -20,7 +25,14 @@ export type AddCardFormProps = {
  * — the column container wires the mutation. After a successful submit the field
  * is cleared so a quick succession of cards can be added.
  */
-export function AddCardForm({ onSubmit, pending = false, error }: AddCardFormProps) {
+export function AddCardForm({
+  onSubmit,
+  pending = false,
+  error,
+  onSubmitted,
+  onCancel,
+  variant = 'default',
+}: AddCardFormProps) {
   const inputId = useId();
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -36,6 +48,7 @@ export function AddCardForm({ onSubmit, pending = false, error }: AddCardFormPro
     setTitleError(null);
     onSubmit(parsed.data);
     setTitle('');
+    onSubmitted?.();
   };
 
   return (
@@ -49,6 +62,7 @@ export function AddCardForm({ onSubmit, pending = false, error }: AddCardFormPro
         aria-label={copy.addCardPlaceholder}
         disabled={pending}
         rows={2}
+        className={cn(variant === 'compact' && 'min-h-16 bg-background text-sm shadow-sm')}
         aria-invalid={titleError ? true : undefined}
         aria-describedby={titleError ? `${inputId}-error` : undefined}
       />
@@ -58,9 +72,16 @@ export function AddCardForm({ onSubmit, pending = false, error }: AddCardFormPro
         </p>
       )}
       {error && <p className="text-destructive text-sm">{error}</p>}
-      <Button type="submit" size="sm" className="w-full" disabled={pending}>
-        {pending ? copy.addCardSubmitting : copy.addCardSubmit}
-      </Button>
+      <div className={cn('flex gap-1', !onCancel && 'block')}>
+        <Button type="submit" size="sm" className={cn(!onCancel && 'w-full')} disabled={pending}>
+          {pending ? copy.addCardSubmitting : copy.addCardSubmit}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+            {strings.common.cancel}
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

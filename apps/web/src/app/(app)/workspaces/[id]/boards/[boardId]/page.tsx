@@ -67,7 +67,7 @@ export default function BoardDetailPage({
   const isBoardAdmin = b.role === 'admin';
 
   return (
-    <div className="flex flex-1 flex-col gap-4 px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
       <BoardTopBar
         boardId={boardId}
         workspaceId={workspaceId}
@@ -76,12 +76,14 @@ export default function BoardDetailPage({
         isBoardAdmin={isBoardAdmin}
       />
 
-      <BoardColumns
-        boardId={boardId}
-        board={{ role: b.role, archivedAt: b.archivedAt }}
-        lists={lists}
-        cards={cards}
-      />
+      <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <BoardColumns
+          boardId={boardId}
+          board={{ role: b.role, archivedAt: b.archivedAt }}
+          lists={lists}
+          cards={cards}
+        />
+      </div>
 
       {/* Card detail modal — driven by `?card=<id>`; needs a Suspense boundary
           for `useSearchParams` (App Router). */}

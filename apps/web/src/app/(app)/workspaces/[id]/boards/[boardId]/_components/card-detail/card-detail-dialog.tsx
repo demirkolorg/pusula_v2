@@ -67,7 +67,12 @@ type CardDetailDialogProps = {
  * surface inline per section. An invalid card id (server `NOT_FOUND`) shows a
  * "not found" alert + close.
  */
-export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: CardDetailDialogProps) {
+export function CardDetailDialog({
+  boardId,
+  cardId,
+  viewerUserId,
+  onClose,
+}: CardDetailDialogProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const detailCopy = strings.card.detail;
@@ -158,7 +163,8 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
   // Board role lives on `board.get` — but we lean on `board.members.list`, which
   // includes the viewer's effective role. (Falls back to `viewer` until it resolves.)
   const viewerBoardRole: BoardRole =
-    (boardMembers.find((m) => m.userId === viewerUserId)?.role as BoardRole | undefined) ?? 'viewer';
+    (boardMembers.find((m) => m.userId === viewerUserId)?.role as BoardRole | undefined) ??
+    'viewer';
   const archived = (card?.archivedAt ?? null) != null;
   const canEdit = boardRoleAtLeast(viewerBoardRole, 'member') && !archived;
   const isBoardAdmin = boardRoleAtLeast(viewerBoardRole, 'admin');
@@ -196,14 +202,16 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
   return (
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex h-[min(85vh,800px)] w-[min(960px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
+        className="flex h-[85vh] max-h-[85vh] w-[min(1200px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[70vw] sm:max-w-none"
         showCloseButton={false}
       >
         {isNotFound || cardQ.isError ? (
           <div className="space-y-4 p-6">
             <DialogTitle>{detailCopy.loadErrorTitle}</DialogTitle>
             <DialogDescription>
-              {isNotFound ? detailCopy.notFound : cardQ.error?.message || strings.common.unknownError}
+              {isNotFound
+                ? detailCopy.notFound
+                : cardQ.error?.message || strings.common.unknownError}
             </DialogDescription>
             <div className="flex justify-end">
               <Button type="button" variant="outline" onClick={onClose}>
@@ -219,7 +227,9 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
         ) : (
           <>
             <DialogTitle className="sr-only">{card.title}</DialogTitle>
-            <DialogDescription className="sr-only">{detailCopy.modal.dialogTitle}</DialogDescription>
+            <DialogDescription className="sr-only">
+              {detailCopy.modal.dialogTitle}
+            </DialogDescription>
 
             <CardModalHeader
               boardName={boardTitle}
@@ -236,14 +246,18 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
 
             <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_360px]">
               {/* Left column ------------------------------------------------ */}
-              <div className="min-h-0 min-w-0 space-y-5 overflow-y-auto px-5 py-4">
-                <div className="bg-card sticky top-0 z-10 -mt-4 min-w-0 space-y-2 pt-4 pb-1">
+              <div className="min-h-0 min-w-0 overflow-y-auto">
+                <div className="sticky top-0 z-10 min-w-0 space-y-2 bg-background px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <CardCompleteToggle
                       checked={completed}
                       alwaysVisible
                       disabled={!canEdit || completePending}
-                      aria-label={completed ? detailCopy.modal.completeUntoggle : detailCopy.modal.completeToggle}
+                      aria-label={
+                        completed
+                          ? detailCopy.modal.completeUntoggle
+                          : detailCopy.modal.completeToggle
+                      }
                       onCheckedChange={(next) =>
                         next
                           ? completeCard.mutate({ cardId, clientMutationId: cmid() })
@@ -278,138 +292,159 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
                   />
                 </div>
 
-                {completeError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{completeError}</AlertDescription>
-                  </Alert>
-                )}
+                <div className="flex flex-col gap-[22px] px-4 pb-4 sm:px-6 sm:pb-5">
+                  {completeError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{completeError}</AlertDescription>
+                    </Alert>
+                  )}
 
-                {archiveCard.isError && (
-                  <Alert variant="destructive">
-                    <AlertTitle>{strings.common.unknownError}</AlertTitle>
-                    <AlertDescription>
-                      {archiveCard.error?.message || strings.common.unknownError}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                  {archiveCard.isError && (
+                    <Alert variant="destructive">
+                      <AlertTitle>{strings.common.unknownError}</AlertTitle>
+                      <AlertDescription>
+                        {archiveCard.error?.message || strings.common.unknownError}
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
-                {/* The picker for whichever meta chip is currently open. */}
-                {metaSection === 'members' && (
-                  <CardDetailMembers
-                    members={cardMembers}
-                    boardMembers={boardMembers.map((m) => ({ userId: m.userId, name: m.name }))}
-                    viewerUserId={viewerUserId}
+                  {/* The picker for whichever meta chip is currently open. */}
+                  {metaSection === 'members' && (
+                    <CardDetailMembers
+                      members={cardMembers}
+                      boardMembers={boardMembers.map((m) => ({ userId: m.userId, name: m.name }))}
+                      viewerUserId={viewerUserId}
+                      canEdit={canEdit}
+                      onAdd={(input: { userId: string; role: CardRole }) =>
+                        addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                      }
+                      onRemove={(input: { userId: string; role: CardRole }) =>
+                        removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                      }
+                      pending={addMember.isPending || removeMember.isPending}
+                      error={errOf(addMember) || errOf(removeMember)}
+                    />
+                  )}
+
+                  {metaSection === 'due' && (
+                    <CardDetailDueDate
+                      dueAt={card.dueAt}
+                      canEdit={canEdit}
+                      onSave={(dueAt) =>
+                        updateDueAt.mutate({ cardId, dueAt, clientMutationId: cmid() })
+                      }
+                      pending={updateDueAt.isPending}
+                      error={errOf(updateDueAt)}
+                    />
+                  )}
+
+                  {metaSection === 'labels' && (
+                    <CardDetailLabels
+                      cardLabels={cardLabelsQ.data ?? []}
+                      boardLabels={boardLabelsQ.data ?? []}
+                      canEdit={canEdit}
+                      onAdd={(labelId) =>
+                        addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                      }
+                      onRemove={(labelId) =>
+                        removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                      }
+                      onCreate={(input: { color: LabelColor; name?: string }) =>
+                        createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
+                      }
+                      pending={addLabel.isPending || removeLabel.isPending || createLabel.isPending}
+                      error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
+                    />
+                  )}
+
+                  {metaSection === 'cover' && (
+                    <CardDetailCoverColor
+                      coverColor={coverColor}
+                      canEdit={canEdit}
+                      onSelect={(next) =>
+                        updateCoverColor.mutate({
+                          cardId,
+                          coverColor: next,
+                          clientMutationId: cmid(),
+                        })
+                      }
+                      pending={updateCoverColor.isPending}
+                      error={errOf(updateCoverColor)}
+                    />
+                  )}
+
+                  <CardDetailDescription
+                    description={card.description}
                     canEdit={canEdit}
-                    onAdd={(input: { userId: string; role: CardRole }) =>
-                      addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                    onSave={(description) =>
+                      updateDescription.mutate({ cardId, description, clientMutationId: cmid() })
                     }
-                    onRemove={(input: { userId: string; role: CardRole }) =>
-                      removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
-                    }
-                    pending={addMember.isPending || removeMember.isPending}
-                    error={errOf(addMember) || errOf(removeMember)}
+                    pending={updateDescription.isPending}
+                    error={errOf(updateDescription)}
                   />
-                )}
 
-                {metaSection === 'due' && (
-                  <CardDetailDueDate
-                    dueAt={card.dueAt}
+                  <CardDetailChecklists
+                    checklists={(checklistsQ.data ?? []) as ChecklistView[]}
                     canEdit={canEdit}
-                    onSave={(dueAt) => updateDueAt.mutate({ cardId, dueAt, clientMutationId: cmid() })}
-                    pending={updateDueAt.isPending}
-                    error={errOf(updateDueAt)}
-                  />
-                )}
-
-                {metaSection === 'labels' && (
-                  <CardDetailLabels
-                    cardLabels={cardLabelsQ.data ?? []}
-                    boardLabels={boardLabelsQ.data ?? []}
-                    canEdit={canEdit}
-                    onAdd={(labelId) => addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })}
-                    onRemove={(labelId) =>
-                      removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                    nameOf={nameOf}
+                    onCreateChecklist={(title) =>
+                      createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
                     }
-                    onCreate={(input: { color: LabelColor; name?: string }) =>
-                      createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
+                    onRenameChecklist={({ checklistId, title }) =>
+                      renameChecklist.mutate({
+                        cardId,
+                        checklistId,
+                        title,
+                        clientMutationId: cmid(),
+                      })
                     }
-                    pending={addLabel.isPending || removeLabel.isPending || createLabel.isPending}
-                    error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
-                  />
-                )}
-
-                {metaSection === 'cover' && (
-                  <CardDetailCoverColor
-                    coverColor={coverColor}
-                    canEdit={canEdit}
-                    onSelect={(next) =>
-                      updateCoverColor.mutate({ cardId, coverColor: next, clientMutationId: cmid() })
+                    onDeleteChecklist={(checklistId) =>
+                      deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
                     }
-                    pending={updateCoverColor.isPending}
-                    error={errOf(updateCoverColor)}
+                    onAddItem={({ checklistId, content }) =>
+                      addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
+                    }
+                    onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
+                      toggleItem.mutate({
+                        cardId,
+                        checklistId,
+                        itemId,
+                        completed: itemCompleted,
+                        clientMutationId: cmid(),
+                      })
+                    }
+                    onEditItem={({ checklistId, itemId, content }) =>
+                      editItem.mutate({
+                        cardId,
+                        checklistId,
+                        itemId,
+                        content,
+                        clientMutationId: cmid(),
+                      })
+                    }
+                    onDeleteItem={({ checklistId, itemId }) =>
+                      deleteItem.mutate({ cardId, checklistId, itemId, clientMutationId: cmid() })
+                    }
+                    pending={
+                      createChecklist.isPending ||
+                      renameChecklist.isPending ||
+                      deleteChecklist.isPending ||
+                      addItem.isPending ||
+                      toggleItem.isPending ||
+                      editItem.isPending ||
+                      deleteItem.isPending
+                    }
+                    error={
+                      errOf(createChecklist) ||
+                      errOf(renameChecklist) ||
+                      errOf(deleteChecklist) ||
+                      errOf(addItem) ||
+                      errOf(toggleItem) ||
+                      errOf(editItem) ||
+                      errOf(deleteItem)
+                    }
                   />
-                )}
-
-                <CardDetailDescription
-                  description={card.description}
-                  canEdit={canEdit}
-                  onSave={(description) =>
-                    updateDescription.mutate({ cardId, description, clientMutationId: cmid() })
-                  }
-                  pending={updateDescription.isPending}
-                  error={errOf(updateDescription)}
-                />
-
-                <CardDetailChecklists
-                  checklists={(checklistsQ.data ?? []) as ChecklistView[]}
-                  canEdit={canEdit}
-                  nameOf={nameOf}
-                  onCreateChecklist={(title) =>
-                    createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
-                  }
-                  onRenameChecklist={({ checklistId, title }) =>
-                    renameChecklist.mutate({ cardId, checklistId, title, clientMutationId: cmid() })
-                  }
-                  onDeleteChecklist={(checklistId) =>
-                    deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
-                  }
-                  onAddItem={({ checklistId, content }) =>
-                    addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
-                  }
-                  onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
-                    toggleItem.mutate({
-                      cardId,
-                      checklistId,
-                      itemId,
-                      completed: itemCompleted,
-                      clientMutationId: cmid(),
-                    })
-                  }
-                  onEditItem={({ checklistId, itemId, content }) =>
-                    editItem.mutate({ cardId, checklistId, itemId, content, clientMutationId: cmid() })
-                  }
-                  onDeleteItem={({ checklistId, itemId }) =>
-                    deleteItem.mutate({ cardId, checklistId, itemId, clientMutationId: cmid() })
-                  }
-                  pending={
-                    createChecklist.isPending ||
-                    renameChecklist.isPending ||
-                    deleteChecklist.isPending ||
-                    addItem.isPending ||
-                    toggleItem.isPending ||
-                    editItem.isPending ||
-                    deleteItem.isPending
-                  }
-                  error={
-                    errOf(createChecklist) ||
-                    errOf(renameChecklist) ||
-                    errOf(deleteChecklist) ||
-                    errOf(addItem) ||
-                    errOf(toggleItem) ||
-                    errOf(editItem) ||
-                    errOf(deleteItem)
-                  }
-                />
+                </div>
               </div>
 
               {/* Right panel ------------------------------------------------ */}
@@ -434,7 +469,9 @@ export function CardDetailDialog({ boardId, cardId, viewerUserId, onClose }: Car
                 onDeleteComment={(commentId) =>
                   deleteComment.mutate({ cardId, commentId, clientMutationId: cmid() })
                 }
-                commentPending={createComment.isPending || editComment.isPending || deleteComment.isPending}
+                commentPending={
+                  createComment.isPending || editComment.isPending || deleteComment.isPending
+                }
                 commentError={errOf(createComment) || errOf(editComment) || errOf(deleteComment)}
               />
             </div>

@@ -1,11 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { strings } from '@/lib/strings';
 
 // Hoisted mocks so the factories below can reference them.
 const h = vi.hoisted(() => ({
   routerPush: vi.fn(),
   searchParams: new URLSearchParams(),
+  mutate: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -15,13 +17,20 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useMutation: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null }),
+  useMutation: () => ({
+    mutate: h.mutate,
+    reset: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     card: {
+      update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
@@ -59,6 +68,7 @@ describe('<CardItem>', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-05-12T12:00:00Z'));
+    h.mutate.mockReset();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -71,7 +81,9 @@ describe('<CardItem>', () => {
 
     await user.click(screen.getByRole('button', { name: 'Bir kart' }));
 
-    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=card1', { scroll: false });
+    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=card1', {
+      scroll: false,
+    });
   });
 
   it('pressing Enter on the card opens the card detail', async () => {
@@ -81,7 +93,9 @@ describe('<CardItem>', () => {
     const article = screen.getByRole('button', { name: 'Bir kart' });
     article.focus();
     await user.keyboard('{Enter}');
-    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=card1', { scroll: false });
+    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=card1', {
+      scroll: false,
+    });
   });
 
   it('viewer (canEdit=false): no quick archive button', () => {
@@ -98,7 +112,26 @@ describe('<CardItem>', () => {
     expect(h.routerPush).not.toHaveBeenCalled();
   });
 
-  it('renders label chips for the card labels', () => {
+  it('canEdit=true: renames the card inline without opening the detail modal', async () => {
+    const user = userEvent.setup();
+    h.routerPush.mockReset();
+    render(<CardItem boardId="b1" card={baseCard} canEdit />);
+
+    await user.click(screen.getByRole('button', { name: `${strings.card.detail.editTitle}: Bir kart` }));
+    const input = screen.getByLabelText(strings.board.card.titleLabel);
+    await user.clear(input);
+    await user.type(input, 'Yeni kart');
+    await user.tab();
+
+    expect(h.mutate).toHaveBeenCalledWith({
+      cardId: 'card1',
+      title: 'Yeni kart',
+      clientMutationId: expect.any(String),
+    });
+    expect(h.routerPush).not.toHaveBeenCalled();
+  });
+
+  it('renders the v1-style label count in the metadata row', () => {
     render(
       <CardItem
         boardId="b1"
@@ -106,7 +139,8 @@ describe('<CardItem>', () => {
         canEdit={false}
       />,
     );
-    expect(screen.getByText('Acil')).toBeInTheDocument();
+    expect(screen.queryByText('Acil')).not.toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   it('shows the due chip with the "GECİKTİ" badge when the due date is in the past', () => {
@@ -124,11 +158,19 @@ describe('<CardItem>', () => {
 
   it('shows the checklist progress; complete checklists are styled with text-success', () => {
     const { rerender } = render(
-      <CardItem boardId="b1" card={card({ checklistTotal: 3, checklistDone: 2 })} canEdit={false} />,
+      <CardItem
+        boardId="b1"
+        card={card({ checklistTotal: 3, checklistDone: 2 })}
+        canEdit={false}
+      />,
     );
     expect(screen.getByText('2/3')).toBeInTheDocument();
     rerender(
-      <CardItem boardId="b1" card={card({ checklistTotal: 3, checklistDone: 3 })} canEdit={false} />,
+      <CardItem
+        boardId="b1"
+        card={card({ checklistTotal: 3, checklistDone: 3 })}
+        canEdit={false}
+      />,
     );
     const chip = screen.getByText('3/3');
     // The MetaChip wrapper carries the success colour class when complete.
@@ -177,6 +219,9 @@ describe('<CardItem>', () => {
   it('a not-completed card: title not struck through; toggle is unchecked', () => {
     render(<CardItem boardId="b1" card={baseCard} canEdit />);
     expect(screen.getByText('Bir kart')).not.toHaveClass('line-through');
-    expect(screen.getByRole('checkbox', { name: /tamamlandı/i })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('checkbox', { name: /tamamlandı/i })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
   });
 });

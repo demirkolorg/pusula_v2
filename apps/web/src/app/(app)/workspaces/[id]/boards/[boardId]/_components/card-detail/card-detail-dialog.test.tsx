@@ -41,11 +41,20 @@ vi.mock('@tanstack/react-query', () => ({
       ok([]), // activity
       ok(boardMembers),
       ok([]), // board labels
-      ok({ board: { title: 'Pano', role: h.boardRole, archivedAt: null }, lists: [{ id: 'l1', title: 'Liste' }] }),
+      ok({
+        board: { title: 'Pano', role: h.boardRole, archivedAt: null },
+        lists: [{ id: 'l1', title: 'Liste' }],
+      }),
     ];
     return results.slice(0, queries.length);
   },
-  useMutation: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null }),
+  useMutation: () => ({
+    mutate: vi.fn(),
+    reset: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
@@ -68,10 +77,12 @@ function renderDialog() {
 }
 
 describe('<CardDetailDialog>', () => {
-  it('the modal surface is wide (w-[min(960px,92vw)], sm:max-w-none) and a column', () => {
+  it('the modal surface uses the v1 wide layout and a column shell', () => {
     renderDialog();
     const content = document.querySelector('[data-slot="dialog-content"]')!;
-    expect(content).toHaveClass('w-[min(960px,92vw)]');
+    expect(content).toHaveClass('w-[min(1200px,92vw)]');
+    expect(content).toHaveClass('lg:w-[70vw]');
+    expect(content).toHaveClass('h-[85vh]');
     expect(content).toHaveClass('sm:max-w-none');
     expect(content).toHaveClass('max-w-none');
     expect(content).toHaveClass('flex', 'flex-col', 'overflow-hidden', 'p-0');

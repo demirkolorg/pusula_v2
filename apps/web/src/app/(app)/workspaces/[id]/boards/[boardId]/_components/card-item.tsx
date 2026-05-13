@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
@@ -23,24 +23,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  LabelChip,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   cn,
 } from '@pusula/ui';
-import {
-  CARD_COVER_COLORS,
-  LABEL_COLORS,
-  type CardCoverColor,
-  type LabelColor,
-} from '@pusula/domain';
+import { CARD_COVER_COLORS, cardTitleSchema, type CardCoverColor } from '@pusula/domain';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
-import { BoardDropLine } from './board-drop-line';
-import type { Edge } from './board-dnd-types';
-import { LABEL_PALETTE } from './label-colors';
 import { CardMetaRow, type CardMember } from './card-meta-row';
 import type { BoardList } from './list-column';
 
@@ -84,11 +75,6 @@ type CardItemProps = {
    */
   allLists?: BoardList[];
 };
-
-/** Whether `color` is one of the domain's known label colours. */
-function isLabelColor(color: string): color is LabelColor {
-  return (LABEL_COLORS as readonly string[]).includes(color);
-}
 
 /** Whether `value` is one of the 12 cover-colour palette names. */
 function asCoverColor(value: string | null): CardCoverColor | null {
@@ -143,13 +129,18 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
   const copy = strings.board.card;
   const dndCopy = strings.board.dnd;
   const dnd = useBoardDndContext();
+  const titleInputId = useId();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [renamingTitle, setRenamingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState(card.title);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const titleInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const skipTitleCommitRef = useRef(false);
 
   // --- Drag-and-drop wiring ------------------------------------------------
   const articleRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [dropEdge, setDropEdge] = useState<Edge | null>(null);
 
   useEffect(() => {
     if (!dnd) return;
@@ -163,9 +154,19 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       // A card in an archived list can be dragged *out* but isn't a drop target.
       isDropTarget: canEdit,
       onDraggingChange: setDragging,
-      onEdgeChange: setDropEdge,
     });
   }, [dnd, card.id, card.listId, card.position, canEdit]);
+
+  useEffect(() => {
+    setTitleValue(card.title);
+  }, [card.title]);
+
+  useEffect(() => {
+    const el = titleInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [titleValue, renamingTitle]);
 
   const openCard = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -182,8 +183,17 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     }
   };
 
-  const invalidateBoard = () => queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
+  const invalidateBoard = () =>
+    queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
 
+  const renameCard = useMutation(
+    trpc.card.update.mutationOptions({
+      onSuccess: async () => {
+        await invalidateBoard();
+        setRenamingTitle(false);
+      },
+    }),
+  );
   const archiveCard = useMutation(
     trpc.card.archive.mutationOptions({
       onSuccess: async () => {
@@ -192,7 +202,9 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       },
     }),
   );
-  const completeCard = useMutation(trpc.card.complete.mutationOptions({ onSuccess: invalidateBoard }));
+  const completeCard = useMutation(
+    trpc.card.complete.mutationOptions({ onSuccess: invalidateBoard }),
+  );
   const uncompleteCard = useMutation(
     trpc.card.uncomplete.mutationOptions({ onSuccess: invalidateBoard }),
   );
@@ -202,6 +214,48 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     if (archiveCard.isPending) return;
     setArchiveOpen(next);
     if (!next) archiveCard.reset();
+  };
+
+  const startRenamingTitle = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canEdit || renameCard.isPending) return;
+    skipTitleCommitRef.current = false;
+    setTitleValue(card.title);
+    setTitleError(null);
+    renameCard.reset();
+    setRenamingTitle(true);
+  };
+
+  const cancelRenamingTitle = () => {
+    skipTitleCommitRef.current = true;
+    setTitleValue(card.title);
+    setTitleError(null);
+    renameCard.reset();
+    setRenamingTitle(false);
+  };
+
+  const commitTitle = () => {
+    if (skipTitleCommitRef.current) {
+      skipTitleCommitRef.current = false;
+      return;
+    }
+    if (!canEdit || renameCard.isPending) return;
+    const parsed = cardTitleSchema.safeParse(titleValue);
+    if (!parsed.success) {
+      setTitleError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
+      return;
+    }
+    setTitleError(null);
+    if (parsed.data === card.title) {
+      setRenamingTitle(false);
+      return;
+    }
+    renameCard.mutate({
+      cardId: card.id,
+      title: parsed.data,
+      clientMutationId: crypto.randomUUID(),
+    });
   };
 
   // "Move to list" picker targets: every *active* list. (The current list is
@@ -222,39 +276,22 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       role="button"
       tabIndex={0}
       aria-label={card.title}
+      data-board-card-id={card.id}
       onClick={openCard}
       onKeyDown={handleKeyDown}
       data-dragging={dragging ? '' : undefined}
       className={cn(
-        'bg-card group/kart relative cursor-pointer rounded-md border p-2 text-sm shadow-card outline-none',
+        'group/kart relative flex cursor-pointer flex-col gap-1 rounded-md border bg-card p-2 text-sm shadow-sm outline-none',
         'transition-[box-shadow,border-color,opacity] hover:border-foreground/30 hover:shadow-card-hover',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
         dragging && 'opacity-40',
       )}
     >
-      {dropEdge && <BoardDropLine edge={dropEdge} gap="0.5rem" />}
       {coverColor && (
-        <div className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])} aria-hidden />
-      )}
-
-      {card.labels.length > 0 && (
-        <ul className="mb-1.5 flex flex-wrap gap-1">
-          {card.labels.map((label) => (
-            <li key={label.labelId}>
-              {isLabelColor(label.color) ? (
-                <LabelChip
-                  color={LABEL_PALETTE[label.color]}
-                  name={label.name.trim() || undefined}
-                  variant="solid"
-                />
-              ) : (
-                <span className="bg-muted text-muted-foreground inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium">
-                  {label.name.trim() || copy.unnamedLabel}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div
+          className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
+          aria-hidden
+        />
       )}
 
       <div className="flex items-start gap-1.5">
@@ -271,19 +308,78 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
           }
           className="mt-0.5"
         />
-        <div
-          className={cn(
-            'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
-            card.completed && 'text-muted-foreground line-through',
-          )}
-        >
-          {card.title}
-        </div>
+        {renamingTitle ? (
+          <div className="min-w-0 flex-1 space-y-1">
+            <textarea
+              ref={titleInputRef}
+              id={titleInputId}
+              name="cardTitle"
+              value={titleValue}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => setTitleValue(event.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelRenamingTitle();
+                }
+              }}
+              rows={1}
+              aria-label={copy.titleLabel}
+              disabled={renameCard.isPending}
+              autoComplete="off"
+              autoFocus
+              aria-invalid={titleError || renameCard.isError ? true : undefined}
+              aria-describedby={titleError ? `${titleInputId}-error` : undefined}
+              className={cn(
+                'w-full resize-none rounded-sm border-0 bg-muted/40 px-1 py-0.5 font-medium leading-snug shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                card.completed && 'text-muted-foreground line-through',
+                titleError && 'ring-2 ring-destructive/40',
+              )}
+            />
+            {titleError && (
+              <p id={`${titleInputId}-error`} className="text-destructive text-xs">
+                {titleError}
+              </p>
+            )}
+            {!titleError && renameCard.isError && (
+              <p className="text-destructive text-xs">
+                {renameCard.error.message || strings.common.unknownError}
+              </p>
+            )}
+          </div>
+        ) : canEdit ? (
+          <button
+            type="button"
+            aria-label={`${strings.card.detail.editTitle}: ${card.title}`}
+            className={cn(
+              'min-w-0 flex-1 rounded-sm text-left font-medium leading-snug break-words outline-none line-clamp-3 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60',
+              card.completed && 'text-muted-foreground line-through',
+            )}
+            onClick={startRenamingTitle}
+          >
+            {card.title}
+          </button>
+        ) : (
+          <div
+            className={cn(
+              'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
+              card.completed && 'text-muted-foreground line-through',
+            )}
+          >
+            {card.title}
+          </div>
+        )}
       </div>
 
       <CardMetaRow
         description={card.description}
         dueAt={card.dueAt}
+        labelCount={card.labels.length}
         checklistTotal={card.checklistTotal}
         checklistDone={card.checklistDone}
         commentCount={card.commentCount}
