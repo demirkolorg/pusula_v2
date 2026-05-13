@@ -24,8 +24,10 @@ next-env.d.ts
 coverage
 test-results
 playwright-report
+playwright-results.xml
 blob-report
 .playwright
+e2e/.auth/
 
 # logs
 *.log

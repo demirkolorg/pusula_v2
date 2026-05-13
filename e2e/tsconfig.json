@@ -1,0 +1,9 @@
+{
+  "//": "Editor / lint / typecheck only — Playwright transpiles these files itself at run time. Extends the Node preset (Playwright config + global setup + seed run on Node).",
+  "extends": "@pusula/config/tsconfig/node.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
