@@ -50,8 +50,6 @@ function makeDnd(over: Partial<BoardDnd> = {}): BoardDnd & {
     dragState: { kind: 'idle' },
     cardPlaceholder: null,
     listPlaceholder: null,
-    error: null,
-    clearError: vi.fn(),
     registerCard: () => () => {},
     registerListCardsArea: () => () => {},
     registerColumn: () => () => {},

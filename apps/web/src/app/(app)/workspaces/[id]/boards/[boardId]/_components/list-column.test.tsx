@@ -83,8 +83,6 @@ const makeDnd = (over: Partial<BoardDnd> = {}): BoardDnd => ({
   dragState: { kind: 'idle' },
   cardPlaceholder: null,
   listPlaceholder: null,
-  error: null,
-  clearError: vi.fn(),
   registerCard: () => () => {},
   registerListCardsArea: () => () => {},
   registerColumn: () => () => {},
@@ -134,7 +132,7 @@ describe('<ListColumn>', () => {
       listId: 'l1',
       title: 'Devam Eden',
       clientMutationId: expect.any(String),
-    });
+    }, undefined);
   });
 
   it('an archived list is read-only: shows the archived label, no add-card form, "⋮" offers restore', async () => {

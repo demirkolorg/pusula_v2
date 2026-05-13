@@ -162,3 +162,42 @@ export function applyBoardPatch<TBoard, TList extends ListLike, TCard extends Ca
 ): BoardCacheData<TBoard, TList, TCard> {
   return { ...data, board: { ...data.board, ...patch } };
 }
+
+// --- Workspace board list (`board.list({ workspaceId })`) transforms ---------
+//
+// These operate on the *array* cache of `BoardSummary`s shown on the workspace
+// screen — separate from the `board.get` tree above. `board.archive` filters
+// out the archived board on the server side (only active boards are listed),
+// so the optimistic counterpart removes it; restore inserts. Patch handles
+// rename / cover updates that surface in the summary.
+
+/** Minimum shape the workspace-list transforms touch. */
+type BoardSummaryLike = { id: string };
+
+/** Append a board to the workspace list. No-op if a board with the same id is already there. */
+export function applyBoardSummaryAdd<T extends BoardSummaryLike>(
+  boards: readonly T[],
+  board: T,
+): readonly T[] {
+  if (boards.some((b) => b.id === board.id)) return boards;
+  return [...boards, board];
+}
+
+/** Remove a board from the workspace list by id. No-op if not present. */
+export function applyBoardSummaryRemove<T extends BoardSummaryLike>(
+  boards: readonly T[],
+  boardId: string,
+): readonly T[] {
+  if (!boards.some((b) => b.id === boardId)) return boards;
+  return boards.filter((b) => b.id !== boardId);
+}
+
+/** Shallow-merge `patch` onto the board summary by id. No-op if not present. */
+export function applyBoardSummaryPatch<T extends BoardSummaryLike>(
+  boards: readonly T[],
+  boardId: string,
+  patch: Partial<T>,
+): readonly T[] {
+  if (!boards.some((b) => b.id === boardId)) return boards;
+  return boards.map((b) => (b.id === boardId ? { ...b, ...patch } : b));
+}

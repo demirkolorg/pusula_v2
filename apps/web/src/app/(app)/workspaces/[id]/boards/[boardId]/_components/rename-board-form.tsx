@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PencilIcon } from 'lucide-react';
 import { boardTitleSchema } from '@pusula/domain';
-import { Button, Input, cn } from '@pusula/ui';
+import { Button, Input, cn, toast } from '@pusula/ui';
+import {
+  applyBoardPatch,
+  getMutationErrorMessage,
+  useOptimisticBoardMutation,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -38,7 +42,6 @@ export function RenameBoardForm({
   hideTrigger = false,
 }: RenameBoardFormProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const inputId = useId();
   const copy = strings.board.detail;
 
@@ -55,14 +58,15 @@ export function RenameBoardForm({
   // Re-sync when the persisted title changes (e.g. after a save by another tab).
   useEffect(() => setValue(title), [title]);
 
-  const renameBoard = useMutation(
-    trpc.board.update.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-        setEditing(false);
-      },
-    }),
-  );
+  const renameBoard = useOptimisticBoardMutation({
+    mutationOptions: trpc.board.update.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      vars.title == null ? data : applyBoardPatch(data, { title: vars.title }),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => setEditing(false),
+  });
 
   const startEditing = () => {
     skipCommitRef.current = false;
@@ -96,7 +100,7 @@ export function RenameBoardForm({
       setEditing(false);
       return;
     }
-    renameBoard.mutate({ boardId, title: parsed.data, clientMutationId: crypto.randomUUID() });
+    renameBoard.mutate({ boardId, title: parsed.data });
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -169,7 +173,7 @@ export function RenameBoardForm({
       )}
       {!valueError && renameBoard.isError && (
         <p className="text-destructive w-full text-sm">
-          {renameBoard.error.message || strings.common.unknownError}
+          {getMutationErrorMessage(renameBoard) ?? strings.common.unknownError}
         </p>
       )}
     </form>

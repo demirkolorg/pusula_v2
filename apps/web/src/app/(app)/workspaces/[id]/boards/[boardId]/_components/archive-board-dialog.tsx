@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   AlertDescription,
@@ -14,7 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  toast,
 } from '@pusula/ui';
+import {
+  applyBoardPatch,
+  getMutationErrorMessage,
+  useOptimisticBoardMutation,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -48,7 +53,6 @@ export function ArchiveBoardDialog({
   hideTrigger = false,
 }: ArchiveBoardDialogProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const setOpen = (next: boolean) => {
@@ -57,14 +61,15 @@ export function ArchiveBoardDialog({
   };
   const copy = strings.board.detail;
 
-  const archiveBoard = useMutation(
-    trpc.board.archive.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-        setOpen(false);
-      },
-    }),
-  );
+  const archiveBoard = useOptimisticBoardMutation({
+    mutationOptions: trpc.board.archive.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => setOpen(false),
+  });
 
   // Restoring is low-risk — a plain button, no confirmation dialog.
   if (archived) {
@@ -76,15 +81,13 @@ export function ArchiveBoardDialog({
           variant="outline"
           size="sm"
           disabled={archiveBoard.isPending}
-          onClick={() =>
-            archiveBoard.mutate({ boardId, archived: false, clientMutationId: crypto.randomUUID() })
-          }
+          onClick={() => archiveBoard.mutate({ boardId, archived: false })}
         >
           {archiveBoard.isPending ? copy.restoring : copy.restore}
         </Button>
         {archiveBoard.isError && (
           <p className="text-destructive text-sm">
-            {archiveBoard.error.message || strings.common.unknownError}
+            {getMutationErrorMessage(archiveBoard) ?? strings.common.unknownError}
           </p>
         )}
       </div>
@@ -115,7 +118,7 @@ export function ArchiveBoardDialog({
         {archiveBoard.isError && (
           <Alert variant="destructive">
             <AlertDescription>
-              {archiveBoard.error.message || strings.common.unknownError}
+              {getMutationErrorMessage(archiveBoard) ?? strings.common.unknownError}
             </AlertDescription>
           </Alert>
         )}
@@ -130,9 +133,7 @@ export function ArchiveBoardDialog({
             type="button"
             variant="destructive"
             disabled={archiveBoard.isPending}
-            onClick={() =>
-              archiveBoard.mutate({ boardId, archived: true, clientMutationId: crypto.randomUUID() })
-            }
+            onClick={() => archiveBoard.mutate({ boardId, archived: true })}
           >
             {archiveBoard.isPending ? copy.archiving : copy.archiveConfirm}
           </Button>
@@ -145,16 +146,17 @@ export function ArchiveBoardDialog({
 /**
  * Restore a board with a single click (the "low-risk" path, extracted so the
  * board top bar can wire it from a "⋮" menu item without rendering a button).
- * Returns the mutation so the caller can reflect pending/error state.
+ * Returns the mutation so the caller can reflect pending/error state. Uses the
+ * shared optimistic hook so the flip is instant; `CONFLICT` rolls back.
  */
 export function useRestoreBoard(boardId: string) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  return useMutation(
-    trpc.board.archive.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-      },
-    }),
-  );
+  return useOptimisticBoardMutation({
+    mutationOptions: trpc.board.archive.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+  });
 }

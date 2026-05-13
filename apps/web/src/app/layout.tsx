@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
+import { Toaster } from '@pusula/ui';
 import { TRPCReactProvider } from '@/trpc/client';
 import './globals.css';
 
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="tr" className={inter.variable} suppressHydrationWarning>
       <body className="bg-background text-foreground min-h-svh font-sans antialiased">
         <TRPCReactProvider>{children}</TRPCReactProvider>
+        <Toaster />
       </body>
     </html>
   );

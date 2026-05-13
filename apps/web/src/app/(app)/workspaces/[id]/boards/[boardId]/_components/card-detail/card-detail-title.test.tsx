@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
@@ -7,36 +7,35 @@ import { CardDetailTitle } from './card-detail-title';
 const copy = strings.card.detail;
 
 describe('<CardDetailTitle>', () => {
-  it('read-only viewer: shows the heading, no edit affordance', () => {
+  it('read-only viewer: shows the heading, no textarea', () => {
     render(<CardDetailTitle title="Kart A" canEdit={false} onSave={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Kart A' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: copy.editTitle })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(copy.titleLabel)).not.toBeInTheDocument();
   });
 
-  it('member: edit → input + save sends the trimmed title only when changed', async () => {
+  it('member: blur saves the trimmed title only when changed', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<CardDetailTitle title="Kart A" canEdit onSave={onSave} />);
 
-    await user.click(screen.getByRole('button', { name: copy.editTitle }));
     const input = screen.getByLabelText(copy.titleLabel);
     await user.clear(input);
     await user.type(input, '  Kart B  ');
-    await user.click(screen.getByRole('button', { name: copy.titleSave }));
+    // Blur triggers submit (the modal commits on blur, not on a separate button).
+    fireEvent.blur(input);
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith('Kart B'));
   });
 
-  it('member: a no-op save just closes the editor', async () => {
-    const user = userEvent.setup();
+  it('member: a no-op blur does not call onSave', () => {
     const onSave = vi.fn();
     render(<CardDetailTitle title="Kart A" canEdit onSave={onSave} />);
 
-    await user.click(screen.getByRole('button', { name: copy.editTitle }));
-    await user.click(screen.getByRole('button', { name: copy.titleSave }));
+    // Same value → blur should be a no-op.
+    const input = screen.getByLabelText(copy.titleLabel);
+    fireEvent.blur(input);
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole('heading', { name: 'Kart A' })).toBeInTheDocument();
   });
 
   it('blocks submit and marks invalid when the title is cleared', async () => {
@@ -44,12 +43,12 @@ describe('<CardDetailTitle>', () => {
     const onSave = vi.fn();
     render(<CardDetailTitle title="Kart A" canEdit onSave={onSave} />);
 
-    await user.click(screen.getByRole('button', { name: copy.editTitle }));
-    await user.clear(screen.getByLabelText(copy.titleLabel));
-    await user.click(screen.getByRole('button', { name: copy.titleSave }));
+    const input = screen.getByLabelText(copy.titleLabel);
+    await user.clear(input);
+    fireEvent.blur(input);
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByLabelText(copy.titleLabel)).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('a completed card renders the heading struck through', () => {

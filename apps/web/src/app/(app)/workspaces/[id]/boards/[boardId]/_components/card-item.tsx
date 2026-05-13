@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
 import {
   Alert,
@@ -27,8 +26,15 @@ import {
   TooltipContent,
   TooltipTrigger,
   cn,
+  toast,
 } from '@pusula/ui';
-import { CARD_COVER_COLORS, cardTitleSchema, type CardCoverColor } from '@pusula/domain';
+import { CARD_COVER_COLORS, type CardCoverColor } from '@pusula/domain';
+import {
+  applyCardArchive,
+  applyCardPatch,
+  getMutationErrorMessage,
+  useOptimisticBoardMutation,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
@@ -122,21 +128,14 @@ const COVER_BAR: Record<CardCoverColor, string> = {
  */
 export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const copy = strings.board.card;
   const dndCopy = strings.board.dnd;
   const dnd = useBoardDndContext();
-  const titleInputId = useId();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [renamingTitle, setRenamingTitle] = useState(false);
-  const [titleValue, setTitleValue] = useState(card.title);
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const titleInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const skipTitleCommitRef = useRef(false);
 
   // --- Drag-and-drop wiring ------------------------------------------------
   const articleRef = useRef<HTMLElement | null>(null);
@@ -157,17 +156,6 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     });
   }, [dnd, card.id, card.listId, card.position, canEdit]);
 
-  useEffect(() => {
-    setTitleValue(card.title);
-  }, [card.title]);
-
-  useEffect(() => {
-    const el = titleInputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [titleValue, renamingTitle]);
-
   const openCard = () => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('card', card.id);
@@ -183,79 +171,40 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     }
   };
 
-  const invalidateBoard = () =>
-    queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
+  const onConflict = () => toast(strings.board.conflict.refreshed);
+  const onMutationError = () => toast.error(strings.board.optimistic.error);
 
-  const renameCard = useMutation(
-    trpc.card.update.mutationOptions({
-      onSuccess: async () => {
-        await invalidateBoard();
-        setRenamingTitle(false);
-      },
-    }),
-  );
-  const archiveCard = useMutation(
-    trpc.card.archive.mutationOptions({
-      onSuccess: async () => {
-        await invalidateBoard();
-        setArchiveOpen(false);
-      },
-    }),
-  );
-  const completeCard = useMutation(
-    trpc.card.complete.mutationOptions({ onSuccess: invalidateBoard }),
-  );
-  const uncompleteCard = useMutation(
-    trpc.card.uncomplete.mutationOptions({ onSuccess: invalidateBoard }),
-  );
+  const archiveCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.archive.mutationOptions,
+    boardId,
+    cardId: card.id,
+    apply: (data, vars) => (vars.archived ? applyCardArchive(data, vars.cardId) : data),
+    onConflict,
+    onMutationError,
+    onMutationSuccess: () => setArchiveOpen(false),
+  });
+  const completeCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.complete.mutationOptions,
+    boardId,
+    cardId: card.id,
+    apply: (data, vars) => applyCardPatch(data, vars.cardId, { completed: true }),
+    onConflict,
+    onMutationError,
+  });
+  const uncompleteCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.uncomplete.mutationOptions,
+    boardId,
+    cardId: card.id,
+    apply: (data, vars) => applyCardPatch(data, vars.cardId, { completed: false }),
+    onConflict,
+    onMutationError,
+  });
   const completePending = completeCard.isPending || uncompleteCard.isPending;
 
   const handleArchiveOpenChange = (next: boolean) => {
     if (archiveCard.isPending) return;
     setArchiveOpen(next);
     if (!next) archiveCard.reset();
-  };
-
-  const startRenamingTitle = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!canEdit || renameCard.isPending) return;
-    skipTitleCommitRef.current = false;
-    setTitleValue(card.title);
-    setTitleError(null);
-    renameCard.reset();
-    setRenamingTitle(true);
-  };
-
-  const cancelRenamingTitle = () => {
-    skipTitleCommitRef.current = true;
-    setTitleValue(card.title);
-    setTitleError(null);
-    renameCard.reset();
-    setRenamingTitle(false);
-  };
-
-  const commitTitle = () => {
-    if (skipTitleCommitRef.current) {
-      skipTitleCommitRef.current = false;
-      return;
-    }
-    if (!canEdit || renameCard.isPending) return;
-    const parsed = cardTitleSchema.safeParse(titleValue);
-    if (!parsed.success) {
-      setTitleError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
-      return;
-    }
-    setTitleError(null);
-    if (parsed.data === card.title) {
-      setRenamingTitle(false);
-      return;
-    }
-    renameCard.mutate({
-      cardId: card.id,
-      title: parsed.data,
-      clientMutationId: crypto.randomUUID(),
-    });
   };
 
   // "Move to list" picker targets: every *active* list. (The current list is
@@ -281,10 +230,10 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       onKeyDown={handleKeyDown}
       data-dragging={dragging ? '' : undefined}
       className={cn(
-        'group/kart relative flex cursor-pointer flex-col gap-1 rounded-md border bg-card p-2 text-sm shadow-sm outline-none',
+        'group group/kart relative flex cursor-pointer flex-col gap-1 rounded-md border bg-card p-2 text-sm shadow-sm outline-none',
         'transition-[box-shadow,border-color,opacity] hover:border-foreground/30 hover:shadow-card-hover',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
-        dragging && 'opacity-40',
+        dragging && 'opacity-0',
       )}
     >
       {coverColor && (
@@ -294,7 +243,7 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
         />
       )}
 
-      <div className="flex items-start gap-1.5">
+      <div className={cn('flex items-start gap-1.5', canEdit && 'pr-14')}>
         <CardCompleteToggle
           checked={card.completed}
           alwaysVisible={card.completed}
@@ -303,77 +252,19 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
           onClick={(event) => event.stopPropagation()}
           onCheckedChange={(next) =>
             next
-              ? completeCard.mutate({ cardId: card.id, clientMutationId: crypto.randomUUID() })
-              : uncompleteCard.mutate({ cardId: card.id, clientMutationId: crypto.randomUUID() })
+              ? completeCard.mutate({ cardId: card.id })
+              : uncompleteCard.mutate({ cardId: card.id })
           }
           className="mt-0.5"
         />
-        {renamingTitle ? (
-          <div className="min-w-0 flex-1 space-y-1">
-            <textarea
-              ref={titleInputRef}
-              id={titleInputId}
-              name="cardTitle"
-              value={titleValue}
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) => setTitleValue(event.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  cancelRenamingTitle();
-                }
-              }}
-              rows={1}
-              aria-label={copy.titleLabel}
-              disabled={renameCard.isPending}
-              autoComplete="off"
-              autoFocus
-              aria-invalid={titleError || renameCard.isError ? true : undefined}
-              aria-describedby={titleError ? `${titleInputId}-error` : undefined}
-              className={cn(
-                'w-full resize-none rounded-sm border-0 bg-muted/40 px-1 py-0.5 font-medium leading-snug shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                card.completed && 'text-muted-foreground line-through',
-                titleError && 'ring-2 ring-destructive/40',
-              )}
-            />
-            {titleError && (
-              <p id={`${titleInputId}-error`} className="text-destructive text-xs">
-                {titleError}
-              </p>
-            )}
-            {!titleError && renameCard.isError && (
-              <p className="text-destructive text-xs">
-                {renameCard.error.message || strings.common.unknownError}
-              </p>
-            )}
-          </div>
-        ) : canEdit ? (
-          <button
-            type="button"
-            aria-label={`${strings.card.detail.editTitle}: ${card.title}`}
-            className={cn(
-              'min-w-0 flex-1 rounded-sm text-left font-medium leading-snug break-words outline-none line-clamp-3 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60',
-              card.completed && 'text-muted-foreground line-through',
-            )}
-            onClick={startRenamingTitle}
-          >
-            {card.title}
-          </button>
-        ) : (
-          <div
-            className={cn(
-              'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
-              card.completed && 'text-muted-foreground line-through',
-            )}
-          >
-            {card.title}
-          </div>
-        )}
+        <div
+          className={cn(
+            'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
+            card.completed && 'text-muted-foreground line-through',
+          )}
+        >
+          {card.title}
+        </div>
       </div>
 
       <CardMetaRow
@@ -387,7 +278,13 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       />
 
       {canEdit && (
-        <div className="absolute top-1 right-1 flex items-center gap-0.5">
+        <div
+          className={cn(
+            'absolute right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-background p-0.5 shadow-[0_4px_14px_rgba(15,23,42,0.16)] ring-1 ring-foreground/10',
+            'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+            coverColor ? 'top-5' : 'top-1.5',
+          )}
+        >
           {moveTargets.length > 0 && (
             <DropdownMenu>
               <Tooltip>
@@ -399,9 +296,9 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
                       size="icon"
                       aria-label={dndCopy.move}
                       onClick={(event) => event.stopPropagation()}
-                      className="size-6 opacity-0 transition-opacity group-hover/kart:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                      className="size-6 text-foreground/75 hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
                     >
-                      <MoreHorizontalIcon className="size-3.5" />
+                      <MoreHorizontalIcon className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -447,9 +344,9 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
                     size="icon"
                     aria-label={copy.archive}
                     onClick={(event) => event.stopPropagation()}
-                    className="size-6 opacity-0 transition-opacity group-hover/kart:opacity-100 focus-visible:opacity-100"
+                    className="size-6 text-foreground/75 hover:bg-muted hover:text-foreground"
                   >
-                    <ArchiveIcon className="size-3.5" />
+                    <ArchiveIcon className="size-4" />
                   </Button>
                 </DialogTrigger>
               </TooltipTrigger>
@@ -466,7 +363,7 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
               {archiveCard.isError && (
                 <Alert variant="destructive">
                   <AlertDescription>
-                    {archiveCard.error.message || strings.common.unknownError}
+                    {getMutationErrorMessage(archiveCard) ?? strings.common.unknownError}
                   </AlertDescription>
                 </Alert>
               )}
@@ -484,7 +381,6 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
                     archiveCard.mutate({
                       cardId: card.id,
                       archived: true,
-                      clientMutationId: crypto.randomUUID(),
                     })
                   }
                 >

@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { strings } from '@/lib/strings';
 
 // Hoisted mocks so the factories below can reference them.
 const h = vi.hoisted(() => ({
@@ -30,7 +29,6 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     card: {
-      update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
@@ -112,23 +110,17 @@ describe('<CardItem>', () => {
     expect(h.routerPush).not.toHaveBeenCalled();
   });
 
-  it('canEdit=true: renames the card inline without opening the detail modal', async () => {
+  it('canEdit=true: clicking the card title still opens the detail modal', async () => {
     const user = userEvent.setup();
     h.routerPush.mockReset();
     render(<CardItem boardId="b1" card={baseCard} canEdit />);
 
-    await user.click(screen.getByRole('button', { name: `${strings.card.detail.editTitle}: Bir kart` }));
-    const input = screen.getByLabelText(strings.board.card.titleLabel);
-    await user.clear(input);
-    await user.type(input, 'Yeni kart');
-    await user.tab();
+    await user.click(screen.getByText('Bir kart'));
 
-    expect(h.mutate).toHaveBeenCalledWith({
-      cardId: 'card1',
-      title: 'Yeni kart',
-      clientMutationId: expect.any(String),
+    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=card1', {
+      scroll: false,
     });
-    expect(h.routerPush).not.toHaveBeenCalled();
+    expect(h.mutate).not.toHaveBeenCalled();
   });
 
   it('renders the v1-style label count in the metadata row', () => {

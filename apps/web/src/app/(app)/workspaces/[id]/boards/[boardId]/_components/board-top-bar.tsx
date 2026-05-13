@@ -236,7 +236,6 @@ export function BoardTopBar({
                     restoreBoard.mutate({
                       boardId,
                       archived: false,
-                      clientMutationId: crypto.randomUUID(),
                     })
                   }
                   disabled={restoreBoard.isPending}

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGridIcon } from 'lucide-react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
-import { Alert, AlertDescription, Button, EmptyState } from '@pusula/ui';
+import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardDndProvider } from './board-dnd-context';
@@ -154,15 +154,6 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
             onToggleArchivedLists={() => setShowArchivedLists((v) => !v)}
             archivedListCount={archivedListCount}
           />
-        )}
-
-        {dnd.error && (
-          <Alert variant="destructive" className="flex items-center justify-between gap-3">
-            <AlertDescription>{dnd.error}</AlertDescription>
-            <Button type="button" variant="ghost" size="sm" onClick={dnd.clearError}>
-              {strings.common.close}
-            </Button>
-          </Alert>
         )}
 
         {visibleLists.length === 0 && !canEdit ? (

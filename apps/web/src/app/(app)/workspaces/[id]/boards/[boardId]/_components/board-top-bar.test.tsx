@@ -95,7 +95,7 @@ describe('<BoardTopBar>', () => {
       boardId: 'b1',
       title: 'Yeni Sprint',
       clientMutationId: expect.any(String),
-    });
+    }, undefined);
   });
 
   it('admin archived board: the more menu offers restore and no rename', async () => {

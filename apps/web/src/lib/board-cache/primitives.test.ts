@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyBoardPatch,
+  applyBoardSummaryAdd,
+  applyBoardSummaryPatch,
+  applyBoardSummaryRemove,
   applyCardAdd,
   applyCardArchive,
   applyCardMove,
@@ -239,5 +242,60 @@ describe('applyBoardPatch', () => {
     expect(next.board.version).toBe(2);
     expect(next.lists).toBe(data.lists);
     expect(next.cards).toBe(data.cards);
+  });
+});
+
+// --- Workspace board list transforms (board.list cache) ---------------------
+
+type BoardSummary = { id: string; title: string; archivedAt: string | null };
+const summaries = (): BoardSummary[] => [
+  { id: 'B1', title: 'Pano A', archivedAt: null },
+  { id: 'B2', title: 'Pano B', archivedAt: null },
+];
+
+describe('applyBoardSummaryAdd', () => {
+  it('appends a new board summary at the end', () => {
+    const list = summaries();
+    const next = applyBoardSummaryAdd(list, { id: 'B3', title: 'Pano C', archivedAt: null });
+    expect(next).toHaveLength(3);
+    expect(next.map((b) => b.id)).toEqual(['B1', 'B2', 'B3']);
+  });
+
+  it('returns input unchanged when the board already exists', () => {
+    const list = summaries();
+    const result = applyBoardSummaryAdd(list, {
+      id: 'B1',
+      title: 'duplicate',
+      archivedAt: null,
+    });
+    expect(result).toBe(list);
+  });
+});
+
+describe('applyBoardSummaryRemove', () => {
+  it('removes a board by id', () => {
+    const list = summaries();
+    const next = applyBoardSummaryRemove(list, 'B1');
+    expect(next.map((b) => b.id)).toEqual(['B2']);
+  });
+
+  it('returns input unchanged when the board is missing', () => {
+    const list = summaries();
+    expect(applyBoardSummaryRemove(list, 'NOPE')).toBe(list);
+  });
+});
+
+describe('applyBoardSummaryPatch', () => {
+  it('shallow-merges patch onto the matching board', () => {
+    const list = summaries();
+    const next = applyBoardSummaryPatch(list, 'B1', { title: 'Yeniden adlandırıldı' });
+    expect(next.find((b) => b.id === 'B1')?.title).toBe('Yeniden adlandırıldı');
+    // B2 untouched (same reference is allowed but content equal).
+    expect(next.find((b) => b.id === 'B2')?.title).toBe('Pano B');
+  });
+
+  it('returns input unchanged when the board is missing', () => {
+    const list = summaries();
+    expect(applyBoardSummaryPatch(list, 'NOPE', { title: 'x' })).toBe(list);
   });
 });

@@ -83,3 +83,4 @@ export {
   type RichTextEditorLabels,
   type RichTextContentProps,
 } from './components/rich-text-editor';
+export { Toaster, toast, type ToasterProps } from './components/sonner';

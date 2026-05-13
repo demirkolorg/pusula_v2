@@ -1,7 +1,6 @@
 'use client';
 
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -30,7 +29,14 @@ import {
   DropdownMenuTrigger,
   Input,
   cn,
+  toast,
 } from '@pusula/ui';
+import {
+  applyListArchive,
+  applyListPatch,
+  getMutationErrorMessage,
+  useOptimisticBoardMutation,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { AddCardForm } from './add-card-form';
@@ -90,7 +96,6 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
  */
 export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: ListColumnProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const renameId = useId();
   const columnCopy = strings.board.column;
   const cardCopy = strings.board.card;
@@ -143,31 +148,32 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
 
   useEffect(() => setRenameValue(list.title), [list.title]);
 
-  const renameList = useMutation(
-    trpc.list.update.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-        setRenaming(false);
-      },
-    }),
-  );
+  const renameList = useOptimisticBoardMutation({
+    mutationOptions: trpc.list.update.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      vars.title == null ? data : applyListPatch(data, vars.listId, { title: vars.title }),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => setRenaming(false),
+  });
 
-  const archiveList = useMutation(
-    trpc.list.archive.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-        setArchiveOpen(false);
-      },
-    }),
-  );
+  const archiveList = useOptimisticBoardMutation({
+    mutationOptions: trpc.list.archive.mutationOptions,
+    boardId,
+    apply: (data, vars) => applyListArchive(data, vars.listId, vars.archived ? new Date() : null),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => setArchiveOpen(false),
+  });
 
-  const createCard = useMutation(
-    trpc.card.create.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
-      },
-    }),
-  );
+  const createCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.create.mutationOptions,
+    boardId,
+    apply: (data) => data,
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+  });
 
   // Whether there's a neighbouring list to move to in each direction (uses the
   // full position-sorted list set, so it's correct even with archived lists
@@ -218,7 +224,6 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       boardId,
       listId: list.id,
       title: parsed.data,
-      clientMutationId: crypto.randomUUID(),
     });
   };
 
@@ -239,7 +244,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       className={cn(
         'relative flex max-h-[calc(100svh-9rem)] w-72 shrink-0 flex-col self-start rounded-lg border transition-opacity',
         listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/30',
-        columnDragging && 'opacity-40',
+        columnDragging && 'opacity-0',
       )}
       data-dragging={columnDragging ? '' : undefined}
       aria-label={list.title}
@@ -279,7 +284,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
             )}
             {!renameError && renameList.isError && (
               <p className="text-destructive text-sm">
-                {renameList.error.message || strings.common.unknownError}
+                {getMutationErrorMessage(renameList) ?? strings.common.unknownError}
               </p>
             )}
           </form>
@@ -401,7 +406,6 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                   createCard.mutate({
                     listId: list.id,
                     title,
-                    clientMutationId: crypto.randomUUID(),
                   })
                 }
                 onSubmitted={() => setAddingCard(false)}
@@ -409,7 +413,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                 pending={createCard.isPending}
                 error={
                   createCard.isError
-                    ? createCard.error.message || strings.common.unknownError
+                    ? (getMutationErrorMessage(createCard) ?? strings.common.unknownError)
                     : null
                 }
               />
@@ -443,7 +447,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
             {archiveList.isError && (
               <Alert variant="destructive">
                 <AlertDescription>
-                  {archiveList.error.message || strings.common.unknownError}
+                  {getMutationErrorMessage(archiveList) ?? strings.common.unknownError}
                 </AlertDescription>
               </Alert>
             )}
@@ -462,7 +466,6 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                     boardId,
                     listId: list.id,
                     archived: !listArchived,
-                    clientMutationId: crypto.randomUUID(),
                   })
                 }
               >

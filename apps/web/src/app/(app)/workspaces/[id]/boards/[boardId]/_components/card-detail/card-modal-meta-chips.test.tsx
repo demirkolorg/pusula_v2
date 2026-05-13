@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { strings } from '@/lib/strings';
 import { CardModalMetaChips } from './card-modal-meta-chips';
 
@@ -13,8 +13,10 @@ function setup(overrides: Partial<Parameters<typeof CardModalMetaChips>[0]> = {}
     dueAt: null,
     coverColor: null,
     canEdit: true,
-    open: null,
-    onToggle: vi.fn(),
+    membersContent: <div>Üye menüsü</div>,
+    dueContent: <div>Tarih menüsü</div>,
+    labelsContent: <div>Etiket menüsü</div>,
+    coverContent: <div>Kapak menüsü</div>,
     ...overrides,
   } satisfies Parameters<typeof CardModalMetaChips>[0];
   render(<CardModalMetaChips {...props} />);
@@ -22,19 +24,15 @@ function setup(overrides: Partial<Parameters<typeof CardModalMetaChips>[0]> = {}
 }
 
 describe('<CardModalMetaChips>', () => {
-  it('the cover-colour chip is interactive (not disabled) and toggles the "cover" section', async () => {
+  it('the cover-colour chip is interactive and opens its dropdown content', async () => {
     const user = userEvent.setup();
-    const props = setup();
+    setup();
     const coverChip = screen.getByRole('button', { name: m.coverColor });
     expect(coverChip).not.toBeDisabled();
     expect(coverChip).toHaveAttribute('aria-expanded', 'false');
     await user.click(coverChip);
-    expect(props.onToggle).toHaveBeenCalledWith('cover');
-  });
-
-  it('marks the cover-colour chip expanded when its section is open', () => {
-    setup({ open: 'cover' });
-    expect(screen.getByRole('button', { name: m.coverColor })).toHaveAttribute('aria-expanded', 'true');
+    expect(coverChip).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Kapak menüsü')).toBeInTheDocument();
   });
 
   it('renders the cover swatch (no label text) when a cover colour is set', () => {
@@ -43,13 +41,15 @@ describe('<CardModalMetaChips>', () => {
     expect(coverChip.querySelector('[data-slot="label-swatch"]')).not.toBeNull();
   });
 
-  it('the members / due / labels chips toggle their own sections', async () => {
+  it('the members / due / labels chips open their dropdown content', async () => {
     const user = userEvent.setup();
-    const props = setup();
+    setup();
     await user.click(screen.getByRole('button', { name: m.membersChip }));
+    expect(screen.getByText('Üye menüsü')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('Üye menüsü')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: m.labelsChip }));
-    expect(props.onToggle).toHaveBeenCalledWith('members');
-    expect(props.onToggle).toHaveBeenCalledWith('labels');
+    expect(screen.getByText('Etiket menüsü')).toBeInTheDocument();
   });
 
   it('hides the "add" chip for a read-only viewer', () => {

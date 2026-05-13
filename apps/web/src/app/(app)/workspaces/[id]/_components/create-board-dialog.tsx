@@ -1,7 +1,6 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { boardTitleSchema } from '@pusula/domain';
 import {
   Alert,
@@ -17,7 +16,12 @@ import {
   DialogTrigger,
   Input,
   Label,
+  toast,
 } from '@pusula/ui';
+import {
+  getMutationErrorMessage,
+  useOptimisticBoardListMutation,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -25,10 +29,14 @@ type CreateBoardDialogProps = {
   workspaceId: string;
 };
 
-/** "Pano oluştur" trigger + dialog. Creates a board, then invalidates `board.list`. */
+/**
+ * "Pano oluştur" trigger + dialog. `board.create` runs through the workspace
+ * board-list optimistic hook (Phase 4C — DEM-80): no optimistic insert (the
+ * server picks the id), but `clientMutationId` injection + error toast +
+ * CONFLICT refetch + invalidate-on-settle all go through the shared hook.
+ */
 export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const nameId = useId();
   const copy = strings.board.create;
 
@@ -36,21 +44,21 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
 
-  const createBoard = useMutation(
-    trpc.board.create.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries(trpc.board.list.queryFilter({ workspaceId }));
-        resetAndClose();
-      },
-    }),
-  );
-
   const resetAndClose = () => {
     setTitle('');
     setTitleError(null);
     createBoard.reset();
     setOpen(false);
   };
+
+  const createBoard = useOptimisticBoardListMutation({
+    mutationOptions: trpc.board.create.mutationOptions,
+    workspaceId,
+    apply: (boards) => boards,
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => resetAndClose(),
+  });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -60,7 +68,7 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
       return;
     }
     setTitleError(null);
-    createBoard.mutate({ workspaceId, title: parsed.data, clientMutationId: crypto.randomUUID() });
+    createBoard.mutate({ workspaceId, title: parsed.data });
   };
 
   return (
@@ -103,7 +111,7 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
           {createBoard.isError && (
             <Alert variant="destructive">
               <AlertDescription>
-                {createBoard.error.message || strings.common.unknownError}
+                {getMutationErrorMessage(createBoard) ?? strings.common.unknownError}
               </AlertDescription>
             </Alert>
           )}

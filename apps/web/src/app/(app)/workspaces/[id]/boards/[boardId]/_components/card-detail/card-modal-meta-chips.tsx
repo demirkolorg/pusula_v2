@@ -1,8 +1,17 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { CalendarIcon, PaletteIcon, ShieldIcon, TagIcon } from 'lucide-react';
 import { type CardCoverColor } from '@pusula/domain';
-import { LabelSwatch, MetaChip, MetaRow, cn } from '@pusula/ui';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  LabelSwatch,
+  MetaChip,
+  MetaRow,
+  cn,
+} from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
 
@@ -18,9 +27,6 @@ function dueState(dueAt: Date | string): 'overdue' | 'soon' | 'normal' {
   return 'normal';
 }
 
-/** Which inline editor section is open below the meta-chip row (or `null`). */
-export type CardMetaSection = 'members' | 'due' | 'labels' | 'cover' | null;
-
 type CardModalMetaChipsProps = {
   memberCount: number;
   labelCount: number;
@@ -30,27 +36,55 @@ type CardModalMetaChipsProps = {
   coverColor: CardCoverColor | null;
   /** Whether the viewer may add/edit (board `member+`, board/list/card active). */
   canEdit: boolean;
-  /** Currently-open inline section. */
-  open: CardMetaSection;
-  /** Toggle an inline editor section open/closed. */
-  onToggle: (section: Exclude<CardMetaSection, null>) => void;
+  membersContent: ReactNode;
+  dueContent: ReactNode;
+  labelsContent: ReactNode;
+  coverContent: ReactNode;
 };
+
+function MetaDropdown({
+  trigger,
+  children,
+  className,
+}: {
+  trigger: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        className={cn(
+          'w-[min(420px,calc(100vw-2rem))] overflow-visible p-3 shadow-popover',
+          className,
+        )}
+      >
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /**
  * The card-modal meta chip row: members / due date / labels / cover-colour + an
- * "add" chip. Each chip toggles its inline editor section below (a `Popover`
- * would also satisfy the spec; we use inline sections to avoid pulling in
- * another primitive and to reuse the existing picker components verbatim). The
- * due chip carries the overdue / due-soon emphasis; the cover-colour chip shows
- * the current swatch when set.
+ * "add" chip. Each chip opens its editor in a shadcn/Radix dropdown so the modal
+ * body no longer jumps when a picker is opened. The due chip carries the overdue
+ * / due-soon emphasis; the cover-colour chip shows the current swatch when set.
  */
 export function CardModalMetaChips({
   memberCount,
   labelCount,
   dueAt,
   coverColor,
-  open,
-  onToggle,
+  membersContent,
+  dueContent,
+  labelsContent,
+  coverContent,
 }: CardModalMetaChipsProps) {
   const copy = strings.card.detail.modal;
   const state = dueAt != null ? dueState(dueAt) : 'normal';
@@ -59,70 +93,92 @@ export function CardModalMetaChips({
 
   return (
     <MetaRow variant="modal" className="-ml-2 gap-0.5">
-      <MetaChip
-        variant="modal"
-        interactive
-        icon={<ShieldIcon className="size-3.5" aria-hidden />}
-        aria-label={copy.membersChip}
-        aria-expanded={open === 'members'}
-        className={cn(open === 'members' && 'bg-muted text-foreground')}
-        onClick={() => onToggle('members')}
+      <MetaDropdown
+        trigger={
+          <MetaChip
+            variant="modal"
+            interactive
+            icon={<ShieldIcon className="size-3.5" aria-hidden />}
+            aria-label={copy.membersChip}
+            className="data-[state=open]:bg-muted data-[state=open]:text-foreground"
+          >
+            {memberCount}
+          </MetaChip>
+        }
       >
-        {memberCount}
-      </MetaChip>
+        {membersContent}
+      </MetaDropdown>
 
-      <MetaChip
-        variant="modal"
-        interactive
-        tone={overdue ? 'overdue' : 'default'}
-        icon={<CalendarIcon className="size-3.5" aria-hidden />}
-        aria-label={copy.dueChip}
-        aria-expanded={open === 'due'}
-        className={cn(open === 'due' && !overdue && 'bg-muted text-foreground')}
-        onClick={() => onToggle('due')}
-      >
-        {dueAt != null ? (
-          <span className="inline-flex items-center gap-1">
-            {soon && <span aria-hidden className="size-1.5 rounded-full bg-warning" />}
-            {formatDate(dueAt)}
-            {overdue && (
-              <span className="rounded-sm bg-destructive px-1 text-[9px] font-medium tracking-wide text-destructive-foreground uppercase">
-                {copy.overdueBadge}
-              </span>
+      <MetaDropdown
+        trigger={
+          <MetaChip
+            variant="modal"
+            interactive
+            tone={overdue ? 'overdue' : 'default'}
+            icon={<CalendarIcon className="size-3.5" aria-hidden />}
+            aria-label={copy.dueChip}
+            className={cn(
+              'data-[state=open]:bg-muted data-[state=open]:text-foreground',
+              overdue && 'data-[state=open]:bg-destructive/12 data-[state=open]:text-destructive',
             )}
-          </span>
-        ) : (
-          copy.dueChip
-        )}
-      </MetaChip>
-
-      <MetaChip
-        variant="modal"
-        interactive
-        icon={<TagIcon className="size-3.5" aria-hidden />}
-        aria-label={copy.labelsChip}
-        aria-expanded={open === 'labels'}
-        className={cn(open === 'labels' && 'bg-muted text-foreground')}
-        onClick={() => onToggle('labels')}
+          >
+            {dueAt != null ? (
+              <span className="inline-flex items-center gap-1">
+                {soon && <span aria-hidden className="size-1.5 rounded-full bg-warning" />}
+                {formatDate(dueAt)}
+                {overdue && (
+                  <span className="rounded-sm bg-destructive px-1 text-[9px] font-medium tracking-wide text-destructive-foreground uppercase">
+                    {copy.overdueBadge}
+                  </span>
+                )}
+              </span>
+            ) : (
+              copy.dueChip
+            )}
+          </MetaChip>
+        }
+        className="w-[min(340px,calc(100vw-2rem))]"
       >
-        {labelCount}
-      </MetaChip>
+        {dueContent}
+      </MetaDropdown>
 
-      <MetaChip
-        variant="modal"
-        interactive
-        icon={<PaletteIcon className="size-3.5" aria-hidden />}
-        aria-label={copy.coverColor}
-        aria-expanded={open === 'cover'}
-        className={cn(open === 'cover' && 'bg-muted text-foreground')}
-        onClick={() => onToggle('cover')}
+      <MetaDropdown
+        trigger={
+          <MetaChip
+            variant="modal"
+            interactive
+            icon={<TagIcon className="size-3.5" aria-hidden />}
+            aria-label={copy.labelsChip}
+            className="data-[state=open]:bg-muted data-[state=open]:text-foreground"
+          >
+            {labelCount}
+          </MetaChip>
+        }
+        className="w-[min(460px,calc(100vw-2rem))]"
       >
-        {coverColor != null ? (
-          <LabelSwatch color={coverColor} className="size-2.5" />
-        ) : (
-          copy.coverColor
-        )}
-      </MetaChip>
+        {labelsContent}
+      </MetaDropdown>
+
+      <MetaDropdown
+        trigger={
+          <MetaChip
+            variant="modal"
+            interactive
+            icon={<PaletteIcon className="size-3.5" aria-hidden />}
+            aria-label={copy.coverColor}
+            className="data-[state=open]:bg-muted data-[state=open]:text-foreground"
+          >
+            {coverColor != null ? (
+              <LabelSwatch color={coverColor} className="size-2.5" />
+            ) : (
+              copy.coverColor
+            )}
+          </MetaChip>
+        }
+        className="w-[min(320px,calc(100vw-2rem))]"
+      >
+        {coverContent}
+      </MetaDropdown>
     </MetaRow>
   );
 }

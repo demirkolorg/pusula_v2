@@ -348,9 +348,15 @@ export const strings = {
       announceCardGrabbed: 'Kart kaldırıldı. Bırakmak için fareyi taşıyın.',
       announceListGrabbed: 'Liste kaldırıldı. Bırakmak için fareyi taşıyın.',
       announceDropped: 'Bırakıldı.',
-      // Low-noise feedback when a move fails / conflicts.
-      error: 'Taşıma başarısız oldu. Lütfen tekrar deneyin.',
-      conflict: 'Kart başkası tarafından taşındı; görünüm yenilendi.',
+    },
+    // Phase 4 optimistic UI — shared destructive / neutral toast copy used by every
+    // board/list/card collaborative mutation (08-web-ve-mobil.md §8.1.9, 05-board-mekanigi.md §5.2).
+    // Drag-drop reuses these (the older `dnd.error` / `dnd.conflict` copy was consolidated here).
+    optimistic: {
+      error: 'Değişiklik kaydedilemedi. Lütfen tekrar deneyin.',
+    },
+    conflict: {
+      refreshed: 'Pano başka bir yerde güncellendi; yeniden yüklendi.',
     },
     card: {
       addCard: 'Kart ekle',

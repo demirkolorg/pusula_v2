@@ -1,21 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   draggable,
   dropTargetForElements,
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { preserveOffsetOnSource } from '@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source';
+import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 import {
   attachClosestEdge,
   extractClosestEdge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { toast } from '@pusula/ui';
 import { useTRPC } from '@/trpc/client';
 import { strings } from '@/lib/strings';
-import { applyCardMoveToBoardCache, applyListMoveToBoardCache } from './board-dnd-cache';
+import {
+  applyCardMove,
+  applyListMove,
+  useOptimisticBoardMutation,
+} from '@/lib/board-cache';
 import {
   planCardMove,
   planCardMoveToListEnd,
@@ -65,9 +71,6 @@ type RegisterColumnArgs = {
   onDraggingChange: (dragging: boolean) => void;
 };
 
-/** Rollback context returned from `onMutate` and consumed by `onError`. */
-type MoveRollback = { previous: [readonly unknown[], unknown][] };
-
 export type CardDropPlaceholder = {
   listId: string;
   targetCardId: string | null;
@@ -91,9 +94,6 @@ export type BoardDnd = {
   cardPlaceholder: CardDropPlaceholder | null;
   /** Visual-only list drop target marker; never feeds the move mutation. */
   listPlaceholder: ListDropPlaceholder | null;
-  /** A move failed mid-flight; a low-noise message to surface. `null` when clear. */
-  error: string | null;
-  clearError: () => void;
   registerCard: (args: RegisterCardArgs) => () => void;
   registerListCardsArea: (args: RegisterListCardsAreaArgs) => () => void;
   registerColumn: (args: RegisterColumnArgs) => () => void;
@@ -110,25 +110,59 @@ export type BoardDnd = {
   moveColumnByOne: (listId: string, direction: 'left' | 'right') => void;
 };
 
-const isConflict = (err: unknown): boolean =>
-  typeof err === 'object' &&
-  err !== null &&
-  'data' in err &&
-  typeof (err as { data?: { code?: unknown } }).data === 'object' &&
-  (err as { data?: { code?: unknown } }).data?.code === 'CONFLICT';
+function renderLiftedPreview({
+  container,
+  element,
+  kind,
+}: {
+  container: HTMLElement;
+  element: HTMLElement;
+  kind: 'card' | 'list';
+}) {
+  const rect = element.getBoundingClientRect();
+  const clone = element.cloneNode(true) as HTMLElement;
+
+  container.style.width = `${rect.width}px`;
+  container.style.height = `${rect.height}px`;
+  container.style.pointerEvents = 'none';
+
+  clone.removeAttribute('data-dragging');
+  clone.style.width = `${rect.width}px`;
+  clone.style.height = `${rect.height}px`;
+  clone.style.boxSizing = 'border-box';
+  clone.style.opacity = '1';
+  clone.style.pointerEvents = 'none';
+  clone.style.transformOrigin = kind === 'card' ? '55% 35%' : '50% 18%';
+  clone.style.transform = kind === 'card' ? 'rotate(2deg)' : 'rotate(1deg)';
+  clone.style.boxShadow =
+    kind === 'card'
+      ? '0 14px 28px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(15, 23, 42, 0.12)'
+      : '0 18px 36px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.12)';
+  clone.style.borderColor = 'rgba(15, 23, 42, 0.18)';
+  clone.style.background = 'hsl(var(--card))';
+
+  for (const interactive of clone.querySelectorAll('button, input, textarea, [role="button"]')) {
+    if (interactive instanceof HTMLElement) interactive.style.pointerEvents = 'none';
+  }
+
+  container.appendChild(clone);
+  return () => clone.remove();
+}
 
 /**
  * Wires Atlassian Pragmatic Drag and Drop on the board screen (Phase 3B —
- * DEM-43): column reorder, card reorder (within a list) and card cross-list
- * moves (same board). No backend mutation fires *during* a drag — only one
- * `card.move` / `list.move` on drop, optimistic against the `board.get` cache
- * with rollback on error and `invalidate`+refetch on settle (full normalized
- * cache is Phase 4). On `CONFLICT` (the card moved out from under us) it rolls
- * back, refetches the board, and surfaces a "moved by someone else" notice.
+ * DEM-43; migrated to `useOptimisticBoardMutation` in Phase 4C — DEM-80).
+ * Column reorder, card reorder (within a list) and card cross-list moves
+ * (same board). No backend mutation fires *during* a drag — only one
+ * `card.move` / `list.move` on drop. The shared optimistic hook takes the
+ * `board.get` cache snapshot, applies the pure `applyCardMove`/`applyListMove`
+ * transform, rolls back on error, refetches on `CONFLICT`, and surfaces a
+ * neutral / destructive toast — the same UX Phase 3B drag-drop had, now
+ * sourced from the common hook so every board mutation in Phase 4 shares it.
  *
- * Returns an `enabled` flag, the current `dragState`, an `error` channel, a
- * `boardStripRef` (attach to the columns container for horizontal auto-scroll),
- * and three registrar functions the column/card components call from their own
+ * Returns an `enabled` flag, the current `dragState`, a `boardStripRef`
+ * (attach to the columns container for horizontal auto-scroll), and three
+ * registrar functions the column/card components call from their own
  * `useEffect`s (each returns a cleanup) — so the hook can stay in one place
  * (`BoardColumns`) and the leaf components don't each own a mutation.
  */
@@ -140,7 +174,6 @@ export function useBoardDnd(opts: {
 }): BoardDnd & { boardStripRef: (el: HTMLElement | null) => void } {
   const { boardId, enabled } = opts;
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
 
   // Latest data, read inside the (stable) monitor callbacks.
   const listsRef = useRef(opts.lists);
@@ -151,8 +184,6 @@ export function useBoardDnd(opts: {
   const [dragState, setDragState] = useState<BoardDragState>({ kind: 'idle' });
   const [cardPlaceholder, setCardPlaceholder] = useState<CardDropPlaceholder | null>(null);
   const [listPlaceholder, setListPlaceholder] = useState<ListDropPlaceholder | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const clearError = useCallback(() => setError(null), []);
   const draggedCardHeightRef = useRef<number | null>(null);
   const draggedListSizeRef = useRef<{ width: number | null; height: number | null }>({
     width: null,
@@ -164,77 +195,39 @@ export function useBoardDnd(opts: {
     boardStripElRef.current = el;
   }, []);
 
-  // --- Optimistic move mutations -------------------------------------------
-  const boardFilter = trpc.board.get.queryFilter({ boardId });
+  // --- Optimistic move mutations (shared hook — Phase 4C / DEM-80) ---------
+  const onConflict = useCallback(() => {
+    toast(strings.board.conflict.refreshed);
+  }, []);
+  const onMutationError = useCallback(() => {
+    toast.error(strings.board.optimistic.error);
+  }, []);
 
-  const snapshotAndCancel = useCallback(async (): Promise<MoveRollback> => {
-    await queryClient.cancelQueries(boardFilter);
-    return { previous: queryClient.getQueriesData(boardFilter) };
-  }, [queryClient, boardFilter]);
+  const cardMove = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.move.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      vars.newPosition == null
+        ? data
+        : applyCardMove(data, {
+            cardId: vars.cardId,
+            toListId: vars.toListId,
+            newPosition: vars.newPosition,
+          }),
+    onConflict,
+    onMutationError,
+  });
 
-  const rollback = useCallback(
-    (ctx: MoveRollback | undefined) => {
-      if (!ctx) return;
-      for (const [key, data] of ctx.previous) queryClient.setQueryData(key, data);
-    },
-    [queryClient],
-  );
-
-  const cardMove = useMutation(
-    trpc.card.move.mutationOptions({
-      onMutate: async (vars): Promise<MoveRollback> => {
-        setError(null);
-        const ctx = await snapshotAndCancel();
-        queryClient.setQueriesData(boardFilter, (data: unknown) =>
-          data == null
-            ? data
-            : applyCardMoveToBoardCache(data as Parameters<typeof applyCardMoveToBoardCache>[0], {
-                cardId: vars.cardId,
-                toListId: vars.toListId,
-                newPosition: vars.newPosition!,
-              }),
-        );
-        return ctx;
-      },
-      onError: async (err, _vars, ctx) => {
-        rollback(ctx);
-        if (isConflict(err)) {
-          await queryClient.invalidateQueries(boardFilter);
-          setError(strings.board.dnd.conflict);
-        } else {
-          setError(strings.board.dnd.error);
-        }
-      },
-      onSettled: async () => {
-        await queryClient.invalidateQueries(boardFilter);
-      },
-    }),
-  );
-
-  const listMove = useMutation(
-    trpc.list.move.mutationOptions({
-      onMutate: async (vars): Promise<MoveRollback> => {
-        setError(null);
-        const ctx = await snapshotAndCancel();
-        queryClient.setQueriesData(boardFilter, (data: unknown) =>
-          data == null
-            ? data
-            : applyListMoveToBoardCache(data as Parameters<typeof applyListMoveToBoardCache>[0], {
-                listId: vars.listId,
-                newPosition: vars.newPosition!,
-              }),
-        );
-        return ctx;
-      },
-      onError: (_err, _vars, ctx) => {
-        rollback(ctx);
-        setError(strings.board.dnd.error);
-      },
-      onSettled: async () => {
-        await queryClient.invalidateQueries(boardFilter);
-      },
-    }),
-  );
+  const listMove = useOptimisticBoardMutation({
+    mutationOptions: trpc.list.move.mutationOptions,
+    boardId,
+    apply: (data, vars) =>
+      vars.newPosition == null
+        ? data
+        : applyListMove(data, { listId: vars.listId, newPosition: vars.newPosition }),
+    onConflict,
+    onMutationError,
+  });
 
   // Keep stable refs so the monitor effect doesn't re-register on every render.
   const cardMoveRef = useRef(cardMove);
@@ -294,7 +287,6 @@ export function useBoardDnd(opts: {
       if (!enabled || !isListActive(toListId)) return;
       const plan = planCardMoveToListEnd({ cardId, fromListId, toListId, cardsByListId });
       if (!plan) return;
-      setError(null);
       cardMoveRef.current.mutate({
         cardId: plan.cardId,
         fromListId: plan.fromListId,
@@ -302,7 +294,6 @@ export function useBoardDnd(opts: {
         beforeCardId: plan.beforeCardId ?? undefined,
         afterCardId: plan.afterCardId ?? undefined,
         newPosition: plan.newPosition,
-        clientMutationId: crypto.randomUUID(),
       });
     },
     [enabled, isListActive, cardsByListId],
@@ -313,14 +304,12 @@ export function useBoardDnd(opts: {
       if (!enabled) return;
       const plan = planListMoveByOne({ listId, direction, lists: listsForPlan() });
       if (!plan) return;
-      setError(null);
       listMoveRef.current.mutate({
         boardId,
         listId: plan.listId,
         beforeListId: plan.beforeListId ?? undefined,
         afterListId: plan.afterListId ?? undefined,
         newPosition: plan.newPosition,
-        clientMutationId: crypto.randomUUID(),
       });
     },
     [enabled, boardId, listsForPlan],
@@ -489,7 +478,6 @@ export function useBoardDnd(opts: {
               beforeCardId: plan.beforeCardId ?? undefined,
               afterCardId: plan.afterCardId ?? undefined,
               newPosition: plan.newPosition,
-              clientMutationId: crypto.randomUUID(),
             });
             return;
           }
@@ -513,7 +501,6 @@ export function useBoardDnd(opts: {
               beforeListId: plan.beforeListId ?? undefined,
               afterListId: plan.afterListId ?? undefined,
               newPosition: plan.newPosition,
-              clientMutationId: crypto.randomUUID(),
             });
           }
         },
@@ -544,6 +531,17 @@ export function useBoardDnd(opts: {
         draggable({
           element,
           getInitialData: () => ({ type: 'card', cardId, fromListId: listId, position }),
+          onGenerateDragPreview: ({ nativeSetDragImage, location, source }) => {
+            setCustomNativeDragPreview({
+              nativeSetDragImage,
+              getOffset: preserveOffsetOnSource({
+                element: source.element,
+                input: location.current.input,
+              }),
+              render: ({ container }) =>
+                renderLiftedPreview({ container, element: source.element, kind: 'card' }),
+            });
+          },
           onDragStart: () => args.onDraggingChange(true),
           onDrop: () => args.onDraggingChange(false),
         }),
@@ -590,6 +588,17 @@ export function useBoardDnd(opts: {
           element,
           dragHandle,
           getInitialData: () => ({ type: 'list', listId, position }),
+          onGenerateDragPreview: ({ nativeSetDragImage, location, source }) => {
+            setCustomNativeDragPreview({
+              nativeSetDragImage,
+              getOffset: preserveOffsetOnSource({
+                element: source.element,
+                input: location.current.input,
+              }),
+              render: ({ container }) =>
+                renderLiftedPreview({ container, element: source.element, kind: 'list' }),
+            });
+          },
           onDragStart: () => args.onDraggingChange(true),
           onDrop: () => args.onDraggingChange(false),
         }),
@@ -611,15 +620,14 @@ export function useBoardDnd(opts: {
   // Memoize the context value so leaf component effects don't tear down and
   // re-create their Pragmatic DnD registrations on every parent re-render.
   // The stable callbacks (registerCard, registerColumn, etc.) are already
-  // useCallback-stable; only dragState, error, and enabled change at runtime.
+  // useCallback-stable; only dragState, placeholders, and enabled change at
+  // runtime. Errors surface via toast (Phase 4C — DEM-80), not state.
   return useMemo(
     () => ({
       enabled,
       dragState,
       cardPlaceholder,
       listPlaceholder,
-      error,
-      clearError,
       boardStripRef,
       registerCard,
       registerListCardsArea,
@@ -632,8 +640,6 @@ export function useBoardDnd(opts: {
       dragState,
       cardPlaceholder,
       listPlaceholder,
-      error,
-      clearError,
       boardStripRef,
       registerCard,
       registerListCardsArea,

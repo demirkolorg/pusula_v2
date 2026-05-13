@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import {
   CARD_COVER_COLORS,
@@ -20,7 +20,16 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
+  cn,
+  toast,
 } from '@pusula/ui';
+import {
+  applyCardArchive,
+  applyCardPatch,
+  getMutationErrorMessage,
+  useOptimisticBoardMutation,
+  type CardDetailCache,
+} from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
@@ -31,7 +40,7 @@ import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
 import { CardModalHeader } from './card-modal-header';
-import { CardModalMetaChips, type CardMetaSection } from './card-modal-meta-chips';
+import { CardModalMetaChips } from './card-modal-meta-chips';
 import { CardModalSidebar } from './card-modal-sidebar';
 
 const cmid = () => crypto.randomUUID();
@@ -121,14 +130,108 @@ export function CardDetailDialog({
   // --- Mutations -----------------------------------------------------------
   // Title / description / due-date / cover-colour each get their own `card.update`
   // instance so a failure (or in-flight state) in one section never leaks into
-  // the others. Complete / uncomplete are separate procedures.
-  const updateTitle = useMutation(trpc.card.update.mutationOptions(onMutated));
-  const updateDescription = useMutation(trpc.card.update.mutationOptions(onMutated));
-  const updateDueAt = useMutation(trpc.card.update.mutationOptions(onMutated));
-  const updateCoverColor = useMutation(trpc.card.update.mutationOptions(onMutated));
-  const completeCard = useMutation(trpc.card.complete.mutationOptions(onMutated));
-  const uncompleteCard = useMutation(trpc.card.uncomplete.mutationOptions(onMutated));
-  const archiveCard = useMutation(trpc.card.archive.mutationOptions(onMutated));
+  // the others. Complete / uncomplete / archive are separate procedures. All
+  // seven flow through `useOptimisticBoardMutation` (Phase 4C — DEM-80) so
+  // `board.get` + `card.get` flip immediately, rollback on error, CONFLICT
+  // refetches; `invalidateCard` runs on success to refresh the dependent
+  // per-card lists (members / labels / activity) the hook doesn't touch.
+  const onConflict = () => toast(strings.board.conflict.refreshed);
+  const onMutationError = () => toast.error(strings.board.optimistic.error);
+  const cardOnSuccess = () => invalidateCard();
+
+  const updateTitle = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) =>
+      vars.title == null ? data : applyCardPatch(data, vars.cardId, { title: vars.title }),
+    applyCardDetail: (data: CardDetailCache, vars) =>
+      vars.title == null ? data : { ...data, card: { ...data.card, title: vars.title } },
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const updateDescription = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) =>
+      vars.description === undefined
+        ? data
+        : applyCardPatch(data, vars.cardId, { description: vars.description }),
+    applyCardDetail: (data, vars) =>
+      vars.description === undefined
+        ? data
+        : { ...data, card: { ...data.card, description: vars.description } },
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const updateDueAt = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) =>
+      vars.dueAt === undefined
+        ? data
+        : applyCardPatch(data, vars.cardId, { dueAt: vars.dueAt as Date | null }),
+    applyCardDetail: (data, vars) =>
+      vars.dueAt === undefined
+        ? data
+        : { ...data, card: { ...data.card, dueAt: vars.dueAt as Date | null } },
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const updateCoverColor = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) =>
+      vars.coverColor === undefined
+        ? data
+        : applyCardPatch(data, vars.cardId, { coverColor: vars.coverColor }),
+    applyCardDetail: (data, vars) =>
+      vars.coverColor === undefined
+        ? data
+        : { ...data, card: { ...data.card, coverColor: vars.coverColor } },
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const completeCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.complete.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) => applyCardPatch(data, vars.cardId, { completed: true }),
+    applyCardDetail: (data) => ({ ...data, card: { ...data.card, completed: true } }),
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const uncompleteCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.uncomplete.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) => applyCardPatch(data, vars.cardId, { completed: false }),
+    applyCardDetail: (data) => ({ ...data, card: { ...data.card, completed: false } }),
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
+  const archiveCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.archive.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) => (vars.archived ? applyCardArchive(data, vars.cardId) : data),
+    applyCardDetail: (data, vars) => ({
+      ...data,
+      card: { ...data.card, archivedAt: vars.archived ? new Date() : null },
+    }),
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
   const addMember = useMutation(trpc.card.members.add.mutationOptions(onMutated));
   const removeMember = useMutation(trpc.card.members.remove.mutationOptions(onMutated));
   const addLabel = useMutation(trpc.card.labels.add.mutationOptions(onMutated));
@@ -145,8 +248,8 @@ export function CardDetailDialog({
   const editComment = useMutation(trpc.comment.update.mutationOptions(onMutated));
   const deleteComment = useMutation(trpc.comment.delete.mutationOptions(onMutated));
 
-  const errOf = (m: { isError: boolean; error: { message?: string } | null }): string | null =>
-    m.isError ? m.error?.message || strings.common.unknownError : null;
+  const errOf = (m: { isError: boolean; error: unknown }): string | null =>
+    m.isError ? (getMutationErrorMessage(m) ?? strings.common.unknownError) : null;
 
   const card = cardQ.data?.card;
   const boardMembers = boardMembersQ.data ?? [];
@@ -181,12 +284,6 @@ export function CardDetailDialog({
   const completePending = completeCard.isPending || uncompleteCard.isPending;
   const completeError = errOf(completeCard) || errOf(uncompleteCard);
 
-  // Which meta-chip's inline editor (members / due / labels / cover) is open
-  // below the chip row (`null` ⇒ none). Mirrors §13.3's "meta chip → picker".
-  const [metaSection, setMetaSection] = useState<CardMetaSection>(null);
-  const toggleMeta = (section: Exclude<CardMetaSection, null>) =>
-    setMetaSection((cur) => (cur === section ? null : section));
-
   const handleOpenChange = (next: boolean) => {
     if (!next) onClose();
   };
@@ -202,7 +299,10 @@ export function CardDetailDialog({
   return (
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
-        className="flex h-[85vh] max-h-[85vh] w-[min(1200px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[70vw] sm:max-w-none"
+        className={cn(
+          'flex h-[85vh] max-h-[85vh] w-[min(1200px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[70vw] sm:max-w-none',
+          coverColor && 'border-transparent',
+        )}
         showCloseButton={false}
       >
         {isNotFound || cardQ.isError ? (
@@ -239,7 +339,7 @@ export function CardDetailDialog({
               canArchive={canArchive}
               archivePending={archiveCard.isPending}
               onArchiveToggle={(toArchived) =>
-                archiveCard.mutate({ cardId, archived: toArchived, clientMutationId: cmid() })
+                archiveCard.mutate({ cardId, archived: toArchived })
               }
               onClose={onClose}
             />
@@ -260,8 +360,8 @@ export function CardDetailDialog({
                       }
                       onCheckedChange={(next) =>
                         next
-                          ? completeCard.mutate({ cardId, clientMutationId: cmid() })
-                          : uncompleteCard.mutate({ cardId, clientMutationId: cmid() })
+                          ? completeCard.mutate({ cardId })
+                          : uncompleteCard.mutate({ cardId })
                       }
                       className="mt-1.5"
                     />
@@ -270,9 +370,7 @@ export function CardDetailDialog({
                         title={card.title}
                         completed={completed}
                         canEdit={canEdit}
-                        onSave={(title) =>
-                          updateTitle.mutate({ cardId, title, clientMutationId: cmid() })
-                        }
+                        onSave={(title) => updateTitle.mutate({ cardId, title })}
                         pending={updateTitle.isPending}
                         error={errOf(updateTitle)}
                       />
@@ -280,15 +378,72 @@ export function CardDetailDialog({
                   </div>
 
                   {/* Meta chip row — members / due / labels / cover-colour each
-                      open their picker below. */}
+                      open their picker in a dropdown. */}
                   <CardModalMetaChips
                     memberCount={cardMembers.length}
                     labelCount={(cardLabelsQ.data ?? []).length}
                     dueAt={card.dueAt}
                     coverColor={coverColor}
                     canEdit={canEdit}
-                    open={metaSection}
-                    onToggle={toggleMeta}
+                    membersContent={
+                      <CardDetailMembers
+                        members={cardMembers}
+                        boardMembers={boardMembers.map((m) => ({
+                          userId: m.userId,
+                          name: m.name,
+                        }))}
+                        viewerUserId={viewerUserId}
+                        canEdit={canEdit}
+                        onAdd={(input: { userId: string; role: CardRole }) =>
+                          addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                        }
+                        onRemove={(input: { userId: string; role: CardRole }) =>
+                          removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                        }
+                        pending={addMember.isPending || removeMember.isPending}
+                        error={errOf(addMember) || errOf(removeMember)}
+                      />
+                    }
+                    dueContent={
+                      <CardDetailDueDate
+                        dueAt={card.dueAt}
+                        canEdit={canEdit}
+                        onSave={(dueAt) => updateDueAt.mutate({ cardId, dueAt })}
+                        pending={updateDueAt.isPending}
+                        error={errOf(updateDueAt)}
+                      />
+                    }
+                    labelsContent={
+                      <CardDetailLabels
+                        cardLabels={cardLabelsQ.data ?? []}
+                        boardLabels={boardLabelsQ.data ?? []}
+                        canEdit={canEdit}
+                        onAdd={(labelId) =>
+                          addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                        }
+                        onRemove={(labelId) =>
+                          removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                        }
+                        onCreate={(input: { color: LabelColor; name?: string }) =>
+                          createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
+                        }
+                        pending={
+                          addLabel.isPending || removeLabel.isPending || createLabel.isPending
+                        }
+                        error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
+                      />
+                    }
+                    coverContent={
+                      <CardDetailCoverColor
+                        coverColor={coverColor}
+                        canEdit={canEdit}
+                        onSelect={(next) =>
+                          updateCoverColor.mutate({ cardId, coverColor: next })
+                        }
+                        pending={updateCoverColor.isPending}
+                        error={errOf(updateCoverColor)}
+                      />
+                    }
                   />
                 </div>
 
@@ -303,81 +458,16 @@ export function CardDetailDialog({
                     <Alert variant="destructive">
                       <AlertTitle>{strings.common.unknownError}</AlertTitle>
                       <AlertDescription>
-                        {archiveCard.error?.message || strings.common.unknownError}
+                        {errOf(archiveCard) ?? strings.common.unknownError}
                       </AlertDescription>
                     </Alert>
-                  )}
-
-                  {/* The picker for whichever meta chip is currently open. */}
-                  {metaSection === 'members' && (
-                    <CardDetailMembers
-                      members={cardMembers}
-                      boardMembers={boardMembers.map((m) => ({ userId: m.userId, name: m.name }))}
-                      viewerUserId={viewerUserId}
-                      canEdit={canEdit}
-                      onAdd={(input: { userId: string; role: CardRole }) =>
-                        addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
-                      }
-                      onRemove={(input: { userId: string; role: CardRole }) =>
-                        removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
-                      }
-                      pending={addMember.isPending || removeMember.isPending}
-                      error={errOf(addMember) || errOf(removeMember)}
-                    />
-                  )}
-
-                  {metaSection === 'due' && (
-                    <CardDetailDueDate
-                      dueAt={card.dueAt}
-                      canEdit={canEdit}
-                      onSave={(dueAt) =>
-                        updateDueAt.mutate({ cardId, dueAt, clientMutationId: cmid() })
-                      }
-                      pending={updateDueAt.isPending}
-                      error={errOf(updateDueAt)}
-                    />
-                  )}
-
-                  {metaSection === 'labels' && (
-                    <CardDetailLabels
-                      cardLabels={cardLabelsQ.data ?? []}
-                      boardLabels={boardLabelsQ.data ?? []}
-                      canEdit={canEdit}
-                      onAdd={(labelId) =>
-                        addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
-                      }
-                      onRemove={(labelId) =>
-                        removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
-                      }
-                      onCreate={(input: { color: LabelColor; name?: string }) =>
-                        createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
-                      }
-                      pending={addLabel.isPending || removeLabel.isPending || createLabel.isPending}
-                      error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
-                    />
-                  )}
-
-                  {metaSection === 'cover' && (
-                    <CardDetailCoverColor
-                      coverColor={coverColor}
-                      canEdit={canEdit}
-                      onSelect={(next) =>
-                        updateCoverColor.mutate({
-                          cardId,
-                          coverColor: next,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      pending={updateCoverColor.isPending}
-                      error={errOf(updateCoverColor)}
-                    />
                   )}
 
                   <CardDetailDescription
                     description={card.description}
                     canEdit={canEdit}
                     onSave={(description) =>
-                      updateDescription.mutate({ cardId, description, clientMutationId: cmid() })
+                      updateDescription.mutate({ cardId, description })
                     }
                     pending={updateDescription.isPending}
                     error={errOf(updateDescription)}

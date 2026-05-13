@@ -1,33 +1,48 @@
 /**
- * `useOptimisticBoardMutation` — higher-order hook scaffold for Phase 4
- * collaborative mutations (DEM-79; consumers wired in 4C / DEM-80).
+ * Optimistic mutation hooks for the board screen (Phase 4 — DEM-79 + DEM-80).
  *
- * Standardises the optimistic lifecycle from `05-board-mekanigi.md` §5.2:
- *   onMutate:   cancel `board.get`, snapshot, apply pure cache transform.
- *   onError:    rollback snapshot; on CONFLICT also refetch + neutral notice;
- *               otherwise low-noise error notice.
- *   onSettled:  invalidate `board.get` (and `card.get` if `cardId` provided).
+ * `useOptimisticBoardMutation` standardises the lifecycle from
+ * `05-board-mekanigi.md` §5.2 for **board detail** (`board.get`) mutations:
+ *
+ *   onMutate:   cancel `board.get`, snapshot all matching cache rows,
+ *               apply the caller's pure cache transform.
+ *   onError:    rollback the snapshot; on CONFLICT also invalidate +
+ *               refetch the board and call `onConflict` (neutral notice);
+ *               otherwise call `onMutationError` (destructive notice).
+ *   onSettled:  invalidate `board.get` (and `card.get` if the caller
+ *               supplied a `cardId`).
  *
  * `clientMutationId` (UUID v4) is injected into the variables automatically
- * unless the caller already set one — callers never re-implement that.
+ * when the caller calls `.mutate(...)` / `.mutateAsync(...)`, so call sites
+ * never sprinkle `crypto.randomUUID()` per mutation. If the caller already
+ * set one (e.g. for tests / replays), it's kept as-is.
  *
- * The hook is generic over `TVars` / `TData` and forwards to a tRPC
- * `mutationOptions` builder (e.g. `trpc.card.update.mutationOptions`), so 4C
- * can wrap every board/list/card collaborative mutation without restating the
- * lifecycle. Snapshot/rollback uses `getQueriesData` + `setQueryData` so a
- * cached entry for *any* matching board query gets restored on error (not
- * just the most-recent one).
+ * `useOptimisticBoardListMutation` is the sibling for **workspace board
+ * list** (`board.list({ workspaceId })`) mutations — `board.create` /
+ * `board.update` / `board.archive` triggered from the workspace screen.
+ * Same lifecycle, different cache filter and snapshot shape.
+ *
+ * Both hooks consume tRPC's `<procedure>.mutationOptions` builder
+ * structurally, so any board/list/card collaborative mutation plugs in
+ * without naming each.
  */
 'use client';
 
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
 import { useBoardCacheKeys } from './keys';
-import type { BoardCache } from './types';
+import type { BoardCache, BoardSummary, CardDetailCache } from './types';
 
 /** Rollback context returned from `onMutate` and consumed by `onError`. */
 export type OptimisticRollback = {
   /** All matching `board.get` entries before the optimistic patch. */
+  previous: [readonly unknown[], unknown][];
+  /** Snapshot of the `card.get` cache, when `applyCardDetail` is provided. */
+  cardDetail?: [readonly unknown[], unknown][];
+};
+
+/** Rollback context for the workspace-board-list hook. */
+export type OptimisticBoardListRollback = {
   previous: [readonly unknown[], unknown][];
 };
 
@@ -46,13 +61,29 @@ function isConflict(err: unknown): boolean {
  * bag and returns a (possibly enriched) options bag. We keep it structural so
  * the hook accepts any board/list/card mutation builder without naming each.
  */
-type MutationOptionsBuilder<TVars, TData> = (
-  options: UseMutationOptions<TData, unknown, TVars, OptimisticRollback>,
-) => UseMutationOptions<TData, unknown, TVars, OptimisticRollback>;
+type MutationOptionsBuilderLike = (options: never) => unknown;
 
-export type UseOptimisticBoardMutationArgs<TVars, TData> = {
+type MutationOptionsVars<TBuilder> = TBuilder extends (
+  options: UseMutationOptions<infer _TData, infer _TError, infer TVars, infer _TContext>,
+) => unknown
+  ? TVars & { clientMutationId?: string }
+  : { clientMutationId?: string };
+
+type MutationOptionsData<TBuilder> = TBuilder extends (
+  options: UseMutationOptions<infer TData, infer _TError, infer _TVars, infer _TContext>,
+) => unknown
+  ? TData
+  : unknown;
+
+/**
+ * Wrap a tRPC mutation in the standard optimistic lifecycle against
+ * `board.get` (and optionally `card.get`). Use this for every board/list/card
+ * collaborative mutation that affects the board screen — see `05-board-mekanigi.md`
+ * §5.2 for the per-mutation `apply` callback contract.
+ */
+export type UseOptimisticBoardMutationArgs<TBuilder extends MutationOptionsBuilderLike> = {
   /** tRPC procedure's `mutationOptions` (e.g. `trpc.card.update.mutationOptions`). */
-  mutationOptions: MutationOptionsBuilder<TVars, TData>;
+  mutationOptions: TBuilder;
   /** Board whose cache is patched + invalidated. */
   boardId: string;
   /**
@@ -60,43 +91,68 @@ export type UseOptimisticBoardMutationArgs<TVars, TData> = {
    * that affect a single card detail, e.g. `card.update` / `card.complete`).
    * Can be a function of the vars when the id isn't known at hook setup.
    */
-  cardId?: string | ((vars: TVars) => string | undefined);
+  cardId?: string | ((vars: MutationOptionsVars<TBuilder>) => string | undefined);
   /**
    * Pure cache transform applied in `onMutate` to the `board.get` cache.
    * Receives the current cache and the mutation vars; returns the patched cache
    * (same reference if no-op).
-   *
-   * Note: this hook intentionally only patches `board.get`. For mutations that
-   * also want to patch `card.get` optimistically (e.g. `card.update` from an
-   * open card detail modal), 4C will either compose two
-   * `useOptimisticBoardMutation`s or extend this hook with a second
-   * `applyCardDetail` callback — open decision, tracked on §5.2 follow-up.
    */
-  apply: (data: BoardCache, vars: TVars) => BoardCache;
+  apply: (data: BoardCache, vars: MutationOptionsVars<TBuilder>) => BoardCache;
+  /**
+   * Optional patch for the `card.get` cache too — used by the card-detail
+   * modal so an in-flight `card.update` / `card.complete` flips the modal
+   * fields optimistically (the board chip already flips via `apply`). Pass
+   * the same `cardId` argument so the hook can locate the right card cache.
+   */
+  applyCardDetail?: (data: CardDetailCache, vars: MutationOptionsVars<TBuilder>) => CardDetailCache;
   /**
    * Called on `CONFLICT` after rollback + refetch. Place to show the neutral
    * "moved by someone else / reloaded" toast (`strings.board.conflict.*`).
    */
-  onConflict?: (err: unknown, vars: TVars) => void;
+  onConflict?: (err: unknown, vars: MutationOptionsVars<TBuilder>) => void;
   /**
    * Called on any non-`CONFLICT` error after rollback. Place to show the
    * destructive toast (`strings.board.optimistic.error`).
    */
-  onMutationError?: (err: unknown, vars: TVars) => void;
+  onMutationError?: (err: unknown, vars: MutationOptionsVars<TBuilder>) => void;
+  /**
+   * Called once the mutation resolves successfully (after the cache reconcile).
+   * Useful for closing inline editors / dialogs that owned the mutation.
+   */
+  onMutationSuccess?: (
+    data: MutationOptionsData<TBuilder>,
+    vars: MutationOptionsVars<TBuilder>,
+  ) => void | Promise<void>;
 };
 
 /**
- * Wraps a tRPC mutation in the standard optimistic lifecycle. 4C will call
- * this once per collaborative mutation (card/list/board create/update/move/
+ * Wraps a tRPC mutation in the standard optimistic lifecycle. 4C calls this
+ * once per collaborative mutation (card/list/board create/update/move/
  * archive/etc.) instead of restating onMutate/onError/onSettled each time.
+ *
+ * The returned object exposes the same `useMutation` surface (`mutate` /
+ * `mutateAsync` / `isPending` / `error` / `reset` / ...) but `mutate` /
+ * `mutateAsync` are wrapped so the caller's vars get a `clientMutationId`
+ * injected automatically (when absent).
  */
-export function useOptimisticBoardMutation<
-  TVars extends { clientMutationId?: string },
-  TData = unknown,
->(args: UseOptimisticBoardMutationArgs<TVars, TData>) {
+export function useOptimisticBoardMutation<TBuilder extends MutationOptionsBuilderLike>(
+  args: UseOptimisticBoardMutationArgs<TBuilder>,
+) {
+  type TVars = MutationOptionsVars<TBuilder>;
+  type TData = MutationOptionsData<TBuilder>;
+
   const queryClient = useQueryClient();
   const cacheKeys = useBoardCacheKeys();
-  const { boardId, apply, cardId, onConflict, onMutationError, mutationOptions } = args;
+  const {
+    boardId,
+    apply,
+    applyCardDetail,
+    cardId,
+    onConflict,
+    onMutationError,
+    onMutationSuccess,
+    mutationOptions,
+  } = args;
 
   const boardFilter = useMemo(() => cacheKeys.board(boardId), [cacheKeys, boardId]);
 
@@ -115,15 +171,30 @@ export function useOptimisticBoardMutation<
       queryClient.setQueriesData<BoardCache>(boardFilter, (data) =>
         data == null ? data : apply(data, vars),
       );
-      return { previous };
+      let cardDetail: [readonly unknown[], unknown][] | undefined;
+      if (applyCardDetail) {
+        const id = resolveCardId(vars);
+        if (id) {
+          const cardFilter = cacheKeys.card(id);
+          await queryClient.cancelQueries(cardFilter);
+          cardDetail = queryClient.getQueriesData(cardFilter);
+          queryClient.setQueriesData<CardDetailCache>(cardFilter, (data) =>
+            data == null ? data : applyCardDetail(data, vars),
+          );
+        }
+      }
+      return { previous, cardDetail };
     },
-    [queryClient, boardFilter, apply],
+    [queryClient, boardFilter, apply, applyCardDetail, cacheKeys, resolveCardId],
   );
 
   const onError = useCallback(
     async (err: unknown, vars: TVars, ctx: OptimisticRollback | undefined) => {
       if (ctx) {
         for (const [key, data] of ctx.previous) queryClient.setQueryData(key, data);
+        if (ctx.cardDetail) {
+          for (const [key, data] of ctx.cardDetail) queryClient.setQueryData(key, data);
+        }
       }
       if (isConflict(err)) {
         await queryClient.invalidateQueries(boardFilter);
@@ -144,7 +215,122 @@ export function useOptimisticBoardMutation<
     [queryClient, boardFilter, cacheKeys, resolveCardId],
   );
 
-  return useMutation(mutationOptions({ onMutate, onError, onSettled }));
+  const onSuccess = useCallback(
+    async (data: TData, vars: TVars) => {
+      await onMutationSuccess?.(data, vars);
+    },
+    [onMutationSuccess],
+  );
+
+  const buildMutationOptions = mutationOptions as unknown as (
+    options: UseMutationOptions<TData, unknown, TVars, OptimisticRollback>,
+  ) => unknown;
+  const mutation = useMutation<TData, unknown, TVars, OptimisticRollback>(
+    buildMutationOptions({ onMutate, onError, onSettled, onSuccess }) as UseMutationOptions<
+      TData,
+      unknown,
+      TVars,
+      OptimisticRollback
+    >,
+  );
+
+  return wrapWithClientMutationId(mutation);
+}
+
+/**
+ * Optional patch over a workspace board-list cache row (the rare case where
+ * the caller wants to surface server-assigned fields, e.g. computed counts).
+ * Most callers pass `apply` only.
+ */
+export type UseOptimisticBoardListMutationArgs<TBuilder extends MutationOptionsBuilderLike> = {
+  mutationOptions: TBuilder;
+  /** Workspace whose board list cache is patched + invalidated. */
+  workspaceId: string;
+  /** Pure transform over the workspace's `BoardSummary[]` cache. */
+  apply: (
+    boards: readonly BoardSummary[],
+    vars: MutationOptionsVars<TBuilder>,
+  ) => readonly BoardSummary[];
+  onConflict?: (err: unknown, vars: MutationOptionsVars<TBuilder>) => void;
+  onMutationError?: (err: unknown, vars: MutationOptionsVars<TBuilder>) => void;
+  onMutationSuccess?: (
+    data: MutationOptionsData<TBuilder>,
+    vars: MutationOptionsVars<TBuilder>,
+  ) => void | Promise<void>;
+};
+
+/**
+ * Sibling of `useOptimisticBoardMutation` for the workspace screen's board
+ * list (`board.list({ workspaceId })`). Same lifecycle / `clientMutationId`
+ * injection — only the cache filter and snapshot shape differ.
+ */
+export function useOptimisticBoardListMutation<TBuilder extends MutationOptionsBuilderLike>(
+  args: UseOptimisticBoardListMutationArgs<TBuilder>,
+) {
+  type TVars = MutationOptionsVars<TBuilder>;
+  type TData = MutationOptionsData<TBuilder>;
+
+  const queryClient = useQueryClient();
+  const cacheKeys = useBoardCacheKeys();
+  const { workspaceId, apply, onConflict, onMutationError, onMutationSuccess, mutationOptions } =
+    args;
+
+  const boardsFilter = useMemo(
+    () => cacheKeys.boards(workspaceId),
+    [cacheKeys, workspaceId],
+  );
+
+  const onMutate = useCallback(
+    async (vars: TVars): Promise<OptimisticBoardListRollback> => {
+      await queryClient.cancelQueries(boardsFilter);
+      const previous = queryClient.getQueriesData(boardsFilter);
+      queryClient.setQueriesData<readonly BoardSummary[]>(boardsFilter, (data) =>
+        data == null ? data : apply(data, vars),
+      );
+      return { previous };
+    },
+    [queryClient, boardsFilter, apply],
+  );
+
+  const onError = useCallback(
+    async (err: unknown, vars: TVars, ctx: OptimisticBoardListRollback | undefined) => {
+      if (ctx) {
+        for (const [key, data] of ctx.previous) queryClient.setQueryData(key, data);
+      }
+      if (isConflict(err)) {
+        await queryClient.invalidateQueries(boardsFilter);
+        onConflict?.(err, vars);
+      } else {
+        onMutationError?.(err, vars);
+      }
+    },
+    [queryClient, boardsFilter, onConflict, onMutationError],
+  );
+
+  const onSettled = useCallback(async () => {
+    await queryClient.invalidateQueries(boardsFilter);
+  }, [queryClient, boardsFilter]);
+
+  const onSuccess = useCallback(
+    async (data: TData, vars: TVars) => {
+      await onMutationSuccess?.(data, vars);
+    },
+    [onMutationSuccess],
+  );
+
+  const buildMutationOptions = mutationOptions as unknown as (
+    options: UseMutationOptions<TData, unknown, TVars, OptimisticBoardListRollback>,
+  ) => unknown;
+  const mutation = useMutation<TData, unknown, TVars, OptimisticBoardListRollback>(
+    buildMutationOptions({ onMutate, onError, onSettled, onSuccess }) as UseMutationOptions<
+      TData,
+      unknown,
+      TVars,
+      OptimisticBoardListRollback
+    >,
+  );
+
+  return wrapWithClientMutationId(mutation);
 }
 
 /**
@@ -154,9 +340,10 @@ export function useOptimisticBoardMutation<
  * optional on the wire (server-side parse `z.string().uuid().optional()`),
  * but every UI mutation in scope of Phase 4 produces one.
  *
- * Exported now so 4C (DEM-80) consumers and 4D (DEM-81) failure tests can
- * import it from the public surface. Phase 4B itself doesn't wire it yet —
- * call sites still use inline `crypto.randomUUID()` (Phase 3B-era DnD code).
+ * Exported now so 4D (DEM-81) failure tests can import it from the public
+ * surface and assert the regex; consumers don't typically call this directly
+ * — `useOptimistic{Board,BoardList}Mutation` wrap their `mutate` /
+ * `mutateAsync` with this automatically.
  */
 export function withClientMutationId<TVars extends { clientMutationId?: string }>(
   vars: TVars,
@@ -165,4 +352,49 @@ export function withClientMutationId<TVars extends { clientMutationId?: string }
     ...vars,
     clientMutationId: vars.clientMutationId ?? crypto.randomUUID(),
   };
+}
+
+/**
+ * Read `.message` off a mutation's `error` without spreading `unknown` casts
+ * across UI call sites. The optimistic hooks pin `TError = unknown` so the
+ * tRPC error shape doesn't leak into the hook's signature — components use
+ * this helper to surface a human-readable string in inline alerts. Returns
+ * `null` when the mutation isn't currently errored.
+ */
+export function getMutationErrorMessage(mutation: {
+  isError: boolean;
+  error: unknown;
+}): string | null {
+  if (!mutation.isError) return null;
+  const err = mutation.error;
+  if (
+    err != null &&
+    typeof err === 'object' &&
+    'message' in err &&
+    typeof (err as { message?: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return null;
+}
+
+/**
+ * Wrap a `useMutation` result so `mutate` / `mutateAsync` inject a
+ * `clientMutationId` automatically. Internal helper used by both optimistic
+ * hooks; not exported.
+ */
+function wrapWithClientMutationId<
+  TData,
+  TError,
+  TVars extends { clientMutationId?: string },
+  TCtx,
+>(mutation: ReturnType<typeof useMutation<TData, TError, TVars, TCtx>>) {
+  const originalMutate = mutation.mutate;
+  const originalMutateAsync = mutation.mutateAsync;
+  return Object.assign(mutation, {
+    mutate: ((vars: TVars, options?: Parameters<typeof originalMutate>[1]) =>
+      originalMutate(withClientMutationId(vars), options)) as typeof originalMutate,
+    mutateAsync: ((vars: TVars, options?: Parameters<typeof originalMutateAsync>[1]) =>
+      originalMutateAsync(withClientMutationId(vars), options)) as typeof originalMutateAsync,
+  });
 }
