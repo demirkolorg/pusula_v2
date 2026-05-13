@@ -164,7 +164,7 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
         ) : (
           <div
             ref={dnd.boardStripRef}
-            className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto pb-4"
+            className="pusula-scrollbar flex min-h-0 flex-1 items-start gap-3 overflow-x-auto overflow-y-hidden pb-4"
           >
             {visibleLists.map((list) => (
               <Fragment key={list.id}>

@@ -142,19 +142,20 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 ### Kolon (liste)
 
 ```
-<section class="w-72 shrink-0 flex flex-col rounded-lg border bg-muted/40 max-h-[calc(100vh-9rem)]">
-  <header class="flex items-center justify-between gap-1 p-2">
+<section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border bg-muted/30">
+  <header class="flex shrink-0 items-center justify-between gap-1 p-2">
     <div> liste adı (text-sm font-semibold truncate) · kart sayısı (text-muted-foreground text-xs) </div>
     <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / arşivle) </div>
   </header>
-  <div class="flex flex-col gap-2 px-2 pb-2 overflow-y-auto"> {kartlar} </div>
-  <footer class="p-2"> AddCardForm | <Button variant=ghost size=sm class="w-full justify-start text-muted-foreground"> + Kart ekle </Button> </footer>
+  <div class="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"> {kartlar} </div>
+  <footer class="shrink-0 p-2"> AddCardForm | <Button variant=ghost size=sm class="w-full justify-start text-muted-foreground"> + Kart ekle </Button> </footer>
 </section>
 ```
 
 - Arşivli liste: `bg-muted/20 border-dashed`, başlıkta arşiv ikonu; içi salt-okunur (yeni kart eklenemez — backend kapısı + UI).
 - Sona: "+ Liste ekle" — `w-72 shrink-0 rounded-lg border border-dashed bg-muted/30 p-2` içinde ghost buton / inline form.
 - Drag (Faz 3 — placeholder spec): sürüklenen kolon `shadow-drag`, bırakılacak yer `w-72 h-32 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5`.
+- **Scroll & scrollbar ([DEM-88](https://linear.app/demirkol/issue/DEM-88) — 2026-05-13):** kolon `max-h-full` (parent strip yüksekliği kadar; içerik az ise içeriği kadar kompakt durur — `h-full` değil) + 3-segment (header `shrink-0` / cards area `flex min-h-0 overflow-y-auto pusula-scrollbar` / footer `shrink-0`); cards area `flex-1` taşımaz (boş kolonlar viewport-tall görünmesin). Strip `items-start` ile kolonlar top-aligned; strip kendisi `overflow-x-auto overflow-y-hidden` (yatay scroll yalnız). Custom scrollbar utility `.pusula-scrollbar` (`packages/ui/src/styles/theme.css` `@layer utilities` — 6px thin, transparent track, soft OKLCH thumb); token'lar `--scrollbar-thumb` + `--scrollbar-thumb-hover` (light + dark). Wired chain → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.4 "Layout & scroll davranışı".
 
 ### Kart (`CardItem`)
 
@@ -164,6 +165,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 2. **Etiket chip'leri** (varsa) — `flex flex-wrap gap-1 mb-1.5`; her chip `LabelChip` solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`; adı varsa ad, yoksa kısa renkli bar `h-2 w-8`). Kapak görseli yoksa ve etiket varsa chip'ler kartın görsel "rengini" verir (Trello hissi).
 3. **Başlık satırı** — `flex items-start gap-1.5`: solda `CardCompleteToggle` (kartta `opacity-0 group-hover/kart:opacity-100`, tamamlanmışsa hep görünür: `bg-success` tik), başlık `line-clamp-3 font-medium leading-snug` (tamamlanmış kart → `line-through text-muted-foreground`). _(Durum — güncel 2026-05-13: kart-seviyesi "tamamlandı" backend'i ([DEM-66](https://linear.app/demirkol/issue/DEM-66) — `cards.completed`/`completedAt`/`completedBy` + `card.complete`/`card.uncomplete`) ve kapak rengi backend'i ([DEM-67](https://linear.app/demirkol/issue/DEM-67) — `cards.coverColor` + `CARD_COVER_COLORS`) `checklist_items.completed`'tan **bağımsız** (bkz. [`03-backend.md`](03-backend.md) Faz 2.7, [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) invariant 15) — ve **DEM-74 (2.7C-2)'de UI'ye wire edildi**: `CardCompleteToggle` kartta+modalda → `card.complete`/`card.uncomplete`; kart kapak rengi şeridi (kapak görseli yoksa `coverColor` varsa) `-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md bg-palet-{ad}`; modal başlık çubuğu `coverColor` seçiliyse `bg-palet-{ad}` (§13.3); meta chip satırında kapak rengi picker (12-renk `--palet-*` → `card.update({coverColor})`). `CardCompleteToggle` bileşeni `packages/ui`'de; modaldaki checklist madde checkbox'larında da kullanılır.)_
 4. **Metadata satırı (`CardMetaRow`)** — `mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground`; sırayla, varsa: due chip (`CalendarIcon` + tarih; gecikmiş → `bg-destructive/12 text-destructive rounded-sm px-1 py-px font-medium` + "GECİKTİ" rozeti `bg-destructive text-destructive-foreground text-[9px] uppercase tracking-wide px-1`; 24–72 saat içinde → `--warning` nokta `size-1.5 rounded-full`) · açıklama-var (`AlignLeftIcon`, açıklama doluysa) · checklist progress (`CheckSquareIcon` + `tamamlanan/toplam`; tamsa `text-success`) · yorum sayısı (`MessageSquareIcon` + n) · üye avatarları (son ~3 `Avatar size-xs` `-space-x-1` üst üste + "+N"). _(Veri: `board.get` Faz 2.7B'de bu sayaçları additive döndürür — `checklistTotal`/`checklistDone`, `commentCount`, `members[]`; bkz. [`03-backend.md`](03-backend.md). **Ek sayısı `PaperclipIcon` chip'i bu fazda yok** — attachment/ek Faz 8.)_
+5. **Drag preview (`CardDragPreview`)** — sürükleme esnasında cursor'la birlikte gezen, kartın sadeleştirilmiş kopyası: `pointer-events-none rotate-[2deg] shadow-[0_14px_28px_rgba(15,23,42,0.18),0_4px_10px_rgba(15,23,42,0.12)]` + cover şerit + başlık + temel meta chip'leri (tooltip yok — detached React root). Pragmatic DnD `setCustomNativeDragPreview` ile bağlanır; sürüklenen kartın orijinali `opacity-0` (transition yok — anlık) ile gizlenir, yerine sadece drop-line placeholder kalır. (DEM-87; wiring → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.8.)
 
 ### Filter bar & loading
 

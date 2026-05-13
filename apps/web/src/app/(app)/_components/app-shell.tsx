@@ -46,7 +46,15 @@ export function AppShell({ userName, children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div
+      className={cn(
+        'flex flex-col',
+        // Board route is viewport-bound (page scroll is suppressed; only the
+        // list column's card stream scrolls). All other routes use `min-h-svh`
+        // and grow with content like normal pages.
+        fullBleed ? 'h-svh overflow-hidden' : 'min-h-svh',
+      )}
+    >
       <header className="bg-card sticky top-0 z-20 border-b shadow-card">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-4">
           <Link
@@ -82,7 +90,7 @@ export function AppShell({ userName, children }: AppShellProps) {
         </div>
       </header>
       {fullBleed ? (
-        <main className="flex flex-1 flex-col">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       ) : (
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
       )}

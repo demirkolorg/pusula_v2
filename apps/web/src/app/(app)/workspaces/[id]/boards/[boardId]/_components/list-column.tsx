@@ -242,14 +242,14 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
     <section
       ref={columnRef}
       className={cn(
-        'relative flex max-h-[calc(100svh-9rem)] w-72 shrink-0 flex-col self-start rounded-lg border transition-opacity',
+        'relative flex max-h-full w-72 shrink-0 flex-col rounded-lg border transition-opacity',
         listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/30',
         columnDragging && 'opacity-0',
       )}
       data-dragging={columnDragging ? '' : undefined}
       aria-label={list.title}
     >
-      <header className="flex items-center justify-between gap-1 p-2">
+      <header className="flex shrink-0 items-center justify-between gap-1 p-2">
         {renaming ? (
           <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
             <Input
@@ -367,7 +367,10 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
         )}
       </header>
 
-      <div ref={cardsAreaRef} className="flex min-h-2 flex-col gap-2 overflow-y-auto px-2 pb-2">
+      <div
+        ref={cardsAreaRef}
+        className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
+      >
         {cards.length === 0 && !listEditable ? (
           <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
         ) : (
@@ -397,7 +400,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       </div>
 
       {listEditable && (
-        <footer className="p-2">
+        <footer className="shrink-0 p-2">
           {addingCard ? (
             <div className="rounded-md bg-card p-2 shadow-sm">
               <AddCardForm

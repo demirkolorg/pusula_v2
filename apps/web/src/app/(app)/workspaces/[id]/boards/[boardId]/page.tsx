@@ -43,7 +43,7 @@ export default function BoardDetailPage({
 
   if (board.isPending) {
     return (
-      <div className="flex flex-1 flex-col gap-4 px-4 py-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
         {backLink}
         <BoardSkeleton />
       </div>
@@ -52,7 +52,7 @@ export default function BoardDetailPage({
 
   if (board.isError) {
     return (
-      <div className="flex flex-1 flex-col gap-4 px-4 py-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
         {backLink}
         <Alert variant="destructive">
           <AlertTitle>{strings.board.detail.loadErrorTitle}</AlertTitle>
