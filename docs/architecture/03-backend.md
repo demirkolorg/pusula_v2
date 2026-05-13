@@ -200,6 +200,23 @@ Test (Faz 3A): domain birim (`positionBetween`/`positionsBetween` edge case'leri
 
 > **Kapsam dışı:** short-window dedupe (Faz 5 — outbox + realtime echo ile birlikte), realtime echo ayıklama (Faz 5), `comment/checklist/label/card.members/card.labels/board.members/board.invitations` activity payload'ları (Faz 5/6'da `clientMutationId` ekler). Web tarafı cache modeli + optimistic mutation hook'ları → Faz 4B ([DEM-79](https://linear.app/demirkol/issue/DEM-79)) + 4C ([DEM-80](https://linear.app/demirkol/issue/DEM-80)) + 4D ([DEM-81](https://linear.app/demirkol/issue/DEM-81)).
 
+### Faz 5 — Socket.IO server ([DEM-28](https://linear.app/demirkol/issue/DEM-28))
+
+> Hono kabuğuna mount edilen Socket.IO server'ı; auth + room yönetimi + emit helper'ları. Detay realtime mekaniği → [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.3 (event envelope + outbox + reconciliation). Yayın katmanı + worker → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Realtime event yayın katmanı (Faz 5)". Redis adapter operasyonu → [`10-platform.md`](10-platform.md).
+
+- **Mount:** `apps/api` boot'unda `@hono/node-server`'ın döndürdüğü HTTP server'a Socket.IO `Server` attach edilir. Aynı port (`PORT=3001`) HTTP (tRPC + `/api/auth/*`) + WebSocket (Socket.IO `/socket.io/*`) trafiğini taşır. CORS origin `APP_URL` (mevcut `env.ts` Zod şeması).
+- **Modül yapısı (`apps/api/src/socket/`):**
+  - `server.ts` — `Server` instance + Redis adapter (`@socket.io/redis-adapter` + mevcut `ioredis`; BullMQ ile aynı Redis ama farklı pub/sub kanalı)
+  - `auth.ts` — bağlantı middleware: Better Auth `getSession` ile cookie/handshake doğrula; başarısız → `disconnect('Unauthorized')`; başarılı → `socket.data.userId` set
+  - `rooms.ts` — `user:{userId}` otomatik join (bağlantıda); `board:{boardId}` join talebi → `resolveBoardAccess(userId, boardId)` (`viewer+`) → join veya `disconnect('Forbidden')`
+  - `emit.ts` — `emitToBoard(boardId, envelope)` / `emitToUser(userId, envelope)` helper'ları (Redis adapter sayesinde tüm API node'larından çağrılabilir)
+  - `index.ts` — public API: `setupSocketServer(httpServer, ctx)` + emit helper'larını export
+- **tRPC context inject:** `packages/api/src/context.ts` tRPC `ctx`'e `realtime: { emitToBoard, emitToUser }` field'ı eklenir (DEM-44 compaction-queue pattern'i — `apps/api` boot'unda producer kuyruğu inject ediliyor; benzer şekilde socket emit helper'ları). Faz 5B'de mutation gövdeleri **doğrudan emit etmez** (outbox pattern — `realtime_events` insert eder, worker emit eder); ama bazı server-initiated event'ler (örn. board archive admin tarafından) doğrudan ctx.realtime ile gönderilebilir (sonraki fazlar).
+- **Yetki & arşiv:** `viewer` rolü `board:{boardId}` join eder (event'leri görür) ama optimistic mutation atamaz (Faz 4C zaten draggable mount etmiyor). Arşivli board'a join talebi → reject (`Forbidden`); arşivli liste/kart event'leri yine yayılır (UI salt-okunur gösterir).
+- **Sticky session:** Redis adapter cross-instance fan-out yapar; uzun-polling fallback'i Traefik arkasında açıksa sticky session test edilir. Faz 5 başlangıcında WebSocket-only transport (sticky session ihtiyacı yok). Detay → [`10-platform.md`](10-platform.md).
+- **Test:** `apps/api/src/socket/socket.test.ts` (Vitest + `socket.io-client` test client) — auth middleware (yetkisiz reddedilir, valid session join eder), room join (`viewer+` rolü join, `null` rolü reddedilir), emit helper'ları (mock socket'e emit doğru room'a gider). E2E iki-kullanıcı testleri Faz 5D ([DEM-86](https://linear.app/demirkol/issue/DEM-86)).
+- **Kapsam dışı:** event yayını mutation gövdelerinden → Faz 5B (worker üzerinden); presence (`board.presence:join/leave`, imleç pozisyonu) → Faz 6/7; mobile (Expo Socket.IO client) → Faz 7.
+
 ## Worker (background job)
 
 `apps/worker` ayrı uygulama (API ile aynı image, farklı command olabilir; ama ayrı process):

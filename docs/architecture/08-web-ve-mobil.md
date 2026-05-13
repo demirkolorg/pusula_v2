@@ -180,6 +180,34 @@ Faz 3B drag-drop (§8.1.8) `card.move`/`list.move` için optimistic akışı kur
 
 ---
 
+### 8.1.10 Realtime board sync (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28))
+
+Faz 4 optimistic UI (§8.1.9) tek-kullanıcı UX'i çözdü; Faz 5 **çoklu-kullanıcı sync**'i ekler: Alice kartı taşır → Bob `<500ms` içinde canlı görür (worker queue + outbox sayesinde `<1s` dayanıklı). Backend: outbox + worker + Socket.IO server → [`03-backend.md`](03-backend.md) "Faz 5" + [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Realtime event yayın katmanı"; tablo şeması → [`04-veri-katmani.md`](04-veri-katmani.md) (`realtime_events`); event envelope + reconciliation mekaniği → [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.3.
+
+- **Modül konvansiyonu (`apps/web/src/lib/realtime/`):**
+  - `client.ts` — `socket.io-client` tek `io()` instance; `API_URL`'a bağlanır; `withCredentials: true` (session cookie); `transports: ['websocket']` (Faz 5 başlangıcında long-polling fallback yok — Redis adapter sticky session sorununu azaltır); auto-reconnect (varsayılan); `disconnect()` cleanup.
+  - `useBoardRealtime(boardId)` — board sayfasında mount edilen React hook:
+    - Mount: socket.connect (henüz değilse) → `socket.emit('board:join', { boardId })` → server `resolveBoardAccess` kontrolü + join ack → event listener register (`card.*`, `list.*`, `board.*`)
+    - Unmount: `socket.emit('board:leave', { boardId })` + listener detach
+  - `event-handlers.ts` — event türüne göre `apps/web/src/lib/board-cache/primitives.ts` (Faz 4B / [DEM-79](https://linear.app/demirkol/issue/DEM-79)) çağrısı: `card.moved` → `moveCardInCache` · `card.created` → `addCardToCache` · `card.updated` → `updateCardInCache` · `card.archived` → `archiveCardInCache` · `card.completed`/`uncompleted` → `updateCardInCache({completedAt})` · `list.*` → ilgili primitive · `board.updated`/`archived` → `updateBoardInCache`.
+  - `in-flight-store.ts` — `useOptimisticBoardMutation` (Faz 4C / [DEM-80](https://linear.app/demirkol/issue/DEM-80)) ile entegre: aktif mutation'ların `clientMutationId` set'i (mutation `onMutate`'te add, `onSettled`'da delete). Realtime event listener bu set'ten gelen `clientMutationId`'leri **skip** eder (echo ayıklama).
+- **Echo ayıklama (kritik):** Alice kart taşır → optimistic update cache'i hemen güncelliyor → mutation server'a gidiyor → tx commit + outbox insert → worker publish → Alice'in socket'i de event'i alıyor. **Eğer echo skip yapılmazsa** Alice'in cache'i ikinci kez güncellenir (idempotent ama gereksiz; race condition'da yanlış sonuç). `if (event.clientMutationId && inFlightSet.has(event.clientMutationId)) return;` zorunlu.
+- **`seq` gap tespiti:** Board cache'de `lastAppliedSeq` (board'un `version` aynası). Gelen event:
+  - `event.seq === lastAppliedSeq + 1` → uygula, `lastAppliedSeq = event.seq`.
+  - `event.seq > lastAppliedSeq + 1` → **gap** (kaçırılan event'ler) → `boardKey` invalidate + `board.get` refetch → `lastAppliedSeq` server response'un `version`'ına eşitlenir.
+  - `event.seq <= lastAppliedSeq` → stale/duplicate → skip.
+- **Reconnect resync:** Socket reconnect event'inde board sayfasındaki `boardKey` invalidate + refetch (kaçırılan event'ler için tek refetch yeterli; outbox replay client'a değil server-side cache miss'e karşı).
+- **Yetki & arşiv:** `viewer` rolü realtime event'leri görür (cache update olur, UI ona göre render eder), ama `useOptimisticBoardMutation` zaten mutation atamıyor; arşivli board'a join talebi server tarafında reddedilir (`apps/web` sayfa zaten arşivli board'ı yönlendirir veya salt-okunur gösterir).
+- **UX davranışı:**
+  - Realtime event uygulandığında **toast yok** (alice'in eylemi bob için "doğal" akış — gürültü çıkarmaz). İstisna: kart bob'un açık olduğu modalda değişirse subtle bilgi banner'ı (sonraki tur).
+  - Çevrimdışı: socket disconnect olursa subtle "Bağlantı koptu, tekrar bağlanılıyor..." banner'ı (`strings.realtime.disconnected`); reconnect olduğunda banner kaybolur. Disconnect süresince mutation'lar optimistic çalışmaya devam eder ama server'a gitmez (4C `useOptimisticBoardMutation` zaten retry'lı değil — kullanıcı manuel "tekrar dene"). Sonraki tur: çevrimdışı kuyruk (Faz 8).
+- **Türkçe metinler:** `apps/web/src/lib/strings.ts` `strings.realtime.*` (`disconnected` / `reconnecting` / banner mesajları).
+- **Test (Faz 5D — [DEM-86](https://linear.app/demirkol/issue/DEM-86)):**
+  - Vitest birim: event handler'ların cache primitives doğru çağırması (her event tipi için); echo ayıklama (in-flight set'ten gelen event skip); `seq` gap → refetch tetiklenir; `seq` stale → skip; reconnect → `boardKey` invalidate; `useBoardRealtime` mount/unmount cleanup.
+  - Playwright e2e iki kullanıcı (`alice` + `bob` fixture; ortak board): card move sync · list create sync · card archive sync · reconnect resync · echo ayıklama doğruluğu. Faz 3D ([DEM-45](https://linear.app/demirkol/issue/DEM-45)) Playwright harness'ı üstüne.
+
+---
+
 ## 8.2 Mobil (`apps/mobile`)
 
 Expo + Expo Router. **Henüz iskelet kurulmadı** — ileri faz; kullanıcı açıkça istemeden `apps/mobile` **oluşturulmaz**.

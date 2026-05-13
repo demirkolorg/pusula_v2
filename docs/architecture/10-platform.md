@@ -62,6 +62,16 @@ Yerel altyapı: repo kökünde `docker-compose.yml` (`pnpm infra:up` / `infra:do
 Postgres, Redis, MinIO. **Üretim `compose.prod.yml`'i yerel `docker-compose.yml`'den ayrıdır**
 (prod'da Postgres internete açılmaz, named volume + yedek, dev kimlik bilgileri kullanılmaz).
 
+### Realtime altyapısı (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28))
+
+Socket.IO server `apps/api` HTTP server'ına attach edilir (aynı port 3001; HTTP + WebSocket tek port). Detay → [`03-backend.md`](03-backend.md) "Faz 5 — Socket.IO server"; yayın akışı → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Realtime event yayın katmanı (Faz 5)".
+
+- **Redis adapter zorunlu:** `@socket.io/redis-adapter` + mevcut `ioredis` (BullMQ ile aynı Redis instance; farklı pub/sub kanalı — `socket.io` namespace). Faz 5 başlangıcında **tek `apps/api` instance** olsa bile adapter kurulur — gerekçe: (a) worker → API publish için Redis pub/sub kanalı zaten lazım; (b) multi-instance scale-out'a hazırlık (kod değişikliği gerekmez). Compose `apps/api` ile `redis` aynı network'te.
+- **Sticky session:** Faz 5'te `transports: ['websocket']` (long-polling fallback yok) → WebSocket handshake tek HTTP request'i upgrade eder, sticky session **ihtiyacı yok** (Redis adapter cross-instance fan-out yapar). Long-polling fallback ileride açılırsa Dokploy/Traefik'te `affinity` cookie + Redis adapter birlikte test edilir.
+- **Dokploy compose:** `apps/api` servisi `EXPOSE 3001` (HTTP + WebSocket); Traefik `entrypoints: websecure` + WebSocket upgrade header'ları default geçer (`Connection: Upgrade` + `Upgrade: websocket`). `compose.prod.yml`'de ek config yok — mevcut HTTP reverse proxy WebSocket'i şeffaf taşır.
+- **Healthcheck:** `apps/api` `/health` endpoint'i Socket.IO server `engine.clientsCount` (bağlı socket sayısı) ve Redis adapter `pubClient.status === 'ready'` kontrolü ekler (sonraki tur). Faz 5'te basit `200 OK` yeterli.
+- **Multi-instance scale-out:** Faz 5 başlangıcı tek instance; >100 eşzamanlı socket için scale-out. Redis pub/sub mesaj boyutu büyük olabilir (board cache eventleri payload taşır) — gerekirse event payload'larında kart/liste sadece ID + `seq` tutulup client `board.get` refetch eder ("notification-style" event'ler — sonraki tur optimizasyon). Faz 8 load test bu kararı netleştirir.
+
 ---
 
 ## 10.4 Environment

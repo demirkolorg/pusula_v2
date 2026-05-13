@@ -172,43 +172,88 @@ Vitest + Testing Library + msw/tRPC mock ile failure modları (mutation başına
 
 ---
 
-## 5.3 Realtime
+## 5.3 Realtime (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28))
 
-Socket.IO + Redis adapter. **Realtime kalıcı veri kaynağı değildir**; kalıcı kaynak PostgreSQL
-ve outbox tablolarıdır. Socket.IO yalnızca düşük gecikmeli taşıma katmanı.
+Socket.IO + Redis adapter. **Realtime kalıcı veri kaynağı değildir** — kalıcı kaynak PostgreSQL (entity tabloları + `activity_events` + `realtime_events` outbox + `notification_outbox`). Socket.IO yalnızca düşük gecikmeli **taşıma katmanı**; gerçek source of truth her zaman DB.
 
-Realtime taşır: kart oluşturuldu/taşındı/güncellendi, liste oluşturuldu/taşındı/güncellendi,
-yorum eklendi, mention yapıldı, notification badge değişti, presence.
-Realtime için **kullanılmaz**: push notification, email, kalıcı event saklama, source-of-truth çatışma çözümü.
+Faz 5 sözleşmesi: iki kullanıcı aynı board'da değişiklikleri canlı görür (board/list/card collaborative mutation'ları). Comment / notification badge / presence → Faz 6 (notification merkezi + outbox); mobile realtime → Faz 7.
 
-Güvenilirlik modeli:
+### Yayın stratejisi: Worker queue + `realtime_events` outbox (Karar — 2026-05-13)
 
-```txt
-DB transaction → activity_events, realtime_events, notification_outbox
-worker / after-commit publisher → Socket.IO room publish
-client → sequence / board version kontrolü → kendi clientMutationId'sini gördüyse tekrar uygulamaz; event kaçırdıysa ilgili query refetch
-```
-
-Room modeli (`@pusula/domain/events`: `roomName(kind, id)`):
+Mutation tx commit'inden sonra **emit edilen** in-process Socket.IO çağrısı **yapmayız** (event kaybı riski: Redis blip / API node restart). Onun yerine **outbox pattern**:
 
 ```txt
-workspace:{workspaceId} · board:{boardId} · card:{cardId} · user:{userId}
+1. tRPC mutation transaction'ı:
+     - entity tablosu güncellenir (cards / lists / boards)
+     - activity_events satırı INSERT
+     - realtime_events satırı INSERT  ← outbox (yeni Faz 5 tablosu)
+     - boards.version + 1
+2. Transaction COMMIT → mutation response döner (client'a 200)
+3. Worker (apps/worker) `pusula-realtime-publish` BullMQ kuyruğundan job alır
+     (producer: API tx commit sonrası `void enqueue({ eventId })`;
+      worker: `realtime_events` tablosundan satırı okur)
+4. Worker → apps/api Socket.IO server'a Redis pub/sub üzerinden publish
+5. Socket.IO Redis adapter → ilgili board room → connected client'lar
+6. Worker `realtime_events.published_at` damgalar (idempotent — aynı satır iki kez publish'lenebilir, client `seq` ile dedupe)
 ```
 
-Event envelope (`RealtimeEventEnvelope` / `realtimeEventEnvelopeSchema` in `@pusula/domain`):
+Bu pattern Faz 6 `notification_outbox` ile birebir simetrik. Replay garantisi: enqueue başarısız olsa bile satır DB'de durur; periyodik "stale outbox sweeper" job (sonraki tur) `published_at IS NULL AND created_at < now() - 30s` satırları yeniden enqueue eder.
+
+Realtime kullanım seviyesi: kart/liste taşıma → evet; kart başlığı/açıklaması/due/cover → evet; kart archive/complete → evet; board create/update/archive → evet; yorum → Faz 6 (notification badge ile birlikte); presence → Faz 6/7; push (Expo) → hayır; email (Resend) → hayır.
+
+### Room modeli
+
+`@pusula/domain/events`'te `roomName(kind, id)` helper'ı:
+
+```txt
+board:{boardId}      → board collaborative kanalı (Faz 5 ana kanal)
+user:{userId}        → kullanıcı kişisel kanalı (Faz 6 notification + Faz 7 push deep link)
+workspace:{wsId}     → workspace-geneli event (sonraki faz — workspace değişiklikleri)
+card:{cardId}        → ileri faz (kart-spesifik subscribe — şimdi board room yeterli)
+```
+
+Faz 5'te aktif: **`board:{boardId}` + `user:{userId}`**. Client board sayfasında `board:{boardId}` join eder; bağlantı kurulduğunda `user:{userId}` otomatik join (server). `viewer+` rolü join eder (`viewer` event'leri görür ama yazmaz — optimistic edemez, salt-okunur).
+
+### Event envelope
+
+`@pusula/domain/events`'te `RealtimeEventEnvelope` + `realtimeEventEnvelopeSchema` (Zod):
 
 ```ts
-type RealtimeEventEnvelope<TPayload> = {
-  id: string; workspaceId: string; boardId?: string; cardId?: string;
-  actorId: string; type: string; payload: TPayload;
-  clientMutationId?: string; boardVersion?: number; sequence: number; createdAt: string;
+type RealtimeEventEnvelope<TPayload = unknown> = {
+  id: string;                    // realtime_events.id (UUID — idempotent dedupe için)
+  type: string;                  // 'card.moved' | 'list.archived' | 'board.updated' | ...
+  workspaceId: string;
+  boardId?: string;              // board-scoped event'ler için
+  cardId?: string;               // card detail event'leri için (Faz 6+)
+  actorUserId: string;           // mutation'ı yapan kullanıcı
+  clientMutationId?: string;     // echo ayıklama (Faz 4A altyapısı; opsiyonel — server-initiated event'ler için yok)
+  seq: number;                   // boards.version (board-scoped) — gap tespiti için
+  payload: TPayload;             // event-spesifik veri (ör. card.moved için { cardId, fromListId, toListId, position })
+  createdAt: string;             // ISO-8601, server-side
 };
 ```
 
-`sequence` (global, `realtime_events.sequence`) veya `boards.version` ile client kaçırdığı
-event'i anlar ve socket event'lerini yamalamak yerine ilgili board/card query'sini refetch eder.
-Birden fazla API instance varsa Redis adapter zorunlu. Socket.IO long-polling transport Dokploy/
-Traefik arkasında açıksa sticky session test edilir; sadece WebSocket transport ise ihtiyaç azalır.
+Event tipleri (Faz 5 kapsamı): `card.moved` · `card.created` · `card.updated` · `card.archived` · `card.completed` · `card.uncompleted` · `card.movedToList` (cross-board: hem kaynak hem hedef board room'una) · `card.copied` · `list.moved` · `list.created` · `list.updated` · `list.archived` · `board.created` (workspace room — sonraki faz) · `board.updated` · `board.archived`.
 
-Realtime kullanım seviyesi: kart/liste taşıma → evet (board cache reconcile); kart başlığı/açıklaması
-→ evet; yorum → evet (card room + badge); presence → evet; push → hayır (Expo); email → hayır (Resend + worker).
+### Client reconciliation
+
+`apps/web/src/lib/realtime/` (DEM-85 / 5C):
+
+- **Echo ayıklama:** `useOptimisticBoardMutation` (Faz 4C) her başlattığı mutation için `clientMutationId`'yi in-flight `Set`'e ekler; mutation `onSettled` (success veya error) sonrası set'ten siler. Event listener `if (event.clientMutationId && inFlightSet.has(event.clientMutationId)) return;` — kendi mutation'ının echo'sunu görür ve cache'i tekrar güncellemez.
+- **`seq` gap tespiti:** Board cache'in `lastAppliedSeq` alanı (`boards.version` aynası). Gelen event:
+  - `event.seq === lastAppliedSeq + 1` → uygula, `lastAppliedSeq = event.seq`.
+  - `event.seq > lastAppliedSeq + 1` → **gap** (kaçırılan event); board cache invalidate + `board.get` refetch (refetch sonrası `lastAppliedSeq` server'ın `boards.version`'ına eşitlenir).
+  - `event.seq <= lastAppliedSeq` → **stale** (eski/duplicate); atla.
+- **Reconnect resync:** Socket reconnect event'inde board sayfasındaki `boardKey` invalidate + refetch (eksik event'ler için tek refetch yeterli; outbox replay'i client'a gönderilmez — server güncel state'i döner).
+
+### Auth & yetki
+
+Socket bağlantısı: Better Auth session cookie ile handshake; başarısız → bağlantı reddet. `board:{boardId}` join talebi → server `resolveBoardAccess(userId, boardId)` (`viewer+`) → join veya reddet (Socket.IO `disconnect('Forbidden')`).
+
+### Operasyonel notlar
+
+- Birden fazla API instance varsa **Redis adapter zorunlu**. Faz 5 başlangıcında tek instance bile olsa adapter kurulur (multi-instance'a hazırlık + worker → API publish için Redis pub/sub).
+- Socket.IO long-polling transport Dokploy/Traefik arkasında açıksa **sticky session test edilir**; sadece WebSocket transport ise ihtiyaç azalır (Redis adapter zaten cross-instance fan-out yapar).
+- Worker `pusula-realtime-publish` kuyruğu sağlığı: API healthcheck'i worker bağlantısını da yansıtır (sonraki tur — Faz 8 sertleştirme).
+
+Detay implementasyon → [`03-backend.md`](03-backend.md) (Socket.IO server) + [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) (worker + outbox) + [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.10 (web client) + [`04-veri-katmani.md`](04-veri-katmani.md) (`realtime_events` tablosu) + [`10-platform.md`](10-platform.md) (Redis adapter + sticky session).
