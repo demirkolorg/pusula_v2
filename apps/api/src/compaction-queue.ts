@@ -1,5 +1,5 @@
 /**
- * Producer side of the `pusula:compaction` queue (Faz 3C — DEM-44).
+ * Producer side of the `pusula-compaction` queue (Faz 3C — DEM-44).
  *
  * `apps/worker` owns the *consumer* (`apps/worker/src/jobs/compaction.ts`); this
  * module is the API server's *producer*: a single BullMQ `Queue` over its own
@@ -12,15 +12,16 @@
  *
  * Queue name + `jobId` shape are duplicated here (rather than imported from
  * `@pusula/worker`) to keep `apps/api` from depending on the worker app — they
- * must stay in sync (`pusula:compaction`, `compaction:{list|board}:{id}`,
- * job name `position-compaction`).
+ * must stay in sync (`pusula-compaction`, `compaction:{list|board}:{id}`,
+ * job name `position-compaction`). BullMQ forbids `:` in queue names (it's the
+ * Redis key separator); job *ids* may still use `:`.
  */
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { CompactionScope } from '@pusula/api';
 import { env } from './env';
 
-const QUEUE_NAME = 'pusula:compaction';
+const QUEUE_NAME = 'pusula-compaction';
 const JOB_NAME = 'position-compaction';
 
 const connection = new Redis(env.REDIS_URL, {

@@ -27,7 +27,7 @@ export interface CreateContextOptions {
   userAgent?: string | null;
   /**
    * Best-effort hook to enqueue a background position-compaction job (Faz 3C —
-   * DEM-44). The host app (`apps/api`) wires this to the BullMQ `pusula:compaction`
+   * DEM-44). The host app (`apps/api`) wires this to the BullMQ `pusula-compaction`
    * queue; omitted in tests / Next route handlers → compaction is a no-op there.
    */
   enqueueCompaction?: EnqueueCompaction;

@@ -4,7 +4,7 @@
  * `list.move` / `card.move` may produce a long fractional `position` key after
  * many moves between close neighbours. When they do (`@pusula/domain`
  * `shouldCompact`), the affected scope (a list's cards / a board's lists) is
- * enqueued for a background re-balance by `apps/worker` (`pusula:compaction`).
+ * enqueued for a background re-balance by `apps/worker` (`pusula-compaction`).
  *
  * The procedures stay framework-agnostic: they call `maybeEnqueueCompaction`
  * with the produced key(s), and the *host app* (`apps/api`) supplies the actual

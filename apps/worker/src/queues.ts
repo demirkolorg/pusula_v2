@@ -5,13 +5,15 @@ import { connection } from './redis';
  * Background queue names. Each maps to a BullMQ queue consumed by a Worker in
  * `index.ts`. See architecture doc §13 for the planned job set.
  */
+// BullMQ forbids `:` in queue names (it's the Redis key separator), so the
+// `pusula-*` segments use `-`. Job *ids* may still contain `:` (see below).
 export const QUEUE = {
   /** Drains `notification_outbox` → notifications table, Expo push, email. */
-  notifications: 'pusula:notifications',
+  notifications: 'pusula-notifications',
   /** Publishes pending `realtime_events` rows to Socket.IO rooms. */
-  realtimePublish: 'pusula:realtime-publish',
+  realtimePublish: 'pusula-realtime-publish',
   /** Due-date reminders, digest emails, cleanup. */
-  scheduled: 'pusula:scheduled',
+  scheduled: 'pusula-scheduled',
   /**
    * Re-balances fractional `position` strings for a list (its cards) or a board
    * (its lists) when they grow too long. Producer: `apps/api` (`list.move` /
@@ -20,9 +22,9 @@ export const QUEUE = {
    * and `docs/architecture/06-bildirim-altyapisi.md` "Position compaction".
    *
    * Queue name duplicated in `apps/api/src/compaction-queue.ts` (producer side)
-   * — must stay in sync: `'pusula:compaction'`.
+   * — must stay in sync: `'pusula-compaction'`.
    */
-  compaction: 'pusula:compaction',
+  compaction: 'pusula-compaction',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
