@@ -9,3 +9,4 @@ export * from './card';
 export * from './label';
 export * from './comment';
 export * from './checklist';
+export * from './push-token';

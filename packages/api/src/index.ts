@@ -7,6 +7,7 @@ export {
   type SessionUser,
   type CompactionScope,
   type EnqueueCompaction,
+  type EnqueueNotificationPublish,
   type EnqueueRealtimePublish,
   type InsertRealtimeEventInput,
   type RealtimePayloadEnvelope,
@@ -16,6 +17,19 @@ export {
   insertRealtimeEvent,
   maybeEnqueueRealtimePublish,
 } from './lib/realtime-publish';
+export {
+  insertNotificationOutbox,
+  maybeEnqueueNotificationPublish,
+  dispatchNotificationsForActivity,
+  NOTIFICATION_COOLDOWN_SECONDS,
+  type InsertNotificationOutboxInput,
+  type InsertOutcome as InsertNotificationOutcome,
+} from './lib/notification-outbox';
+export {
+  computeNotifications,
+  type ActivityEventForRules,
+  type NotificationRule,
+} from './lib/notification-rules';
 export {
   router,
   middleware,

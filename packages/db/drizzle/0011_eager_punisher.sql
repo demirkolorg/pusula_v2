@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "notification_outbox_scheduler_dedupe_uq" ON "notification_outbox" USING btree (("payload" ->> 'dedupeKey')) WHERE "notification_outbox"."event_id" IS NULL AND "notification_outbox"."payload" ? 'dedupeKey';

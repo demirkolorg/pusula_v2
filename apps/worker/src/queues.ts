@@ -8,8 +8,29 @@ import { connection } from './redis';
 // BullMQ forbids `:` in queue names (it's the Redis key separator), so the
 // `pusula-*` segments use `-`. Job *ids* may still contain `:` (see below).
 export const QUEUE = {
-  /** Drains `notification_outbox` → notifications table, Expo push, email. */
+  /**
+   * Faz 6A (DEM-90) — drains `notification_outbox` rows (channel='in_app').
+   * The 6A `notification-publish` processor fans out each outbox row by
+   * channel: in-app `notifications` insert + `emitToUser`, email → push
+   * `notificationsEmail` queue below, push → `notificationsPush` queue
+   * below. Queue name duplicated in `apps/api/src/notification-queue.ts`
+   * (producer side) — must stay in sync.
+   */
   notifications: 'pusula-notifications',
+  /**
+   * Faz 6B (DEM-91) — Resend transactional email channel. Producer: the
+   * 6A `notification-publish` processor when it sees a row with
+   * `channel='email'`. Consumer: `jobs/notification-email.ts`.
+   */
+  notificationsEmail: 'pusula-notifications-email',
+  /**
+   * Faz 6B (DEM-91) — Expo Push API channel. Producer: the 6A
+   * `notification-publish` processor when it sees a row with
+   * `channel='push'`. Consumer: `jobs/notification-push.ts`. Mobile
+   * client (Faz 7 — DEM-30) wires the actual token registration; until
+   * then every user has zero active tokens → no-op + warn log.
+   */
+  notificationsPush: 'pusula-notifications-push',
   /** Publishes pending `realtime_events` rows to Socket.IO rooms. */
   realtimePublish: 'pusula-realtime-publish',
   /** Due-date reminders, digest emails, cleanup. */
@@ -37,6 +58,14 @@ const defaultJobOptions = {
 };
 
 export const notificationsQueue = new Queue(QUEUE.notifications, { connection, defaultJobOptions });
+export const notificationsEmailQueue = new Queue(QUEUE.notificationsEmail, {
+  connection,
+  defaultJobOptions,
+});
+export const notificationsPushQueue = new Queue(QUEUE.notificationsPush, {
+  connection,
+  defaultJobOptions,
+});
 export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
   connection,
   defaultJobOptions,
@@ -46,6 +75,8 @@ export const compactionQueue = new Queue(QUEUE.compaction, { connection, default
 
 export const allQueues = [
   notificationsQueue,
+  notificationsEmailQueue,
+  notificationsPushQueue,
   realtimePublishQueue,
   scheduledQueue,
   compactionQueue,
