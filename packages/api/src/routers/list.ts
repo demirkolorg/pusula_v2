@@ -38,6 +38,7 @@ import {
 import { TRPCError } from '@trpc/server';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
+import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { router } from '../trpc';
 
@@ -65,7 +66,8 @@ export const listRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Liste oluşturma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const created = await ctx.db.transaction(async (tx) => {
       // Re-read the board inside the tx so an archive that landed between the
       // middleware read and here still wins (race-safe).
       const [board] = await tx
@@ -104,13 +106,32 @@ export const listRouter = router({
         payload: { listId: created.id, title: created.title, position: created.position, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      // Faz 5B (DEM-84) — realtime outbox insert in the same tx; enqueue after
+      // commit. `seq` mirrors the freshly-bumped `boards.version`.
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.created',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          listId: created.id,
+          title: created.title,
+          position: created.position,
+        },
+      });
 
       return created;
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return created;
   }),
 
   /**
@@ -124,7 +145,8 @@ export const listRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi düzenleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select(listCols)
         .from(lists)
@@ -170,13 +192,26 @@ export const listRouter = router({
         payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.updated',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { listId: updated.id, fromTitle: list.title, toTitle: updated.title },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -191,7 +226,8 @@ export const listRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi arşivleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
         .from(lists)
@@ -237,13 +273,26 @@ export const listRouter = router({
         payload: { listId: updated.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.archived',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { listId: updated.id, archived: input.archived },
+      });
 
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -262,6 +311,7 @@ export const listRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi taşıma yetkiniz yok.' });
     }
 
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
       // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
@@ -337,10 +387,25 @@ export const listRouter = router({
         payload: { listId: updated.id, fromPosition: list.position, toPosition: updated.position, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.moved',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          listId: updated.id,
+          fromPosition: list.position,
+          toPosition: updated.position,
+        },
+      });
 
       return { ...updated, changed: true as const };
     });
@@ -350,6 +415,7 @@ export const listRouter = router({
     if (result.changed) {
       maybeEnqueueCompaction(ctx, { kind: 'board', boardId: ctx.board.id }, [result.position]);
     }
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
 
     return result;
   }),

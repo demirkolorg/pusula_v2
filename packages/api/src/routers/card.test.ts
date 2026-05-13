@@ -6,11 +6,23 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, boardMembers, cardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  cardMembers,
+  realtimeEvents,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { positionBetween, POSITION_COMPACTION_MAX_LEN } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
-import { createContext, type EnqueueCompaction } from '../context';
+import {
+  createContext,
+  type EnqueueCompaction,
+  type EnqueueRealtimePublish,
+} from '../context';
 
 // Probe the database at collection time so `describe.runIf` can react to it.
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
@@ -1154,6 +1166,179 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const card = await callerFor(ownerId).card.create({ listId, title: 'Compaction copy card', clientMutationId: crypto.randomUUID() });
     const copy = await callerWithEnqueue(memberId, enqueue).card.copy({ cardId: card.id, toListId: dst.id, clientMutationId: crypto.randomUUID() });
     expect(copy.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe.runIf(dbAvailable)('card router — realtime outbox (Faz 5B / DEM-84)', () => {
+  const db = () => probe!.db;
+  const owner = newId('u-rt-card-owner');
+  const member = newId('u-rt-card-member');
+  let wsId: string;
+  let boardId: string;
+  let listIdA: string;
+  let listIdB: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values([
+        { id: owner, name: owner, email: `${owner}@example.test` },
+        { id: member, name: member, email: `${member}@example.test` },
+      ]);
+    const create = createCallerFactory(appRouter);
+    const ownerCaller = create(createContext({ session: session(owner), db: db() }));
+    const ws = await ownerCaller.workspace.create({
+      name: 'RT Card Co',
+      slug: newSlug('rt-card-co'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    wsId = ws.id;
+    createdWorkspaceIds.push(ws.id);
+    await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: member, role: 'member' });
+    const board = await ownerCaller.board.create({
+      workspaceId: ws.id,
+      title: 'RT Card Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    boardId = board.id;
+    const a = await ownerCaller.list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await ownerCaller.list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
+    listIdA = a.id;
+    listIdB = b.id;
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    await db().delete(users).where(dbMod.inArray(users.id, [owner, member]));
+  });
+
+  function realtimeCaller(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish) {
+    const create = createCallerFactory(appRouter);
+    return create(
+      createContext({ session: session(userId), db: db(), enqueueRealtimePublish }),
+    );
+  }
+
+  const rtEventsFor = (board: string) =>
+    db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.boardId, board));
+
+  it('card.create writes a card.created realtime event with cardId + listId payload', async () => {
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const card = await realtimeCaller(member, enqueue).card.create({
+      listId: listIdA,
+      title: 'Hello',
+      clientMutationId: cmid,
+    });
+
+    const rt = await rtEventsFor(boardId);
+    const created = rt.filter(
+      (r) => r.type === 'card.created' && (r.payload as { data?: { cardId?: string } }).data?.cardId === card.id,
+    );
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      cardId: card.id,
+      boardId,
+      workspaceId: wsId,
+      actorId: member,
+      clientMutationId: cmid,
+      publishedAt: null,
+    });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: created[0]!.id });
+  });
+
+  it('card.move writes a card.moved realtime event carrying from/to list + position', async () => {
+    const create = createCallerFactory(appRouter);
+    const ownerCaller = create(createContext({ session: session(owner), db: db() }));
+    const card = await ownerCaller.card.create({
+      listId: listIdA,
+      title: 'Mover',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const moved = await realtimeCaller(member, enqueue).card.move({
+      cardId: card.id,
+      fromListId: listIdA,
+      toListId: listIdB,
+      clientMutationId: cmid,
+    });
+    expect(moved.changed).toBe(true);
+
+    const rt = await rtEventsFor(boardId);
+    const movedEvts = rt.filter(
+      (r) => r.type === 'card.moved' && r.clientMutationId === cmid,
+    );
+    expect(movedEvts).toHaveLength(1);
+    const data = (movedEvts[0]!.payload as {
+      data: { cardId: string; fromListId: string; toListId: string };
+    }).data;
+    expect(data).toMatchObject({ cardId: card.id, fromListId: listIdA, toListId: listIdB });
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('card.update emits a single card.updated event with a `patch` of only the changed fields', async () => {
+    const create = createCallerFactory(appRouter);
+    const ownerCaller = create(createContext({ session: session(owner), db: db() }));
+    const card = await ownerCaller.card.create({
+      listId: listIdA,
+      title: 'Patch Me',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const r = await realtimeCaller(member, enqueue).card.update({
+      cardId: card.id,
+      title: 'Patched',
+      description: 'now with body',
+      clientMutationId: cmid,
+    });
+    expect(r.changed).toBe(true);
+
+    const rt = await rtEventsFor(boardId);
+    const updated = rt.filter(
+      (e) => e.type === 'card.updated' && e.clientMutationId === cmid,
+    );
+    expect(updated).toHaveLength(1);
+    const data = (updated[0]!.payload as { data: { cardId: string; patch: Record<string, unknown> } }).data;
+    expect(data.cardId).toBe(card.id);
+    expect(data.patch).toMatchObject({ title: 'Patched', descriptionChanged: true });
+    expect(data.patch).not.toHaveProperty('dueAt');
+    expect(data.patch).not.toHaveProperty('coverColor');
+  });
+
+  it('an idempotent no-op (same title) writes no realtime event and does not enqueue', async () => {
+    const create = createCallerFactory(appRouter);
+    const ownerCaller = create(createContext({ session: session(owner), db: db() }));
+    const card = await ownerCaller.card.create({
+      listId: listIdA,
+      title: 'Same',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const baseline = (await rtEventsFor(boardId)).length;
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const r = await realtimeCaller(member, enqueue).card.update({
+      cardId: card.id,
+      title: 'Same', // unchanged
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(r.changed).toBe(false);
+    expect((await rtEventsFor(boardId)).length).toBe(baseline);
     expect(enqueue).not.toHaveBeenCalled();
   });
 });

@@ -4,13 +4,22 @@
  * If no database is reachable the suite is skipped rather than failing on a box
  * without infra.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, boardMembers, cards, lists, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  cards,
+  lists,
+  realtimeEvents,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { firstPosition, positionsBetween } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
-import { createContext } from '../context';
+import { createContext, type EnqueueRealtimePublish } from '../context';
 
 // Probe the database at collection time so `describe.runIf` can react to it.
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
@@ -488,6 +497,101 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     // exactly two: archive + restore (no-op did not write one)
     expect(archivedActs).toHaveLength(2);
     expect(archivedActs.map((a) => (a.payload as { archived?: boolean }).archived).sort()).toEqual([false, true]);
+  });
+});
+
+describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)', () => {
+  const db = () => probe!.db;
+  const owner = newId('u-rt-board-owner');
+  let wsId: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values({ id: owner, name: owner, email: `${owner}@example.test` });
+    const create = createCallerFactory(appRouter);
+    const ws = await create(createContext({ session: session(owner), db: db() })).workspace.create({
+      name: 'RT Board Co',
+      slug: newSlug('rt-board-co'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    wsId = ws.id;
+    createdWorkspaceIds.push(ws.id);
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    await db().delete(users).where(dbMod.eq(users.id, owner));
+  });
+
+  function realtimeCaller(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish) {
+    const create = createCallerFactory(appRouter);
+    return create(
+      createContext({ session: session(userId), db: db(), enqueueRealtimePublish }),
+    );
+  }
+
+  const rtEventsFor = (boardId: string) =>
+    db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.boardId, boardId));
+
+  it('board.update writes a board.updated realtime event with from/to titles', async () => {
+    const ownerCaller = callerFor(owner);
+    const board = await ownerCaller.board.create({
+      workspaceId: wsId,
+      title: 'Old Title',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const r = await realtimeCaller(owner, enqueue).board.update({
+      boardId: board.id,
+      title: 'New Title',
+      clientMutationId: cmid,
+    });
+    expect(r.changed).toBe(true);
+
+    const rt = await rtEventsFor(board.id);
+    const updated = rt.filter((e) => e.type === 'board.updated');
+    expect(updated).toHaveLength(1);
+    expect(updated[0]!.clientMutationId).toBe(cmid);
+    const data = (updated[0]!.payload as { data: { fromTitle: string; toTitle: string } }).data;
+    expect(data).toEqual({ boardId: board.id, fromTitle: 'Old Title', toTitle: 'New Title' });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updated[0]!.id });
+  });
+
+  it('board.archive (real change) emits board.archived; idempotent no-op writes none', async () => {
+    const ownerCaller = callerFor(owner);
+    const board = await ownerCaller.board.create({
+      workspaceId: wsId,
+      title: 'Archive Me',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    await realtimeCaller(owner, enqueue).board.archive({
+      boardId: board.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const rt1 = await rtEventsFor(board.id);
+    expect(rt1.filter((e) => e.type === 'board.archived')).toHaveLength(1);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+
+    // Idempotent no-op: already archived → no new event.
+    enqueue.mockClear();
+    await realtimeCaller(owner, enqueue).board.archive({
+      boardId: board.id,
+      archived: true, // already true
+      clientMutationId: crypto.randomUUID(),
+    });
+    const rt2 = await rtEventsFor(board.id);
+    expect(rt2.filter((e) => e.type === 'board.archived')).toHaveLength(1);
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 

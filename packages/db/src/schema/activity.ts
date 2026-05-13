@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { bigserial, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { workspaces } from './workspaces';
@@ -33,6 +34,11 @@ export const activityEvents = pgTable(
  * domain change; an after-commit publisher / worker reads pending rows and
  * publishes to Socket.IO rooms, then marks them sent. `sequence` is a global
  * monotonic counter so clients can detect missed events. See doc §8.
+ *
+ * Faz 5B (DEM-84) wired up: `realtime_events_pending_idx` (partial, ordered by
+ * `created_at`) drives the sweeper's `SELECT … WHERE published_at IS NULL`
+ * scan, and `realtime_events_created_idx` drives the (Faz 8) retention cleanup
+ * job `WHERE created_at < NOW() - INTERVAL '7 days'`.
  */
 export const realtimeEvents = pgTable(
   'realtime_events',
@@ -57,6 +63,13 @@ export const realtimeEvents = pgTable(
   (t) => [
     index('realtime_events_status_idx').on(t.status),
     index('realtime_events_board_sequence_idx').on(t.boardId, t.sequence),
+    // Faz 5B (DEM-84) — sweeper: pending rows ordered by age. Partial index keeps
+    // it tiny (only the rows the sweeper actually scans).
+    index('realtime_events_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.publishedAt} IS NULL`),
+    // Faz 5B (DEM-84) — retention cleanup (Faz 8): `created_at < NOW() - INTERVAL '7 days'`.
+    index('realtime_events_created_idx').on(t.createdAt),
   ],
 );
 

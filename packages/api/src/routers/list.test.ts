@@ -6,11 +6,22 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, boardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  realtimeEvents,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { positionBetween, POSITION_COMPACTION_MAX_LEN } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
-import { createContext, type EnqueueCompaction } from '../context';
+import {
+  createContext,
+  type EnqueueCompaction,
+  type EnqueueRealtimePublish,
+} from '../context';
 
 // Probe the database at collection time so `describe.runIf` can react to it.
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
@@ -45,6 +56,18 @@ function callerWithEnqueue(userId: string, enqueueCompaction: EnqueueCompaction)
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
   return create(createContext({ session: session(userId), db: probe.db, enqueueCompaction }));
+}
+
+/** A caller whose tRPC context carries a (mock) `enqueueRealtimePublish` hook. */
+function callerWithRealtimeEnqueue(
+  userId: string,
+  enqueueRealtimePublish: EnqueueRealtimePublish,
+) {
+  if (!probe) throw new Error('db not initialised');
+  const create = createCallerFactory(appRouter);
+  return create(
+    createContext({ session: session(userId), db: probe.db, enqueueRealtimePublish }),
+  );
 }
 
 describe.runIf(dbAvailable)('list router (integration)', () => {
@@ -517,6 +540,144 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(moved).toMatchObject({ id: target.id, position: longPos, changed: true });
     expect(enqueue).toHaveBeenCalledTimes(1);
     expect(enqueue).toHaveBeenCalledWith({ kind: 'board', boardId: board.id });
+  });
+});
+
+describe.runIf(dbAvailable)('list router — realtime outbox (Faz 5B / DEM-84)', () => {
+  const db = () => probe!.db;
+  const owner = newId('u-rt-list-owner');
+  const member = newId('u-rt-list-member');
+  let wsId: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values([
+        { id: owner, name: owner, email: `${owner}@example.test` },
+        { id: member, name: member, email: `${member}@example.test` },
+      ]);
+    const create = createCallerFactory(appRouter);
+    const caller = create(createContext({ session: session(owner), db: db() }));
+    const ws = await caller.workspace.create({
+      name: 'RT List Co',
+      slug: newSlug('rt-list-co'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    wsId = ws.id;
+    createdWorkspaceIds.push(ws.id);
+    await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: member, role: 'member' });
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    await db().delete(users).where(dbMod.inArray(users.id, [owner, member]));
+  });
+
+  const rtEventsFor = (boardId: string) =>
+    db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.boardId, boardId));
+
+  it('list.create writes a pending realtime_events row and enqueues it', async () => {
+    const create = createCallerFactory(appRouter);
+    const board = await create(createContext({ session: session(owner), db: db() })).board.create({
+      workspaceId: wsId,
+      title: 'RT Create',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const list = await callerWithRealtimeEnqueue(member, enqueue).list.create({
+      boardId: board.id,
+      title: 'L1',
+      clientMutationId: cmid,
+    });
+
+    const rt = await rtEventsFor(board.id);
+    const created = rt.filter((r) => r.type === 'list.created');
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      boardId: board.id,
+      workspaceId: wsId,
+      actorId: member,
+      clientMutationId: cmid,
+      publishedAt: null,
+    });
+    const payload = created[0]!.payload as { seq: number; data: { listId: string } };
+    expect(payload.seq).toBeGreaterThan(0);
+    expect(payload.data.listId).toBe(list.id);
+
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).toHaveBeenCalledWith({ eventId: created[0]!.id });
+  });
+
+  it('list.move writes a list.moved realtime event with from/to positions', async () => {
+    const create = createCallerFactory(appRouter);
+    const owner_ = create(createContext({ session: session(owner), db: db() }));
+    const board = await owner_.board.create({
+      workspaceId: wsId,
+      title: 'RT Move',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const a = await owner_.list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await owner_.list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const moved = await callerWithRealtimeEnqueue(member, enqueue).list.move({
+      boardId: board.id,
+      listId: b.id,
+      afterListId: a.id,
+      clientMutationId: cmid,
+    });
+    expect(moved.changed).toBe(true);
+
+    const rt = await rtEventsFor(board.id);
+    const movedEvts = rt.filter((r) => r.type === 'list.moved');
+    expect(movedEvts).toHaveLength(1);
+    expect(movedEvts[0]!.clientMutationId).toBe(cmid);
+    const data = (movedEvts[0]!.payload as { data: { listId: string; toPosition: string } }).data;
+    expect(data.listId).toBe(b.id);
+    expect(data.toPosition).toBe(moved.position);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('list.update writes no realtime event for an idempotent no-op', async () => {
+    const create = createCallerFactory(appRouter);
+    const owner_ = create(createContext({ session: session(owner), db: db() }));
+    const board = await owner_.board.create({
+      workspaceId: wsId,
+      title: 'RT Noop',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await owner_.list.create({
+      boardId: board.id,
+      title: 'Same Title',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const r = await callerWithRealtimeEnqueue(member, enqueue).list.update({
+      boardId: board.id,
+      listId: list.id,
+      title: 'Same Title', // unchanged
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(r.changed).toBe(false);
+
+    const rt = await rtEventsFor(board.id);
+    expect(rt.filter((r) => r.type === 'list.updated')).toHaveLength(0);
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 

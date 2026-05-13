@@ -13,6 +13,7 @@ import { resolveBoardAccess } from '@pusula/api';
 import { getDb } from '@pusula/db';
 import { auth } from '../auth';
 import { env } from '../env';
+import { attachRealtimeBridge, type RealtimeBridgeHandle } from './realtime-bridge';
 import {
   createSocketServer,
   type AttachableHttpServer,
@@ -26,10 +27,15 @@ export { roomName } from '@pusula/domain';
 /**
  * Boot the Socket.IO server with production dependencies. Called once from
  * `apps/api/src/index.ts` after the HTTP server is listening; the returned
- * handle is held for graceful shutdown.
+ * handle is held for graceful shutdown. Faz 5B (DEM-84) also wires the
+ * worker → bridge Redis subscriber (`pusula:realtime:envelope`) onto the
+ * same `Server` so worker-published envelopes fan out to local sockets via
+ * `io.local.to(...)`.
  */
-export function setupSocketServer(httpServer: AttachableHttpServer): Promise<SocketServerHandle> {
-  return createSocketServer({
+export async function setupSocketServer(
+  httpServer: AttachableHttpServer,
+): Promise<SocketServerHandle & { realtimeBridge?: RealtimeBridgeHandle }> {
+  const handle = await createSocketServer({
     httpServer,
     corsOrigin: env.APP_URL,
     resolveSession: async (headers) => {
@@ -68,4 +74,37 @@ export function setupSocketServer(httpServer: AttachableHttpServer): Promise<Soc
       return { pub, sub };
     },
   });
+
+  // Faz 5B (DEM-84) — bridge worker-published envelopes into local sockets.
+  // Best-effort: a Redis blip here is fine, the worker sweeper re-publishes
+  // pending rows. A separate client (not the BullMQ one) because BullMQ's
+  // `maxRetriesPerRequest: null` doesn't play nicely with `SUBSCRIBE`.
+  let realtimeBridge: RealtimeBridgeHandle | undefined;
+  // Holding the client outside the try so a failed `attachRealtimeBridge`
+  // doesn't leak an open ioredis socket (`lazyConnect: false` opens
+  // immediately).
+  let bridgeClient: Redis | undefined;
+  try {
+    bridgeClient = new Redis(env.REDIS_URL, { lazyConnect: false });
+    bridgeClient.on('error', (err) => {
+      console.error('[api:realtime-bridge] redis error:', err.message);
+    });
+    realtimeBridge = await attachRealtimeBridge(handle.io, bridgeClient);
+  } catch (err) {
+    console.error(
+      '[api:realtime-bridge] failed to attach (publish events will be delayed by the sweeper):',
+      err instanceof Error ? err.message : String(err),
+    );
+    await bridgeClient?.quit().catch(() => {});
+  }
+
+  const originalClose = handle.close;
+  return {
+    ...handle,
+    realtimeBridge,
+    close: async () => {
+      if (realtimeBridge) await realtimeBridge.close();
+      await originalClose();
+    },
+  };
 }

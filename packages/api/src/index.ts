@@ -7,8 +7,15 @@ export {
   type SessionUser,
   type CompactionScope,
   type EnqueueCompaction,
+  type EnqueueRealtimePublish,
+  type InsertRealtimeEventInput,
+  type RealtimePayloadEnvelope,
   type RealtimeEmit,
 } from './context';
+export {
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from './lib/realtime-publish';
 export {
   router,
   middleware,

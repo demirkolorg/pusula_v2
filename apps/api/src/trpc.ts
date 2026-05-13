@@ -4,6 +4,7 @@ import { createContext, type Context } from '@pusula/api';
 import { getRealtimeEmit } from './app';
 import { auth } from './auth';
 import { enqueueCompaction } from './compaction-queue';
+import { enqueueRealtimePublish } from './realtime-publish-queue';
 
 /** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
 export async function buildTrpcContext(
@@ -34,5 +35,9 @@ export async function buildTrpcContext(
     // Socket.IO server finishes attaching (`apps/api/src/index.ts` calls
     // `setRealtimeEmit` once `setupSocketServer` resolves).
     realtime: getRealtimeEmit(),
+    // Best-effort realtime outbox enqueue (Faz 5B — DEM-84). The sweeper in
+    // `apps/worker` picks up rows the enqueue missed, so a Redis blip never
+    // drops an event — it just delays it by ≤ 60 s.
+    enqueueRealtimePublish,
   });
 }

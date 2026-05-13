@@ -57,6 +57,13 @@
       "when": 1778613279200,
       "tag": "0007_icy_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778675302461,
+      "tag": "0008_aromatic_leo",
+      "breakpoints": true
     }
   ]
 }

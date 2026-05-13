@@ -1,0 +1,2 @@
+CREATE INDEX "realtime_events_pending_idx" ON "realtime_events" USING btree ("created_at") WHERE "realtime_events"."published_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "realtime_events_created_idx" ON "realtime_events" USING btree ("created_at");

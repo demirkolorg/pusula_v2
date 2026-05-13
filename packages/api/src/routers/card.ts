@@ -77,6 +77,7 @@ import {
 import { TRPCError } from '@trpc/server';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
+import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole } from '../middleware/board';
 import { type Queryable, resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
@@ -190,7 +191,8 @@ export const cardRouter = router({
    * ignored in Phase 2 (append-only) — placement lands in Phase 3.
    */
   create: protectedProcedure.input(createCardInput).mutation(async ({ ctx, input }) => {
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const created = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
         .from(lists)
@@ -243,13 +245,32 @@ export const cardRouter = router({
         },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, list.boardId));
+        .where(eq(boards.id, list.boardId))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.created',
+        workspaceId: board.workspaceId,
+        boardId: list.boardId,
+        cardId: created.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          cardId: created.id,
+          listId: list.id,
+          title: created.title,
+          position: created.position,
+        },
+      });
 
       return created;
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return created;
   }),
 
   /**
@@ -298,7 +319,8 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
       if (!card) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
@@ -394,13 +416,42 @@ export const cardRouter = router({
         });
       }
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, card.boardId));
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      // Faz 5B (DEM-84) — single `card.updated` event regardless of how many
+      // fields changed; `realtimePatch` carries only the keys that actually
+      // moved. `description` is reported as a boolean flag (mirrors the
+      // `card.description_changed` activity which doesn't carry the body).
+      const realtimePatch: {
+        title?: string;
+        descriptionChanged?: true;
+        dueAt?: Date | null;
+        coverColor?: string | null;
+      } = {};
+      if (titleChanged) realtimePatch.title = updated.title;
+      if (descriptionChanged) realtimePatch.descriptionChanged = true;
+      if (dueAtChanged) realtimePatch.dueAt = updated.dueAt ?? null;
+      if (coverColorChanged) realtimePatch.coverColor = updated.coverColor ?? null;
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.updated',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { cardId: card.id, patch: realtimePatch },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -415,7 +466,8 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı arşivleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
           id: cards.id,
@@ -464,13 +516,27 @@ export const cardRouter = router({
         payload: { cardId: card.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, card.boardId));
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.archived',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { cardId: card.id, listId: card.listId, archived: input.archived },
+      });
 
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -485,7 +551,8 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı tamamlama yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
           id: cards.id,
@@ -545,13 +612,31 @@ export const cardRouter = router({
         payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, card.boardId));
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.completed',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          cardId: card.id,
+          completedAt: updated.completedAt,
+          completedBy: updated.completedBy,
+        },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -566,7 +651,8 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartın tamamlanmasını geri alma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
           id: cards.id,
@@ -625,13 +711,27 @@ export const cardRouter = router({
         payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, card.boardId));
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.uncompleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { cardId: card.id },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -665,6 +765,7 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı taşıma yetkiniz yok.' });
     }
 
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
       // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
@@ -789,10 +890,28 @@ export const cardRouter = router({
         },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, card.boardId));
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.moved',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          cardId: card.id,
+          fromListId: input.fromListId,
+          toListId: input.toListId,
+          fromPosition: card.position,
+          toPosition: updated.position,
+        },
+      });
 
       return { ...updated, changed: true as const };
     });
@@ -803,6 +922,7 @@ export const cardRouter = router({
     if (result.changed) {
       maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
     }
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
 
     return result;
   }),
@@ -848,6 +968,7 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartı taşıma yetkiniz yok.' });
     }
 
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [toList] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -967,10 +1088,11 @@ export const cardRouter = router({
         },
       });
 
-      await tx
+      const [bumpedTarget] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, toList.boardId));
+        .where(eq(boards.id, toList.boardId))
+        .returning({ version: boards.version });
       if (crossBoard) {
         await tx
           .update(boards)
@@ -978,12 +1100,36 @@ export const cardRouter = router({
           .where(eq(boards.id, card.boardId));
       }
 
+      // Faz 5B (DEM-84) — single outbox row keyed on the *target* board (the
+      // card's new home). On a cross-board move the worker fans the same
+      // envelope out to *both* `board:{toBoardId}` and `board:{fromBoardId}`
+      // rooms (cf. `apps/worker/src/jobs/realtime-publish.ts`), driven by
+      // `payload.fromBoardId`. `seq` mirrors the target board's version.
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.movedToList',
+        workspaceId: targetBoard.workspaceId,
+        boardId: toList.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumpedTarget?.version ?? 0,
+        data: {
+          cardId: card.id,
+          fromListId: card.listId,
+          toListId: input.toListId,
+          fromPosition: card.position,
+          toPosition: updated.position,
+          ...(crossBoard ? { fromBoardId: card.boardId, toBoardId: toList.boardId } : {}),
+        },
+      });
+
       return { ...updated, changed: true as const };
     });
 
     if (result.changed) {
       maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
     }
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
 
     return result;
   }),
@@ -1030,6 +1176,7 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu kartı görüntüleme yetkiniz yok.' });
     }
 
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [toList] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -1176,15 +1323,37 @@ export const cardRouter = router({
         },
       });
 
-      await tx
+      const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, toList.boardId));
+        .where(eq(boards.id, toList.boardId))
+        .returning({ version: boards.version });
+
+      // Faz 5B (DEM-84) — emit `card.copied` to the *target* board's room.
+      // The source board only sees the new card if it equals the target; copy
+      // never mutates the source card (unlike `moveToList`'s cross-board flow).
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.copied',
+        workspaceId: targetBoard.workspaceId,
+        boardId: toList.boardId,
+        cardId: created.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          cardId: created.id,
+          listId: input.toListId,
+          title: created.title,
+          position: created.position,
+          copiedFromCardId: source.id,
+        },
+      });
 
       return created;
     });
 
     maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
 
     return result;
   }),

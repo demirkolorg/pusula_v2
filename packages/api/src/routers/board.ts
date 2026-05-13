@@ -35,6 +35,7 @@ import {
   type BoardRole,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
@@ -343,7 +344,8 @@ export const boardRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [current] = await tx.select(boardCols).from(boards).where(eq(boards.id, ctx.board.id)).limit(1);
       if (!current) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
@@ -370,8 +372,20 @@ export const boardRouter = router({
         payload: { fromTitle: current.title, toTitle: input.title, clientMutationId: ctx.clientMutationId },
       });
 
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.updated',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: updated.version,
+        data: { boardId: ctx.board.id, fromTitle: current.title, toTitle: updated.title },
+      });
+
       return { ...updated, role: ctx.board.role, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -386,7 +400,8 @@ export const boardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Yalnızca board admini arşivleyebilir.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [current] = await tx
         .select({ archivedAt: boards.archivedAt, version: boards.version })
         .from(boards)
@@ -422,6 +437,16 @@ export const boardRouter = router({
         payload: { archived: input.archived, clientMutationId: ctx.clientMutationId },
       });
 
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.archived',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: updated.version,
+        data: { boardId: ctx.board.id, archived: input.archived },
+      });
+
       return {
         id: updated.id,
         archivedAt: updated.archivedAt,
@@ -429,6 +454,8 @@ export const boardRouter = router({
         changed: true as const,
       };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   // Phase 2.5C (DEM-52) — board member management + token-based board invitations.
