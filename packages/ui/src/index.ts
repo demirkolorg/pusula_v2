@@ -79,6 +79,7 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './components/dropdown-menu';
+export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './components/popover';
 export { Checkbox } from './components/checkbox';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';
 export {

@@ -147,12 +147,16 @@ export const strings = {
       cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
       commentMentioned: (cardTitle: string) => `seni "${cardTitle}" kartında bahsetti`,
       commentCreated: (cardTitle: string) => `"${cardTitle}" kartında yorum bıraktı`,
+      dueApproaching: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi yaklaşıyor`,
       dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
       dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
       dueOverdue: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi geçti`,
       boardMemberInvited: (boardName: string) => `seni "${boardName}" panosuna davet etti`,
       workspaceMemberInvited: (workspaceName: string) =>
         `seni "${workspaceName}" workspace'ine davet etti`,
+      watchedActivity: (cardTitle: string) => `"${cardTitle}" kartında değişiklik yaptı`,
+      checklistItemCompleted: (cardTitle: string) =>
+        `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
       cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
       cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
       default: 'bir bildirim gönderdi',

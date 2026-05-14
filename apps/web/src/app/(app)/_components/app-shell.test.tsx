@@ -75,6 +75,18 @@ vi.mock('@/lib/auth-client', () => ({
   authClient: { signOut: vi.fn() },
 }));
 
+vi.mock('@/lib/realtime/use-user-realtime', () => ({
+  useUserRealtime: vi.fn(),
+}));
+
+vi.mock('./notification-bell', () => ({
+  NotificationBell: () => (
+    <button type="button" aria-label="Bildirimler">
+      Bildirimler
+    </button>
+  ),
+}));
+
 vi.mock('./create-workspace-dialog', () => ({
   CreateWorkspaceDialog: () => null,
 }));
@@ -105,7 +117,7 @@ describe('<AppShell>', () => {
     const board = screen.getByRole('button', {
       name: strings.shell.boardSwitcher.ariaLabel,
     });
-    const bell = screen.getByRole('button', { name: strings.shell.notifications.label });
+    const bell = screen.getByRole('button', { name: strings.notifications.bellAria(0) });
     const theme = await screen.findByRole('button', { name: strings.shell.themeToggleToDark });
     const avatar = screen.getByRole('button', { name: strings.shell.userMenu.ariaLabel });
 

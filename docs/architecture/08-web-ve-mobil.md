@@ -268,6 +268,8 @@ Faz 5C realtime altyapısının (§8.1.10) `user:{userId}` room'una yayınlanan 
   - Playwright e2e (Faz 6E — alice/bob fixture): atama bildirimi (bob bell badge 0→1 + tıkla → karta yönlendir + mark-read → badge 0), mention bildirimi, realtime push (panel açık iken anlık güncelleme).
 - **Faz kapsamı:** Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)) implementasyon. Mobile notification UI Faz 7 ([DEM-30](https://linear.app/demirkol/issue/DEM-30)) — Expo `apps/mobile`.
 
+> **Wired — DEM-93 (2026-05-14):** Web notification center `apps/web/src/app/(app)/_components/notification-bell.tsx` + `notification-center.tsx` + `notification-link.ts` + `notification-type-icon.tsx` altında bağlandı; `AppShell` header'daki placeholder gerçek bell ile değişti ve `useUserRealtime()` shell seviyesinde mount edildi. Realtime hook `apps/web/src/lib/realtime/use-user-realtime.ts` içinde `notification.created` event'i için `notifications.list` + `notifications.unreadCount` invalidate eder; `event-handlers.ts` bilinçli olarak değiştirilmedi. Copy ve summary katmanı `apps/web/src/lib/strings.ts` + `apps/web/src/lib/activity-summary.ts`, relative time `apps/web/src/lib/format.ts`, Popover primitive `packages/ui/src/components/popover.tsx`.
+
 ---
 
 ## 8.2 Mobil (`apps/mobile`)

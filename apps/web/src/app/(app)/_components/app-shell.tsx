@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutGridIcon } from 'lucide-react';
 import { Separator, cn } from '@pusula/ui';
+import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
 import { strings } from '@/lib/strings';
 import { BoardSwitcher } from './board-switcher';
-import { NotificationBellPlaceholder } from './notification-bell-placeholder';
+import { NotificationBell } from './notification-bell';
 import { ThemeToggle } from './theme-toggle';
 import { UserNavMenu } from './user-nav-menu';
 import { WorkspaceSwitcher } from './workspace-switcher';
@@ -33,6 +34,7 @@ const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+/;
  */
 export function AppShell({ userName, userEmail, children }: AppShellProps) {
   const pathname = usePathname();
+  useUserRealtime();
 
   const fullBleed = BOARD_ROUTE.test(pathname);
 
@@ -70,7 +72,7 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
             <BoardSwitcher />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <NotificationBellPlaceholder />
+            <NotificationBell />
             <ThemeToggle />
             <UserNavMenu userName={userName} userEmail={userEmail} />
           </div>
