@@ -7,11 +7,10 @@ import {
   FilterIcon,
   LayoutGridIcon,
   ListIcon,
-  SearchIcon,
   Share2Icon,
   TagsIcon,
-  UserPlusIcon,
 } from 'lucide-react';
+import { DEFAULT_BOARD_ICON, ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import {
   Badge,
   Button,
@@ -23,70 +22,43 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
   toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
 import { BoardActivityDrawer } from './board-activity-drawer';
-import {
-  ArchivedItemsDropdown,
-  type BoardArchiveList,
-} from './archived-items-dropdown';
+import { ArchivedItemsDropdown, type BoardArchiveList } from './archived-items-dropdown';
 import { BoardFilterMenuContent, type BoardFilterMenuContentProps } from './board-filter-bar';
 import {
   BoardSettingsDropdown,
   type BoardSettingsTab,
 } from './board-settings/board-settings-dropdown';
 import { RenameBoardForm } from './rename-board-form';
+import { SearchDialog } from '../../../../../_components/search-dialog';
 
 type BoardTopBarProps = {
   boardId: string;
   workspaceId: string;
   title: string;
+  icon?: EntityIcon | string;
   background: string | null;
   archived: boolean;
   isBoardAdmin: boolean;
+  boardSearchOpen?: boolean;
+  onBoardSearchOpenChange?: (open: boolean) => void;
   filter?: BoardFilterMenuContentProps;
   archive?: {
     lists: BoardArchiveList[];
     canEdit: boolean;
     showArchivedLists: boolean;
     onToggleArchivedLists: () => void;
-    showArchivedCards: boolean;
-    onToggleArchivedCards: () => void;
     archivedListCount: number;
   };
 };
 
-function ComingSoonAction({
-  icon,
-  label,
-  hint,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label={label}
-            disabled
-          >
-            {icon}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{hint}</TooltipContent>
-    </Tooltip>
-  );
-}
+const boardChromeButtonClass =
+  'text-[color:var(--board-chrome-fg)] hover:bg-white/10 hover:text-[color:var(--board-chrome-fg)] data-[state=open]:bg-white/10 data-[state=open]:text-[color:var(--board-chrome-fg)]';
 
 function BoardViewMenu() {
   const copy = strings.board.topBar;
@@ -98,7 +70,7 @@ function BoardViewMenu() {
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8 shrink-0"
+          className={cn('size-8 shrink-0', boardChromeButtonClass)}
           aria-label={copy.viewMenu}
         >
           <LayoutGridIcon className="size-4" />
@@ -136,7 +108,7 @@ function BoardFilterMenu({ filter }: { filter: BoardFilterMenuContentProps }) {
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8"
+          className={cn('size-8', boardChromeButtonClass)}
           aria-label={copy.labelsTitle}
         >
           <FilterIcon className="size-4" />
@@ -153,13 +125,19 @@ export function BoardTopBar({
   boardId,
   workspaceId,
   title,
+  icon = DEFAULT_BOARD_ICON,
   background,
   archived,
   isBoardAdmin,
+  boardSearchOpen,
+  onBoardSearchOpenChange,
   filter,
   archive,
 }: BoardTopBarProps) {
   const copy = strings.board.topBar;
+  const currentIcon = ENTITY_ICONS.includes(icon as EntityIcon)
+    ? (icon as EntityIcon)
+    : DEFAULT_BOARD_ICON;
 
   const [renaming, setRenaming] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -170,11 +148,6 @@ export function BoardTopBar({
 
   const startRenamingFromMenu = () => {
     window.setTimeout(() => setRenaming(true), 0);
-  };
-
-  const openSettings = (tab: BoardSettingsTab) => {
-    setSettingsTab(tab);
-    setSettingsOpen(true);
   };
 
   const copyBoardLink = async () => {
@@ -192,8 +165,9 @@ export function BoardTopBar({
   };
 
   return (
-    <header className="flex min-h-14 items-center gap-2 bg-background px-4 py-2">
+    <header className="flex min-h-14 items-center gap-2 bg-board-topbar px-4 py-2 text-[color:var(--board-chrome-fg)]">
       <div className="flex min-w-0 flex-1 items-center gap-2">
+        <BoardViewMenu />
         {isBoardAdmin && !archived ? (
           <RenameBoardForm
             boardId={boardId}
@@ -206,16 +180,20 @@ export function BoardTopBar({
           <h1 className="min-w-0 truncate text-[15px] font-semibold">{title}</h1>
         )}
         {archived && <Badge variant="outline">{copy.archivedBadge}</Badge>}
-        <BoardViewMenu />
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
         {filter && <BoardFilterMenu filter={filter} />}
         {archive && <ArchivedItemsDropdown boardId={boardId} {...archive} />}
-        <ComingSoonAction
-          icon={<SearchIcon className="size-4" />}
-          label={copy.search}
-          hint={copy.searchSoon}
+        <SearchDialog
+          variant="board"
+          workspaceId={workspaceId}
+          boardId={boardId}
+          triggerMode="icon"
+          triggerLabel={copy.search}
+          triggerClassName={boardChromeButtonClass}
+          open={boardSearchOpen}
+          onOpenChange={onBoardSearchOpenChange}
         />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -223,7 +201,7 @@ export function BoardTopBar({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8"
+              className={cn('size-8', boardChromeButtonClass)}
               aria-label={copy.activity}
               onClick={() => setActivityOpen(true)}
             >
@@ -237,26 +215,15 @@ export function BoardTopBar({
           variant="ghost"
           size="sm"
           onClick={copyBoardLink}
-          className="font-semibold"
+          className={cn('font-semibold', boardChromeButtonClass)}
         >
           <Share2Icon className="size-4" />
           {copy.share}
         </Button>
-        {isBoardAdmin && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => openSettings('invitations')}
-            className="font-semibold"
-          >
-            <UserPlusIcon className="size-4" />
-            {copy.invite}
-          </Button>
-        )}
         <BoardSettingsDropdown
           boardId={boardId}
           workspaceId={workspaceId}
+          currentIcon={currentIcon}
           currentBackground={background}
           canManage={isBoardAdmin}
           boardActive={!archived}

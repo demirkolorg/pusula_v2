@@ -3,10 +3,17 @@ import { Suspense, act } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { strings } from '@/lib/strings';
 
 const h = vi.hoisted(() => ({
   queryResults: new Map<string, unknown>(),
   queryOptionsSeen: [] as unknown[],
+  boardTopBarProps: [] as Array<{
+    archive?: Record<string, unknown>;
+    title: string;
+    boardSearchOpen?: boolean;
+    onBoardSearchOpenChange?: (open: boolean) => void;
+  }>,
   useQuery: vi.fn(),
   useMutation: vi.fn(),
   requestMutate: vi.fn(),
@@ -17,6 +24,10 @@ vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
+}));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -72,11 +83,39 @@ vi.mock('@/lib/realtime', () => ({
 }));
 
 vi.mock('./_components/board-columns', () => ({
-  BoardColumns: () => <div data-testid="board-columns" />,
+  BoardColumns: (props: {
+    openFirstCardComposerToken?: number;
+    openAddListComposerToken?: number;
+  }) => (
+    <div data-testid="board-columns">
+      <span data-testid="add-card-token">{props.openFirstCardComposerToken ?? 0}</span>
+      <span data-testid="add-list-token">{props.openAddListComposerToken ?? 0}</span>
+    </div>
+  ),
 }));
 
 vi.mock('./_components/board-top-bar', () => ({
-  BoardTopBar: ({ title }: { title: string }) => <div data-testid="board-top-bar">{title}</div>,
+  BoardTopBar: (props: {
+    archive?: Record<string, unknown>;
+    title: string;
+    boardSearchOpen?: boolean;
+    onBoardSearchOpenChange?: (open: boolean) => void;
+  }) => {
+    h.boardTopBarProps.push(props);
+
+    return (
+      <div data-testid="board-top-bar">
+        {props.title}
+        {props.boardSearchOpen && <span data-testid="board-search-open" />}
+        <button type="button" onClick={() => props.onBoardSearchOpenChange?.(true)}>
+          open-board-search
+        </button>
+        {props.archive && 'showArchivedCards' in props.archive && (
+          <span data-testid="archived-card-toggle-prop" />
+        )}
+      </div>
+    );
+  },
 }));
 
 vi.mock('./_components/card-detail/card-detail-route', () => ({
@@ -114,6 +153,7 @@ describe('<BoardDetailPage> board access request gate', () => {
   beforeEach(() => {
     h.queryResults = new Map();
     h.queryOptionsSeen = [];
+    h.boardTopBarProps = [];
     h.requestMutate.mockReset();
     h.useBoardRealtime.mockReset();
     h.useBoardRealtime.mockReturnValue({ connected: true });
@@ -191,5 +231,135 @@ describe('<BoardDetailPage> board access request gate', () => {
       boardId: 'b_1',
       clientMutationId: expect.any(String),
     });
+  });
+
+  it('does not pass an inert archived-card board toggle to the top bar', async () => {
+    h.queryResults.set(
+      'board.accessRequests.context',
+      queryStub({
+        isSuccess: true,
+        data: {
+          access: { hasAccess: true, role: 'admin' },
+        },
+      }),
+    );
+    h.queryResults.set(
+      'board.get',
+      queryStub({
+        isSuccess: true,
+        data: {
+          board: {
+            id: 'b_1',
+            title: 'Aktif pano',
+            role: 'admin',
+            archivedAt: null,
+            background: null,
+          },
+          lists: [
+            {
+              id: 'l_1',
+              title: 'Yapılacak',
+              position: 'a0',
+              color: null,
+              icon: null,
+              iconColor: null,
+              archivedAt: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+          cards: [],
+        },
+      }),
+    );
+
+    await renderPage();
+
+    expect(await screen.findByTestId('board-top-bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('archived-card-toggle-prop')).not.toBeInTheDocument();
+    expect(h.boardTopBarProps[0]?.archive).not.toHaveProperty('showArchivedCards');
+    expect(h.boardTopBarProps[0]?.archive).not.toHaveProperty('onToggleArchivedCards');
+  });
+
+  it('opens board search with slash and shortcut help with question mark', async () => {
+    h.queryResults.set(
+      'board.accessRequests.context',
+      queryStub({ isSuccess: true, data: { access: { hasAccess: true, role: 'admin' } } }),
+    );
+    h.queryResults.set(
+      'board.get',
+      queryStub({
+        isSuccess: true,
+        data: {
+          board: {
+            id: 'b_1',
+            title: 'Aktif pano',
+            role: 'admin',
+            archivedAt: null,
+            background: null,
+          },
+          lists: [],
+          cards: [],
+        },
+      }),
+    );
+
+    await renderPage();
+
+    await userEvent.keyboard('/');
+    expect(screen.getByTestId('board-search-open')).toBeInTheDocument();
+
+    await userEvent.keyboard('?');
+    expect(
+      screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle }),
+    ).toBeInTheDocument();
+  });
+
+  it('increments add-card and add-list shortcut tokens for editable boards', async () => {
+    h.queryResults.set(
+      'board.accessRequests.context',
+      queryStub({ isSuccess: true, data: { access: { hasAccess: true, role: 'admin' } } }),
+    );
+    h.queryResults.set(
+      'board.get',
+      queryStub({
+        isSuccess: true,
+        data: {
+          board: {
+            id: 'b_1',
+            title: 'Aktif pano',
+            role: 'admin',
+            archivedAt: null,
+            background: null,
+          },
+          lists: [
+            {
+              id: 'l_1',
+              title: 'Yapılacak',
+              position: 'a0',
+              color: null,
+              icon: null,
+              iconColor: null,
+              archivedAt: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+          cards: [],
+        },
+      }),
+    );
+
+    await renderPage();
+
+    expect(screen.getByTestId('add-card-token')).toHaveTextContent('0');
+    await userEvent.keyboard('n');
+    expect(screen.getByTestId('add-card-token')).toHaveTextContent('1');
+
+    expect(screen.getByTestId('add-list-token')).toHaveTextContent('0');
+    await userEvent.keyboard('{Shift>}n{/Shift}');
+    expect(screen.getByTestId('add-list-token')).toHaveTextContent('1');
+    await userEvent.keyboard('l');
+    expect(screen.getByTestId('add-list-token')).toHaveTextContent('2');
   });
 });

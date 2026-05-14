@@ -2,10 +2,12 @@
 
 import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { boardRoleAtLeast } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle, boardBackgroundClass, cn } from '@pusula/ui';
+import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
@@ -16,6 +18,68 @@ import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
+import { ShortcutHelpDialog } from './_components/shortcut-help-dialog';
+
+function BoardShortcutScope({
+  enabled,
+  canEditBoardContent,
+  hasActiveList,
+  onOpenBoardSearch,
+  onOpenHelp,
+  onOpenFirstCardComposer,
+  onOpenAddListComposer,
+}: {
+  enabled: boolean;
+  canEditBoardContent: boolean;
+  hasActiveList: boolean;
+  onOpenBoardSearch: () => void;
+  onOpenHelp: () => void;
+  onOpenFirstCardComposer: () => void;
+  onOpenAddListComposer: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const cardModalOpen = searchParams.has('card');
+
+  useShortcutScope({
+    scope: 'board',
+    enabled: enabled && !cardModalOpen,
+    bindings: [
+      {
+        id: 'board-search',
+        match: (event) => event.key === '/' && !event.ctrlOrMeta && !event.alt,
+        run: onOpenBoardSearch,
+      },
+      {
+        id: 'shortcut-help',
+        match: (event) => event.key === '?' && !event.ctrlOrMeta && !event.alt,
+        run: onOpenHelp,
+      },
+      {
+        id: 'new-card',
+        match: (event) => event.key === 'n' && !event.shift && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEditBoardContent && hasActiveList) onOpenFirstCardComposer();
+        },
+      },
+      {
+        id: 'new-list-shift-n',
+        match: (event) => event.key === 'n' && event.shift && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEditBoardContent) onOpenAddListComposer();
+        },
+      },
+      {
+        id: 'new-list-l',
+        match: (event) => event.key === 'l' && !event.shift && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEditBoardContent) onOpenAddListComposer();
+        },
+      },
+    ],
+  });
+
+  return null;
+}
 
 /**
  * Board detail (read-only CRUD, no drag-and-drop yet). One `board.get` call
@@ -49,7 +113,10 @@ export default function BoardDetailPage({
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
   const [showArchivedLists, setShowArchivedLists] = useState(false);
-  const [showArchivedCards, setShowArchivedCards] = useState(false);
+  const [boardSearchOpen, setBoardSearchOpen] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  const [openFirstCardComposerToken, setOpenFirstCardComposerToken] = useState(0);
+  const [openAddListComposerToken, setOpenAddListComposerToken] = useState(0);
   const boardCardsForFilters = board.data?.cards ?? [];
   const boardListsForFilters = board.data?.lists ?? [];
 
@@ -162,6 +229,7 @@ export default function BoardDetailPage({
   const archived = b.archivedAt != null;
   const isBoardAdmin = b.role === 'admin';
   const canEditBoardContent = boardRoleAtLeast(b.role, 'member') && !archived;
+  const hasActiveList = lists.some((list) => list.archivedAt == null);
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}>
@@ -169,9 +237,12 @@ export default function BoardDetailPage({
         boardId={boardId}
         workspaceId={workspaceId}
         title={b.title}
+        icon={b.icon}
         background={b.background ?? null}
         archived={archived}
         isBoardAdmin={isBoardAdmin}
+        boardSearchOpen={boardSearchOpen}
+        onBoardSearchOpenChange={setBoardSearchOpen}
         filter={{
           labels: boardLabels,
           selectedLabelIds: liveSelectedLabelIds,
@@ -183,8 +254,6 @@ export default function BoardDetailPage({
           canEdit: canEditBoardContent,
           showArchivedLists,
           onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
-          showArchivedCards,
-          onToggleArchivedCards: () => setShowArchivedCards((value) => !value),
           archivedListCount,
         }}
       />
@@ -212,14 +281,30 @@ export default function BoardDetailPage({
             userId: member.userId,
             name: member.name,
           }))}
+          openFirstCardComposerToken={openFirstCardComposerToken}
+          openAddListComposerToken={openAddListComposerToken}
         />
       </div>
 
       {/* Card detail modal — driven by `?card=<id>`; needs a Suspense boundary
           for `useSearchParams` (App Router). */}
       <Suspense fallback={null}>
+        <BoardShortcutScope
+          enabled
+          canEditBoardContent={canEditBoardContent}
+          hasActiveList={hasActiveList}
+          onOpenBoardSearch={() => setBoardSearchOpen(true)}
+          onOpenHelp={() => setShortcutHelpOpen(true)}
+          onOpenFirstCardComposer={() => setOpenFirstCardComposerToken((value) => value + 1)}
+          onOpenAddListComposer={() => setOpenAddListComposerToken((value) => value + 1)}
+        />
         <CardDetailRoute boardId={boardId} />
       </Suspense>
+      <ShortcutHelpDialog
+        open={shortcutHelpOpen}
+        onOpenChange={setShortcutHelpOpen}
+        includeCardModal={false}
+      />
     </div>
   );
 }

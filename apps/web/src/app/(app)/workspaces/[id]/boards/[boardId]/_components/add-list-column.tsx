@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PlusIcon } from 'lucide-react';
 import { Button, toast } from '@pusula/ui';
 import { getMutationErrorMessage, useOptimisticBoardMutation } from '@/lib/board-cache';
@@ -10,6 +10,7 @@ import { AddListForm } from './add-list-form';
 
 type AddListColumnProps = {
   boardId: string;
+  openAddListComposerToken?: number;
 };
 
 /**
@@ -20,7 +21,7 @@ type AddListColumnProps = {
  * injection, error toast, CONFLICT refetch — runs through the shared hook.
  * Only rendered by the board when the viewer may edit and the board is active.
  */
-export function AddListColumn({ boardId }: AddListColumnProps) {
+export function AddListColumn({ boardId, openAddListComposerToken = 0 }: AddListColumnProps) {
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
 
@@ -32,9 +33,14 @@ export function AddListColumn({ boardId }: AddListColumnProps) {
     onMutationError: () => toast.error(strings.board.optimistic.error),
   });
 
+  useEffect(() => {
+    if (openAddListComposerToken <= 0) return;
+    setOpen(true);
+  }, [openAddListComposerToken]);
+
   return (
     <section
-      className="flex w-72 shrink-0 flex-col gap-2 self-start rounded-lg border border-dashed bg-muted/30 p-2"
+      className="flex w-72 shrink-0 flex-col gap-2 self-start rounded-lg border border-dashed border-[color:var(--board-list-border)] bg-[color:var(--board-list-add-bg)] p-2"
       aria-label={strings.board.column.addList}
     >
       {open ? (
@@ -58,7 +64,7 @@ export function AddListColumn({ boardId }: AddListColumnProps) {
           variant="ghost"
           size="sm"
           onClick={() => setOpen(true)}
-          className="h-9 w-full justify-start text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="text-muted-foreground h-9 w-full justify-start hover:bg-[color:var(--board-list-add-bg-hover)] hover:text-card-foreground"
         >
           <PlusIcon className="size-4" />
           {strings.board.column.addList}

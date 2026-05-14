@@ -6,36 +6,15 @@ import {
   ArchiveRestoreIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  BookmarkIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CheckIcon,
-  CircleIcon,
-  ClockIcon,
-  FlagIcon,
-  InboxIcon,
   MoreHorizontalIcon,
   PaletteIcon,
+  PanelLeftCloseIcon,
+  PanelRightOpenIcon,
   PencilIcon,
   PlusIcon,
-  RocketIcon,
   StarIcon,
-  TagIcon,
-  TargetIcon,
-  UserIcon,
-  UsersIcon,
-  ZapIcon,
-  type LucideIcon,
 } from 'lucide-react';
-import {
-  LIST_COLORS,
-  LIST_ICON_COLORS,
-  LIST_ICONS,
-  listTitleSchema,
-  type ListColor,
-  type ListIcon,
-  type ListIconColor,
-} from '@pusula/domain';
+import { LIST_COLORS, listTitleSchema, type ListColor } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
@@ -56,6 +35,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   cn,
   toast,
 } from '@pusula/ui';
@@ -76,6 +58,12 @@ import {
   type BoardCardMemberOption,
 } from './card-item';
 import { ListColorPicker } from './list-color-picker';
+import {
+  LIST_ICON_COMPONENTS,
+  LIST_ICON_FG,
+  asListIcon,
+  asListIconColor,
+} from './list-icon-presentation';
 import { ListIconPicker } from './list-icon-picker';
 import type { CardDropPlaceholder } from './use-board-dnd';
 
@@ -111,6 +99,7 @@ type ListColumnProps = {
   boardLabels?: BoardCardLabelOption[];
   /** Board members used by each card's context menu. */
   boardMembers?: BoardCardMemberOption[];
+  openAddCardComposerToken?: number;
 };
 
 function CardDropPlaceholderMarker({ height }: { height: number | null }) {
@@ -125,10 +114,8 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
 }
 
 const LIST_COLOR_SET = new Set<string>(LIST_COLORS);
-const LIST_ICON_SET = new Set<string>(LIST_ICONS);
-const LIST_ICON_COLOR_SET = new Set<string>(LIST_ICON_COLORS);
 
-const COLUMN_BG: Record<ListColor, string> = {
+const LIST_ACCENT_BG: Record<ListColor, string> = {
   yesil: 'bg-palet-yesil',
   sari: 'bg-palet-sari',
   turuncu: 'bg-palet-turuncu',
@@ -141,63 +128,21 @@ const COLUMN_BG: Record<ListColor, string> = {
   gri: 'bg-palet-gri',
 };
 
-const COLUMN_FG: Record<ListColor, string> = {
-  yesil: 'text-palet-yesil-foreground',
-  sari: 'text-palet-sari-foreground',
-  turuncu: 'text-palet-turuncu-foreground',
-  kirmizi: 'text-palet-kirmizi-foreground',
-  mor: 'text-palet-mor-foreground',
-  mavi: 'text-palet-mavi-foreground',
-  sky: 'text-palet-sky-foreground',
-  lime: 'text-palet-lime-foreground',
-  pembe: 'text-palet-pembe-foreground',
-  gri: 'text-palet-gri-foreground',
-};
-
-const LIST_ICON_COMPONENTS: Record<ListIcon, LucideIcon> = {
-  circle: CircleIcon,
-  check: CheckIcon,
-  star: StarIcon,
-  flag: FlagIcon,
-  bookmark: BookmarkIcon,
-  tag: TagIcon,
-  clock: ClockIcon,
-  calendar: CalendarIcon,
-  user: UserIcon,
-  users: UsersIcon,
-  briefcase: BriefcaseIcon,
-  zap: ZapIcon,
-  target: TargetIcon,
-  rocket: RocketIcon,
-  inbox: InboxIcon,
-  archive: ArchiveIcon,
-};
-
-const LIST_ICON_FG: Record<ListIconColor, string> = {
-  kirmizi: 'text-palet-kirmizi',
-  turuncu: 'text-palet-turuncu',
-  sari: 'text-palet-sari',
-  lime: 'text-palet-lime',
+const LIST_ACCENT_FG: Record<ListColor, string> = {
   yesil: 'text-palet-yesil',
-  sky: 'text-palet-sky',
-  mavi: 'text-palet-mavi',
-  indigo: 'text-palet-indigo',
+  sari: 'text-palet-sari',
+  turuncu: 'text-palet-turuncu',
+  kirmizi: 'text-palet-kirmizi',
   mor: 'text-palet-mor',
+  mavi: 'text-palet-mavi',
+  sky: 'text-palet-sky',
+  lime: 'text-palet-lime',
   pembe: 'text-palet-pembe',
   gri: 'text-palet-gri',
-  siyah: 'text-palet-siyah',
 };
 
 function asListColor(color: string | null): ListColor | null {
   return color != null && LIST_COLOR_SET.has(color) ? (color as ListColor) : null;
-}
-
-function asListIcon(icon: string | null): ListIcon | null {
-  return icon != null && LIST_ICON_SET.has(icon) ? (icon as ListIcon) : null;
-}
-
-function asListIconColor(color: string | null): ListIconColor | null {
-  return color != null && LIST_ICON_COLOR_SET.has(color) ? (color as ListIconColor) : null;
 }
 
 /**
@@ -220,9 +165,11 @@ export function ListColumn({
   allLists = [],
   boardLabels = [],
   boardMembers = [],
+  openAddCardComposerToken = 0,
 }: ListColumnProps) {
   const trpc = useTRPC();
   const renameId = useId();
+  const cardsAreaId = useId();
   const columnCopy = strings.board.column;
   const cardCopy = strings.board.card;
   const dndCopy = strings.board.dnd;
@@ -241,6 +188,7 @@ export function ListColumn({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const skipRenameCommitRef = useRef(false);
 
   // --- Drag-and-drop wiring ------------------------------------------------
@@ -263,20 +211,27 @@ export function ListColumn({
       position: list.position,
       onDraggingChange: setColumnDragging,
     });
-  }, [dnd, list.id, list.position, listArchived, renaming]);
+  }, [dnd, list.id, list.position, listArchived, renaming, collapsed]);
 
   // The cards area is a "drop a card at the end of this list" target (active lists only).
   useEffect(() => {
-    if (!dnd || listArchived) return;
+    if (!dnd || listArchived || collapsed) return;
     const el = cardsAreaRef.current;
     if (!el) return;
     return dnd.registerListCardsArea({
       element: el,
       listId: list.id,
     });
-  }, [dnd, list.id, listArchived]);
+  }, [dnd, list.id, listArchived, collapsed]);
 
   useEffect(() => setRenameValue(list.title), [list.title]);
+  useEffect(() => {
+    if (collapsed) setAddingCard(false);
+  }, [collapsed]);
+  useEffect(() => {
+    if (!listEditable || openAddCardComposerToken <= 0) return;
+    setAddingCard(true);
+  }, [listEditable, openAddCardComposerToken]);
 
   const renameList = useOptimisticBoardMutation({
     mutationOptions: trpc.list.update.mutationOptions,
@@ -368,229 +323,293 @@ export function ListColumn({
     if (!next) archiveList.reset();
   };
 
+  const renderCollapseToggle = (className?: string) => {
+    const ToggleIcon = collapsed ? PanelRightOpenIcon : PanelLeftCloseIcon;
+    const label = collapsed ? columnCopy.expand : columnCopy.collapse;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn('size-7 shrink-0', className)}
+            aria-label={label}
+            aria-expanded={!collapsed}
+            aria-controls={cardsAreaId}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            <ToggleIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
   return (
     <section
       ref={columnRef}
       className={cn(
-        'relative flex max-h-full w-72 shrink-0 flex-col rounded-lg border transition-opacity',
+        'relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] transition-[opacity,width]',
+        collapsed ? 'h-52 w-10 overflow-hidden' : 'w-72',
         listArchived && 'border-dashed',
-        listColor === null ? 'bg-muted/30' : COLUMN_BG[listColor],
+        listArchived
+          ? 'bg-[color:var(--board-list-archived-bg)]'
+          : 'bg-[color:var(--board-list-bg)]',
         columnDragging && 'opacity-0',
       )}
       data-dragging={columnDragging ? '' : undefined}
+      data-collapsed={collapsed ? '' : undefined}
       aria-label={list.title}
     >
-      <header
-        className={cn(
-          'flex shrink-0 items-center justify-between gap-1 p-2',
-          listColor === null ? 'text-foreground' : COLUMN_FG[listColor],
-        )}
-      >
-        {renaming ? (
-          <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
-            <Input
-              id={renameId}
-              name="listTitle"
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  cancelRenaming();
-                }
-              }}
-              placeholder={columnCopy.renamePlaceholder}
-              aria-label={columnCopy.renamePlaceholder}
-              disabled={renameList.isPending}
-              autoComplete="off"
-              autoFocus
-              className="h-7 border-0 bg-muted/40 px-1.5 text-sm font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              aria-invalid={renameError || renameList.isError ? true : undefined}
-              aria-describedby={renameError ? `${renameId}-error` : undefined}
-            />
-            {renameError && (
-              <p id={`${renameId}-error`} className="text-destructive text-sm">
-                {renameError}
-              </p>
-            )}
-            {!renameError && renameList.isError && (
-              <p className="text-destructive text-sm">
-                {getMutationErrorMessage(renameList) ?? strings.common.unknownError}
-              </p>
-            )}
-          </form>
-        ) : (
-          <>
-            <div
-              ref={dnd && !listArchived ? handleRef : undefined}
-              className={cn(
-                'flex min-w-0 flex-1 items-center gap-1 rounded-sm',
-                dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
-              )}
-              aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
-            >
-              {listArchived && (
-                <ArchiveIcon
-                  className={cn(
-                    'size-3.5 shrink-0',
-                    listColor === null ? 'text-muted-foreground' : 'text-current/70',
-                  )}
-                  aria-hidden
-                />
-              )}
-              {ListHeaderIcon && listIcon && (
-                <ListHeaderIcon
-                  data-testid={`list-icon-${listIcon}`}
-                  className={cn(
-                    'size-3.5 shrink-0',
-                    listIconColor
-                      ? LIST_ICON_FG[listIconColor]
-                      : listColor === null
-                        ? 'text-muted-foreground'
-                        : 'text-current/80',
-                  )}
-                  aria-hidden
-                />
-              )}
-              {listEditable ? (
-                <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  <button
-                    type="button"
-                    className={cn(
-                      'block min-w-0 max-w-full truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-                      listColor === null ? 'hover:bg-muted/60' : 'hover:bg-background/15',
-                    )}
-                    onClick={startRenaming}
-                  >
-                    {list.title}
-                  </button>
-                </h2>
-              ) : (
-                <h2 className="truncate text-sm font-semibold">{list.title}</h2>
-              )}
-              <span
-                className={cn(
-                  'shrink-0 text-xs',
-                  listColor === null ? 'text-muted-foreground' : 'text-current/70',
-                )}
-              >
-                {cards.length} {columnCopy.cardCount}
-              </span>
-            </div>
-            {canEdit && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 shrink-0"
-                    aria-label={columnCopy.more}
-                  >
-                    <MoreHorizontalIcon className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {!listArchived && (
-                    <>
-                      <DropdownMenuItem onSelect={startRenaming}>
-                        <PencilIcon />
-                        {columnCopy.menuRename}
-                      </DropdownMenuItem>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <PaletteIcon />
-                          {strings.board.list.colorPicker.title}
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className="p-2">
-                          <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <StarIcon />
-                          {strings.board.list.iconPicker.title}
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className="p-2">
-                          <ListIconPicker
-                            boardId={boardId}
-                            listId={list.id}
-                            value={listIcon}
-                            color={listIconColor}
-                          />
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                    </>
-                  )}
-                  {(canMoveLeft || canMoveRight) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      {canMoveLeft && (
-                        <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'left')}>
-                          <ArrowLeftIcon />
-                          {dndCopy.moveLeft}
-                        </DropdownMenuItem>
-                      )}
-                      {canMoveRight && (
-                        <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'right')}>
-                          <ArrowRightIcon />
-                          {dndCopy.moveRight}
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
-                    {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-                    {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </>
-        )}
-      </header>
+      {listColor && (
+        <div
+          data-list-accent
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-lg',
+            LIST_ACCENT_BG[listColor],
+          )}
+        />
+      )}
 
-      <div
-        ref={cardsAreaRef}
-        className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
-      >
-        {cards.length === 0 && !listEditable ? (
-          <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
-        ) : (
-          <>
-            {cards.map((card) => (
-              <Fragment key={card.id}>
-                {cardPlaceholder?.targetCardId === card.id && cardPlaceholder.edge === 'top' && (
-                  <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+      {collapsed ? (
+        <header className="text-card-foreground flex h-full min-h-0 shrink-0 flex-col items-center gap-2 p-1.5">
+          {renderCollapseToggle()}
+          <div
+            ref={dnd && !listArchived ? handleRef : undefined}
+            className={cn(
+              'flex min-h-0 flex-1 flex-col items-center gap-2 rounded-sm px-1 py-1',
+              dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
+            )}
+            aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
+          >
+            {listArchived && (
+              <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+            )}
+            {ListHeaderIcon && listIcon && (
+              <ListHeaderIcon
+                data-testid={`list-icon-${listIcon}`}
+                className={cn(
+                  'size-3.5 shrink-0',
+                  listIconColor
+                    ? LIST_ICON_FG[listIconColor]
+                    : listColor === null
+                      ? 'text-muted-foreground'
+                      : LIST_ACCENT_FG[listColor],
                 )}
-                <CardItem
-                  boardId={boardId}
-                  card={card}
-                  canEdit={listEditable}
-                  allLists={allLists}
-                  boardLabels={boardLabels}
-                  boardMembers={boardMembers}
-                />
-                {cardPlaceholder?.targetCardId === card.id &&
-                  cardPlaceholder.edge === 'bottom' && (
+                aria-hidden
+              />
+            )}
+            <span className="min-h-0 flex-1 truncate text-sm font-semibold [writing-mode:vertical-rl]">
+              {list.title}
+            </span>
+            <span className="text-muted-foreground shrink-0 text-[11px] leading-none [writing-mode:vertical-rl]">
+              {cards.length} {columnCopy.cardCount}
+            </span>
+          </div>
+        </header>
+      ) : (
+        <header className="text-card-foreground flex shrink-0 items-center justify-between gap-1 p-2">
+          {renaming ? (
+            <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
+              <Input
+                id={renameId}
+                name="listTitle"
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancelRenaming();
+                  }
+                }}
+                placeholder={columnCopy.renamePlaceholder}
+                aria-label={columnCopy.renamePlaceholder}
+                disabled={renameList.isPending}
+                autoComplete="off"
+                autoFocus
+                className="h-7 border-0 bg-muted/40 px-1.5 text-sm font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-invalid={renameError || renameList.isError ? true : undefined}
+                aria-describedby={renameError ? `${renameId}-error` : undefined}
+              />
+              {renameError && (
+                <p id={`${renameId}-error`} className="text-destructive text-sm">
+                  {renameError}
+                </p>
+              )}
+              {!renameError && renameList.isError && (
+                <p className="text-destructive text-sm">
+                  {getMutationErrorMessage(renameList) ?? strings.common.unknownError}
+                </p>
+              )}
+            </form>
+          ) : (
+            <>
+              <div
+                ref={dnd && !listArchived ? handleRef : undefined}
+                className={cn(
+                  'flex min-w-0 flex-1 items-center gap-1 rounded-sm',
+                  dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
+                )}
+                aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
+              >
+                {listArchived && (
+                  <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                )}
+                {ListHeaderIcon && listIcon && (
+                  <ListHeaderIcon
+                    data-testid={`list-icon-${listIcon}`}
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      listIconColor
+                        ? LIST_ICON_FG[listIconColor]
+                        : listColor === null
+                          ? 'text-muted-foreground'
+                          : LIST_ACCENT_FG[listColor],
+                    )}
+                    aria-hidden
+                  />
+                )}
+                {listEditable ? (
+                  <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    <button
+                      type="button"
+                      className={cn(
+                        'block min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-[color:var(--board-list-bg-hover)] focus-visible:ring-2 focus-visible:ring-ring/60',
+                      )}
+                      onClick={startRenaming}
+                    >
+                      {list.title}
+                    </button>
+                  </h2>
+                ) : (
+                  <h2 className="truncate text-sm font-semibold">{list.title}</h2>
+                )}
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {cards.length} {columnCopy.cardCount}
+                </span>
+              </div>
+              {renderCollapseToggle()}
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                      aria-label={columnCopy.more}
+                    >
+                      <MoreHorizontalIcon className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {!listArchived && (
+                      <>
+                        <DropdownMenuItem onSelect={startRenaming}>
+                          <PencilIcon />
+                          {columnCopy.menuRename}
+                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <PaletteIcon />
+                            {strings.board.list.colorPicker.title}
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="p-2">
+                            <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <StarIcon />
+                            {strings.board.list.iconPicker.title}
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="p-2">
+                            <ListIconPicker
+                              boardId={boardId}
+                              listId={list.id}
+                              value={listIcon}
+                              color={listIconColor}
+                            />
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                    {(canMoveLeft || canMoveRight) && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {canMoveLeft && (
+                          <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'left')}>
+                            <ArrowLeftIcon />
+                            {dndCopy.moveLeft}
+                          </DropdownMenuItem>
+                        )}
+                        {canMoveRight && (
+                          <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'right')}>
+                            <ArrowRightIcon />
+                            {dndCopy.moveRight}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
+                      {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+                      {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </>
+          )}
+        </header>
+      )}
+
+      {!collapsed && (
+        <div
+          id={cardsAreaId}
+          ref={cardsAreaRef}
+          className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
+        >
+          {cards.length === 0 && !listEditable ? (
+            <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
+          ) : (
+            <>
+              {cards.map((card) => (
+                <Fragment key={card.id}>
+                  {cardPlaceholder?.targetCardId === card.id && cardPlaceholder.edge === 'top' && (
                     <CardDropPlaceholderMarker height={cardPlaceholder.height} />
                   )}
-              </Fragment>
-            ))}
-            {cardPlaceholder && cardPlaceholder.targetCardId == null && (
-              <CardDropPlaceholderMarker height={cardPlaceholder.height} />
-            )}
-          </>
-        )}
-      </div>
+                  <CardItem
+                    boardId={boardId}
+                    card={card}
+                    canEdit={listEditable}
+                    allLists={allLists}
+                    boardLabels={boardLabels}
+                    boardMembers={boardMembers}
+                  />
+                  {cardPlaceholder?.targetCardId === card.id &&
+                    cardPlaceholder.edge === 'bottom' && (
+                      <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+                    )}
+                </Fragment>
+              ))}
+              {cardPlaceholder && cardPlaceholder.targetCardId == null && (
+                <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+              )}
+            </>
+          )}
+        </div>
+      )}
 
-      {listEditable && (
+      {!collapsed && listEditable && (
         <footer className="shrink-0 p-2">
           {addingCard ? (
             <div className="rounded-md bg-card p-2 shadow-sm">
@@ -619,10 +638,7 @@ export function ListColumn({
               size="sm"
               onClick={() => setAddingCard(true)}
               className={cn(
-                'h-8 w-full justify-start',
-                listColor === null
-                  ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  : 'text-current/70 hover:bg-background/15 hover:text-current',
+                'text-muted-foreground h-8 w-full justify-start hover:bg-[color:var(--board-list-bg-hover)] hover:text-card-foreground',
               )}
             >
               <PlusIcon className="size-4" />

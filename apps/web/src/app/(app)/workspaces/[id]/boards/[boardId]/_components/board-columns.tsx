@@ -32,6 +32,8 @@ type BoardColumnsProps = {
   boardLabels?: BoardCardLabelOption[];
   /** Board members used by each card context menu. */
   boardMembers?: BoardCardMemberOption[];
+  openFirstCardComposerToken?: number;
+  openAddListComposerToken?: number;
 };
 
 function ListDropPlaceholderMarker({
@@ -70,6 +72,8 @@ export function BoardColumns({
   showArchivedLists,
   boardLabels = [],
   boardMembers = [],
+  openFirstCardComposerToken = 0,
+  openAddListComposerToken = 0,
 }: BoardColumnsProps) {
   const boardActive = board.archivedAt == null;
   const canEdit = boardRoleAtLeast(board.role, 'member') && boardActive;
@@ -78,6 +82,7 @@ export function BoardColumns({
     () => filterVisibleLists(lists, showArchivedLists),
     [lists, showArchivedLists],
   );
+  const firstActiveListId = visibleLists.find((list) => list.archivedAt == null)?.id ?? null;
 
   const cardsByList = useMemo(() => {
     const filtered = filterCardsByLabels(cards, selectedLabelIds);
@@ -149,6 +154,9 @@ export function BoardColumns({
                   allLists={lists}
                   boardLabels={boardLabels}
                   boardMembers={boardMembers}
+                  openAddCardComposerToken={
+                    canEdit && list.id === firstActiveListId ? openFirstCardComposerToken : 0
+                  }
                 />
                 {dnd.listPlaceholder?.targetListId === list.id &&
                   dnd.listPlaceholder.edge === 'right' && (
@@ -159,7 +167,12 @@ export function BoardColumns({
                   )}
               </Fragment>
             ))}
-            {canEdit && <AddListColumn boardId={boardId} />}
+            {canEdit && (
+              <AddListColumn
+                boardId={boardId}
+                openAddListComposerToken={openAddListComposerToken}
+              />
+            )}
           </div>
         )}
 
