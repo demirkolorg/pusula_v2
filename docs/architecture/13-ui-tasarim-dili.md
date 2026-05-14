@@ -565,7 +565,7 @@ shell: {
 - **NotificationBell** gerçek implementasyonu — Faz 6D, [DEM-93](https://linear.app/demirkol/issue/DEM-93).
 - **Board favori toggle** — Faz 8, [DEM-57](https://linear.app/demirkol/issue/DEM-57); `BoardTopBar`'da identity bloğuyla birlikte gitti, favori başka yerde restore edilmez (Faz 8'de switcher dropdown'una "Favoriler" alt-grubu eklenebilir).
 - **Arşivli workspace/board** switcher listesinde — Faz 8 ([DEM-71](https://linear.app/demirkol/issue/DEM-71) ile aynı disiplin).
-- **Klavye kısayolu** (örn. `⌘K` workspace/board command palette) — Faz 8, [DEM-73](https://linear.app/demirkol/issue/DEM-73).
+- **Klavye kısayolu katmanı** — [DEM-73](https://linear.app/demirkol/issue/DEM-73) ile küçük kapsamda uygulanır: global search (`Cmd/Ctrl+K`, `Ctrl+Space`), board-scoped search (`/`), board add-card/add-list (`N`, `Shift+N`/`L`), shortcut help (`?`) ve card modal aksiyonları (`E`, `C`, `D`, `M`, `T`, `A`, `Esc`). Aktif kart/liste seçimi ve ok tuşlarıyla board navigasyonu ayrı follow-up kapsamıdır.
 - **Search input** app-shell'de (global arama) — Faz 6.5, [DEM-56](https://linear.app/demirkol/issue/DEM-56).
 - **`apps/mobile` tema/switcher** — `apps/mobile` yok zaten; gelirse Expo bağlamında ayrı tartışılır.
 - **Server-side recent/pinned workspace/board** — Faz 8 (cookie veya `users.recent_boards` jsonb kolonu — ayrı iş).
