@@ -229,6 +229,7 @@ export const strings = {
       tabInvitations: 'Davetler',
       tabLabels: 'Etiketler',
       tabActions: 'Pano işlemleri',
+      actionsDescription: 'Pano adını değiştirme ve arşiv/geri yükleme işlemleri burada yönetilir.',
       membersTitle: 'Üyeler',
       membersDescription: 'Bu board’un üyelerini görüntüleyin; rollerini değiştirin veya çıkarın.',
       membersLoading: 'Üyeler yükleniyor…',

@@ -18,14 +18,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   SectionHeader,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-  cn,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { BoardInvitationsSection } from './board-invitations-section';
@@ -183,7 +181,7 @@ export function BoardSettingsDropdown({
             <SettingsPanel
               icon={<WrenchIcon className="size-3.5" />}
               title={settingsCopy.tabActions}
-              description={topCopy.settings}
+              description={settingsCopy.actionsDescription}
             >
               <DropdownMenuGroup className="space-y-1">
                 {!archived && (
@@ -204,7 +202,6 @@ export function BoardSettingsDropdown({
                   </DropdownMenuItem>
                 )}
               </DropdownMenuGroup>
-              <DropdownMenuSeparator className={cn('mt-2', archived && 'hidden')} />
             </SettingsPanel>
           </TabsContent>
         </Tabs>
