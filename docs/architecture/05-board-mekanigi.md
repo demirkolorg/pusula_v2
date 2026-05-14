@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
 
@@ -27,7 +27,7 @@ updated: 2026-05-13
 
 - **Board listesi** (`(app)/workspaces/[id]`): `trpc.board.list` → board kartları; "board oluştur" → `trpc.board.create` + `queryClient.invalidateQueries(trpc.board.list.queryFilter())`.
 - **Board detay** (`(app)/workspaces/[id]/boards/[boardId]`): `trpc.board.get` tek seferde board + listeleri (`position` sıralı) + her listenin aktif kartlarını (`position` sıralı) döndürür → kolon + kart render. **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata'sını taşır — `labels[]` (Faz 2.5E) + `checklistTotal`/`checklistDone` + `commentCount` (`deleted_at IS NULL`) + `members[]` (ad+görsel — avatar yığını; e-posta yok); hepsi board genelinde toplu sorgu (N+1 yok). UI tarafı bu sayaçlardan kart metadata satırını (due chip + "GECİKTİ" rozeti + amber-soon-dot + açıklama-var + checklist progress + yorum sayısı + üye avatarları) çizer (tasarım dili: [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.2). Kart-completion özelliği yok → kartta "tamamla" toggle'ı render edilmez; attachment sayacı Faz 8.
-- **List CRUD**: "liste ekle" (`trpc.list.create`, board sonuna) · "yeniden adlandır" (`trpc.list.update`) · "arşivle" (`trpc.list.archive`) — her biri sonrası `trpc.board.get` invalidate.
+- **List CRUD**: "liste ekle" (`trpc.list.create`, board sonuna) · "yeniden adlandır" / "liste rengini değiştir" (`trpc.list.update`, `color` additive — DEM-98) · "arşivle" (`trpc.list.archive`) — her biri sonrası `trpc.board.get` invalidate.
 - **Card CRUD**: "kart ekle" (`trpc.card.create`, liste sonuna) · "düzenle" (`trpc.card.update` — başlık/açıklama/`due_at`) · "arşivle" (`trpc.card.archive`) — her biri sonrası `trpc.board.get` invalidate.
 - Bu fazda **optimistic update yok** — mutation → `await` → invalidate → refetch. `clientMutationId` yine de istemcide üretilip gönderilir (idempotency + Faz 4/5 hazırlığı). Yetki: UI board rolüne göre aksiyonları gizler/gösterir; gerçek kapı her procedure'de server-side.
 - Yalnızca shadcn/ui + Tailwind + lucide-react; hardcode metin yok, Türkçe metinler `apps/web/src/lib/strings.ts`'te.
@@ -164,6 +164,8 @@ Kart sessizce kaybolmaz / yanlış yerde kalmaz — kullanıcı en son backend g
 
 **Optimistic edilir** (4C): `card.move` · `card.moveToList` · `card.copy` · `card.create` · `card.update` · `card.archive` · `card.complete` · `card.uncomplete` · `list.move` · `list.create` · `list.update` · `list.archive` · `board.create` · `board.update` · `board.archive`.
 
+`list.update({ color })` (DEM-98) aynı optimistic yüzeyi kullanır: `useOptimisticBoardListMutation(api.list.update)` `lists[].color` alanını anında patch'ler, `clientMutationId` üretir; realtime echo geldiğinde Faz 5 in-flight store aynı discipline ile event'i atlar.
+
 **Optimistic edilmez** (Faz 5/6'ya bırakılır): `comment.*` · `checklist.*` · `label.*` · `board.members.*` — bu mutation'lar realtime echo + activity feed (Faz 5 — [DEM-28](https://linear.app/demirkol/issue/DEM-28)) ile birlikte optimistic edilecek; Faz 4'te `await` + invalidate pattern korunur.
 
 ### Test (Faz 4D — [DEM-81](https://linear.app/demirkol/issue/DEM-81))
@@ -234,6 +236,8 @@ type RealtimeEventEnvelope<TPayload = unknown> = {
 ```
 
 Event tipleri (Faz 5 kapsamı): `card.moved` · `card.created` · `card.updated` · `card.archived` · `card.completed` · `card.uncompleted` · `card.movedToList` (cross-board: hem kaynak hem hedef board room'una) · `card.copied` · `list.moved` · `list.created` · `list.updated` · `list.archived` · `board.created` (workspace room — sonraki faz) · `board.updated` · `board.archived`.
+
+`list.updated` envelope'ı DEM-98 ile additive `color` payload alanı taşır: `{ listId, color }` (`color` yeni değer, `null` = rengi kaldır); rename akışındaki mevcut `fromTitle`/`toTitle` alanları korunur. Client handler bu alanı `updateListInCache` / board-cache primitive'lerine iletir.
 
 ### Client reconciliation
 
