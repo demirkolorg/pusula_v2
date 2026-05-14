@@ -7,11 +7,16 @@ import {
   notificationsQueue,
   realtimePublishQueue,
   scheduledQueue,
+  searchReindexQueue,
 } from './queues';
 import { connection } from './redis';
 import { db, pool } from './db';
 import { env } from './env';
 import { processCompactionJob, type CompactionJobData } from './jobs/compaction';
+import {
+  processSearchReindexJob,
+  type SearchReindexJobData,
+} from './jobs/search-reindex';
 import {
   createDefaultNotificationPublisher,
   NOTIFICATION_PUBLISH_JOB_NAME,
@@ -258,6 +263,17 @@ const compactionWorker = new Worker(
   { connection, concurrency: 1 },
 );
 
+const searchReindexWorker = new Worker(
+  QUEUE.searchReindex,
+  async (job) => {
+    const result = await processSearchReindexJob(db, job.data as SearchReindexJobData);
+    console.warn(
+      `[worker:search-reindex] job ${job.id} ${job.name} — scanned ${result.scanned}, upserted ${result.upserted}, deleted ${result.deleted}`,
+    );
+  },
+  { connection, concurrency: 1 },
+);
+
 const workers = [
   notificationsWorker,
   notificationEmailWorker,
@@ -265,6 +281,7 @@ const workers = [
   realtimeWorker,
   scheduledWorker,
   compactionWorker,
+  searchReindexWorker,
 ];
 
 for (const w of workers) {

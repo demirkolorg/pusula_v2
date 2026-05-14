@@ -39,6 +39,7 @@ import { TRPCError } from '@trpc/server';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
+import { syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { router } from '../trpc';
 
@@ -130,6 +131,8 @@ export const listRouter = router({
           position: created.position,
         },
       });
+
+      await upsertSearchDocument(tx, { entityType: 'list', entityId: created.id });
 
       return created;
     });
@@ -298,6 +301,10 @@ export const listRouter = router({
         data: realtimeData,
       });
 
+      if (titleChanged) {
+        await upsertSearchDocument(tx, { entityType: 'list', entityId: updated.id });
+      }
+
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
@@ -377,6 +384,11 @@ export const listRouter = router({
         clientMutationId: ctx.clientMutationId,
         seq: bumped?.version ?? 0,
         data: { listId: updated.id, archived: input.archived },
+      });
+
+      await syncSearchDocumentsForScope(tx, {
+        boardId: ctx.board.id,
+        entityTypes: ['list', 'card', 'comment'],
       });
 
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };

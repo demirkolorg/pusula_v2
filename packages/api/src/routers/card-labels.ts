@@ -34,6 +34,7 @@ import {
   removeCardLabelInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import { router } from '../trpc';
@@ -112,6 +113,8 @@ export const cardLabelsRouter = router({
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
 
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: ctx.card.id });
+
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
   }),
@@ -162,6 +165,8 @@ export const cardLabelsRouter = router({
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
+
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: ctx.card.id });
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });

@@ -43,6 +43,7 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import { deleteSearchDocument, upsertSearchDocument } from '../lib/search-indexer';
 import { router } from '../trpc';
 
 /** Columns of a full comment row returned to clients. */
@@ -133,6 +134,8 @@ export const commentRouter = router({
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 
+      await upsertSearchDocument(tx, { entityType: 'comment', entityId: createdComment.id });
+
       return createdComment;
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
@@ -206,6 +209,8 @@ export const commentRouter = router({
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
 
+      await upsertSearchDocument(tx, { entityType: 'comment', entityId: updated.id });
+
       return { ...updated, changed: true as const };
     });
   }),
@@ -272,6 +277,8 @@ export const commentRouter = router({
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
+
+      await deleteSearchDocument(tx, { entityType: 'comment', entityId: updated.id });
 
       return { id: updated.id, deletedAt: updated.deletedAt, changed: true as const };
     });

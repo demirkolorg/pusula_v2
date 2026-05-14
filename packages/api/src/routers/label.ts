@@ -30,6 +30,7 @@ import {
   updateLabelInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { deleteSearchDocument, syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { router } from '../trpc';
 
@@ -118,6 +119,8 @@ export const labelRouter = router({
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.board.id));
 
+      await upsertSearchDocument(tx, { entityType: 'label', entityId: created.id });
+
       return created;
     });
   }),
@@ -180,6 +183,11 @@ export const labelRouter = router({
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.board.id));
 
+      await syncSearchDocumentsForScope(tx, {
+        boardId: ctx.board.id,
+        entityTypes: ['card', 'label'],
+      });
+
       return { ...updated, changed: true as const };
     });
   }),
@@ -222,6 +230,12 @@ export const labelRouter = router({
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.board.id));
+
+      await deleteSearchDocument(tx, { entityType: 'label', entityId: label.id });
+      await syncSearchDocumentsForScope(tx, {
+        boardId: ctx.board.id,
+        entityTypes: ['card'],
+      });
 
       return { id: label.id, deleted: true as const };
     });

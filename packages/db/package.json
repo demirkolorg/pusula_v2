@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./search-indexer": "./src/search-indexer.ts",
     "./client": "./src/client.ts"
   },
   "scripts": {

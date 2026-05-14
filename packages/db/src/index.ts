@@ -1,6 +1,7 @@
 export * as schema from './schema';
 export * from './schema';
 export { createDb, getDb, getPool, db, type Database } from './client';
+export * from './search-indexer';
 export {
   sql,
   eq,

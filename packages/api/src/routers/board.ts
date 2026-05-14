@@ -36,6 +36,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
+import { syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
@@ -148,6 +149,8 @@ export const boardRouter = router({
         // Phase 5 dedupe reads `payload->>'clientMutationId'` on present rows.
         payload: { title: board.title, clientMutationId: ctx.clientMutationId },
       });
+
+      await upsertSearchDocument(tx, { entityType: 'board', entityId: board.id });
 
       return { ...board, role: 'admin' satisfies BoardRole };
     });
@@ -455,6 +458,10 @@ export const boardRouter = router({
         data: realtimeData,
       });
 
+      if (titleChanged) {
+        await upsertSearchDocument(tx, { entityType: 'board', entityId: ctx.board.id });
+      }
+
       return { ...updated, role: ctx.board.role, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
@@ -519,6 +526,8 @@ export const boardRouter = router({
         seq: updated.version,
         data: { boardId: ctx.board.id, archived: input.archived },
       });
+
+      await syncSearchDocumentsForScope(tx, { boardId: ctx.board.id });
 
       return {
         id: updated.id,

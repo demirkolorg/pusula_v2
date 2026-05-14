@@ -46,6 +46,11 @@ export const QUEUE = {
    * — must stay in sync: `'pusula-compaction'`.
    */
   compaction: 'pusula-compaction',
+  /**
+   * Faz 6.5B (DEM-105) — rebuilds the denormalized PostgreSQL FTS read model
+   * (`search_documents`) for a board/workspace scope.
+   */
+  searchReindex: 'pusula-search-reindex',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -72,6 +77,7 @@ export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
 });
 export const scheduledQueue = new Queue(QUEUE.scheduled, { connection, defaultJobOptions });
 export const compactionQueue = new Queue(QUEUE.compaction, { connection, defaultJobOptions });
+export const searchReindexQueue = new Queue(QUEUE.searchReindex, { connection, defaultJobOptions });
 
 export const allQueues = [
   notificationsQueue,
@@ -80,4 +86,5 @@ export const allQueues = [
   realtimePublishQueue,
   scheduledQueue,
   compactionQueue,
+  searchReindexQueue,
 ];
