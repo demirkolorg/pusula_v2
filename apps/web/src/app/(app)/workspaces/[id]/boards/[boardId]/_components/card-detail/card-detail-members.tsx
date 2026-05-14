@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pusula/ui';
+import { InfoTooltipButton } from '@/components/info-tooltip-button';
 import { cardRoleLabels, strings } from '@/lib/strings';
 
 export type CardMember = { userId: string; role: CardRole; name: string | null };
@@ -78,7 +79,10 @@ export function CardDetailMembers({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-muted-foreground text-sm font-medium">{copy.title}</h3>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-muted-foreground text-sm font-medium">{copy.title}</h3>
+          <InfoTooltipButton label={copy.infoLabel} content={copy.info} />
+        </div>
         <div className="flex gap-2">
           {!canEdit && (
             <Button

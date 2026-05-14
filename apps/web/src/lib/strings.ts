@@ -301,6 +301,9 @@ export const strings = {
   members: {
     sectionTitle: 'Üyeler',
     sectionDescription: 'Workspace üyelerini görüntüleyin; rollerini değiştirin veya çıkarın.',
+    roleInfoLabel: 'Workspace rol bilgisi',
+    roleInfo:
+      'Workspace rolü genel erişimi belirler. Sahip ve Yönetici üyeleri yönetir; Üye panolarda çalışabilir; Misafir yalnızca davet edildiği panolara erişir.',
     loading: 'Üyeler yükleniyor…',
     loadErrorTitle: 'Üyeler yüklenemedi',
     empty: 'Üye yok.',
@@ -358,6 +361,9 @@ export const strings = {
       backgroundDescription: 'Pano zemini için ortak gradient veya düz renk seçin.',
       membersTitle: 'Üyeler',
       membersDescription: 'Bu board’un üyelerini görüntüleyin; rollerini değiştirin veya çıkarın.',
+      membersInfoLabel: 'Pano rol bilgisi',
+      membersInfo:
+        'Panoda açık rol varsa o kullanılır. Yoksa workspace Sahip/Yönetici panoda Yönetici, workspace Üye panoda Üye sayılır. Misafir yalnızca açıkça eklendiği panoya girer.',
       membersLoading: 'Üyeler yükleniyor…',
       membersLoadErrorTitle: 'Üyeler yüklenemedi',
       membersEmpty: 'Bu board’da üye yok.',
@@ -389,12 +395,18 @@ export const strings = {
       invitedNotice: 'e-posta adresine davet gönderildi.',
       sentInvitationsTitle: 'Gönderilmiş davetler',
       sentInvitationsDescription: 'Yeni üye davet edin ve bekleyen davetleri yönetin.',
+      invitationsInfoLabel: 'Pano davet bilgisi',
+      invitationsInfo:
+        'Pano daveti kabul edilince kişi workspace üyesi değilse önce Misafir yapılır, sonra bu panoya seçilen rolle eklenir.',
       pendingInvitationsTitle: 'Bekleyen davetler',
       invitationsLoadErrorTitle: 'Davetler yüklenemedi',
       noSentInvitations: 'Bekleyen davet yok.',
       accessRequestsTitle: 'Erişim talepleri',
       accessRequestsDescription:
         'Board linkinden erişim isteyen kullanıcıları onaylayın veya reddedin.',
+      accessRequestsInfoLabel: 'Pano erişim talebi bilgisi',
+      accessRequestsInfo:
+        'Paylaşılan pano linkinden gelen talepler yalnızca bu pano içindir. Onaylanırsa kullanıcı gerekirse workspace Misafir’i olur ve seçilen pano rolünü alır.',
       accessRequestsLoading: 'Erişim talepleri yükleniyor…',
       accessRequestsLoadErrorTitle: 'Erişim talepleri yüklenemedi',
       noAccessRequests: 'Bekleyen erişim talebi yok.',
@@ -849,6 +861,9 @@ export const strings = {
     },
     members: {
       title: 'Üyeler',
+      infoLabel: 'Kart üyesi bilgisi',
+      info:
+        'Sorumlu ve İzleyen kart ilişkileridir, erişim yetkisi vermez. Karta eklenen kişi panoyu zaten görebiliyor olmalıdır.',
       empty: 'Bu kartta üye yok.',
       addAction: 'Üye ekle',
       memberLabel: 'Üye',

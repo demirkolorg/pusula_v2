@@ -30,6 +30,7 @@ import {
   TabsTrigger,
   cn,
 } from '@pusula/ui';
+import { InfoTooltipButton } from '@/components/info-tooltip-button';
 import { strings } from '@/lib/strings';
 import { BoardAccessRequestsSection } from './board-access-requests-section';
 import { BoardInvitationsSection } from './board-invitations-section';
@@ -71,19 +72,24 @@ function SettingsPanel({
   icon,
   title,
   description,
+  info,
   children,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
+  info?: { label: string; content: string };
   children: ReactNode;
 }) {
   return (
     <section className="space-y-3">
       <div className="space-y-1.5">
-        <SectionHeader icon={icon} className="mb-0">
-          {title}
-        </SectionHeader>
+        <div className="flex items-center gap-1.5">
+          <SectionHeader icon={icon} className="mb-0">
+            {title}
+          </SectionHeader>
+          {info && <InfoTooltipButton label={info.label} content={info.content} />}
+        </div>
         <p className="text-muted-foreground text-sm">{description}</p>
       </div>
       {children}
@@ -179,6 +185,7 @@ export function BoardSettingsDropdown({
               icon={<UsersIcon className="size-3.5" />}
               title={settingsCopy.membersTitle}
               description={settingsCopy.membersDescription}
+              info={{ label: settingsCopy.membersInfoLabel, content: settingsCopy.membersInfo }}
             >
               <BoardMembersSection
                 boardId={boardId}
@@ -193,6 +200,10 @@ export function BoardSettingsDropdown({
               icon={<MailIcon className="size-3.5" />}
               title={settingsCopy.sentInvitationsTitle}
               description={settingsCopy.sentInvitationsDescription}
+              info={{
+                label: settingsCopy.invitationsInfoLabel,
+                content: settingsCopy.invitationsInfo,
+              }}
             >
               <BoardInvitationsSection boardId={boardId} canManage={canManage} />
             </SettingsPanel>
@@ -203,6 +214,10 @@ export function BoardSettingsDropdown({
               icon={<KeyRoundIcon className="size-3.5" />}
               title={settingsCopy.accessRequestsTitle}
               description={settingsCopy.accessRequestsDescription}
+              info={{
+                label: settingsCopy.accessRequestsInfoLabel,
+                content: settingsCopy.accessRequestsInfo,
+              }}
             >
               <BoardAccessRequestsSection boardId={boardId} canManage={canManage} />
             </SettingsPanel>

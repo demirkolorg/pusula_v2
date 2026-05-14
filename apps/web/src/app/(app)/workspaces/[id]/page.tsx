@@ -18,6 +18,7 @@ import {
 } from '@pusula/ui';
 import { workspaceRoleAtLeast } from '@pusula/domain';
 import { AppSpinner } from '@/components/app-spinner';
+import { InfoTooltipButton } from '@/components/info-tooltip-button';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberDialog } from '../../_components/invite-member-dialog';
@@ -124,7 +125,13 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div className="space-y-1">
-            <CardTitle>{strings.members.sectionTitle}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              {strings.members.sectionTitle}
+              <InfoTooltipButton
+                label={strings.members.roleInfoLabel}
+                content={strings.members.roleInfo}
+              />
+            </CardTitle>
             <CardDescription>{strings.members.sectionDescription}</CardDescription>
           </div>
         </CardHeader>

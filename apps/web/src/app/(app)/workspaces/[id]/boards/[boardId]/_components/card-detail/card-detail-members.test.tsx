@@ -24,6 +24,7 @@ describe('<CardDetailMembers>', () => {
       />,
     );
     expect(screen.getByText(copy.empty)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kart üyesi bilgisi' })).toBeInTheDocument();
 
     const members: CardMember[] = [{ userId: 'u2', name: 'Bora', role: 'assignee' }];
     rerender(
