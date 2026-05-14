@@ -7,10 +7,11 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   MoreHorizontalIcon,
+  PaletteIcon,
   PencilIcon,
   PlusIcon,
 } from 'lucide-react';
-import { listTitleSchema } from '@pusula/domain';
+import { LIST_COLORS, listTitleSchema, type ListColor } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
@@ -26,6 +27,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
   cn,
@@ -42,12 +46,14 @@ import { useTRPC } from '@/trpc/client';
 import { AddCardForm } from './add-card-form';
 import { useBoardDndContext } from './board-dnd-context';
 import { CardItem, type BoardCard } from './card-item';
+import { ListColorPicker } from './list-color-picker';
 import type { CardDropPlaceholder } from './use-board-dnd';
 
 export type BoardList = {
   id: string;
   title: string;
   position: string;
+  color: string | null;
   archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -82,6 +88,38 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
   );
 }
 
+const LIST_COLOR_SET = new Set<string>(LIST_COLORS);
+
+const COLUMN_BG: Record<ListColor, string> = {
+  yesil: 'bg-palet-yesil',
+  sari: 'bg-palet-sari',
+  turuncu: 'bg-palet-turuncu',
+  kirmizi: 'bg-palet-kirmizi',
+  mor: 'bg-palet-mor',
+  mavi: 'bg-palet-mavi',
+  sky: 'bg-palet-sky',
+  lime: 'bg-palet-lime',
+  pembe: 'bg-palet-pembe',
+  gri: 'bg-palet-gri',
+};
+
+const COLUMN_FG: Record<ListColor, string> = {
+  yesil: 'text-palet-yesil-foreground',
+  sari: 'text-palet-sari-foreground',
+  turuncu: 'text-palet-turuncu-foreground',
+  kirmizi: 'text-palet-kirmizi-foreground',
+  mor: 'text-palet-mor-foreground',
+  mavi: 'text-palet-mavi-foreground',
+  sky: 'text-palet-sky-foreground',
+  lime: 'text-palet-lime-foreground',
+  pembe: 'text-palet-pembe-foreground',
+  gri: 'text-palet-gri-foreground',
+};
+
+function asListColor(color: string | null): ListColor | null {
+  return color != null && LIST_COLOR_SET.has(color) ? (color as ListColor) : null;
+}
+
 /**
  * Fixed-width board column for a single list: a header (drag handle + title +
  * card count + a "⋮" menu — rename / archive / restore, and — when there's a
@@ -103,6 +141,7 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
   const dnd = useBoardDndContext();
 
   const listArchived = list.archivedAt != null;
+  const listColor = asListColor(list.color);
   // An archived list never accepts mutations, even if the viewer could otherwise edit.
   const listEditable = canEdit && !listArchived;
 
@@ -243,13 +282,19 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
       ref={columnRef}
       className={cn(
         'relative flex max-h-full w-72 shrink-0 flex-col rounded-lg border transition-opacity',
-        listArchived ? 'border-dashed bg-muted/20' : 'bg-muted/30',
+        listArchived && 'border-dashed',
+        listColor === null ? 'bg-muted/30' : COLUMN_BG[listColor],
         columnDragging && 'opacity-0',
       )}
       data-dragging={columnDragging ? '' : undefined}
       aria-label={list.title}
     >
-      <header className="flex shrink-0 items-center justify-between gap-1 p-2">
+      <header
+        className={cn(
+          'flex shrink-0 items-center justify-between gap-1 p-2',
+          listColor === null ? 'text-foreground' : COLUMN_FG[listColor],
+        )}
+      >
         {renaming ? (
           <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
             <Input
@@ -299,13 +344,22 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
               aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
             >
               {listArchived && (
-                <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                <ArchiveIcon
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    listColor === null ? 'text-muted-foreground' : 'text-current/70',
+                  )}
+                  aria-hidden
+                />
               )}
               {listEditable ? (
                 <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
                   <button
                     type="button"
-                    className="block min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className={cn(
+                      'block min-w-0 max-w-full truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                      listColor === null ? 'hover:bg-muted/60' : 'hover:bg-background/15',
+                    )}
                     onClick={startRenaming}
                   >
                     {list.title}
@@ -314,7 +368,12 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
               ) : (
                 <h2 className="truncate text-sm font-semibold">{list.title}</h2>
               )}
-              <span className="text-muted-foreground shrink-0 text-xs">
+              <span
+                className={cn(
+                  'shrink-0 text-xs',
+                  listColor === null ? 'text-muted-foreground' : 'text-current/70',
+                )}
+              >
                 {cards.length} {columnCopy.cardCount}
               </span>
             </div>
@@ -333,10 +392,21 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {!listArchived && (
-                    <DropdownMenuItem onSelect={startRenaming}>
-                      <PencilIcon />
-                      {columnCopy.menuRename}
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem onSelect={startRenaming}>
+                        <PencilIcon />
+                        {columnCopy.menuRename}
+                      </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <PaletteIcon />
+                          {strings.board.list.colorPicker.title}
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="p-2">
+                          <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </>
                   )}
                   {(canMoveLeft || canMoveRight) && (
                     <>
@@ -427,7 +497,12 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
               variant="ghost"
               size="sm"
               onClick={() => setAddingCard(true)}
-              className="h-8 w-full justify-start text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={cn(
+                'h-8 w-full justify-start',
+                listColor === null
+                  ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-current/70 hover:bg-background/15 hover:text-current',
+              )}
             >
               <PlusIcon className="size-4" />
               {cardCopy.addCard}

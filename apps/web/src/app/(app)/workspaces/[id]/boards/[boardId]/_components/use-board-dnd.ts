@@ -157,7 +157,7 @@ function renderLiftedPreview({
       ? 'none'
       : '0 18px 36px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.12)';
   clone.style.borderColor = 'rgba(15, 23, 42, 0.18)';
-  clone.style.background = 'hsl(var(--card))';
+  if (kind === 'card') clone.style.background = 'hsl(var(--card))';
 
   for (const interactive of clone.querySelectorAll('button, input, textarea, [role="button"]')) {
     if (interactive instanceof HTMLElement) interactive.style.pointerEvents = 'none';
