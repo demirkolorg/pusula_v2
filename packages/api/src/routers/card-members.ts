@@ -31,7 +31,7 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — card.members procedure'leri)
  * and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { and, eq, sql } from '@pusula/db';
+import { and, eq } from '@pusula/db';
 import { activityEvents, boardMembers, boards, cardMembers, users, workspaceMembers } from '@pusula/db';
 import {
   addCardMemberInput,
@@ -47,6 +47,11 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 export const cardMembersRouter = router({
@@ -86,6 +91,7 @@ export const cardMembersRouter = router({
     }
 
     let notificationEventId: string | undefined;
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -125,6 +131,11 @@ export const cardMembersRouter = router({
       if (!candidateRole) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: "Bu kişinin board'a erişimi yok." });
       }
+      const [candidateUser] = await tx
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
 
       const inserted = await tx
         .insert(cardMembers)
@@ -148,10 +159,22 @@ export const cardMembersRouter = router({
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.member_added',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          cardId: ctx.card.id,
+          userId: input.userId,
+          role: input.role,
+          member: { userId: input.userId, role: input.role, name: candidateUser?.name ?? null },
+        },
+      });
 
       // Faz 6A (DEM-90) — fan out the notification outbox rows for this
       // activity event inside the same tx (so a rollback also drops them).
@@ -169,6 +192,7 @@ export const cardMembersRouter = router({
       return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: true as const };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
 
@@ -187,7 +211,8 @@ export const cardMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Karttan üye çıkarma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -223,12 +248,21 @@ export const cardMembersRouter = router({
         payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.member_removed',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+      });
 
       return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 });

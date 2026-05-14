@@ -134,9 +134,8 @@ function mapEventToNotificationType(
       return 'card_assigned';
     case 'comment.created':
       return 'comment_reply';
-    // `comment.mentioned` lands in Faz 6C (DEM-92) — once the mention parser
-    // is in, it appends a new activity type and that branch picks `'mention'`.
-    // Faz 6A stops at `comment.created` (watchers).
+    case 'comment.mentioned':
+      return 'mention';
     case 'card.due_set':
     case 'card.due_cleared':
     case 'card.completed':
@@ -214,6 +213,11 @@ async function collectRecipients(
       // below.
       for (const userId of ctx.cardMemberIds) candidates.add(userId);
       break;
+    case 'comment.mentioned': {
+      const userId = stringField(event.payload, 'mentionedUserId');
+      if (userId) candidates.add(userId);
+      break;
+    }
     case 'board.member_added': {
       const userId = stringField(event.payload, 'userId');
       if (userId) candidates.add(userId);
@@ -442,6 +446,8 @@ function buildPayload(
   // that don't belong in a user-facing notification.
   for (const key of [
     'commentId',
+    'mentionedUserId',
+    'mentionText',
     'checklistId',
     'itemId',
     'fromListId',

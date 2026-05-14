@@ -62,6 +62,11 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 /** True if `err` (or its cause) is a Postgres unique-constraint violation (SQLSTATE 23505). */
@@ -177,6 +182,7 @@ export const boardMembersRouter = router({
     const email = input.email; // already trimmed + lowercased by `emailSchema`
 
     let notificationEventId: string | undefined;
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ id: boards.id, title: boards.title, archivedAt: boards.archivedAt })
@@ -190,11 +196,10 @@ export const boardMembersRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
       }
 
-      const bumpVersion = () =>
-        tx.update(boards).set({ version: sql`${boards.version} + 1` }).where(eq(boards.id, ctx.board.id));
+      const bumpVersion = () => bumpBoardVersionForRealtime(tx, ctx.board.id);
 
       const [existingUser] = await tx
-        .select({ id: users.id })
+        .select({ id: users.id, name: users.name })
         .from(users)
         .where(sql`lower(${users.email}) = ${email}`)
         .limit(1);
@@ -278,7 +283,20 @@ export const boardMembersRouter = router({
         });
         if (addedDispatched.inserted > 0) notificationEventId = addedActivity.id;
 
-        await bumpVersion();
+        const seq = await bumpVersion();
+        realtimeEventId = await insertRealtimeEvent(tx, {
+          type: 'board.member_added',
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          clientMutationId: ctx.clientMutationId,
+          seq,
+          data: {
+            userId: existingUser.id,
+            role: input.role,
+            member: { userId: existingUser.id, role: input.role, name: existingUser.name, inherited: false },
+          },
+        });
 
         return {
           kind: (addedAsGuest ? 'added_as_guest' : 'added') as 'added' | 'added_as_guest',
@@ -354,7 +372,16 @@ export const boardMembersRouter = router({
         },
       });
 
-      await bumpVersion();
+      const seq = await bumpVersion();
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.member_invited',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { invitationId: invitation.id, email, role: input.role },
+      });
       // (b)-branch outbox row above (`channel: 'email'`) gets handed to the
       // worker by the same `enqueueNotificationPublish` hook the (a)-branch
       // uses — surface its event id so the producer below picks it up.
@@ -363,6 +390,7 @@ export const boardMembersRouter = router({
       return { kind: 'invited' as const, email, role: input.role };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
 
@@ -380,7 +408,8 @@ export const boardMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Üye rolünü değiştirme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -428,13 +457,21 @@ export const boardMembersRouter = router({
         payload: { userId: input.userId, fromRole: member.role, toRole: input.role },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.member_role_changed',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { userId: input.userId, oldRole: member.role, newRole: input.role },
+      });
 
       return { userId: input.userId, role: input.role, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -453,7 +490,8 @@ export const boardMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Board üyesi çıkarma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -494,12 +532,20 @@ export const boardMembersRouter = router({
         payload: { userId: input.userId, removedRole: member.role, self: isSelf },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.member_removed',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { userId: input.userId, role: member.role },
+      });
 
       return { userId: input.userId, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 });

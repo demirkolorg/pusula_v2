@@ -87,6 +87,9 @@ export const ACTIVITY_EVENT_TYPES = [
   'card.uncompleted',
   'card.cover_changed',
   'card.cover_cleared',
+  // Phase 6C (DEM-92) — mention parser emits one activity per valid user
+  // mention in a comment. Appended to keep the Postgres enum append-only.
+  'comment.mentioned',
 ] as const;
 
 /**

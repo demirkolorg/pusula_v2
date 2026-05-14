@@ -308,6 +308,9 @@ importers:
       '@trpc/server':
         specifier: ^11.17.0
         version: 11.17.0(typescript@5.9.3)
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)
       superjson:
         specifier: ^2.2.6
         version: 2.2.6

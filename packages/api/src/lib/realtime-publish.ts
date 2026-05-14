@@ -23,11 +23,12 @@
  * See `docs/architecture/05-board-mekanigi.md` §5.3 and
  * `docs/architecture/06-bildirim-altyapisi.md` "Realtime event yayın katmanı (Faz 5)".
  */
-import { realtimeEvents } from '@pusula/db';
+import { boards, eq, realtimeEvents, sql } from '@pusula/db';
 import type { Database } from '@pusula/db';
 
 /** The minimal transaction-or-db handle the helper needs. */
-type Tx = Pick<Database, 'insert'>;
+type InsertTx = Pick<Database, 'insert'>;
+type UpdateTx = Pick<Database, 'update'>;
 
 /** Host-supplied, best-effort enqueue hook (Redis errors must be swallowed by the host). */
 export type EnqueueRealtimePublish = (args: { eventId: string }) => void | Promise<void>;
@@ -65,7 +66,7 @@ export interface InsertRealtimeEventInput<TData = unknown> {
  * downstream queries don't have to coalesce `undefined`.
  */
 export async function insertRealtimeEvent<TData>(
-  tx: Tx,
+  tx: InsertTx,
   input: InsertRealtimeEventInput<TData>,
 ): Promise<string> {
   const envelope: RealtimePayloadEnvelope<TData> = { seq: input.seq, data: input.data };
@@ -83,6 +84,16 @@ export async function insertRealtimeEvent<TData>(
     .returning({ id: realtimeEvents.id });
   if (!row) throw new Error('realtime_events insert returned no row');
   return row.id;
+}
+
+/** Bump `boards.version` and return the fresh value for envelope `seq`. */
+export async function bumpBoardVersionForRealtime(tx: UpdateTx, boardId: string): Promise<number> {
+  const [row] = await tx
+    .update(boards)
+    .set({ version: sql`${boards.version} + 1` })
+    .where(eq(boards.id, boardId))
+    .returning({ version: boards.version });
+  return row?.version ?? 0;
 }
 
 /** Minimal slice of the tRPC context this helper needs. */
@@ -103,4 +114,9 @@ export function maybeEnqueueRealtimePublish(
   if (!eventId) return;
   if (!ctx.enqueueRealtimePublish) return;
   void ctx.enqueueRealtimePublish({ eventId });
+}
+
+/** Best-effort enqueue for mutations that create multiple realtime rows. */
+export function maybeEnqueueRealtimePublishes(ctx: CtxWithEnqueue, eventIds: readonly string[]): void {
+  for (const eventId of eventIds) maybeEnqueueRealtimePublish(ctx, eventId);
 }

@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
 
@@ -200,6 +200,8 @@ Mutation tx commit'inden sonra **emit edilen** in-process Socket.IO çağrısı 
 Bu pattern Faz 6 `notification_outbox` ile birebir simetrik. Replay garantisi: enqueue başarısız olsa bile satır DB'de durur; periyodik "stale outbox sweeper" job (sonraki tur) `published_at IS NULL AND created_at < now() - 30s` satırları yeniden enqueue eder.
 
 Realtime kullanım seviyesi: kart/liste taşıma → evet; kart başlığı/açıklaması/due/cover → evet; kart archive/complete → evet; board create/update/archive → evet; yorum → Faz 6 (notification badge ile birlikte); presence → Faz 6/7; push (Expo) → hayır; email (Resend) → hayır.
+
+> **Wired — Faz 6C ([DEM-92](https://linear.app/demirkol/issue/DEM-92), 2026-05-14):** Faz 5B outbox pattern'i comment/checklist/card-label/card-member/board-label/board-member/board-invitation mutation'larına genişledi. Her `realtime_events` insert'i için `boards.version` artar; web dispatcher `apps/web/src/lib/realtime/event-handlers.ts` yeni `comment.*`, `checklist.*`, `card.label_*`, `card.member_*`, `board.label_*`, `board.member_*` ve `board.invitation_*` event tiplerini ilgili `comment.list`, `checklist.list`, card label/member ve board label/member cache'lerine uygular.
 
 ### Room modeli
 
