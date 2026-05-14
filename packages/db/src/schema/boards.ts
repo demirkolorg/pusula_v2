@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { workspaces } from './workspaces';
 import { boardRoleEnum, invitationStatusEnum } from './enums';
@@ -33,7 +42,10 @@ export const boardMembers = pgTable(
     role: boardRoleEnum().notNull().default('member'),
     ...timestamps,
   },
-  (t) => [primaryKey({ columns: [t.boardId, t.userId] }), index('board_members_user_idx').on(t.userId)],
+  (t) => [
+    primaryKey({ columns: [t.boardId, t.userId] }),
+    index('board_members_user_idx').on(t.userId),
+  ],
 );
 
 /**
@@ -81,6 +93,42 @@ export const boardInvitations = pgTable(
   ],
 );
 
+/**
+ * Board-scoped access requests created from a shared board link. This is not an
+ * invitation: the requester initiates it, and a board admin later approves it.
+ * Approval provisions workspace `guest` membership when needed, then creates the
+ * selected board membership in one transaction. At most one pending request per
+ * (board, requester) is allowed; rejected users can request again later.
+ */
+export const boardAccessRequests = pgTable(
+  'board_access_requests',
+  {
+    id: primaryId(),
+    boardId: text()
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    requesterId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: text().notNull().default('pending'),
+    message: text(),
+    resolvedById: text().references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index('board_access_requests_board_status_idx').on(t.boardId, t.status),
+    index('board_access_requests_requester_idx').on(t.requesterId),
+    uniqueIndex('board_access_requests_pending_uq')
+      .on(t.boardId, t.requesterId)
+      .where(sql`${t.status} = 'pending'`),
+    check(
+      'board_access_requests_status_check',
+      sql`${t.status} IN ('pending', 'approved', 'rejected')`,
+    ),
+  ],
+);
+
 export const labels = pgTable(
   'labels',
   {
@@ -104,4 +152,6 @@ export type NewBoard = typeof boards.$inferInsert;
 export type BoardMember = typeof boardMembers.$inferSelect;
 export type BoardInvitation = typeof boardInvitations.$inferSelect;
 export type NewBoardInvitation = typeof boardInvitations.$inferInsert;
+export type BoardAccessRequest = typeof boardAccessRequests.$inferSelect;
+export type NewBoardAccessRequest = typeof boardAccessRequests.$inferInsert;
 export type Label = typeof labels.$inferSelect;

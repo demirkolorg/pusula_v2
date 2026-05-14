@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MailIcon, TagsIcon, UsersIcon } from 'lucide-react';
+import { KeyRoundIcon, MailIcon, TagsIcon, UsersIcon } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -13,6 +13,7 @@ import {
   SectionHeader,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+import { BoardAccessRequestsSection } from './board-access-requests-section';
 import { BoardLabelsSection } from './board-labels-section';
 import { BoardMembersSection } from './board-members-section';
 import { BoardSentInvitations } from './board-sent-invitations';
@@ -90,21 +91,19 @@ export function BoardSettingsDialog({
 
         <div className="space-y-8">
           <section className="space-y-2">
-            <SectionHeader
-              icon={<UsersIcon className="size-3.5" />}
-              className="mb-0"
-            >
+            <SectionHeader icon={<UsersIcon className="size-3.5" />} className="mb-0">
               {copy.membersTitle}
             </SectionHeader>
             <p className="text-muted-foreground text-sm">{copy.membersDescription}</p>
-            <BoardMembersSection boardId={boardId} workspaceId={workspaceId} canManage={canManage} />
+            <BoardMembersSection
+              boardId={boardId}
+              workspaceId={workspaceId}
+              canManage={canManage}
+            />
           </section>
 
           <section className="space-y-2">
-            <SectionHeader
-              icon={<MailIcon className="size-3.5" />}
-              className="mb-0"
-            >
+            <SectionHeader icon={<MailIcon className="size-3.5" />} className="mb-0">
               {copy.sentInvitationsTitle}
             </SectionHeader>
             <p className="text-muted-foreground text-sm">{copy.sentInvitationsDescription}</p>
@@ -112,10 +111,15 @@ export function BoardSettingsDialog({
           </section>
 
           <section className="space-y-2">
-            <SectionHeader
-              icon={<TagsIcon className="size-3.5" />}
-              className="mb-0"
-            >
+            <SectionHeader icon={<KeyRoundIcon className="size-3.5" />} className="mb-0">
+              {copy.accessRequestsTitle}
+            </SectionHeader>
+            <p className="text-muted-foreground text-sm">{copy.accessRequestsDescription}</p>
+            <BoardAccessRequestsSection boardId={boardId} canManage={canManage} />
+          </section>
+
+          <section className="space-y-2">
+            <SectionHeader icon={<TagsIcon className="size-3.5" />} className="mb-0">
               {copy.labelsTitle}
             </SectionHeader>
             <p className="text-muted-foreground text-sm">{copy.labelsDescription}</p>

@@ -92,6 +92,13 @@
       "when": 1778747687843,
       "tag": "0012_silent_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778765179458,
+      "tag": "0013_curvy_skin",
+      "breakpoints": true
     }
   ]
 }

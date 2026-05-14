@@ -46,7 +46,14 @@ export interface UseBoardRealtimeResult {
   connected: boolean;
 }
 
-export function useBoardRealtime(boardId: string): UseBoardRealtimeResult {
+type UseBoardRealtimeOptions = {
+  enabled?: boolean;
+};
+
+export function useBoardRealtime(
+  boardId: string,
+  { enabled = true }: UseBoardRealtimeOptions = {},
+): UseBoardRealtimeResult {
   const queryClient = useQueryClient();
   // `useBoardCacheKeys` returns a fresh `{ board, boards, card }` reference every
   // render (its memo depends on `useTRPC()` which is recreated each render in
@@ -58,9 +65,14 @@ export function useBoardRealtime(boardId: string): UseBoardRealtimeResult {
   const cacheKeysRef = useRef(cacheKeys);
   cacheKeysRef.current = cacheKeys;
   const socket = getRealtimeSocket();
-  const [connected, setConnected] = useState<boolean>(() => socket.connected);
+  const [connected, setConnected] = useState<boolean>(() => (enabled ? socket.connected : true));
 
   useEffect(() => {
+    if (!enabled) {
+      setConnected(true);
+      return;
+    }
+
     const getBoardFilter = () => cacheKeysRef.current.board(boardId);
     const filters: RealtimeFilters = {
       get board() {
@@ -83,10 +95,7 @@ export function useBoardRealtime(boardId: string): UseBoardRealtimeResult {
 
     const handleEvent = (envelope: RealtimeEventEnvelope): void => {
       // Echo: our own optimistic mutation's server-side acknowledgement.
-      if (
-        envelope.clientMutationId &&
-        hasInFlightClientMutationId(envelope.clientMutationId)
-      ) {
+      if (envelope.clientMutationId && hasInFlightClientMutationId(envelope.clientMutationId)) {
         return;
       }
 
@@ -157,7 +166,7 @@ export function useBoardRealtime(boardId: string): UseBoardRealtimeResult {
       socket.off('disconnect', handleDisconnect);
       if (joined) socket.emit('board:leave', { boardId });
     };
-  }, [boardId, queryClient, socket]);
+  }, [boardId, enabled, queryClient, socket]);
 
   return { connected };
 }

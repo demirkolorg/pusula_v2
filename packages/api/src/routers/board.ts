@@ -39,6 +39,7 @@ import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtim
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
+import { boardAccessRequestsRouter } from './board-access-requests';
 import { boardInvitationsRouter } from './board-invitations';
 import { boardMembersRouter } from './board-members';
 
@@ -180,7 +181,11 @@ export const boardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: "Bu board'a erişiminiz yok." });
     }
 
-    const [board] = await ctx.db.select(boardCols).from(boards).where(eq(boards.id, ctx.board.id)).limit(1);
+    const [board] = await ctx.db
+      .select(boardCols)
+      .from(boards)
+      .where(eq(boards.id, ctx.board.id))
+      .limit(1);
     if (!board) {
       // The middleware already loaded it; a race could still delete it.
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
@@ -339,7 +344,10 @@ export const boardRouter = router({
    */
   update: boardProcedure.input(updateBoardInput).mutation(async ({ ctx, input }) => {
     if (!canManageBoard(accessFromBoardRole(ctx.board.role))) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Board ayarlarını değiştirme yetkiniz yok.' });
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Board ayarlarını değiştirme yetkiniz yok.',
+      });
     }
     if (input.title === undefined) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
@@ -347,7 +355,11 @@ export const boardRouter = router({
 
     let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
-      const [current] = await tx.select(boardCols).from(boards).where(eq(boards.id, ctx.board.id)).limit(1);
+      const [current] = await tx
+        .select(boardCols)
+        .from(boards)
+        .where(eq(boards.id, ctx.board.id))
+        .limit(1);
       if (!current) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
@@ -370,7 +382,11 @@ export const boardRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'board.renamed',
-        payload: { fromTitle: current.title, toTitle: input.title, clientMutationId: ctx.clientMutationId },
+        payload: {
+          fromTitle: current.title,
+          toTitle: input.title,
+          clientMutationId: ctx.clientMutationId,
+        },
       });
 
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -462,4 +478,5 @@ export const boardRouter = router({
   // Phase 2.5C (DEM-52) — board member management + token-based board invitations.
   members: boardMembersRouter,
   invitations: boardInvitationsRouter,
+  accessRequests: boardAccessRequestsRouter,
 });

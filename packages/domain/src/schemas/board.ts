@@ -81,6 +81,39 @@ export const declineBoardInvitationInput = z.object({
   ...withClientMutationId,
 });
 
+// --------------------------------------------------------------------------
+// DEM-102 — board link access request flow. Requests are board-scoped only:
+// the board link is the trigger surface, and approval provisions workspace
+// `guest` membership automatically when the requester is not yet in the
+// workspace. Admin approval chooses only the board role (`member` / `viewer`).
+// --------------------------------------------------------------------------
+
+export const boardAccessRequestMessageSchema = z.string().trim().max(500).optional();
+export const approvableBoardAccessRoleSchema = z.enum(['member', 'viewer']);
+
+export const boardAccessContextInput = z.object({ boardId: idSchema });
+
+export const requestBoardAccessInput = z.object({
+  boardId: idSchema,
+  message: boardAccessRequestMessageSchema,
+  ...withClientMutationId,
+});
+
+export const listBoardAccessRequestsInput = z.object({ boardId: idSchema });
+
+export const approveBoardAccessRequestInput = z.object({
+  boardId: idSchema,
+  requestId: idSchema,
+  role: approvableBoardAccessRoleSchema.default('member'),
+  ...withClientMutationId,
+});
+
+export const rejectBoardAccessRequestInput = z.object({
+  boardId: idSchema,
+  requestId: idSchema,
+  ...withClientMutationId,
+});
+
 export type CreateBoardInput = z.infer<typeof createBoardInput>;
 export type UpdateBoardInput = z.infer<typeof updateBoardInput>;
 export type ArchiveBoardInput = z.infer<typeof archiveBoardInput>;
@@ -92,3 +125,8 @@ export type ListBoardInvitationsInput = z.infer<typeof listBoardInvitationsInput
 export type RevokeBoardInvitationInput = z.infer<typeof revokeBoardInvitationInput>;
 export type AcceptBoardInvitationInput = z.infer<typeof acceptBoardInvitationInput>;
 export type DeclineBoardInvitationInput = z.infer<typeof declineBoardInvitationInput>;
+export type BoardAccessContextInput = z.infer<typeof boardAccessContextInput>;
+export type RequestBoardAccessInput = z.infer<typeof requestBoardAccessInput>;
+export type ListBoardAccessRequestsInput = z.infer<typeof listBoardAccessRequestsInput>;
+export type ApproveBoardAccessRequestInput = z.infer<typeof approveBoardAccessRequestInput>;
+export type RejectBoardAccessRequestInput = z.infer<typeof rejectBoardAccessRequestInput>;
