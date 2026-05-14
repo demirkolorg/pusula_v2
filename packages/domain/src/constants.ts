@@ -87,6 +87,10 @@ export const ACTIVITY_EVENT_TYPES = [
   'card.uncompleted',
   'card.cover_changed',
   'card.cover_cleared',
+  // Phase 2.7 follow-up #4 (Board background colour — DEM-100). Appended to
+  // keep the Postgres enum append-only. See docs/domain/05-aktivite-kurallari.md.
+  'board.background_changed',
+  'board.background_cleared',
 ] as const;
 
 /**
@@ -155,6 +159,24 @@ export const CARD_COVER_COLORS = [
   'mavi', 'indigo', 'mor', 'pembe', 'gri', 'siyah',
 ] as const;
 export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
+
+/**
+ * Board background gradient presets (DEM-100). Stored as `gradient:<name>` in
+ * `boards.background`; UI mirrors this list in `@pusula/ui` for CSS class maps.
+ */
+export const BOARD_BACKGROUND_GRADIENTS = [
+  'sunset',
+  'ocean',
+  'rainbow',
+  'forest',
+  'lavender',
+  'sunrise',
+  'midnight',
+  'mint',
+  'aurora',
+  'coral',
+] as const;
+export type BoardBackgroundGradient = (typeof BOARD_BACKGROUND_GRADIENTS)[number];
 
 /**
  * Position compaction trigger threshold: if any newly-produced fractional

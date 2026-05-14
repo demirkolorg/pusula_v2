@@ -28,6 +28,7 @@
     "./tabs": "./src/components/tabs.tsx",
     "./rich-text-editor": "./src/components/rich-text-editor.tsx",
     "./sonner": "./src/components/sonner.tsx",
+    "./board-background": "./src/board-background.ts",
     "./lib/utils": "./src/lib/utils.ts",
     "./theme.css": "./src/styles/theme.css"
   },

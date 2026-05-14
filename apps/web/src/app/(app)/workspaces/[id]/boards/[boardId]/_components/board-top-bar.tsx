@@ -38,6 +38,7 @@ type BoardTopBarProps = {
   boardId: string;
   workspaceId: string;
   title: string;
+  background: string | null;
   archived: boolean;
   isBoardAdmin: boolean;
   filter?: BoardFilterMenuContentProps;
@@ -138,6 +139,7 @@ export function BoardTopBar({
   boardId,
   workspaceId,
   title,
+  background,
   archived,
   isBoardAdmin,
   filter,
@@ -225,28 +227,27 @@ export function BoardTopBar({
             {copy.invite}
           </Button>
         )}
-        {isBoardAdmin && (
-          <BoardSettingsDropdown
-            boardId={boardId}
-            workspaceId={workspaceId}
-            canManage
-            boardActive={!archived}
-            archived={archived}
-            open={settingsOpen}
-            activeTab={settingsTab}
-            onOpenChange={setSettingsOpen}
-            onActiveTabChange={setSettingsTab}
-            onRename={startRenamingFromMenu}
-            onArchive={() => setArchiveDialogOpen(true)}
-            onRestore={() =>
-              restoreBoard.mutate({
-                boardId,
-                archived: false,
-              })
-            }
-            restorePending={restoreBoard.isPending}
-          />
-        )}
+        <BoardSettingsDropdown
+          boardId={boardId}
+          workspaceId={workspaceId}
+          currentBackground={background}
+          canManage={isBoardAdmin}
+          boardActive={!archived}
+          archived={archived}
+          open={settingsOpen}
+          activeTab={settingsTab}
+          onOpenChange={setSettingsOpen}
+          onActiveTabChange={setSettingsTab}
+          onRename={startRenamingFromMenu}
+          onArchive={() => setArchiveDialogOpen(true)}
+          onRestore={() =>
+            restoreBoard.mutate({
+              boardId,
+              archived: false,
+            })
+          }
+          restorePending={restoreBoard.isPending}
+        />
       </div>
 
       {isBoardAdmin && (

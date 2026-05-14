@@ -1,4 +1,11 @@
 export { cn } from './lib/utils';
+export {
+  BOARD_BACKGROUND_GRADIENTS,
+  BG_GRADIENT_CLASS,
+  BOARD_SOLID_BACKGROUND_CLASS,
+  boardBackgroundClass,
+  type BoardBackgroundGradient,
+} from './board-background';
 export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Input } from './components/input';
 export { Label } from './components/label';

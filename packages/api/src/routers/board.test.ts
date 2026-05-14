@@ -444,6 +444,122 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(noop.version).toBe(updated.version);
   });
 
+  it('update: board admin sets and clears background with correct activity payload, version bumps and no-op behaviour', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Background Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const setMutationId = crypto.randomUUID();
+    const set = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      background: 'gradient:ocean',
+      clientMutationId: setMutationId,
+    });
+    expect(set).toMatchObject({
+      id: board.id,
+      background: 'gradient:ocean',
+      changed: true,
+      version: board.version + 1,
+    });
+
+    const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
+    expect(shaped.board.background).toBe('gradient:ocean');
+
+    const retry = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      background: 'gradient:ocean',
+      clientMutationId: setMutationId,
+    });
+    expect(retry).toMatchObject({ id: board.id, background: 'gradient:ocean', changed: false });
+    expect(retry.version).toBe(set.version);
+
+    const clear = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      background: null,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(clear).toMatchObject({
+      id: board.id,
+      background: null,
+      changed: true,
+      version: set.version + 1,
+    });
+
+    const clearNoop = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      background: null,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(clearNoop).toMatchObject({ id: board.id, background: null, changed: false });
+    expect(clearNoop.version).toBe(clear.version);
+
+    const acts = await actsFor(board.id);
+    const changed = acts.filter((a) => a.type === 'board.background_changed');
+    const cleared = acts.filter((a) => a.type === 'board.background_cleared');
+    expect(changed).toHaveLength(1);
+    expect(cleared).toHaveLength(1);
+    expect(changed[0]?.payload).toMatchObject({
+      from: null,
+      to: 'gradient:ocean',
+      clientMutationId: setMutationId,
+    });
+    expect(cleared[0]?.payload).toMatchObject({ from: 'gradient:ocean' });
+  });
+
+  it('update: background is admin-only; member and viewer are FORBIDDEN, workspace owner inherited admin can update', async () => {
+    const ownerBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Owner Board Background',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db().insert(boardMembers).values({ boardId: ownerBoard.id, userId: guestId, role: 'viewer' });
+
+    await expect(
+      callerFor(memberId).board.update({
+        boardId: ownerBoard.id,
+        background: 'solid:mavi',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      callerFor(guestId).board.update({
+        boardId: ownerBoard.id,
+        background: 'solid:mavi',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const memberBoard = await callerFor(memberId).board.create({
+      workspaceId,
+      title: 'Member Created Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const inherited = await callerFor(ownerId).board.update({
+      boardId: memberBoard.id,
+      background: 'solid:mavi',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(inherited).toMatchObject({ id: memberBoard.id, background: 'solid:mavi', changed: true });
+  });
+
+  it('update: invalid background format is BAD_REQUEST', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Invalid Background Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await expect(
+      callerFor(ownerId).board.update({
+        boardId: board.id,
+        background: 'gradient:unknown',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   // --------------------------------------------------------------- archive
 
   it('archive: the board admin archives + restores it; idempotent no-op; non-admin is FORBIDDEN; archived board is read-only', async () => {
@@ -537,7 +653,7 @@ describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)'
   const rtEventsFor = (boardId: string) =>
     db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.boardId, boardId));
 
-  it('board.update writes a board.updated realtime event with from/to titles', async () => {
+  it('board.update writes a board.updated realtime event with a title patch', async () => {
     const ownerCaller = callerFor(owner);
     const board = await ownerCaller.board.create({
       workspaceId: wsId,
@@ -558,8 +674,53 @@ describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)'
     const updated = rt.filter((e) => e.type === 'board.updated');
     expect(updated).toHaveLength(1);
     expect(updated[0]!.clientMutationId).toBe(cmid);
-    const data = (updated[0]!.payload as { data: { fromTitle: string; toTitle: string } }).data;
-    expect(data).toEqual({ boardId: board.id, fromTitle: 'Old Title', toTitle: 'New Title' });
+    const data = (updated[0]!.payload as { data: { patch: { title?: string }; fromTitle: string; toTitle: string } }).data;
+    expect(data).toEqual({
+      boardId: board.id,
+      patch: { title: 'New Title' },
+      fromTitle: 'Old Title',
+      toTitle: 'New Title',
+    });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updated[0]!.id });
+  });
+
+  it('board.update writes a board.updated realtime event with a background patch', async () => {
+    const ownerCaller = callerFor(owner);
+    const board = await ownerCaller.board.create({
+      workspaceId: wsId,
+      title: 'Background RT',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+    const r = await realtimeCaller(owner, enqueue).board.update({
+      boardId: board.id,
+      background: 'solid:mavi',
+      clientMutationId: cmid,
+    });
+    expect(r.changed).toBe(true);
+
+    const rt = await rtEventsFor(board.id);
+    const updated = rt.filter((e) => e.type === 'board.updated');
+    expect(updated).toHaveLength(1);
+    expect(updated[0]!.clientMutationId).toBe(cmid);
+    const data = (
+      updated[0]!.payload as {
+        data: {
+          boardId: string;
+          patch: { background?: string | null };
+          fromBackground: string | null;
+          toBackground: string | null;
+        };
+      }
+    ).data;
+    expect(data).toEqual({
+      boardId: board.id,
+      patch: { background: 'solid:mavi' },
+      fromBackground: null,
+      toBackground: 'solid:mavi',
+    });
     expect(enqueue).toHaveBeenCalledWith({ eventId: updated[0]!.id });
   });
 

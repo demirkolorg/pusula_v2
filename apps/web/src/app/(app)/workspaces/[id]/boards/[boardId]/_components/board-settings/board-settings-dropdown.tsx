@@ -5,6 +5,7 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   MailIcon,
+  PaletteIcon,
   PencilIcon,
   Settings2Icon,
   TagsIcon,
@@ -27,14 +28,16 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { BoardInvitationsSection } from './board-invitations-section';
+import { BoardBackgroundPicker } from './background-picker';
 import { BoardLabelsSection } from './board-labels-section';
 import { BoardMembersSection } from './board-members-section';
 
-export type BoardSettingsTab = 'members' | 'invitations' | 'labels' | 'actions';
+export type BoardSettingsTab = 'members' | 'invitations' | 'labels' | 'background' | 'actions';
 
 type BoardSettingsDropdownProps = {
   boardId: string;
   workspaceId: string;
+  currentBackground: string | null;
   canManage: boolean;
   boardActive: boolean;
   archived: boolean;
@@ -73,12 +76,13 @@ function SettingsPanel({
 }
 
 /**
- * Admin-only board management dropdown. Members, invitations, labels, and board
- * lifecycle actions stay under one trigger so top-bar actions are not duplicated.
+ * Board management dropdown. Non-admin users can inspect the background picker,
+ * but mutation controls are disabled by the section-level `canManage` gate.
  */
 export function BoardSettingsDropdown({
   boardId,
   workspaceId,
+  currentBackground,
   canManage,
   boardActive,
   archived,
@@ -124,7 +128,7 @@ export function BoardSettingsDropdown({
           onValueChange={(value) => onActiveTabChange(value as BoardSettingsTab)}
           className="gap-3"
         >
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5">
             <TabsTrigger value="members" className="h-8">
               <UsersIcon className="size-3.5" />
               {settingsCopy.tabMembers}
@@ -136,6 +140,10 @@ export function BoardSettingsDropdown({
             <TabsTrigger value="labels" className="h-8">
               <TagsIcon className="size-3.5" />
               {settingsCopy.tabLabels}
+            </TabsTrigger>
+            <TabsTrigger value="background" className="h-8">
+              <PaletteIcon className="size-3.5" />
+              {settingsCopy.tabBackground}
             </TabsTrigger>
             <TabsTrigger value="actions" className="h-8">
               <WrenchIcon className="size-3.5" />
@@ -177,6 +185,21 @@ export function BoardSettingsDropdown({
             </SettingsPanel>
           </TabsContent>
 
+          <TabsContent value="background" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
+            <SettingsPanel
+              icon={<PaletteIcon className="size-3.5" />}
+              title={strings.board.background.title}
+              description={settingsCopy.backgroundDescription}
+            >
+              <BoardBackgroundPicker
+                boardId={boardId}
+                background={currentBackground}
+                canManage={canManage}
+                boardActive={boardActive}
+              />
+            </SettingsPanel>
+          </TabsContent>
+
           <TabsContent value="actions" className="px-1 pt-1">
             <SettingsPanel
               icon={<WrenchIcon className="size-3.5" />}
@@ -185,18 +208,18 @@ export function BoardSettingsDropdown({
             >
               <DropdownMenuGroup className="space-y-1">
                 {!archived && (
-                  <DropdownMenuItem onSelect={onRename}>
+                  <DropdownMenuItem onSelect={onRename} disabled={!canManage}>
                     <PencilIcon />
                     {topCopy.menuRename}
                   </DropdownMenuItem>
                 )}
                 {archived ? (
-                  <DropdownMenuItem onSelect={onRestore} disabled={restorePending}>
+                  <DropdownMenuItem onSelect={onRestore} disabled={!canManage || restorePending}>
                     <ArchiveRestoreIcon />
                     {topCopy.menuRestore}
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                  <DropdownMenuItem variant="destructive" onSelect={onArchive} disabled={!canManage}>
                     <ArchiveIcon />
                     {topCopy.menuArchive}
                   </DropdownMenuItem>

@@ -3,8 +3,20 @@ import { emailSchema } from './auth';
 import { idSchema, withClientMutationId } from './common';
 import { invitationTokenSchema } from './invitation';
 import { boardRoleSchema } from '../roles';
+import { BOARD_BACKGROUND_GRADIENTS, CARD_COVER_COLORS } from '../constants';
 
 export const boardTitleSchema = z.string().trim().min(1).max(120);
+export const boardBackgroundGradientSchema = z.enum(BOARD_BACKGROUND_GRADIENTS);
+export const boardBackgroundSolidColorSchema = z.enum(CARD_COVER_COLORS);
+
+const boardBackgroundPattern = new RegExp(
+  `^(?:gradient:(?:${BOARD_BACKGROUND_GRADIENTS.join('|')})|solid:(?:${CARD_COVER_COLORS.join('|')}))$`,
+);
+
+export const boardBackgroundSchema = z.union([
+  z.null(),
+  z.string().regex(boardBackgroundPattern),
+]);
 
 export const createBoardInput = z.object({
   workspaceId: idSchema,
@@ -15,6 +27,7 @@ export const createBoardInput = z.object({
 export const updateBoardInput = z.object({
   boardId: idSchema,
   title: boardTitleSchema.optional(),
+  background: boardBackgroundSchema.optional(),
   ...withClientMutationId,
 });
 

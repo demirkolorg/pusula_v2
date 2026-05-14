@@ -116,7 +116,7 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 | `board.list` | `workspaceProcedure` | workspace `member+` | Erişilebilir board'lar (workspace owner/admin tümü; guest yalnızca davetli); her satırda effective board rolü döner |
 | `board.create` | `workspaceProcedure` | workspace `member+` (`guest` hariç) | Oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
 | `board.get` | `boardProcedure` | board `viewer+` | Board + listeler (arşivli dahil, `position` sıralı) + aktif kartlar (`position` sıralı, her kart kendi etiketlerini `cards[].labels` ile taşır — Faz 2.5E) |
-| `board.update` | `boardProcedure` | board `admin` (`canManageBoard`) | Başlık; arşivli board düzenlenemez; idempotent (aynı başlık → `changed:false`); `boards.version` artar |
+| `board.update` | `boardProcedure` | board `admin` (`canManageBoard`) | Başlık ve `background`; arka plan seçimi rename ile aynı kapıdan geçer (admin-only; member/viewer `FORBIDDEN`); arşivli board düzenlenemez; idempotent (aynı başlık/arka plan → `changed:false`); `boards.version` artar |
 | `board.archive` | `boardProcedure` | board `admin` | `archived_at` (set/restore); arşivli board salt-okunur; idempotent; `boards.version` artar |
 | `list.create` | `boardProcedure` | board `member+` (`canEditBoardContent`) | Board sonuna `position` (`@pusula/domain/position` — boş board `firstPosition`, aksi son listenin ardı); arşivli board'a liste eklenemez; `boards.version` artar |
 | `list.update` | `boardProcedure` | board `member+` | Yeniden adlandırma; arşivli board düzenlenemez; idempotent; `boards.version` artar |

@@ -50,7 +50,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 | Token | Light (≈) | Rol |
 | --- | --- | --- |
-| `--background` | `oklch(0.96 0.02 240)` | Board zemini (açık mavi-gri). Board-başına özelleştirilebilir renk/degrade → ileri faz; şimdilik bu token. App-shell/diğer sayfalar `oklch(0.985 0.005 240)` (daha açık). |
+| `--background` | `oklch(0.96 0.02 240)` | Board zemini (açık mavi-gri) ve `boards.background = null` varsayılanı. Board-başına renk/degrade DEM-100 ile `--bg-gradient-*` + `--palet-*` token'larından seçilir. App-shell/diğer sayfalar `oklch(0.985 0.005 240)` (daha açık). |
 | `--card` | `oklch(1 0 0)` | Kart, modal, popover yüzeyi (beyaz) |
 | `--muted` | `oklch(0.97 0.01 240)` | Kolon zemini (`bg-muted/40` ile yarı saydam), modal sağ panel (`bg-muted/40 backdrop-blur`), disabled |
 | `--muted-foreground` | `oklch(0.50 0.02 250)` | İkincil metin, kart metadata, kolon meta |
@@ -134,11 +134,28 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Board zemini & üst bar
 
-- **Zemin:** `bg-background` (açık mavi-gri). İçerik alanı `flex-1 overflow-hidden p-4`. (Board-başına özelleştirilebilir background → ileri faz; şimdilik tek token.)
+- **Zemin:** `bg-background` (açık mavi-gri; varsayılan — `boards.background = null`). İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<paletAd>'`; `null` varsayılan `bg-background` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. Fotoğraf/Unsplash kapsam dışı (MinIO → Faz 8).
+
+  **DEM-100 gradient token listesi ve class haritası (kesin):**
+
+  | Değer | CSS token | Utility class | Türkçe ad |
+  | --- | --- | --- | --- |
+  | `gradient:sunset` | `--bg-gradient-sunset` | `bg-gradient-sunset` | Gün batımı |
+  | `gradient:ocean` | `--bg-gradient-ocean` | `bg-gradient-ocean` | Okyanus |
+  | `gradient:rainbow` | `--bg-gradient-rainbow` | `bg-gradient-rainbow` | Gökkuşağı |
+  | `gradient:forest` | `--bg-gradient-forest` | `bg-gradient-forest` | Orman |
+  | `gradient:lavender` | `--bg-gradient-lavender` | `bg-gradient-lavender` | Lavanta |
+  | `gradient:sunrise` | `--bg-gradient-sunrise` | `bg-gradient-sunrise` | Gündoğumu |
+  | `gradient:midnight` | `--bg-gradient-midnight` | `bg-gradient-midnight` | Gece yarısı |
+  | `gradient:mint` | `--bg-gradient-mint` | `bg-gradient-mint` | Nane |
+  | `gradient:aurora` | `--bg-gradient-aurora` | `bg-gradient-aurora` | Kuzey ışığı |
+  | `gradient:coral` | `--bg-gradient-coral` | `bg-gradient-coral` | Mercan |
+
+  **Düz renk haritası:** `solid:<paletAd>` → `bg-palet-{paletAd}`; `paletAd ∈ CARD_COVER_COLORS` (`kirmizi`, `turuncu`, `sari`, `lime`, `yesil`, `sky`, `mavi`, `indigo`, `mor`, `pembe`, `gri`, `siyah`). Bu liste kart kapak rengiyle aynı token setini kullanır; `boardBackgroundClass(background)` utility'si gradient/düz renk class'larını tek yerden döndürür, bilinmeyen değerlerde `bg-background` fallback'ine düşer.
 - **Board üst barı (`BoardTopBar`):** sticky, `h-13 sm:h-14 flex items-center gap-3 px-4 bg-background border-b`.
   - Sol: `BoardIdentity` — board ikonu/renk noktası + "Pano" etiketi (`text-[10px] uppercase text-muted-foreground`) + board adı (`text-sm font-semibold truncate`) + ⭐ favori butonu (`StarIcon`; favori altyapısı Faz 8 / [DEM-57](https://linear.app/demirkol/issue/DEM-57) — şimdilik görsel toggle veya gizli).
   - Orta: `BoardViewSwitch` — "Pano / Liste / Etiketler" sekme grubu (`inline-flex rounded-md border bg-secondary p-[3px]`; aktif sekme `bg-card shadow-xs`). "Liste" ve "Etiketler" görünümleri Faz 2.7 kapsamında **değil** — sekme placeholder/disabled veya yalnız "Pano" görünür.
-  - Sağ: `BoardActions` — `Davet et` (board ayarları dropdown'unu **Davetler** sekmesinde açar) · `Paylaş` (board linkini panoya kopyalar; kalıcı paylaşım linki/izin yönetimi ileri faz) · `SearchIcon` (board içi arama → Faz 6.5, şimdilik gizli/disabled) · `ActivityIcon` (board activity → ileri faz) · `Pano ayarları` `DropdownMenu` (sekme içerikleri: Üyeler / Davetler / Etiketler / Pano işlemleri). Eski `Davet et / paylaş` birleşik butonu ve ayrı `⋮` board menüsü yoktur; rename/archive/restore aynı işi tekrar eden ikinci yüzey oluşturmadan `Pano işlemleri` altında toplanır.
+  - Sağ: `BoardActions` — `Davet et` (board ayarları dropdown'unu **Davetler** sekmesinde açar) · `Paylaş` (board linkini panoya kopyalar; kalıcı paylaşım linki/izin yönetimi ileri faz) · `SearchIcon` (board içi arama → Faz 6.5, şimdilik gizli/disabled) · `ActivityIcon` (board activity → ileri faz) · `Pano ayarları` `DropdownMenu` (sekme içerikleri: Üyeler / Davetler / Etiketler / Arka plan / Pano işlemleri). Eski `Davet et / paylaş` birleşik butonu ve ayrı `⋮` board menüsü yoktur; rename/archive/restore aynı işi tekrar eden ikinci yüzey oluşturmadan `Pano işlemleri` altında toplanır.
 
 ### Kolon (liste)
 
@@ -231,7 +248,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 ## 13.6 Kapsam dışı + uygulama sırası
 
-**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
+**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board favorileri/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · fotoğraf/Unsplash/user-uploaded/custom gradient arka planları (Faz 8 / ayrı iş) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
 **Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]) → **dark/light tema desteği** ([DEM-96](https://linear.app/demirkol/issue/DEM-96) — kapanış-sonrası #2: §13.7 "Tema modu" + `next-themes` wire + app-shell `ThemeToggle`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` / `strings.common.theme.*` genişletilir).
 
@@ -302,8 +319,8 @@ Tüm ekranlarda her ikisinde test:
 - **Workspaces**: workspace listesi, kart hover, empty state, onboarding ekranı.
 - **Workspace settings**: rename/slug formu, üye listesi, davet et dialog'u, gönderilmiş davetler, tehlikeli bölge.
 - **Account**: profil form, parola form, hesap silme dialog'u.
-- **Board ekranı**: zemin (`bg-background`), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
-- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler.
+- **Board ekranı**: zemin (`bg-background` varsayılanı + DEM-100 `bg-gradient-*` / `bg-palet-*` board background seçenekleri), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
+- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler, Arka plan sekmesi.
 - **Card detail modal**: header (kapak-renksiz `bg-background border-b` + kapak-renkli `bg-palet-{ad}`), sol kolon (sticky başlık + meta chip satırı + AÇIKLAMA Tiptap editör + KONTROL LİSTESİ + Progress bar), sağ panel (`bg-muted/40 backdrop-blur` — dark'ta backdrop-blur okunabilir kalmalı), Tabs strip, yorum composer, yorum kartı, aktivite satırı.
 - **Tiptap prose**: editör + read-only `RichTextContent` — `.dark` altında başlık/paragraf/bullet/link/inline-code/blockquote okunabilir (token-bazlı: `[&_h1]:text-foreground` vb. veya `prose-invert` alternatifi tartışılır; tercih: token-bazlı, palet tutarlı kalır).
 - **`--palet-*` etiket chip'leri**: solid (`bg-palet-{ad} text-palet-{ad}-foreground`) + soft (`bg-palet-{ad}/15 text-palet-{ad}`) — light + dark'ta WCAG **AA** kontrast (4.5:1 normal metin / 3:1 büyük metin); `-foreground` eşleri §13.1'de tanımlı — implementasyonda kontrol et.
@@ -318,7 +335,7 @@ Tüm ekranlarda her ikisinde test:
 - **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
 - **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
 - **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
-- **Board-başına özelleştirilebilir zemin** — §13.2'deki gibi ileri faz ([DEM-57](https://linear.app/demirkol/issue/DEM-57), Faz 8); tema modundan bağımsız.
+- **Board-başına renk/gradient zemin** — DEM-100 kapsamıyla §13.2'de tanımlı; tema modundan bağımsız aynı token setini kullanır. Fotoğraf/Unsplash/user-uploaded/custom gradient seçenekleri Faz 8 / ayrı iş.
 
 ## 13.8 App-shell v2: workspace + board switcher + user nav menu
 

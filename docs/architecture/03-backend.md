@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 03 — Backend (Hono + tRPC + Worker)
 
@@ -89,7 +89,7 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | `board` | `list` | `workspaceProcedure` | Kullanıcının erişebildiği board'lar (workspace owner/admin tüm board'lar; guest yalnızca davetli) |
 | `board` | `create` | `workspaceProcedure` | workspace `member+`; oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
 | `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
-| `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
+| `board` | `update` | `boardProcedure` | board `admin` (`canManageBoard`); `title?: string`, `background?: string \| null`; arşivli board düzenlenemez; no-op aynı değer activity/version üretmez; başlık → `board.renamed`, background set → `board.background_changed`, background clear → `board.background_cleared`; `boards.version` + realtime outbox artar/yazar |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
 | `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); arşivli board'a liste eklenemez; `activity_events` (`list.created`); `boards.version` artar |
 | `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; arşivli board salt-okunur; `activity_events` (`list.renamed`); `boards.version` artar |
@@ -159,6 +159,12 @@ Faz 2.5 dışı (ileri faz): `attachment.*` (Faz 8 — MinIO), mention parsing +
 - **`card.update` — `coverColor`** (genişletme): `updateCardInput`'a `coverColor?: <CARD_COVER_COLORS enum> | null`. Mevcut alanlarla (title/description/dueAt) aynı disiplin — yeni renge geçiş `card.cover_changed` (payload'da yeni `coverColor`), `null` ile temizleme `card.cover_cleared`; no-op değişiklik activity/version üretmez. Board `member+`, arşivli board salt-okunur, `boards.version + 1`. Kapak **görseli** (resim) ayrı ve bu fazda yok — attachment altyapısı gerektirir (Faz 8).
 - **`card.get` / `board.get` projection**: her ikisinin `cards` projection'ına `completed`/`completedAt`/`completedBy`/`coverColor` eklenir — **additive** (mevcut alanlar/imza değişmez; mevcut testler kırılmaz). `board.get`'te bu alanlar `cards` kolonlarından doğrudan gelir (ek sorgu yok — Faz 2.7B'nin `checklistTotal`/`commentCount`/`members` toplu sorgularına dokunmaz).
 - **Transaction kapsamı**: Faz 2/2.5'teki gibi yalnızca `domain mutasyonu + activity_events insert + boards.version bump`; `realtime_events` / `notification_outbox` Faz 5/6'da devreye girer. `clientMutationId` ile idempotency (duplicate teslimat duplicate activity üretmez).
+
+### Faz 2.7 follow-up #4 — pano arka plan rengi ([DEM-100](https://linear.app/demirkol/issue/DEM-100))
+
+`board.update` mevcut procedure'ü genişler: `updateBoardInput` artık `background?: string | null` taşır. `undefined` gelirse arka plana dokunulmaz; `null` veya kanonik değer gelirse yetki kapısı rename ile aynıdır (`canManageBoard(ctx.boardRole)` — admin-only; member/viewer `FORBIDDEN`). Format validation domain Zod şemasındadır: `gradient:<ad>` (`BOARD_BACKGROUND_GRADIENTS`) veya `solid:<paletAd>` (`CARD_COVER_COLORS`).
+
+Transaction akışı: board tx içinde tekrar okunur, arşivli board `BAD_REQUEST`; istenen background mevcut değerle aynıysa `{ changed:false }` ve activity/version/realtime yazılmaz. Değer değişirse `boards.background` update edilir, `boards.version` 1 artar, activity yazılır (`board.background_changed` payload `{from, to}`; `board.background_cleared` payload `{from}`), ardından Faz 5B outbox pattern'iyle board room'a `realtime_events` `board.updated` envelope'u eklenir (`patch.background`). Başlık ve background aynı çağrıda değişirse tek board version bump ve tek realtime event kullanılır; activity her anlamlı değişiklik için ayrı satırdır.
 
 ### Faz 3 — `list.move` / `card.move` (drag-drop backend) ([DEM-42](https://linear.app/demirkol/issue/DEM-42))
 

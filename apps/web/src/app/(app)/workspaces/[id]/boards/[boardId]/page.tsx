@@ -4,7 +4,7 @@ import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
+import { Alert, AlertDescription, AlertTitle, boardBackgroundClass, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
@@ -120,11 +120,12 @@ export default function BoardDetailPage({
   const isBoardAdmin = b.role === 'admin';
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
+    <div className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}>
       <BoardTopBar
         boardId={boardId}
         workspaceId={workspaceId}
         title={b.title}
+        background={b.background ?? null}
         archived={archived}
         isBoardAdmin={isBoardAdmin}
         filter={{

@@ -11,7 +11,7 @@ type: "domain"
 axis: "domain"
 status: "active"
 parent: "[[docs/domain/README|İş / Domain Kuralları]]"
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 # 05 — Aktivite Kuralları (Activity Events)
 
@@ -28,7 +28,7 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 
 | Kapsam | `type` örnekleri | Tipik `payload` |
 | --- | --- | --- |
-| Board | `board.created`, `board.renamed`, `board.archived`, `board.member_added`, `board.member_removed`, `board.member_role_changed`, `board.member_invited`, `board.invitation_revoked` | eski/yeni başlık, üye id, rol, davet e-postası/id |
+| Board | `board.created`, `board.renamed`, `board.archived`, `board.background_changed`, `board.background_cleared`, `board.member_added`, `board.member_removed`, `board.member_role_changed`, `board.member_invited`, `board.invitation_revoked` | eski/yeni başlık, eski/yeni background, üye id, rol, davet e-postası/id |
 | List | `list.created`, `list.renamed`, `list.archived`, `list.restored`, `list.moved` | eski/yeni başlık, eski/yeni position |
 | Card | `card.created`, `card.renamed`, `card.description_changed`, `card.moved`, `card.archived`, `card.restored`, `card.due_set`, `card.due_cleared`, `card.due_overdue`, `card.completed`, `card.uncompleted`, `card.cover_changed`, `card.cover_cleared` | fromListId/toListId, eski/yeni position, eski/yeni due_at, kapak rengi (yeni `cover_color`) |
 | Card members/labels | `card.member_added`, `card.member_removed`, `card.label_added`, `card.label_removed` | üye id (+ kart rolü `assignee`/`watcher`) / label id |
@@ -40,6 +40,8 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 > **Adlandırma notları:** Comment için enum'da `comment.created`/`comment.updated`/`comment.deleted` kullanılır (taksonomi de bu adları taşır). Checklist toggle'ı `checklist.item_checked`/`checklist.item_unchecked` üretir — enum'da Faz 0'dan kalan `checklist.item_completed` **kullanım dışıdır** (cruft; Postgres enum append-only olduğu için silinmez). Etiket CRUD (`label.create/update/delete`) ve checklist/item edit/reorder **activity üretmez** (board metadata gibi düşük sinyal); board ekranını etkiledikleri için yine `boards.version` artar. `board.member_invited`/`board.invitation_revoked` workspace muadilleriyle aynı; davet kabulü `board.member_added` (+ workspace'e `guest` olarak ilk kez eklenince `workspace.member_added`) üretir.
 >
 > **Kart tamamlama / kapak rengi (Faz 2.7 — [DEM-66](https://linear.app/demirkol/issue/DEM-66) / [DEM-67](https://linear.app/demirkol/issue/DEM-67)):** `card.complete` → `card.completed`, `card.uncomplete` → `card.uncompleted` (kart-seviyesi tamamlama — checklist item toggle'ından ayrı; o `checklist.item_checked`/`unchecked`). `card.update` ile kapak rengi değişince: yeni renge geçiş `card.cover_changed` (payload'da yeni `cover_color`), temizleme `card.cover_cleared`. Dördü de enum'a **append** edilir (migration `0007_*` — `ALTER TYPE activity_event_type ADD VALUE` ×4); idempotent no-op (zaten o durumdaysa) activity üretmez. Bu mutation'lar `boards.version`'ı artırır (board ekranı kart rozetini/kapağını etkiler — realtime "missed event" tespiti, Faz 5). Bkz. [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 2.7 — kart tamamlama + kapak rengi), [`01-urun-modeli.md`](01-urun-modeli.md) (invariant 15).
+>
+> **Pano arka planı (Faz 2.7 follow-up #4 — [DEM-100](https://linear.app/demirkol/issue/DEM-100)):** `board.update({ background })` yeni değere geçişte `board.background_changed` üretir; payload `{from, to}`. `background: null` ile temizleme `board.background_cleared` üretir; payload `{from}`. `from`/`to` değerleri kanonik string (`gradient:<ad>` / `solid:<paletAd>`) ya da `null` olur. No-op (mevcut değerle aynı) activity/version/realtime üretmez.
 
 ## Kurallar
 

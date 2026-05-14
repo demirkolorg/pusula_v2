@@ -28,6 +28,10 @@ vi.mock('./board-settings/board-labels-section', () => ({
   BoardLabelsSection: () => <div>Etiketler paneli</div>,
 }));
 
+vi.mock('./board-settings/background-picker', () => ({
+  BoardBackgroundPicker: () => <div>Arka plan paneli</div>,
+}));
+
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     board: {
@@ -50,6 +54,7 @@ const actionCopy = {
   settingsMembers: 'Üyeler',
   settingsInvitations: 'Davetler',
   settingsLabels: 'Etiketler',
+  settingsBackground: 'Arka plan',
   settingsActions: 'Pano işlemleri',
 };
 
@@ -95,6 +100,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint Panosu"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -114,6 +120,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Eski Pano"
+        background={null}
         archived
         isBoardAdmin
         filter={filterProps}
@@ -124,12 +131,13 @@ describe('<BoardTopBar>', () => {
     expect(title.compareDocumentPosition(badge)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('non-admin: no invite/settings controls, share is still available, and title is not editable', () => {
+  it('non-admin: no invite control, settings are viewable, share is still available, and title is not editable', () => {
     render(
       <BoardTopBar
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin={false}
         filter={filterProps}
@@ -137,7 +145,7 @@ describe('<BoardTopBar>', () => {
     );
     expect(screen.queryByRole('button', { name: oldInviteShareCopy })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: actionCopy.invite })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: actionCopy.settings })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: actionCopy.settings })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: actionCopy.share })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: topCopy.more })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sprint' })).not.toBeInTheDocument();
@@ -150,6 +158,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -179,6 +188,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -203,6 +213,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -218,6 +229,7 @@ describe('<BoardTopBar>', () => {
     expect(await screen.findByRole('tab', { name: actionCopy.settingsMembers })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsInvitations })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsLabels })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: actionCopy.settingsBackground })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsActions })).toBeInTheDocument();
   });
 
@@ -228,6 +240,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -259,6 +272,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -288,6 +302,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived
         isBoardAdmin
         filter={filterProps}
@@ -307,6 +322,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
@@ -326,6 +342,7 @@ describe('<BoardTopBar>', () => {
         boardId="b1"
         workspaceId="w1"
         title="Sprint"
+        background={null}
         archived={false}
         isBoardAdmin
         filter={filterProps}
