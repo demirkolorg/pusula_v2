@@ -12,13 +12,14 @@
  *
  * Queue name + `jobId` shape are duplicated here (rather than imported from
  * `@pusula/worker`) to keep `apps/api` from depending on the worker app — they
- * must stay in sync (`pusula-compaction`, `compaction:{list|board}:{id}`,
- * job name `position-compaction`). BullMQ forbids `:` in queue names (it's the
- * Redis key separator); job *ids* may still use `:`.
+ * must stay in sync (`pusula-compaction`, `compaction-{list|board}-{id}`,
+ * job name `position-compaction`). BullMQ forbids `:` in queue names and custom
+ * job ids (Redis key separator).
  */
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { CompactionScope } from '@pusula/api';
+import { compactionJobId } from './bullmq-job-ids';
 import { env } from './env';
 
 const QUEUE_NAME = 'pusula-compaction';
@@ -56,7 +57,7 @@ export async function enqueueCompaction(scope: CompactionScope): Promise<void> {
     await compactionQueue.add(
       JOB_NAME,
       { scope },
-      { jobId: `compaction:${scope.kind}:${scopeId(scope)}` },
+      { jobId: compactionJobId(scope) },
     );
   } catch (err) {
     console.warn(

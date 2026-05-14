@@ -6,7 +6,7 @@
  * those few hundred milliseconds, the job never lands; the `realtime_events`
  * row sits with `published_at IS NULL`. This sweeper drains that pool: every
  * 60 s it picks up rows older than 30 s and re-enqueues them. BullMQ debounces
- * by `jobId = publish:{eventId}`, so a still-in-flight job is a natural no-op.
+ * by `jobId = publish-{eventId}`, so a still-in-flight job is a natural no-op.
  *
  * Guarantee: no event sits `published_at IS NULL` for longer than ~90 s
  * (30 s grace + one 60 s tick). The partial index `realtime_events_pending_idx`

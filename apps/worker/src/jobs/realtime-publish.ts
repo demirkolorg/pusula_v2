@@ -15,7 +15,7 @@
  * envelope exactly once).
  *
  * The job is idempotent. The row is locked with `FOR UPDATE SKIP LOCKED`
- * (paranoia: BullMQ's `jobId = publish:{eventId}` already debounces re-enqueue
+ * (paranoia: BullMQ's `jobId = publish-{eventId}` already debounces re-enqueue
  * attempts) and `published_at IS NULL` guarantees that a re-run after a crash
  * (between publish and the UPDATE) skips a row that's already been delivered.
  * A failed run is retried by BullMQ (3 attempts, exponential backoff in
