@@ -46,6 +46,9 @@ const baseServerEnv = {
   API_PORT: String(API_PORT),
   WEB_PORT: String(WEB_PORT),
   NEXT_PUBLIC_API_URL: E2E_API_URL,
+  // Notification e2e should exercise outbox + processors without sending real
+  // Resend email or Expo push traffic, even when local `.env` has credentials.
+  NOTIFICATION_EXTERNAL_DRY_RUN: '1',
 };
 
 /**

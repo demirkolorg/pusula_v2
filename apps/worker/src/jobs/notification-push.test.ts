@@ -20,10 +20,11 @@
  *  - SDK throw → tx rollback (outbox not stamped, token state untouched).
  *  - Missing recipient (recipient_id null OR user deleted) → stamp + skip.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
 import { notificationOutbox, pushTokens, users } from '@pusula/db';
 import {
+  createDryRunExpoClient,
   processNotificationPushJob,
   type ExpoPushClient,
   type ExpoPushMessage,
@@ -76,6 +77,26 @@ function throwingClient(message = 'expo offline'): ExpoPushClient {
 }
 
 const CONFIG = { appUrl: 'https://app.pusula.test' };
+
+describe('createDryRunExpoClient', () => {
+  it('returns ok tickets without calling the Expo SDK', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const client = createDryRunExpoClient();
+      const messages: ExpoPushMessage[] = [
+        { to: 'ExponentPushToken[dry-run]', title: 'Title', body: 'Body' },
+      ];
+
+      const chunks = client.chunkPushNotifications(messages);
+      await expect(client.sendPushNotificationsAsync(chunks[0]!)).resolves.toEqual([
+        { status: 'ok', id: 'dry-run-0' },
+      ]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('dry-run'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
 
 describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
   const db = () => probe!.db;

@@ -20,6 +20,12 @@ const envSchema = z.object({
   // production-only knob. Without it the SDK uses anonymous push (still works,
   // just no rate-limit lift / signed sender).
   EXPO_PUSH_ACCESS_TOKEN: z.string().min(1).optional(),
+  // E2E/CI guardrail: even if a local `.env` contains real Resend/Expo creds,
+  // Playwright can force notification side effects into log-only mode.
+  NOTIFICATION_EXTERNAL_DRY_RUN: z
+    .enum(['0', '1', 'false', 'true'])
+    .default('0')
+    .transform((value) => value === '1' || value === 'true'),
 });
 
 export const env = envSchema.parse(process.env);

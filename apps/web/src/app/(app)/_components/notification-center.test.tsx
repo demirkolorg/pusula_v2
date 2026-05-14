@@ -193,6 +193,24 @@ describe('<NotificationCenter>', () => {
     expect(screen.getByTestId('notification-row-n3')).toHaveAttribute('data-unread', 'false');
   });
 
+  it('renders unknown notification types with fallback actor and summary copy', async () => {
+    listResult = {
+      items: [
+        unreadNotification({
+          id: 'n-unknown',
+          type: 'future.notification.type',
+          payload: {},
+        }),
+      ],
+      nextCursor: null,
+    };
+
+    renderCenter();
+
+    expect(await screen.findByText(strings.notifications.fallbackActorName)).toBeInTheDocument();
+    expect(screen.getByText(strings.notifications.summary.default)).toBeInTheDocument();
+  });
+
   it('clicking an unread row navigates, marks it read, and closes the panel', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

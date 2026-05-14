@@ -62,6 +62,18 @@ function collectMentions(body: TiptapJSON): MentionCandidate[] {
 
   const visit = (node: unknown): void => {
     if (typeof node === 'string') {
+      const trimmed = node.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(node) as unknown;
+          if (parsed && typeof parsed === 'object') {
+            visit(parsed);
+            return;
+          }
+        } catch {
+          // Not JSON after all; treat it as plain comment text below.
+        }
+      }
       textBuffer += node;
       return;
     }

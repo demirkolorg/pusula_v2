@@ -31,6 +31,14 @@ describe('parseMentions', () => {
     expect(ctx.db.execute).toHaveBeenCalledTimes(1);
   });
 
+  it('parses Tiptap JSON stored as a string by the web comment composer', async () => {
+    const ctx = ctxWithRows([{ id: 'user-bob', name: 'bob' }]);
+
+    await expect(parseMentions(JSON.stringify(tiptapDoc('@bob please review this')), 'board-1', ctx)).resolves.toEqual([
+      { mentionedUserId: 'user-bob', mentionText: 'bob' },
+    ]);
+  });
+
   it('skips email-like text', async () => {
     const ctx = ctxWithRows([{ id: 'user-example', name: 'example.test' }]);
 

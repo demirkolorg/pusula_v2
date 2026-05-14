@@ -27,10 +27,13 @@
  */
 import { and, eq, inArray, isNull, sql } from '@pusula/db';
 import { notificationOutbox, pushTokens, users } from '@pusula/db';
+import { createRequire } from 'node:module';
 import type { Database } from '@pusula/db';
 import type { NotificationType } from '@pusula/domain';
 import type * as ExpoServerSdk from 'expo-server-sdk';
 import { renderNotificationPush } from './notification-templates';
+
+const require = createRequire(import.meta.url);
 
 export const NOTIFICATION_PUSH_JOB_NAME = 'notification-push';
 
@@ -72,6 +75,18 @@ export interface ExpoPushClient {
   sendPushNotificationsAsync(chunk: ExpoPushMessage[]): Promise<ExpoPushTicket[]>;
 }
 
+export function createDryRunExpoClient(): ExpoPushClient {
+  return {
+    chunkPushNotifications: (messages) => (messages.length === 0 ? [] : [messages]),
+    sendPushNotificationsAsync: async (chunk) => {
+      console.warn(
+        `[worker:notification-push] dry-run — would send ${chunk.length} push notification(s)`,
+      );
+      return chunk.map((_, index) => ({ status: 'ok', id: `dry-run-${index}` }));
+    },
+  };
+}
+
 /**
  * Build the production Expo client lazily so worker boot doesn't crash when
  * `expo-server-sdk` isn't installed locally (Faz 6B added the dep; CI may
@@ -79,7 +94,6 @@ export interface ExpoPushClient {
  * this path.
  */
 export function createExpoClient(args: { accessToken?: string }): ExpoPushClient {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require('expo-server-sdk') as typeof ExpoServerSdk;
   // expo-server-sdk publishes both ESM-default and CJS named — guard both.
   const Ctor: typeof ExpoServerSdk.Expo =

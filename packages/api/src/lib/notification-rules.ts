@@ -41,10 +41,14 @@
 import { and, eq, isNull, or } from '@pusula/db';
 import type { Queryable } from '../middleware/board-access';
 import {
+  boards,
   boardMembers,
   cardMembers,
+  cards,
   notificationPreferences,
+  users,
   workspaceMembers,
+  workspaces,
 } from '@pusula/db';
 import type {
   ActivityEventType,
@@ -97,6 +101,7 @@ export async function computeNotifications(
   const notificationType: NotificationType | null = mapEventToNotificationType(event);
   if (!notificationType) return [];
 
+  const payloadContext = await loadPayloadContext(tx, event);
   const rules: NotificationRule[] = [];
   // Iterating an array keeps the order stable + lets the helper dedupe by
   // userId (role merge: same user as assignee + watcher → one entry).
@@ -107,7 +112,7 @@ export async function computeNotifications(
         recipientUserId,
         type: notificationType,
         channel,
-        payload: buildPayload(event, notificationType),
+        payload: buildPayload(event, notificationType, payloadContext),
       });
     }
   }
@@ -165,6 +170,14 @@ interface EventContext {
   cardMemberIds: Set<string>;
 }
 
+interface PayloadContext {
+  actorName?: string;
+  actorImage?: string;
+  cardTitle?: string;
+  boardName?: string;
+  workspaceName?: string;
+}
+
 async function loadEventContext(
   tx: Queryable,
   event: ActivityEventForRules,
@@ -178,6 +191,50 @@ async function loadEventContext(
     for (const r of rows) cardMemberIds.add(r.userId);
   }
   return { cardMemberIds };
+}
+
+async function loadPayloadContext(
+  tx: Queryable,
+  event: ActivityEventForRules,
+): Promise<PayloadContext> {
+  const context: PayloadContext = {};
+
+  if (event.actorId) {
+    const [actor] = await tx
+      .select({ name: users.name, image: users.image })
+      .from(users)
+      .where(eq(users.id, event.actorId))
+      .limit(1);
+    if (actor?.name) context.actorName = actor.name;
+    if (actor?.image) context.actorImage = actor.image;
+  }
+
+  if (event.cardId) {
+    const [card] = await tx
+      .select({ title: cards.title })
+      .from(cards)
+      .where(eq(cards.id, event.cardId))
+      .limit(1);
+    if (card?.title) context.cardTitle = card.title;
+  }
+
+  if (event.boardId) {
+    const [board] = await tx
+      .select({ title: boards.title })
+      .from(boards)
+      .where(eq(boards.id, event.boardId))
+      .limit(1);
+    if (board?.title) context.boardName = board.title;
+  }
+
+  const [workspace] = await tx
+    .select({ name: workspaces.name })
+    .from(workspaces)
+    .where(eq(workspaces.id, event.workspaceId))
+    .limit(1);
+  if (workspace?.name) context.workspaceName = workspace.name;
+
+  return context;
 }
 
 /**
@@ -431,15 +488,21 @@ function stringField(payload: Record<string, unknown>, key: string): string | nu
 function buildPayload(
   event: ActivityEventForRules,
   notificationType: NotificationType,
+  context: PayloadContext,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     activityType: event.type,
     notificationType,
   };
   if (event.actorId) payload.actorUserId = event.actorId;
+  if (context.actorName) payload.actorName = context.actorName;
+  if (context.actorImage) payload.actorImage = context.actorImage;
   if (event.boardId) payload.boardId = event.boardId;
   if (event.cardId) payload.cardId = event.cardId;
   if (event.workspaceId) payload.workspaceId = event.workspaceId;
+  if (context.cardTitle) payload.cardTitle = context.cardTitle;
+  if (context.boardName) payload.boardName = context.boardName;
+  if (context.workspaceName) payload.workspaceName = context.workspaceName;
   // Carry through the small handful of activity payload keys the UI uses for
   // links + previews. Whitelist over copy-everything — activity payloads
   // sometimes carry internal-only fields (clientMutationId, fromCoverColor)

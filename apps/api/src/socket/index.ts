@@ -15,6 +15,10 @@ import { auth } from '../auth';
 import { env } from '../env';
 import { attachRealtimeBridge, type RealtimeBridgeHandle } from './realtime-bridge';
 import {
+  attachNotificationBridge,
+  type NotificationBridgeHandle,
+} from './notification-bridge';
+import {
   createSocketServer,
   type AttachableHttpServer,
   type SocketServerHandle,
@@ -34,7 +38,12 @@ export { roomName } from '@pusula/domain';
  */
 export async function setupSocketServer(
   httpServer: AttachableHttpServer,
-): Promise<SocketServerHandle & { realtimeBridge?: RealtimeBridgeHandle }> {
+): Promise<
+  SocketServerHandle & {
+    realtimeBridge?: RealtimeBridgeHandle;
+    notificationBridge?: NotificationBridgeHandle;
+  }
+> {
   const handle = await createSocketServer({
     httpServer,
     corsOrigin: env.APP_URL,
@@ -98,12 +107,30 @@ export async function setupSocketServer(
     await bridgeClient?.quit().catch(() => {});
   }
 
+  let notificationBridge: NotificationBridgeHandle | undefined;
+  let notificationBridgeClient: Redis | undefined;
+  try {
+    notificationBridgeClient = new Redis(env.REDIS_URL, { lazyConnect: false });
+    notificationBridgeClient.on('error', (err) => {
+      console.error('[api:notification-bridge] redis error:', err.message);
+    });
+    notificationBridge = await attachNotificationBridge(handle.io, notificationBridgeClient);
+  } catch (err) {
+    console.error(
+      '[api:notification-bridge] failed to attach (notification badge pushes will wait for refetch):',
+      err instanceof Error ? err.message : String(err),
+    );
+    await notificationBridgeClient?.quit().catch(() => {});
+  }
+
   const originalClose = handle.close;
   return {
     ...handle,
     realtimeBridge,
+    notificationBridge,
     close: async () => {
       if (realtimeBridge) await realtimeBridge.close();
+      if (notificationBridge) await notificationBridge.close();
       await originalClose();
     },
   };

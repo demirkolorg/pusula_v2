@@ -16,7 +16,7 @@
  *  - Mailer throws → outbox NOT stamped (tx rollback; BullMQ retry takes over).
  *  - Preference hierarchy: card scope override beats workspace scope.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
 import {
   notificationOutbox,
@@ -24,6 +24,7 @@ import {
   users,
 } from '@pusula/db';
 import {
+  createResendMailer,
   processNotificationEmailJob,
   type EmailMailer,
 } from './notification-email';
@@ -60,6 +61,33 @@ function throwingMailer(message = 'resend offline'): EmailMailer {
 }
 
 const CONFIG = { from: 'Pusula <no-reply@pusula.test>', appUrl: 'https://app.pusula.test' };
+
+describe('createResendMailer', () => {
+  it('dry-run ignores an API key and uses the log-only stub', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const mailer = createResendMailer({
+        apiKey: 're_real_key_that_must_not_be_used',
+        from: CONFIG.from,
+        nodeEnv: 'development',
+        dryRun: true,
+      });
+
+      await expect(
+        mailer.send({
+          from: CONFIG.from,
+          to: 'bob@example.test',
+          subject: 'Dry run',
+          html: '<p>Dry run</p>',
+          text: 'Dry run',
+        }),
+      ).resolves.toEqual({ messageId: null });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('dry-run'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
 
 describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
   const db = () => probe!.db;
