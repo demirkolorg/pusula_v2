@@ -289,11 +289,13 @@ Varsa skip (silently); yoksa insert. İstisnalar: `comment.mentioned` + `*_invit
 **Mention parser (`packages/api/src/lib/mention-parser.ts` — Faz 6C):**
 
 - Input: `comment.body` Tiptap JSON (text node'larında `@username` formatı taranır; mention plugin node'u da desteklenir).
-- Regex: `/(?:^|\s)@([a-zA-Z0-9_-]+)/g` (boşluk veya başlangıç önekli — `email@x` skip).
-- Match edilen username'ler `users` tablosunda lookup (`WHERE LOWER(username) IN (...)`); kart'ın board'una erişimi olanlar filtre.
+- Regex: `/(?:^|\s)@([a-zA-Z0-9_.-]+)/g` (boşluk veya başlangıç önekli — `email@x` skip).
+- Match edilen username'ler şu an `users.name` üzerinden lookup edilir (`WHERE LOWER(name) IN (...)`); dedicated `username` alanı gelirse parser tek noktadan güncellenir. Kart'ın board'una erişimi olanlar filtre.
 - Her geçerli mention için `activity_events` `comment.mentioned` insert (payload: `{ commentId, mentionedUserId, mentionText }`).
 - Notification-rules `comment.mentioned` olayını görür → mention edilen kullanıcıya bildirim (mute-bypass; cooldown'a tabi değil).
 - Dedupe: aynı yorumda aynı user iki kez → tek mention (Set kullanımı).
+
+> **Wired — Faz 6C ([DEM-92](https://linear.app/demirkol/issue/DEM-92), 2026-05-14):** Modül `packages/api/src/lib/mention-parser.ts`; `comment.create` içinde transaction'da parse edilir, geçerli mention başına `activity_events comment.mentioned` + realtime `comment.mentioned` üretilir. `comment.update` bu turda yalnız `comment.updated` realtime event yayar; mention delta hesabı sonraki tur kapsamındadır.
 
 **Test (Faz 6A + 6B + 6C — özet; detay Faz 6E [DEM-94]):**
 

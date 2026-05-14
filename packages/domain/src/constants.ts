@@ -94,6 +94,9 @@ export const ACTIVITY_EVENT_TYPES = [
   // keep the Postgres enum append-only. See docs/domain/05-aktivite-kurallari.md.
   'board.background_changed',
   'board.background_cleared',
+  // Phase 6C (DEM-92) — mention parser emits one activity per valid user
+  // mention in a comment. Appended to keep the Postgres enum append-only.
+  'comment.mentioned',
 ] as const;
 
 /**

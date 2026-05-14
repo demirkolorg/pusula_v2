@@ -39,6 +39,11 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { protectedProcedure, router } from '../trpc';
 
 export const boardInvitationsRouter = router({
@@ -71,7 +76,8 @@ export const boardInvitationsRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Davet iptal etme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [invitation] = await tx
         .select({
           id: boardInvitations.id,
@@ -102,13 +108,21 @@ export const boardInvitationsRouter = router({
         payload: { invitationId: invitation.id, email: invitation.email },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.invitation_revoked',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { invitationId: invitation.id, email: invitation.email },
+      });
 
       return { id: invitation.id, status: 'revoked' as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /** Board invitations addressed to the current user's email — `pending` and not yet expired. */
@@ -172,7 +186,8 @@ export const boardInvitationsRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       // Lock the invitation row so two concurrent `accept` calls serialize on it.
       const [invitation] = await tx
         .select({
@@ -260,10 +275,6 @@ export const boardInvitationsRouter = router({
           type: 'board.member_added',
           payload: { userId, role: invitation.role, viaInvitation: invitation.id },
         });
-        await tx
-          .update(boards)
-          .set({ version: sql`${boards.version} + 1` })
-          .where(eq(boards.id, invitation.boardId));
       }
 
       // Always close the invitation — idempotent: re-accepting just re-stamps it.
@@ -272,18 +283,33 @@ export const boardInvitationsRouter = router({
         .set({ status: 'accepted', acceptedById: userId, acceptedAt: new Date() })
         .where(eq(boardInvitations.id, invitation.id));
 
+      const seq = await bumpBoardVersionForRealtime(tx, invitation.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.invitation_accepted',
+        workspaceId: board.workspaceId,
+        boardId: invitation.boardId,
+        actorId: userId,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { invitationId: invitation.id, userId },
+      });
+
       return { boardId: invitation.boardId, role: invitation.role };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /** Decline a board invitation by token. Email must match. No activity is written. */
   decline: protectedProcedure.input(declineBoardInvitationInput).mutation(async ({ ctx, input }) => {
     const userEmail = ctx.session.user.email.trim().toLowerCase();
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [invitation] = await tx
         .select({
           id: boardInvitations.id,
+          boardId: boardInvitations.boardId,
           email: boardInvitations.email,
           status: boardInvitations.status,
         })
@@ -299,13 +325,34 @@ export const boardInvitationsRouter = router({
       if (invitation.status !== 'pending') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
       }
+      const [board] = await tx
+        .select({ workspaceId: boards.workspaceId })
+        .from(boards)
+        .where(eq(boards.id, invitation.boardId))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
 
       await tx
         .update(boardInvitations)
         .set({ status: 'declined' })
         .where(eq(boardInvitations.id, invitation.id));
 
+      const seq = await bumpBoardVersionForRealtime(tx, invitation.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.invitation_declined',
+        workspaceId: board.workspaceId,
+        boardId: invitation.boardId,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { invitationId: invitation.id },
+      });
+
       return { id: invitation.id, status: 'declined' as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 });

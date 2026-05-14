@@ -27,7 +27,7 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / Card içerik procedure
  * haritası — Faz 2.5).
  */
-import { asc, eq, sql } from '@pusula/db';
+import { asc, eq } from '@pusula/db';
 import { activityEvents, boards, comments } from '@pusula/db';
 import {
   canEditBoardContent,
@@ -43,6 +43,12 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import { parseMentions } from '../lib/mention-parser';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublishes,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 /** Columns of a full comment row returned to clients. */
@@ -56,6 +62,11 @@ const commentCols = {
   createdAt: comments.createdAt,
   updatedAt: comments.updatedAt,
 } as const;
+
+function bodyPreview(body: unknown): string {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return (text ?? '').slice(0, 200);
+}
 
 export const commentRouter = router({
   /**
@@ -82,7 +93,8 @@ export const commentRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Yorum ekleme yetkiniz yok.' });
     }
 
-    let notificationEventId: string | undefined;
+    const notificationEventIds: string[] = [];
+    const realtimeEventIds: string[] = [];
     const created = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -115,10 +127,29 @@ export const commentRouter = router({
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const mentions = await parseMentions(input.body, ctx.card.boardId, { db: tx });
+      const mentionedUserIds = mentions.map((mention) => mention.mentionedUserId);
+
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventIds.push(
+        await insertRealtimeEvent(tx, {
+          type: 'comment.created',
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          clientMutationId: ctx.clientMutationId,
+          seq,
+          data: {
+            commentId: createdComment.id,
+            authorId: createdComment.authorId,
+            bodyPreview: bodyPreview(createdComment.body),
+            mentionedUserIds,
+            createdAt: createdComment.createdAt.toISOString(),
+            comment: createdComment,
+          },
+        }),
+      );
 
       // Faz 6A (DEM-90) — fan out notification outbox rows for card watchers
       // (the actor is self-skipped by the rule engine).
@@ -131,11 +162,58 @@ export const commentRouter = router({
         actorId: ctx.session.user.id,
         payload: { commentId: createdComment.id, cardId: ctx.card.id },
       });
-      if (dispatched.inserted > 0) notificationEventId = activity.id;
+      if (dispatched.inserted > 0) notificationEventIds.push(activity.id);
+
+      for (const { mentionedUserId, mentionText } of mentions) {
+        const mentionPayload = { commentId: createdComment.id, mentionedUserId, mentionText };
+        const [mentionActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: ctx.card.boardId,
+            cardId: ctx.card.id,
+            actorId: ctx.session.user.id,
+            type: 'comment.mentioned',
+            payload: mentionPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!mentionActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        const mentionDispatched = await dispatchNotificationsForActivity(tx, {
+          id: mentionActivity.id,
+          type: 'comment.mentioned',
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          payload: mentionPayload,
+        });
+        if (mentionDispatched.inserted > 0) notificationEventIds.push(mentionActivity.id);
+
+        const mentionSeq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+        realtimeEventIds.push(
+          await insertRealtimeEvent(tx, {
+            type: 'comment.mentioned',
+            workspaceId: ctx.card.workspaceId,
+            boardId: ctx.card.boardId,
+            cardId: ctx.card.id,
+            actorId: ctx.session.user.id,
+            clientMutationId: ctx.clientMutationId,
+            seq: mentionSeq,
+            data: {
+              commentId: createdComment.id,
+              mentionedUserId,
+              mentionText,
+              actorUserId: ctx.session.user.id,
+            },
+          }),
+        );
+      }
 
       return createdComment;
     });
-    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    for (const eventId of notificationEventIds) maybeEnqueueNotificationPublish(ctx, eventId);
+    maybeEnqueueRealtimePublishes(ctx, realtimeEventIds);
     return created;
   }),
 
@@ -151,7 +229,8 @@ export const commentRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Yorum düzenleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [comment] = await tx
         .select(commentCols)
         .from(comments)
@@ -201,13 +280,27 @@ export const commentRouter = router({
         payload: { commentId: comment.id, cardId: ctx.card.id },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'comment.updated',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          commentId: comment.id,
+          bodyPreview: bodyPreview(updated.body),
+          editedAt: updated.editedAt?.toISOString() ?? null,
+          patch: { body: updated.body, editedAt: updated.editedAt },
+        },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublishes(ctx, realtimeEventId ? [realtimeEventId] : []);
+    return result;
   }),
 
   /**
@@ -222,7 +315,8 @@ export const commentRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Yorum silme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [comment] = await tx
         .select({ id: comments.id, cardId: comments.cardId, authorId: comments.authorId, deletedAt: comments.deletedAt })
         .from(comments)
@@ -268,12 +362,21 @@ export const commentRouter = router({
         payload: { commentId: comment.id, cardId: ctx.card.id },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'comment.deleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { commentId: comment.id, deletedAt: updated.deletedAt?.toISOString() ?? null },
+      });
 
       return { id: updated.id, deletedAt: updated.deletedAt, changed: true as const };
     });
+    maybeEnqueueRealtimePublishes(ctx, realtimeEventId ? [realtimeEventId] : []);
+    return result;
   }),
 });

@@ -26,6 +26,11 @@ type FixCard = {
   position: string;
   title: string;
   completedAt: Date | null;
+  labels?: FixCardLabel[];
+  checklistTotal?: number;
+  checklistDone?: number;
+  commentCount?: number;
+  members?: FixMember[];
 };
 type FixList = {
   id: string;
@@ -36,9 +41,30 @@ type FixList = {
 };
 type FixBoard = { id: string; title: string; version: number; archivedAt: string | null };
 type FixCache = { board: FixBoard; lists: FixList[]; cards: FixCard[] };
+type FixComment = { id: string; body: string; deletedAt: string | null };
+type FixChecklistItem = {
+  id: string;
+  checklistId: string;
+  position: string;
+  content: string;
+  completed: boolean;
+  completedAt: string | null;
+  completedBy: string | null;
+};
+type FixChecklist = { id: string; title: string; position: string; items: FixChecklistItem[] };
+type FixCardLabel = { labelId: string; name: string; color: string };
+type FixBoardLabel = { id: string; name: string; color: string };
+type FixMember = { userId: string; role: string; name: string | null; inherited?: boolean };
 
 const boardKey = (boardId: string) => ['board.get', { boardId }] as const;
 const cardKey = (cardId: string) => ['card.get', { cardId }] as const;
+const commentKey = (cardId: string) => ['comment.list', { cardId }] as const;
+const checklistKey = (cardId: string) => ['checklist.list', { cardId }] as const;
+const cardLabelsKey = (cardId: string) => ['card.labels.list', { cardId }] as const;
+const cardMembersKey = (cardId: string) => ['card.members.list', { cardId }] as const;
+const boardLabelsKey = (boardId: string) => ['label.list', { boardId }] as const;
+const boardMembersKey = (boardId: string) => ['board.members.list', { boardId }] as const;
+const boardInvitationsKey = (boardId: string) => ['board.invitations.list', { boardId }] as const;
 
 const fixture = (): FixCache => ({
   board: { id: 'b1', title: 'Pano', version: 7, archivedAt: null },
@@ -47,8 +73,19 @@ const fixture = (): FixCache => ({
     { id: 'L2', position: 'l1', title: 'Bitti', archivedAt: null, color: null },
   ],
   cards: [
-    { id: 'c1', listId: 'L1', position: 'a0', title: 'bir', completedAt: null },
-    { id: 'c2', listId: 'L1', position: 'a1', title: 'iki', completedAt: null },
+    {
+      id: 'c1',
+      listId: 'L1',
+      position: 'a0',
+      title: 'bir',
+      completedAt: null,
+      labels: [{ labelId: 'l1', name: 'Bug', color: 'green' }],
+      checklistTotal: 1,
+      checklistDone: 0,
+      commentCount: 1,
+      members: [{ userId: 'u1', role: 'watcher', name: 'Ada' }],
+    },
+    { id: 'c2', listId: 'L1', position: 'a1', title: 'iki', completedAt: null, labels: [], members: [] },
     { id: 'c3', listId: 'L2', position: 'b0', title: 'üç', completedAt: null },
   ],
 });
@@ -77,12 +114,50 @@ function makeClient(): QueryClient {
 
 const boardFilter = { queryKey: boardKey('b1') };
 
+const makeFilters = () => ({
+  board: boardFilter,
+  card: (cardId: string) => ({ queryKey: cardKey(cardId) }),
+  comments: (cardId: string) => ({ queryKey: commentKey(cardId) }),
+  checklists: (cardId: string) => ({ queryKey: checklistKey(cardId) }),
+  cardLabels: (cardId: string) => ({ queryKey: cardLabelsKey(cardId) }),
+  cardMembers: (cardId: string) => ({ queryKey: cardMembersKey(cardId) }),
+  boardLabels: (boardId: string) => ({ queryKey: boardLabelsKey(boardId) }),
+  boardMembers: (boardId: string) => ({ queryKey: boardMembersKey(boardId) }),
+  boardInvitations: (boardId: string) => ({ queryKey: boardInvitationsKey(boardId) }),
+});
+
 describe('dispatchRealtimeEvent — board cache reconciliation', () => {
   let qc: QueryClient;
 
   beforeEach(() => {
     qc = makeClient();
     qc.setQueryData(boardKey('b1'), fixture());
+    qc.setQueryData<FixComment[]>(commentKey('c1'), [{ id: 'cm1', body: 'old', deletedAt: null }]);
+    qc.setQueryData<FixChecklist[]>(checklistKey('c1'), [
+      {
+        id: 'cl1',
+        title: 'Checklist',
+        position: 'a0',
+        items: [
+          {
+            id: 'i1',
+            checklistId: 'cl1',
+            position: 'a0',
+            content: 'one',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          },
+        ],
+      },
+    ]);
+    qc.setQueryData<FixCardLabel[]>(cardLabelsKey('c1'), [{ labelId: 'l1', name: 'Bug', color: 'green' }]);
+    qc.setQueryData<FixMember[]>(cardMembersKey('c1'), [{ userId: 'u1', role: 'watcher', name: 'Ada' }]);
+    qc.setQueryData<FixBoardLabel[]>(boardLabelsKey('b1'), [{ id: 'l1', name: 'Bug', color: 'green' }]);
+    qc.setQueryData<FixMember[]>(boardMembersKey('b1'), [
+      { userId: 'u1', role: 'member', name: 'Ada', inherited: false },
+    ]);
+    qc.setQueryData(boardInvitationsKey('b1'), [{ id: 'inv1', email: 'old@example.com', role: 'viewer' }]);
   });
 
   afterEach(() => {
@@ -257,5 +332,359 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     }));
     const detail = qc.getQueryData<{ id: string; title: string; description: string }>(cardKey('c1'))!;
     expect(detail.title).toBe('patched');
+  });
+
+  it('comment.created -> prepends the comment list cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'comment.created',
+        { commentId: 'cm2', comment: { id: 'cm2', body: 'new', deletedAt: null } satisfies FixComment },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixComment[]>(commentKey('c1'))?.map((c) => c.id)).toEqual(['cm2', 'cm1']);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.commentCount).toBe(2);
+  });
+
+  it('comment.updated -> patches the comment list cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('comment.updated', { commentId: 'cm1', patch: { body: 'edited' } }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixComment[]>(commentKey('c1'))?.[0]?.body).toBe('edited');
+  });
+
+  it('comment.deleted -> soft-deletes the comment in cache', () => {
+    const deletedAt = '2026-05-13T10:00:00.000Z';
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('comment.deleted', { commentId: 'cm1', deletedAt }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixComment[]>(commentKey('c1'))?.[0]?.deletedAt).toBe(deletedAt);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.commentCount).toBe(0);
+  });
+
+  it('comment.mentioned -> no-op cache path', () => {
+    const before = qc.getQueryData<FixComment[]>(commentKey('c1'));
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'comment.mentioned',
+        { commentId: 'cm1', mentionedUserId: 'u2', actorUserId: 'u1' },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixComment[]>(commentKey('c1'))).toBe(before);
+  });
+
+  it('checklist.created -> appends the checklist cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'checklist.created',
+        { checklistId: 'cl2', checklist: { id: 'cl2', title: 'Second', position: 'a1', items: [] } },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.map((c) => c.id)).toEqual(['cl1', 'cl2']);
+  });
+
+  it('checklist.updated -> patches the checklist cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('checklist.updated', { checklistId: 'cl1', patch: { title: 'Updated' } }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.title).toBe('Updated');
+  });
+
+  it('checklist.deleted -> removes the checklist from cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('checklist.deleted', { checklistId: 'cl1' }, { cardId: 'c1' }));
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith(boardFilter);
+  });
+
+  it('checklist.item_added -> appends the nested item cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'checklist.item_added',
+        {
+          checklistId: 'cl1',
+          itemId: 'i2',
+          item: {
+            id: 'i2',
+            checklistId: 'cl1',
+            position: 'a1',
+            content: 'two',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          } satisfies FixChecklistItem,
+        },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.items.map((i) => i.id)).toEqual(['i1', 'i2']);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.checklistTotal).toBe(2);
+  });
+
+  it('checklist.item_updated -> patches the nested item cache', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'checklist.item_updated',
+        { checklistId: 'cl1', itemId: 'i1', patch: { content: 'edited item' } },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.items[0]?.content).toBe('edited item');
+  });
+
+  it('checklist.item_toggled -> patches completion fields', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'checklist.item_toggled',
+        {
+          checklistId: 'cl1',
+          itemId: 'i1',
+          completed: true,
+          completedBy: 'u1',
+          patch: { completed: true, completedAt: '2026-05-13T10:00:00.000Z', completedBy: 'u1' },
+        },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.items[0]).toMatchObject({
+      completed: true,
+      completedBy: 'u1',
+    });
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.checklistDone).toBe(1);
+  });
+
+  it('checklist.item_deleted -> removes the nested item cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('checklist.item_deleted', { checklistId: 'cl1', itemId: 'i1' }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.items).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith(boardFilter);
+  });
+
+  it('card.label_added -> appends card labels', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'card.label_added',
+        {
+          cardId: 'c1',
+          labelId: 'l2',
+          label: { labelId: 'l2', name: 'Ops', color: 'blue' } satisfies FixCardLabel,
+        },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixCardLabel[]>(cardLabelsKey('c1'))?.map((l) => l.labelId)).toEqual(['l1', 'l2']);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.labels?.map((l) => l.labelId)).toEqual(['l1', 'l2']);
+  });
+
+  it('card.label_removed -> removes card labels', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('card.label_removed', { cardId: 'c1', labelId: 'l1' }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixCardLabel[]>(cardLabelsKey('c1'))).toEqual([]);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.labels).toEqual([]);
+  });
+
+  it('card.member_added -> appends card members', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'card.member_added',
+        {
+          cardId: 'c1',
+          userId: 'u2',
+          role: 'assignee',
+          member: { userId: 'u2', role: 'assignee', name: 'Bora' } satisfies FixMember,
+        },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixMember[]>(cardMembersKey('c1'))?.map((m) => m.userId)).toEqual(['u1', 'u2']);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.members?.map((m) => m.userId)).toEqual(['u1', 'u2']);
+  });
+
+  it('card.member_added -> preserves distinct roles for the same user', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'card.member_added',
+        {
+          cardId: 'c1',
+          userId: 'u1',
+          role: 'assignee',
+          member: { userId: 'u1', role: 'assignee', name: 'Ada' } satisfies FixMember,
+        },
+        { cardId: 'c1' },
+      ),
+    );
+    expect(qc.getQueryData<FixMember[]>(cardMembersKey('c1'))?.map((m) => m.role)).toEqual([
+      'watcher',
+      'assignee',
+    ]);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.members?.map((m) => m.role)).toEqual([
+      'watcher',
+      'assignee',
+    ]);
+  });
+
+  it('card.member_removed -> removes only the matching user role', () => {
+    qc.setQueryData<FixMember[]>(cardMembersKey('c1'), [
+      { userId: 'u1', role: 'watcher', name: 'Ada' },
+      { userId: 'u1', role: 'assignee', name: 'Ada' },
+    ]);
+    qc.setQueryData(boardKey('b1'), {
+      ...fixture(),
+      cards: fixture().cards.map((card) =>
+        card.id === 'c1'
+          ? {
+              ...card,
+              members: [
+                { userId: 'u1', role: 'watcher', name: 'Ada' },
+                { userId: 'u1', role: 'assignee', name: 'Ada' },
+              ],
+            }
+          : card,
+      ),
+    });
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('card.member_removed', { cardId: 'c1', userId: 'u1', role: 'watcher' }, { cardId: 'c1' }),
+    );
+    expect(qc.getQueryData<FixMember[]>(cardMembersKey('c1'))?.map((m) => m.role)).toEqual(['assignee']);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.members?.map((m) => m.role)).toEqual(['assignee']);
+  });
+
+  it('board.label_created -> appends board labels', () => {
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.label_created', {
+        labelId: 'l2',
+        label: { id: 'l2', name: 'Ops', color: 'blue' } satisfies FixBoardLabel,
+      }),
+    );
+    expect(qc.getQueryData<FixBoardLabel[]>(boardLabelsKey('b1'))?.map((l) => l.id)).toEqual(['l1', 'l2']);
+  });
+
+  it('board.label_updated -> patches board labels', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.label_updated', {
+        labelId: 'l1',
+        label: { id: 'l1', name: 'Bug', color: 'red' } satisfies FixBoardLabel,
+      }),
+    );
+    expect(qc.getQueryData<FixBoardLabel[]>(boardLabelsKey('b1'))?.[0]?.color).toBe('red');
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.labels?.[0]?.color).toBe('red');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: cardLabelsKey('c1') });
+  });
+
+  it('board.label_deleted -> removes board labels', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('board.label_deleted', { labelId: 'l1' }));
+    expect(qc.getQueryData<FixBoardLabel[]>(boardLabelsKey('b1'))).toEqual([]);
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))?.cards.find((c) => c.id === 'c1')?.labels).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: cardLabelsKey('c1') });
+  });
+
+  it('board.member_invited -> invalidates board member and invitation caches', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.member_invited', { invitationId: 'inv2', email: 'new@example.com', role: 'viewer' }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardInvitationsKey('b1') });
+  });
+
+  it('board.invitation_accepted -> invalidates board member and invitation caches', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.invitation_accepted', { invitationId: 'inv1', userId: 'u2' }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardInvitationsKey('b1') });
+  });
+
+  it('board.invitation_declined -> invalidates board member and invitation caches', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('board.invitation_declined', { invitationId: 'inv1' }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardInvitationsKey('b1') });
+  });
+
+  it('board.invitation_revoked -> invalidates board member and invitation caches', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('board.invitation_revoked', { invitationId: 'inv1' }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardInvitationsKey('b1') });
+  });
+
+  it('board.member_added -> invalidates board members cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.member_added', {
+        userId: 'u2',
+        role: 'viewer',
+        member: { userId: 'u2', role: 'viewer', name: 'Bora', inherited: false } satisfies FixMember,
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith(boardFilter);
+  });
+
+  it('board.member_role_changed -> invalidates board members cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.member_role_changed', { userId: 'u1', oldRole: 'member', newRole: 'admin' }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith(boardFilter);
+  });
+
+  it('board.member_removed -> invalidates board members cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('board.member_removed', { userId: 'u1' }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
+    expect(invalidate).toHaveBeenCalledWith(boardFilter);
   });
 });
