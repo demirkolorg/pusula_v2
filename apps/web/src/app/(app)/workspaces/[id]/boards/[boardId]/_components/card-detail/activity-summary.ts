@@ -30,6 +30,50 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
   const p = event.payload;
 
   switch (event.type) {
+    case 'board.created':
+      return `${who} panoyu oluşturdu`;
+    case 'board.renamed': {
+      const from = str(p, 'fromTitle');
+      const to = str(p, 'toTitle');
+      return from && to
+        ? `${who} panoyu yeniden adlandırdı: “${from}” → “${to}”`
+        : `${who} panoyu yeniden adlandırdı`;
+    }
+    case 'board.archived': {
+      const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
+      return archived === false ? `${who} panoyu geri yükledi` : `${who} panoyu arşivledi`;
+    }
+    case 'board.member_added':
+      return `${who} panoya bir üye ekledi`;
+    case 'board.member_removed':
+      return `${who} panodan bir üye çıkardı`;
+    case 'board.member_role_changed':
+      return `${who} bir pano üyesinin rolünü değiştirdi`;
+    case 'board.member_invited':
+      return `${who} panoya bir davet gönderdi`;
+    case 'board.invitation_revoked':
+      return `${who} bir pano davetini iptal etti`;
+    case 'list.created': {
+      const title = str(p, 'title');
+      return title ? `${who} liste ekledi: “${title}”` : `${who} liste ekledi`;
+    }
+    case 'list.renamed': {
+      const from = str(p, 'fromTitle');
+      const to = str(p, 'toTitle');
+      return from && to
+        ? `${who} listeyi yeniden adlandırdı: “${from}” → “${to}”`
+        : `${who} listeyi yeniden adlandırdı`;
+    }
+    case 'list.archived': {
+      const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
+      return archived === false ? `${who} listeyi geri yükledi` : `${who} listeyi arşivledi`;
+    }
+    case 'list.moved':
+      return `${who} listeyi taşıdı`;
+    case 'list.color_changed':
+      return `${who} liste rengini değiştirdi`;
+    case 'list.color_cleared':
+      return `${who} liste rengini kaldırdı`;
     case 'card.created':
       return `${who} kartı oluşturdu`;
     case 'card.renamed': {

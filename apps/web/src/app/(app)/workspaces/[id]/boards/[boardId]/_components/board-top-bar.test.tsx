@@ -32,6 +32,11 @@ vi.mock('./board-settings/background-picker', () => ({
   BoardBackgroundPicker: () => <div>Arka plan paneli</div>,
 }));
 
+vi.mock('./board-activity-drawer', () => ({
+  BoardActivityDrawer: ({ open }: { open?: boolean }) =>
+    open ? <div role="dialog" aria-label={strings.board.activity.title} /> : null,
+}));
+
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     board: {
@@ -355,5 +360,23 @@ describe('<BoardTopBar>', () => {
         `${window.location.origin}/workspaces/w1/boards/b1`,
       );
     });
+  });
+
+  it('activity action opens the board activity drawer', async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: topCopy.activity }));
+
+    expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
   });
 });

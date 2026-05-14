@@ -64,6 +64,22 @@ describe('summarizeCardActivity', () => {
     );
   });
 
+  it('board and list events → readable board feed lines', () => {
+    expect(summarizeCardActivity({ ...base, type: 'board.created' }, 'X')).toBe('Ada panoyu oluşturdu');
+    expect(
+      summarizeCardActivity(
+        { ...base, type: 'board.renamed', payload: { fromTitle: 'Eski', toTitle: 'Yeni' } },
+        'X',
+      ),
+    ).toBe('Ada panoyu yeniden adlandırdı: “Eski” → “Yeni”');
+    expect(summarizeCardActivity({ ...base, type: 'list.created', payload: { title: 'Backlog' } }, 'X')).toBe(
+      'Ada liste ekledi: “Backlog”',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'list.archived', payload: { archived: false } }, 'X')).toBe(
+      'Ada listeyi geri yükledi',
+    );
+  });
+
   it('falls back to the unknown-actor name when the actor was deleted', () => {
     expect(
       summarizeCardActivity({ ...base, actorId: null, actorName: null, type: 'comment.created' }, 'Bir kullanıcı'),

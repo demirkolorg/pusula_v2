@@ -45,6 +45,8 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 >
 > **Pano arka planı (Faz 2.7 follow-up #4 — [DEM-100](https://linear.app/demirkol/issue/DEM-100)):** `board.update({ background })` yeni değere geçişte `board.background_changed` üretir; payload `{from, to}`. `background: null` ile temizleme `board.background_cleared` üretir; payload `{from}`. `from`/`to` değerleri kanonik string (`gradient:<ad>` / `solid:<paletAd>`) ya da `null` olur. No-op (mevcut değerle aynı) activity/version/realtime üretmez.
 > **Liste rengi (DEM-98):** `list.update({ color })` ile renksiz → renkli veya renkli → başka renk geçişi `list.color_changed` üretir; payload `{ listId, oldColor, newColor }`. Rengi kaldırma (`color: null`) `list.color_cleared` üretir; payload `{ listId, oldColor }`. Aynı renk tekrar set/clear idempotent no-op'tur; activity ve version üretmez. Bu iki event tipi `ACTIVITY_EVENT_TYPES`'a **append** edilir ve `lists.color` migration'ıyla aynı PR'dadır. Bkz. [`01-urun-modeli.md`](01-urun-modeli.md) invariant 17.
+>
+> **Board activity feed (DEM-70):** board feed'i yeni event tipi üretmez; `activity_events.board_id = boardId` olan mevcut board/list/card/comment/checklist/label/member activity satırlarının birleşik, newest-first görünümüdür. Kart feed'i gibi ayrı query'dir (`board.activity.list`), board payload'ına gömülmez. Board `viewer+` feed'i okuyabilir; actor silinmişse UI "Bir kullanıcı" fallback'i gösterir. Opsiyonel tip filtresi yalnızca mevcut `ACTIVITY_EVENT_TYPES` değerleriyle sınırlıdır.
 
 ## Kurallar
 

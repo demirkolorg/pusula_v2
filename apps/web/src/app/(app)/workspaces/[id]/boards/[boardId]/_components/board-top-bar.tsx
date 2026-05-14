@@ -27,6 +27,7 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
+import { BoardActivityDrawer } from './board-activity-drawer';
 import { BoardFilterMenuContent, type BoardFilterMenuContentProps } from './board-filter-bar';
 import {
   BoardSettingsDropdown,
@@ -150,6 +151,7 @@ export function BoardTopBar({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<BoardSettingsTab>('members');
+  const [activityOpen, setActivityOpen] = useState(false);
   const restoreBoard = useRestoreBoard(boardId);
 
   const startRenamingFromMenu = () => {
@@ -200,11 +202,21 @@ export function BoardTopBar({
           label={copy.search}
           hint={copy.searchSoon}
         />
-        <ComingSoonAction
-          icon={<ActivityIcon className="size-4" />}
-          label={copy.activity}
-          hint={copy.activitySoon}
-        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label={copy.activity}
+              onClick={() => setActivityOpen(true)}
+            >
+              <ActivityIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{copy.activity}</TooltipContent>
+        </Tooltip>
         <Button
           type="button"
           variant="ghost"
@@ -250,6 +262,7 @@ export function BoardTopBar({
         />
       </div>
 
+      <BoardActivityDrawer boardId={boardId} open={activityOpen} onOpenChange={setActivityOpen} />
       {isBoardAdmin && (
         <>
           <ArchiveBoardDialog

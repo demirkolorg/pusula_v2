@@ -10,7 +10,7 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / List / Card procedure
  * haritası) and `docs/architecture/03-backend.md`.
  */
-import { and, asc, eq, inArray, isNull, sql } from '@pusula/db';
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from '@pusula/db';
 import {
   activityEvents,
   boardMembers,
@@ -26,15 +26,18 @@ import {
   users,
 } from '@pusula/db';
 import {
+  activityEventTypeSchema,
   archiveBoardInput,
   canManageBoard,
   canViewBoard,
   createBoardInput,
   effectiveBoardRole,
+  idSchema,
   updateBoardInput,
   type BoardRole,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
@@ -54,6 +57,46 @@ const boardCols = {
   createdAt: boards.createdAt,
   updatedAt: boards.updatedAt,
 } as const;
+
+const BOARD_ACTIVITY_PAGE_DEFAULT = 20;
+const BOARD_ACTIVITY_PAGE_MAX = 100;
+
+type ActivityCursorParts = {
+  createdAt: Date;
+  id: string;
+};
+
+function encodeActivityCursor(createdAt: Date, id: string): string {
+  return Buffer.from(`${createdAt.toISOString()}|${id}`, 'utf8').toString('base64url');
+}
+
+function decodeActivityCursor(cursor: string): ActivityCursorParts | null {
+  try {
+    const raw = Buffer.from(cursor, 'base64url').toString('utf8');
+    const sep = raw.indexOf('|');
+    if (sep <= 0) return null;
+    const iso = raw.slice(0, sep);
+    const id = raw.slice(sep + 1);
+    if (!id) return null;
+    const createdAt = new Date(iso);
+    if (Number.isNaN(createdAt.getTime())) return null;
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
+
+const boardActivityCursorSchema = z
+  .string()
+  .min(1)
+  .refine((value) => decodeActivityCursor(value) !== null, { message: 'Geçersiz cursor.' });
+
+const listBoardActivityInput = z.object({
+  boardId: idSchema,
+  limit: z.number().int().min(1).max(BOARD_ACTIVITY_PAGE_MAX).optional(),
+  cursor: boardActivityCursorSchema.optional(),
+  type: activityEventTypeSchema.optional(),
+});
 
 export const boardRouter = router({
   /**
@@ -338,6 +381,53 @@ export const boardRouter = router({
         };
       }),
     };
+  }),
+
+  /** Board activity feed — `board.activity.list`. */
+  activity: router({
+    /**
+     * Cursor-paginated board-scoped activity history, newest first. Board
+     * `viewer+` is enforced by `boardProcedure`; the feed intentionally stays
+     * outside `board.get` so the board payload remains compact.
+     */
+    list: boardProcedure.input(listBoardActivityInput).query(async ({ ctx, input }) => {
+      const limit = input.limit ?? BOARD_ACTIVITY_PAGE_DEFAULT;
+      const cursor = input.cursor ? decodeActivityCursor(input.cursor) : null;
+
+      const rows = await ctx.db
+        .select({
+          id: activityEvents.id,
+          type: activityEvents.type,
+          actorId: activityEvents.actorId,
+          actorName: users.name,
+          payload: activityEvents.payload,
+          createdAt: activityEvents.createdAt,
+        })
+        .from(activityEvents)
+        .leftJoin(users, eq(users.id, activityEvents.actorId))
+        .where(
+          and(
+            eq(activityEvents.boardId, ctx.board.id),
+            input.type ? eq(activityEvents.type, input.type) : undefined,
+            cursor
+              ? or(
+                  lt(activityEvents.createdAt, cursor.createdAt),
+                  and(eq(activityEvents.createdAt, cursor.createdAt), lt(activityEvents.id, cursor.id)),
+                )
+              : undefined,
+          ),
+        )
+        .orderBy(desc(activityEvents.createdAt), desc(activityEvents.id))
+        .limit(limit + 1);
+
+      const hasMore = rows.length > limit;
+      const items = hasMore ? rows.slice(0, limit) : rows;
+      const last = items[items.length - 1];
+      return {
+        items,
+        nextCursor: hasMore && last ? encodeActivityCursor(last.createdAt, last.id) : null,
+      };
+    }),
   }),
 
   /**
