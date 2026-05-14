@@ -15,6 +15,7 @@
     "./textarea": "./src/components/textarea.tsx",
     "./select": "./src/components/select.tsx",
     "./avatar": "./src/components/avatar.tsx",
+    "./separator": "./src/components/separator.tsx",
     "./section-header": "./src/components/section-header.tsx",
     "./progress": "./src/components/progress.tsx",
     "./empty-state": "./src/components/empty-state.tsx",

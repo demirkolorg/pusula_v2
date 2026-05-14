@@ -39,6 +39,7 @@ export {
   SelectValue,
 } from './components/select';
 export { Avatar, type AvatarProps, type PaletteName } from './components/avatar';
+export { Separator, type SeparatorProps } from './components/separator';
 export { SectionHeader, type SectionHeaderProps } from './components/section-header';
 export { Progress, type ProgressProps } from './components/progress';
 export { EmptyState, type EmptyStateProps } from './components/empty-state';

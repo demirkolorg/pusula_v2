@@ -1,47 +1,48 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import {
   ActivityIcon,
-  ArchiveIcon,
-  ArchiveRestoreIcon,
+  CheckIcon,
+  FilterIcon,
   LayoutGridIcon,
-  MoreHorizontalIcon,
-  PencilIcon,
+  ListIcon,
   SearchIcon,
-  Settings2Icon,
-  StarIcon,
+  Share2Icon,
+  TagsIcon,
   UserPlusIcon,
 } from 'lucide-react';
 import {
   Badge,
   Button,
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
-import { BoardSettingsDialog } from './board-settings/board-settings-dialog';
+import { BoardFilterMenuContent, type BoardFilterMenuContentProps } from './board-filter-bar';
+import {
+  BoardSettingsDropdown,
+  type BoardSettingsTab,
+} from './board-settings/board-settings-dropdown';
 import { RenameBoardForm } from './rename-board-form';
 
 type BoardTopBarProps = {
   boardId: string;
   workspaceId: string;
   title: string;
-  /** The board's archived state — drives the "Arşivli" badge + read-only affordances. */
   archived: boolean;
-  /** Whether the viewer is board `admin` — gates rename / archive / settings. */
   isBoardAdmin: boolean;
+  filter?: BoardFilterMenuContentProps;
 };
 
-/** A disabled action button that explains (via tooltip) that the feature is coming later. */
 function ComingSoonAction({
   icon,
   label,
@@ -72,134 +73,126 @@ function ComingSoonAction({
   );
 }
 
-/** The "Pano / Liste / Etiketler" view switch — only "Pano" is active this phase. */
-function BoardViewSwitch() {
+function BoardViewMenu() {
   const copy = strings.board.topBar;
+
   return (
-    <div
-      role="tablist"
-      aria-label={copy.eyebrow}
-      className="bg-secondary inline-flex rounded-md border p-[3px]"
-    >
-      <span
-        role="tab"
-        aria-selected
-        className="bg-card rounded-sm px-2.5 py-1 text-xs font-medium shadow-xs"
-      >
-        {copy.viewBoard}
-      </span>
-      {[copy.viewList, copy.viewLabels].map((label) => (
-        <Tooltip key={label}>
-          <TooltipTrigger asChild>
-            <span
-              role="tab"
-              aria-selected={false}
-              aria-disabled
-              className="text-muted-foreground/70 cursor-not-allowed rounded-sm px-2.5 py-1 text-xs font-medium"
-            >
-              {label}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{copy.viewSoon}</TooltipContent>
-        </Tooltip>
-      ))}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0"
+          aria-label={copy.viewMenu}
+        >
+          <LayoutGridIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuCheckboxItem
+          checked
+          onCheckedChange={() => undefined}
+          onSelect={(event) => event.preventDefault()}
+        >
+          <CheckIcon className="text-primary" />
+          {copy.viewBoard}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuItem disabled>
+          <ListIcon />
+          {copy.viewList}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled>
+          <TagsIcon />
+          {copy.viewLabels}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
-/**
- * The board screen's top bar: the board identity (back-linked icon + "Pano"
- * eyebrow + name + a "favourite" placeholder), the "Pano / Liste / Etiketler"
- * view switch (only "Pano" active), and the actions
- * (invite → board settings, search/activity placeholders, "⋮" menu → rename /
- * archive / restore / settings). Mutation flow is unchanged — rename goes
- * through `RenameBoardForm` (`board.update`), archive/restore through
- * `ArchiveBoardDialog` / `useRestoreBoard` (`board.archive`). Drag-and-drop and
- * the "Liste"/"Etiketler" views are out of scope (Phase 3 / later).
- */
+function BoardFilterMenu({ filter }: { filter: BoardFilterMenuContentProps }) {
+  const copy = strings.board.filter;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label={copy.labelsTitle}
+        >
+          <FilterIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <BoardFilterMenuContent {...filter} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function BoardTopBar({
   boardId,
   workspaceId,
   title,
   archived,
   isBoardAdmin,
+  filter,
 }: BoardTopBarProps) {
   const copy = strings.board.topBar;
 
   const [renaming, setRenaming] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<BoardSettingsTab>('members');
   const restoreBoard = useRestoreBoard(boardId);
 
+  const startRenamingFromMenu = () => {
+    window.setTimeout(() => setRenaming(true), 0);
+  };
+
+  const openSettings = (tab: BoardSettingsTab) => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
+
+  const copyBoardLink = async () => {
+    const boardUrl = `${window.location.origin}/workspaces/${workspaceId}/boards/${boardId}`;
+
+    try {
+      if (!window.navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await window.navigator.clipboard.writeText(boardUrl);
+      toast(copy.shareCopied);
+    } catch {
+      toast.error(copy.shareFailed);
+    }
+  };
+
   return (
-    <header className="flex min-h-14 items-center gap-3 bg-background px-4 py-2 sm:gap-4">
-      {/* Identity */}
+    <header className="flex min-h-14 items-center gap-2 bg-background px-4 py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Link
-          href={`/workspaces/${workspaceId}`}
-          aria-label={strings.board.detail.backToWorkspace}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive text-destructive-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          <LayoutGridIcon className="size-4" aria-hidden />
-        </Link>
-        <div className="flex min-w-0 flex-col">
-          <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            {copy.eyebrow}
-          </span>
-          {isBoardAdmin && !archived ? (
-            <RenameBoardForm
-              boardId={boardId}
-              title={title}
-              editing={renaming}
-              onEditingChange={setRenaming}
-              hideTrigger
-            />
-          ) : (
-            <div className="flex min-w-0 items-center gap-1.5">
-              <h1 className="truncate text-[15px] font-semibold">{title}</h1>
-              {archived && (
-                <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-              )}
-            </div>
-          )}
-        </div>
+        {isBoardAdmin && !archived ? (
+          <RenameBoardForm
+            boardId={boardId}
+            title={title}
+            editing={renaming}
+            onEditingChange={setRenaming}
+            hideTrigger
+          />
+        ) : (
+          <h1 className="min-w-0 truncate text-[15px] font-semibold">{title}</h1>
+        )}
         {archived && <Badge variant="outline">{copy.archivedBadge}</Badge>}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                aria-label={copy.favorite}
-                disabled
-              >
-                <StarIcon className="size-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{copy.favoriteSoon}</TooltipContent>
-        </Tooltip>
+        <BoardViewMenu />
       </div>
 
-      {/* View switch */}
-      <BoardViewSwitch />
-
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        {isBoardAdmin && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setSettingsOpen(true)}
-            className="font-semibold"
-          >
-            <UserPlusIcon className="size-4" />
-            {copy.invite}
-          </Button>
-        )}
+      <div className="flex shrink-0 items-center gap-1">
+        {filter && <BoardFilterMenu filter={filter} />}
         <ComingSoonAction
           icon={<SearchIcon className="size-4" />}
           label={copy.search}
@@ -210,56 +203,52 @@ export function BoardTopBar({
           label={copy.activity}
           hint={copy.activitySoon}
         />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={copyBoardLink}
+          className="font-semibold"
+        >
+          <Share2Icon className="size-4" />
+          {copy.share}
+        </Button>
         {isBoardAdmin && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                aria-label={copy.more}
-              >
-                <MoreHorizontalIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {!archived && (
-                <DropdownMenuItem onSelect={() => setRenaming(true)}>
-                  <PencilIcon />
-                  {copy.menuRename}
-                </DropdownMenuItem>
-              )}
-              {archived ? (
-                <DropdownMenuItem
-                  onSelect={() =>
-                    restoreBoard.mutate({
-                      boardId,
-                      archived: false,
-                    })
-                  }
-                  disabled={restoreBoard.isPending}
-                >
-                  <ArchiveRestoreIcon />
-                  {copy.menuRestore}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem variant="destructive" onSelect={() => setArchiveDialogOpen(true)}>
-                  <ArchiveIcon />
-                  {copy.menuArchive}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                <Settings2Icon />
-                {copy.menuSettings}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => openSettings('invitations')}
+            className="font-semibold"
+          >
+            <UserPlusIcon className="size-4" />
+            {copy.invite}
+          </Button>
+        )}
+        {isBoardAdmin && (
+          <BoardSettingsDropdown
+            boardId={boardId}
+            workspaceId={workspaceId}
+            canManage
+            boardActive={!archived}
+            archived={archived}
+            open={settingsOpen}
+            activeTab={settingsTab}
+            onOpenChange={setSettingsOpen}
+            onActiveTabChange={setSettingsTab}
+            onRename={startRenamingFromMenu}
+            onArchive={() => setArchiveDialogOpen(true)}
+            onRestore={() =>
+              restoreBoard.mutate({
+                boardId,
+                archived: false,
+              })
+            }
+            restorePending={restoreBoard.isPending}
+          />
         )}
       </div>
 
-      {/* External-trigger dialogs (rendered once; opened from the menu / invite button). */}
       {isBoardAdmin && (
         <>
           <ArchiveBoardDialog
@@ -267,15 +256,6 @@ export function BoardTopBar({
             archived={archived}
             open={archiveDialogOpen}
             onOpenChange={setArchiveDialogOpen}
-            hideTrigger
-          />
-          <BoardSettingsDialog
-            boardId={boardId}
-            workspaceId={workspaceId}
-            canManage
-            boardActive={!archived}
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
             hideTrigger
           />
         </>

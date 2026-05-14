@@ -7,6 +7,7 @@ import {
   Alert,
   AlertDescription,
   Button,
+  type ButtonProps,
   Dialog,
   DialogClose,
   DialogContent,
@@ -26,13 +27,34 @@ import { useTRPC } from '@/trpc/client';
  * list. `triggerLabel` overrides the trigger button text (the onboarding empty
  * state uses a more prominent label).
  */
-export function CreateWorkspaceDialog({ triggerLabel }: { triggerLabel?: string } = {}) {
+type CreateWorkspaceDialogProps = {
+  triggerLabel?: string;
+  triggerVariant?: ButtonProps['variant'];
+  triggerClassName?: string;
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function CreateWorkspaceDialog({
+  triggerLabel,
+  triggerVariant,
+  triggerClassName,
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange,
+}: CreateWorkspaceDialogProps = {}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const nameId = useId();
   const copy = strings.workspace.create;
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setDialogOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -49,7 +71,7 @@ export function CreateWorkspaceDialog({ triggerLabel }: { triggerLabel?: string 
     setName('');
     setNameError(null);
     createWorkspace.reset();
-    setOpen(false);
+    setDialogOpen(false);
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -67,13 +89,17 @@ export function CreateWorkspaceDialog({ triggerLabel }: { triggerLabel?: string 
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next) setOpen(true);
+        if (next) setDialogOpen(true);
         else resetAndClose();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm">{triggerLabel ?? strings.workspace.newButton}</Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant={triggerVariant} className={triggerClassName}>
+            {triggerLabel ?? strings.workspace.newButton}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
