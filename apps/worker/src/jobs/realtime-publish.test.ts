@@ -196,6 +196,32 @@ describe.runIf(dbAvailable)('processRealtimePublishJob (integration)', () => {
     ]);
   });
 
+  it('validates list.updated color payloads before publishing', async () => {
+    const seed = await seedBoard();
+    const eventId = await seedEvent({
+      workspaceId: seed.workspaceId,
+      boardId: seed.boardId,
+      actorId: seed.ownerId,
+      type: 'list.updated',
+      data: {
+        listId: 'L1',
+        color: 'not-a-list-colour',
+      },
+    });
+    const pub = capturingPublisher();
+
+    await expect(processRealtimePublishJob(db() as never, pub, { eventId })).rejects.toThrow();
+    expect(pub.calls).toHaveLength(0);
+
+    const [row] = await db()
+      .select({ publishedAt: realtimeEvents.publishedAt, status: realtimeEvents.status })
+      .from(realtimeEvents)
+      .where(dbMod.eq(realtimeEvents.id, eventId))
+      .limit(1);
+    expect(row!.publishedAt).toBeNull();
+    expect(row!.status).toBe('pending');
+  });
+
   it('rolls back the publish stamp when the publisher throws', async () => {
     const seed = await seedBoard();
     const eventId = await seedEvent({
