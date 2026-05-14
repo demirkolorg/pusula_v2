@@ -47,6 +47,12 @@ import {
   type RealtimePublishJobData,
 } from './jobs/realtime-publish';
 import {
+  notificationEmailJobId,
+  notificationPublishJobId,
+  notificationPushJobId,
+  realtimePublishJobId,
+} from './jobs/bullmq-job-ids';
+import {
   REALTIME_PUBLISH_SWEEPER_INTERVAL_MS,
   REALTIME_PUBLISH_SWEEPER_JOB_NAME,
   sweepStaleRealtimeEvents,
@@ -74,7 +80,7 @@ const notificationsWorker = new Worker(
           await notificationsQueue.add(
             NOTIFICATION_PUBLISH_JOB_NAME,
             { eventId },
-            { jobId: `notify:${eventId}` },
+            { jobId: notificationPublishJobId(eventId) },
           );
         },
       });
@@ -95,14 +101,14 @@ const notificationsWorker = new Worker(
           await notificationsEmailQueue.add(
             NOTIFICATION_EMAIL_JOB_NAME,
             { outboxId } satisfies NotificationEmailJobData,
-            { jobId: `email:${outboxId}` },
+            { jobId: notificationEmailJobId(outboxId) },
           );
         },
         enqueuePush: async (outboxId) => {
           await notificationsPushQueue.add(
             NOTIFICATION_PUSH_JOB_NAME,
             { outboxId } satisfies NotificationPushJobData,
-            { jobId: `push:${outboxId}` },
+            { jobId: notificationPushJobId(outboxId) },
           );
         },
       },
@@ -131,7 +137,7 @@ const realtimeWorker = new Worker(
           await realtimePublishQueue.add(
             REALTIME_PUBLISH_JOB_NAME,
             { eventId },
-            { jobId: `publish:${eventId}` },
+            { jobId: realtimePublishJobId(eventId) },
           );
         },
       });
@@ -157,7 +163,7 @@ const scheduledWorker = new Worker(
         await notificationsQueue.add(
           NOTIFICATION_PUBLISH_JOB_NAME,
           { eventId },
-          { jobId: `notify:${eventId}` },
+          { jobId: notificationPublishJobId(eventId) },
         );
       });
       if (result.written > 0) {

@@ -131,6 +131,33 @@ export const strings = {
       soon: 'Yakında',
     },
   },
+  notifications: {
+    bellAria: (count: number) =>
+      count === 0 ? 'Bildirimler' : `${count} okunmamış bildirim`,
+    title: 'Bildirimler',
+    markAllRead: 'Tümünü okundu işaretle',
+    empty: 'Henüz bildirim yok',
+    loadMore: 'Daha fazla yükle',
+    unreadCountLabel: (count: number) => `${count} okunmamış`,
+    fallbackActorName: 'Bir kullanıcı',
+    fallbackCardTitle: 'bu kart',
+    fallbackBoardName: 'bu pano',
+    fallbackWorkspaceName: 'bu workspace',
+    summary: {
+      cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
+      commentMentioned: (cardTitle: string) => `seni "${cardTitle}" kartında bahsetti`,
+      commentCreated: (cardTitle: string) => `"${cardTitle}" kartında yorum bıraktı`,
+      dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
+      dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
+      dueOverdue: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi geçti`,
+      boardMemberInvited: (boardName: string) => `seni "${boardName}" panosuna davet etti`,
+      workspaceMemberInvited: (workspaceName: string) =>
+        `seni "${workspaceName}" workspace'ine davet etti`,
+      cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
+      cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
+      default: 'bir bildirim gönderdi',
+    },
+  },
   workspace: {
     listTitle: 'Workspace’lerin',
     loading: 'Workspace’ler yükleniyor…',
@@ -416,6 +443,24 @@ export const strings = {
       menuRename: 'Yeniden adlandır',
       menuArchive: 'Listeyi arşivle',
       menuRestore: 'Listeyi geri yükle',
+    },
+    list: {
+      colorPicker: {
+        title: 'Liste rengini değiştir',
+        clear: 'Rengi kaldır',
+        colors: {
+          kirmizi: 'Kırmızı',
+          turuncu: 'Turuncu',
+          sari: 'Sarı',
+          lime: 'Lime',
+          yesil: 'Yeşil',
+          sky: 'Gök Mavisi',
+          mavi: 'Mavi',
+          mor: 'Mor',
+          pembe: 'Pembe',
+          gri: 'Gri',
+        },
+      },
     },
     dnd: {
       // Drag handles + the keyboard/button alternative (card ⋮ "move", column ⋮ "move left/right").

@@ -247,7 +247,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
 
     // Critical: the row is NOT stamped — the 6B email processor stamps after
     // sending. The sweeper sees the row as still pending; that's fine because
-    // BullMQ's `jobId: 'email:{outboxId}'` debounces the re-enqueue.
+    // BullMQ's `jobId: 'email-{outboxId}'` debounces the re-enqueue.
     const [stamped] = await db()
       .select({ processedAt: notificationOutbox.processedAt, status: notificationOutbox.status })
       .from(notificationOutbox)

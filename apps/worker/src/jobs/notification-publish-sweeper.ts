@@ -7,7 +7,7 @@
  * milliseconds, the job never lands; the `notification_outbox` row(s) sit
  * with `processed_at IS NULL`. This sweeper drains that pool: every 60 s it
  * picks up *event_ids* with rows older than 30 s and re-enqueues them. BullMQ
- * debounces by `jobId = notify:{eventId}`, so a still-in-flight job is a
+ * debounces by `jobId = notify-{eventId}`, so a still-in-flight job is a
  * natural no-op.
  *
  * Guarantee: no notification sits `processed_at IS NULL` for longer than ~90 s

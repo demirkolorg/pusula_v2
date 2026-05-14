@@ -5,8 +5,8 @@ import { connection } from './redis';
  * Background queue names. Each maps to a BullMQ queue consumed by a Worker in
  * `index.ts`. See architecture doc §13 for the planned job set.
  */
-// BullMQ forbids `:` in queue names (it's the Redis key separator), so the
-// `pusula-*` segments use `-`. Job *ids* may still contain `:` (see below).
+// BullMQ forbids `:` in queue names and custom job ids (Redis key separator), so
+// both queue names and job id prefixes use `-`.
 export const QUEUE = {
   /**
    * Faz 6A (DEM-90) — drains `notification_outbox` rows (channel='in_app').
@@ -38,7 +38,7 @@ export const QUEUE = {
   /**
    * Re-balances fractional `position` strings for a list (its cards) or a board
    * (its lists) when they grow too long. Producer: `apps/api` (`list.move` /
-   * `card.move`, via the tRPC context). Job `jobId = compaction:{list|board}:{id}`
+   * `card.move`, via the tRPC context). Job `jobId = compaction-{list|board}-{id}`
    * debounces per scope (only one pending job per scope). See `jobs/compaction.ts`
    * and `docs/architecture/06-bildirim-altyapisi.md` "Position compaction".
    *

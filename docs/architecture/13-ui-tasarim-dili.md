@@ -163,7 +163,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 <section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border bg-muted/30">
   <header class="flex shrink-0 items-center justify-between gap-1 p-2">
     <div> liste adı (text-sm font-semibold truncate) · kart sayısı (text-muted-foreground text-xs) </div>
-    <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / arşivle) </div>
+    <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / liste rengini değiştir / arşivle) </div>
   </header>
   <div class="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"> {kartlar} </div>
   <footer class="shrink-0 p-2"> AddCardForm | <Button variant=ghost size=sm class="w-full justify-start text-muted-foreground"> + Kart ekle </Button> </footer>
@@ -174,6 +174,13 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 - Sona: "+ Liste ekle" — `w-72 shrink-0 rounded-lg border border-dashed bg-muted/30 p-2` içinde ghost buton / inline form.
 - Drag (Faz 3 — placeholder spec): sürüklenen kolon `shadow-drag`, bırakılacak yer `w-72 h-32 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5`.
 - **Scroll & scrollbar ([DEM-88](https://linear.app/demirkol/issue/DEM-88) — 2026-05-13):** kolon `max-h-full` (parent strip yüksekliği kadar; içerik az ise içeriği kadar kompakt durur — `h-full` değil) + 3-segment (header `shrink-0` / cards area `flex min-h-0 overflow-y-auto pusula-scrollbar` / footer `shrink-0`); cards area `flex-1` taşımaz (boş kolonlar viewport-tall görünmesin). Strip `items-start` ile kolonlar top-aligned; strip kendisi `overflow-x-auto overflow-y-hidden` (yatay scroll yalnız). Custom scrollbar utility `.pusula-scrollbar` (`packages/ui/src/styles/theme.css` `@layer utilities` — 6px thin, transparent track, soft OKLCH thumb); token'lar `--scrollbar-thumb` + `--scrollbar-thumb-hover` (light + dark). Wired chain → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.4 "Layout & scroll davranışı".
+
+#### Renkli kolon (DEM-98)
+
+- **Model:** `lists.color` nullable. `null` eski görünümü korur: kolon container `bg-muted/30`, başlık/metin `text-foreground`. Renk seçilince tüm kolon yüzeyi solid `bg-palet-{ad}` olur; başlık ve kolon chrome metni `text-palet-{ad}-foreground`, ikincil metinler `text-current/70` kullanır. Kartlar içeride yine `bg-card` kalır; kart içeriği renklenmez.
+- **Picker:** liste header ⋮ menüsünde `PaletteIcon` + "Liste rengini değiştir" `DropdownMenuSub` tetikleyicisi. İçerik shadcn `Popover`/submenu içinde 2×5 grid (`grid-cols-5 gap-1.5`): 10 `LIST_COLORS` (`yesil/sari/turuncu/kirmizi/mor/mavi/sky/lime/pembe/gri`) swatch butonu `size-9 rounded-md bg-palet-{ad} border border-border/30 hover:ring-2 ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring`; seçili renkte `CheckIcon size-4 text-palet-{ad}-foreground`.
+- **Clear:** grid altında ghost `Button` (`w-full justify-center`) "Rengi kaldır"; mevcut renk `null` ise disabled. Tüm metinler `apps/web/src/lib/strings.ts` (`board.list.colorPicker.*`) üzerinden gelir; hardcode yok.
+- **Mutation:** swatch click `useOptimisticBoardListMutation(api.list.update)` ile `{ listId, color, clientMutationId }`; clear `{ listId, color: null, clientMutationId }`. Aynı renge tıklama UI tarafında no-op olabilir; backend de idempotent no-op'tur. Realtime `list.updated` `color` payload'ı ikinci tarayıcı cache'ine işler.
 
 ### Kart (`CardItem`)
 

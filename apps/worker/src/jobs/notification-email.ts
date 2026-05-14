@@ -84,13 +84,20 @@ export function createResendMailer(args: {
     };
   }
   // Lazy-load the SDK so the worker boot doesn't pay for it when Resend is
-  // disabled. Same trick `apps/api/src/auth-emails.ts` uses.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { Resend } = require('resend') as typeof ResendSdk;
-  const resend = new Resend(args.apiKey);
+  // disabled. Keep it ESM-native because the worker app runs as `"type":
+  // "module"` under tsx.
+  let resend: InstanceType<typeof ResendSdk.Resend> | null = null;
+  const getResend = async () => {
+    if (!resend) {
+      const { Resend } = await import('resend');
+      resend = new Resend(args.apiKey);
+    }
+    return resend;
+  };
   return {
     send: async (msg) => {
-      const { data, error } = await resend.emails.send({
+      const resendClient = await getResend();
+      const { data, error } = await resendClient.emails.send({
         from: msg.from,
         to: msg.to,
         subject: msg.subject,

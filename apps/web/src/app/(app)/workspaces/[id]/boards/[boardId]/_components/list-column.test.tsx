@@ -51,6 +51,7 @@ const list: BoardList = {
   id: 'l1',
   title: 'Yapılacak',
   position: 'a0',
+  color: null,
   archivedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
@@ -114,7 +115,16 @@ describe('<ListColumn>', () => {
     render(<ListColumn boardId="b1" list={list} cards={[]} canEdit />);
     await user.click(screen.getByRole('button', { name: columnCopy.more }));
     expect(await screen.findByRole('menuitem', { name: columnCopy.menuRename })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: strings.board.list.colorPicker.title })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
+  });
+
+  it('renders a coloured list with full-column palette classes', () => {
+    render(<ListColumn boardId="b1" list={{ ...list, color: 'mavi' }} cards={[]} canEdit />);
+
+    const column = screen.getByRole('region', { name: list.title });
+    expect(column).toHaveClass('bg-palet-mavi');
+    expect(column.querySelector('header')).toHaveClass('text-palet-mavi-foreground');
   });
 
   it('editor can rename the list inline by clicking the title', async () => {

@@ -60,9 +60,9 @@ function makeDnd(over: Partial<BoardDnd> = {}): BoardDnd & {
 }
 
 const lists: BoardList[] = [
-  { id: 'L1', title: 'Yapılacak', position: 'a0', archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L2', title: 'Devam Eden', position: 'a1', archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L3', title: 'Bitti', position: 'a2', archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L1', title: 'Yapılacak', position: 'a0', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L2', title: 'Devam Eden', position: 'a1', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L3', title: 'Bitti', position: 'a2', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
 ];
 
 const card: BoardCard = {

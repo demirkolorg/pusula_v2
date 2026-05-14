@@ -17,7 +17,7 @@
  *   - `card.uncompleted`→ `{ cardId }`
  *   - `list.moved`      → `{ listId, position }`
  *   - `list.created`    → `{ list }`
- *   - `list.updated`    → `{ listId, patch }`
+ *   - `list.updated`    → `{ listId, patch? }` or `{ listId, fromTitle?, toTitle?, color? }`
  *   - `list.archived`   → `{ listId, archivedAt }`
  *   - `board.updated`   → `{ patch }`
  *   - `board.archived`  → `{ archivedAt }`
@@ -139,8 +139,17 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'list.updated': {
-      const { listId, patch } = payload as { listId: string; patch: Partial<ListCache> };
-      setBoard(qc, filters, (data) => applyListPatch(data, listId, patch));
+      const { listId, patch, toTitle, color } = payload as {
+        listId: string;
+        patch?: Partial<ListCache>;
+        toTitle?: string;
+        color?: ListCache['color'];
+      };
+      const nextPatch: Partial<ListCache> = { ...(patch ?? {}) };
+      if (toTitle !== undefined) nextPatch.title = toTitle;
+      if (Object.prototype.hasOwnProperty.call(payload, 'color')) nextPatch.color = color ?? null;
+      if (Object.keys(nextPatch).length === 0) return;
+      setBoard(qc, filters, (data) => applyListPatch(data, listId, nextPatch));
       return;
     }
     case 'list.archived': {

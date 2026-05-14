@@ -1,6 +1,6 @@
 {
-  "id": "dd5956d2-16a4-4b6b-90de-780fe3565998",
-  "prevId": "3f142787-995b-4601-916a-87d425784ed1",
+  "id": "62d34d07-0c54-48b4-bf73-19e3d512620d",
+  "prevId": "dd5956d2-16a4-4b6b-90de-780fe3565998",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1058,6 +1058,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "version": {
           "name": "version",
@@ -3414,7 +3420,9 @@
         "card.cover_changed",
         "card.cover_cleared",
         "list.color_changed",
-        "list.color_cleared"
+        "list.color_cleared",
+        "board.background_changed",
+        "board.background_cleared"
       ]
     },
     "public.board_role": {

@@ -15,11 +15,12 @@
  * Queue name + job name are duplicated here (rather than imported from
  * `@pusula/worker`) to keep `apps/api` from depending on the worker app — they
  * must stay in sync (`pusula-realtime-publish`, `realtime-publish`). BullMQ
- * forbids `:` in queue names (Redis key separator); job *ids* may still use `:`.
+ * forbids `:` in queue names and custom job ids (Redis key separator).
  */
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { EnqueueRealtimePublish } from '@pusula/api';
+import { realtimePublishJobId } from './bullmq-job-ids';
 import { env } from './env';
 
 const QUEUE_NAME = 'pusula-realtime-publish';
@@ -46,7 +47,7 @@ const realtimePublishQueue = new Queue(QUEUE_NAME, {
 
 /**
  * Enqueue a publish job for a freshly written `realtime_events` row. `jobId =
- * publish:{eventId}` so duplicate enqueues (e.g. enqueue + sweeper re-trigger)
+ * publish-{eventId}` so duplicate enqueues (e.g. enqueue + sweeper re-trigger)
  * are debounced by BullMQ. Swallows + logs Redis errors — fire-and-forget; the
  * sweeper guarantees delivery.
  */
@@ -55,7 +56,7 @@ export const enqueueRealtimePublish: EnqueueRealtimePublish = async ({ eventId }
     await realtimePublishQueue.add(
       JOB_NAME,
       { eventId },
-      { jobId: `publish:${eventId}` },
+      { jobId: realtimePublishJobId(eventId) },
     );
   } catch (err) {
     console.warn(

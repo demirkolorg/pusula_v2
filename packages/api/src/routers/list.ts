@@ -20,9 +20,9 @@
  * either the client-supplied `newPosition` (validated against the target
  * neighbours) or `positionBetween(before, after)`.
  *
- * An archived board is read-only: no new lists, no renames, no reorders, no
- * archive flips on its lists. (An archived *list* may still be renamed — only
- * adding/moving cards into it is forbidden, see `card.ts`.)
+ * An archived board is read-only: no new lists, no list updates, no reorders,
+ * no archive flips on its lists. DEM-98 also treats an archived *list* as
+ * read-only for `list.update`.
  */
 import { desc, eq, inArray, sql } from '@pusula/db';
 import { activityEvents, boards, lists } from '@pusula/db';
@@ -33,7 +33,7 @@ import {
   firstPosition,
   moveListInput,
   positionBetween,
-  renameListInput,
+  updateListInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
@@ -47,6 +47,7 @@ const listCols = {
   id: lists.id,
   boardId: lists.boardId,
   title: lists.title,
+  color: lists.color,
   position: lists.position,
   archivedAt: lists.archivedAt,
   createdAt: lists.createdAt,
@@ -135,14 +136,21 @@ export const listRouter = router({
   }),
 
   /**
-   * Rename a list. Board `member+` only. An archived *board* is read-only; an
-   * archived *list* may still be renamed (the domain only forbids adding/moving
-   * cards into an archived list). Idempotent: if the title is unchanged, returns
-   * `{ ..., changed: false }` without writing activity or bumping `version`.
+   * Update a list's title and/or colour. Board `member+` only. An archived
+   * board or list is read-only. Idempotent: if no requested field actually
+   * changes, returns
+   * `{ ..., changed: false }` without writing activity, realtime outbox, or
+   * bumping `version`.
    */
-  update: boardProcedure.input(renameListInput).mutation(async ({ ctx, input }) => {
+  update: boardProcedure.input(updateListInput).mutation(async ({ ctx, input }) => {
     if (!canEditBoardContent(accessFromBoardRole(ctx.board.role))) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi düzenleme yetkiniz yok.' });
+    }
+
+    const wantsTitle = input.title !== undefined;
+    const wantsColor = input.color !== undefined;
+    if (!wantsTitle && !wantsColor) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
     let realtimeEventId: string | undefined;
@@ -172,31 +180,69 @@ export const listRouter = router({
       if (board.archivedAt) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
       }
+      if (list.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli liste düzenlenemez.' });
+      }
 
-      if (list.title === input.title) {
+      const titleChanged = wantsTitle && input.title !== list.title;
+      const colorChanged = wantsColor && (list.color ?? null) !== (input.color ?? null);
+
+      const patch: Partial<typeof lists.$inferInsert> = {};
+      if (titleChanged) patch.title = input.title;
+      if (colorChanged) patch.color = input.color ?? null;
+
+      if (Object.keys(patch).length === 0) {
         return { ...list, changed: false as const };
       }
 
       const [updated] = await tx
         .update(lists)
-        .set({ title: input.title })
+        .set(patch)
         .where(eq(lists.id, input.listId))
         .returning(listCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.board.workspaceId,
-        boardId: ctx.board.id,
-        actorId: ctx.session.user.id,
-        type: 'list.renamed',
-        payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
-      });
+      if (titleChanged) {
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'list.renamed',
+          payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
+        });
+      }
+
+      if (colorChanged) {
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: updated.color ? 'list.color_changed' : 'list.color_cleared',
+          payload: updated.color
+            ? { listId: updated.id, oldColor: list.color ?? null, newColor: updated.color, clientMutationId: ctx.clientMutationId }
+            : { listId: updated.id, oldColor: list.color, clientMutationId: ctx.clientMutationId },
+        });
+      }
 
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.board.id))
         .returning({ version: boards.version });
+
+      const realtimeData: {
+        listId: string;
+        fromTitle?: string;
+        toTitle?: string;
+        color?: string | null;
+      } = { listId: updated.id };
+      if (titleChanged) {
+        realtimeData.fromTitle = list.title;
+        realtimeData.toTitle = updated.title;
+      }
+      if (colorChanged) {
+        realtimeData.color = updated.color ?? null;
+      }
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'list.updated',
@@ -205,7 +251,7 @@ export const listRouter = router({
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
         seq: bumped?.version ?? 0,
-        data: { listId: updated.id, fromTitle: list.title, toTitle: updated.title },
+        data: realtimeData,
       });
 
       return { ...updated, changed: true as const };

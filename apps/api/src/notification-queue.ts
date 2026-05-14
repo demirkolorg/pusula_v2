@@ -16,13 +16,13 @@
  * Queue name + job name are duplicated here (rather than imported from
  * `@pusula/worker`) to keep `apps/api` from depending on the worker app — they
  * must stay in sync (`pusula-notifications`, `notification-publish`). BullMQ
- * forbids `:` in queue names (Redis key separator); job *ids* may still use
- * `:`. Mirrors the producer pattern established by Faz 5B
- * (`realtime-publish-queue.ts`).
+ * forbids `:` in queue names and custom job ids (Redis key separator). Mirrors
+ * the producer pattern established by Faz 5B (`realtime-publish-queue.ts`).
  */
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { EnqueueNotificationPublish } from '@pusula/api';
+import { notificationPublishJobId } from './bullmq-job-ids';
 import { env } from './env';
 
 const QUEUE_NAME = 'pusula-notifications';
@@ -50,7 +50,7 @@ const notificationQueue = new Queue(QUEUE_NAME, {
 /**
  * Enqueue a publish job for a freshly written `notification_outbox` batch. The
  * `eventId` (activity_events.id) is enough — the worker reads every
- * `notification_outbox` row linked to it. `jobId = notify:{eventId}` so
+ * `notification_outbox` row linked to it. `jobId = notify-{eventId}` so
  * duplicate enqueues (e.g. mutation + sweeper) are debounced by BullMQ.
  * Swallows + logs Redis errors — fire-and-forget; the sweeper guarantees
  * delivery.
@@ -60,7 +60,7 @@ export const enqueueNotificationPublish: EnqueueNotificationPublish = async ({ e
     await notificationQueue.add(
       JOB_NAME,
       { eventId },
-      { jobId: `notify:${eventId}` },
+      { jobId: notificationPublishJobId(eventId) },
     );
   } catch (err) {
     console.warn(
