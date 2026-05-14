@@ -165,6 +165,16 @@
     oklch(0.94 0.03 220),
     oklch(0.97 0.02 80)
   );
+  --bg-gradient-trello-bubble: linear-gradient(145deg, #e9f2fe 2%, #cfe1fd 100%);
+  --bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
+  --bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
+  --bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
+  --bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
+  --bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
+  --bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
+  --bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
+  --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
+  --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
 
   /* Elevation */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04);
@@ -330,6 +340,16 @@
     oklch(0.32 0.04 220),
     oklch(0.36 0.03 80)
   );
+  --bg-gradient-trello-bubble: linear-gradient(145deg, #1c2b42 2%, #123263 100%);
+  --bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
+  --bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
+  --bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
+  --bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
+  --bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
+  --bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
+  --bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
+  --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
+  --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
 
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.4), 0 1px 1px oklch(0 0 0 / 0.3);
   --shadow-card-hover: 0 2px 6px oklch(0 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.4);
@@ -615,6 +635,49 @@
     --board-base: oklch(0.9 0.03 220);
     --board-surface-image: var(--bg-gradient-pearl);
   }
+  .board-bg-gradient-trello-bubble {
+    --board-base: #dceafe;
+    --board-surface-image: var(--bg-gradient-trello-bubble);
+  }
+  .board-bg-gradient-trello-snow {
+    --board-base: #228cd5;
+    --board-surface-image: var(--bg-gradient-trello-snow);
+  }
+  .board-bg-gradient-trello-ocean {
+    --board-base: #0b50af;
+    --board-surface-image: var(--bg-gradient-trello-ocean);
+  }
+  .board-bg-gradient-trello-crystal {
+    --board-base: #674284;
+    --board-surface-image: var(--bg-gradient-trello-crystal);
+  }
+  .board-bg-gradient-trello-rainbow {
+    --board-base: #a869c1;
+    --board-surface-image: var(--bg-gradient-trello-rainbow);
+  }
+  .board-bg-gradient-trello-peach {
+    --board-base: #ef763a;
+    --board-surface-image: var(--bg-gradient-trello-peach);
+  }
+  .board-bg-gradient-trello-flower {
+    --board-base: #f488a6;
+    --board-surface-image: var(--bg-gradient-trello-flower);
+  }
+  .board-bg-gradient-trello-earth {
+    --board-base: #3fa495;
+    --board-surface-image: var(--bg-gradient-trello-earth);
+  }
+  .board-bg-gradient-trello-alien {
+    --board-base: #374866;
+    --board-surface-image: var(--bg-gradient-trello-alien);
+  }
+  .board-bg-gradient-trello-volcano {
+    --board-base: #762a14;
+    --board-surface-image: var(--bg-gradient-trello-volcano);
+  }
+  .dark .board-bg-gradient-trello-bubble {
+    --board-base: #172f53;
+  }
 
   .bg-gradient-sunset {
     background-color: var(--background);
@@ -679,5 +742,45 @@
   .bg-gradient-pearl {
     background-color: var(--background);
     background-image: var(--bg-gradient-pearl);
+  }
+  .bg-gradient-trello-bubble {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-bubble);
+  }
+  .bg-gradient-trello-snow {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-snow);
+  }
+  .bg-gradient-trello-ocean {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-ocean);
+  }
+  .bg-gradient-trello-crystal {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-crystal);
+  }
+  .bg-gradient-trello-rainbow {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-rainbow);
+  }
+  .bg-gradient-trello-peach {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-peach);
+  }
+  .bg-gradient-trello-flower {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-flower);
+  }
+  .bg-gradient-trello-earth {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-earth);
+  }
+  .bg-gradient-trello-alien {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-alien);
+  }
+  .bg-gradient-trello-volcano {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-trello-volcano);
   }
 }

@@ -86,6 +86,9 @@ export function BoardBackgroundPicker({
                     selected && 'ring-2 ring-foreground',
                   )}
                 >
+                  <span className="absolute inset-x-1 bottom-1 rounded-sm bg-card/85 px-1 py-0.5 text-center text-[10px] font-medium leading-tight text-foreground shadow-sm backdrop-blur-sm sm:text-[11px]">
+                    {copy.gradientNames[name]}
+                  </span>
                   {selected && (
                     <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full bg-card text-foreground shadow-card">
                       <CheckIcon className="size-3.5" />
@@ -137,6 +140,9 @@ export function BoardBackgroundPicker({
                     selected && 'ring-2 ring-foreground',
                   )}
                 >
+                  <span className="absolute inset-x-1 bottom-1 rounded-sm bg-card/85 px-1 py-0.5 text-center text-[10px] font-medium leading-tight text-foreground shadow-sm backdrop-blur-sm sm:text-[11px]">
+                    {copy.colorNames[name]}
+                  </span>
                   {selected && (
                     <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full bg-card text-foreground shadow-card">
                       <CheckIcon className="size-3.5" />

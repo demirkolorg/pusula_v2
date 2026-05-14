@@ -15,6 +15,13 @@ describe('<WorkspaceSettingsForm>', () => {
     );
     expect(screen.getByLabelText('Workspace adı')).toHaveValue('Pazarlama Ekibi');
     expect(screen.getByLabelText('Adres (slug)')).toHaveValue('pazarlama-ekibi');
+    expect(screen.getByText('Workspace switcher ve başlıklarda görünen ad.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Workspace URL ve davet bağlamında kullanılan kısa adres.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Header ve switcher içinde görünen workspace ikonunu seçin.'),
+    ).toBeInTheDocument();
   });
 
   it('disables submit until something changed', async () => {

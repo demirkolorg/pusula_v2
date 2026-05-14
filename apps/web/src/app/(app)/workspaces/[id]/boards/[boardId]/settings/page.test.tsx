@@ -69,6 +69,18 @@ vi.mock('../_components/board-settings/background-picker', () => ({
   ),
 }));
 
+vi.mock('../_components/rename-board-form', () => ({
+  RenameBoardForm: ({ title }: { title: string }) => (
+    <div data-testid="rename-board-form">Pano adı: {title}</div>
+  ),
+}));
+
+vi.mock('../_components/archive-board-dialog', () => ({
+  ArchiveBoardDialog: ({ archived }: { archived: boolean }) => (
+    <div data-testid="archive-board-dialog">{archived ? 'restore-board' : 'archive-board'}</div>
+  ),
+}));
+
 import BoardSettingsPage from './page';
 
 type QueryStub = {
@@ -101,7 +113,7 @@ describe('<BoardSettingsPage>', () => {
     h.useQuery.mockReset();
   });
 
-  it('renders board icon and background settings for an active admin board', async () => {
+  it('renders board name, icon, background, and archive settings for an active admin board', async () => {
     h.useQuery.mockReturnValue(
       queryStub({
         isSuccess: true,
@@ -130,9 +142,11 @@ describe('<BoardSettingsPage>', () => {
       'href',
       '/workspaces/w1/boards/b1',
     );
+    expect(screen.getByTestId('rename-board-form')).toHaveTextContent('Pano adı: Roadmap');
     expect(screen.getByTestId('board-icon-picker')).toHaveTextContent('rocket:true:true');
     expect(screen.getByTestId('board-background-picker')).toHaveTextContent(
       'solid:mavi:true:true',
     );
+    expect(screen.getByTestId('archive-board-dialog')).toHaveTextContent('archive-board');
   });
 });

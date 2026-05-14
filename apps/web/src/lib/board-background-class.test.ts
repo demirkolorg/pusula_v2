@@ -6,6 +6,7 @@ describe('boardBackgroundClass', () => {
     expect(boardBackgroundClass(null)).toBe('board-bg-default');
     expect(boardBackgroundClass('gradient:ocean')).toBe('board-bg-gradient-ocean');
     expect(boardBackgroundClass('gradient:lagoon')).toBe('board-bg-gradient-lagoon');
+    expect(boardBackgroundClass('gradient:trello-snow')).toBe('board-bg-gradient-trello-snow');
     expect(boardBackgroundClass('solid:mavi')).toBe('board-bg-solid-mavi');
     expect(boardBackgroundClass('solid:beyaz')).toBe('board-bg-solid-beyaz');
   });

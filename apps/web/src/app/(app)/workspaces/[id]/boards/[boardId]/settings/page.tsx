@@ -2,7 +2,7 @@
 
 import { use } from 'react';
 import Link from 'next/link';
-import { ArrowLeftIcon, PaletteIcon, ShapesIcon } from 'lucide-react';
+import { ArchiveIcon, ArrowLeftIcon, PaletteIcon, ShapesIcon, TypeIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { DEFAULT_BOARD_ICON, ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import {
@@ -15,13 +15,16 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Separator,
 } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
 import { EntityIconBadge } from '@/components/entity-icon';
 import { boardRoleLabels, strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { ArchiveBoardDialog } from '../_components/archive-board-dialog';
 import { BoardBackgroundPicker } from '../_components/board-settings/background-picker';
 import { BoardIconPicker } from '../_components/board-settings/board-icon-picker';
+import { RenameBoardForm } from '../_components/rename-board-form';
 
 type BoardSettingsData = {
   board: {
@@ -84,12 +87,17 @@ export default function BoardSettingsPage({
   const archived = b.archivedAt != null;
   const canManage = b.role === 'admin';
   const boardActive = !archived;
+  const disabledNote = !canManage
+    ? copy.readonlyNote
+    : archived
+      ? copy.archivedNote
+      : null;
 
   return (
     <div className="space-y-6">
       {backLink}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <section className="rounded-md border bg-card px-4 py-4 shadow-card sm:px-5">
         <div className="flex min-w-0 items-start gap-3">
           <EntityIconBadge icon={currentIcon} className="size-10" glyphClassName="size-5" />
           <div className="min-w-0 space-y-1">
@@ -104,45 +112,109 @@ export default function BoardSettingsPage({
             <p className="text-muted-foreground text-sm">{copy.pageDescription}</p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShapesIcon className="size-4" />
-              {copy.iconTitle}
-            </CardTitle>
-            <CardDescription>{copy.iconDescription}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BoardIconPicker
-              boardId={boardId}
-              workspaceId={workspaceId}
-              icon={currentIcon}
-              canManage={canManage}
-              boardActive={boardActive}
-            />
-          </CardContent>
-        </Card>
+      {disabledNote && (
+        <Alert>
+          <AlertDescription>{disabledNote}</AlertDescription>
+        </Alert>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PaletteIcon className="size-4" />
-              {strings.board.background.title}
-            </CardTitle>
-            <CardDescription>{copy.backgroundDescription}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BoardBackgroundPicker
-              boardId={boardId}
-              background={b.background ?? null}
-              canManage={canManage}
-              boardActive={boardActive}
-            />
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>{copy.generalTitle}</CardTitle>
+              <CardDescription>{copy.generalDescription}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <TypeIcon className="size-4" />
+                    {copy.nameTitle}
+                  </div>
+                  <p className="text-muted-foreground text-sm">{copy.nameDescription}</p>
+                </div>
+                {canManage && boardActive ? (
+                  <RenameBoardForm boardId={boardId} title={b.title} variant="settings" />
+                ) : (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm font-medium">
+                    {b.title}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <ShapesIcon className="size-4" />
+                    {copy.iconTitle}
+                  </div>
+                  <p className="text-muted-foreground text-sm">{copy.iconDescription}</p>
+                </div>
+                <BoardIconPicker
+                  boardId={boardId}
+                  workspaceId={workspaceId}
+                  icon={currentIcon}
+                  canManage={canManage}
+                  boardActive={boardActive}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PaletteIcon className="size-4" />
+                {copy.appearanceTitle}
+              </CardTitle>
+              <CardDescription>{copy.appearanceDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BoardBackgroundPicker
+                boardId={boardId}
+                background={b.background ?? null}
+                canManage={canManage}
+                boardActive={boardActive}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <aside className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArchiveIcon className="size-4" />
+                {copy.tabActions}
+              </CardTitle>
+              <CardDescription>{copy.actionsDescription}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">{copy.archiveTitle}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {archived ? copy.restoreDescription : copy.archiveDescription}
+                  </p>
+                </div>
+                <Badge variant={archived ? 'outline' : 'secondary'}>
+                  {archived ? strings.board.archivedBadge : copy.activeBadge}
+                </Badge>
+              </div>
+
+              {canManage ? (
+                <ArchiveBoardDialog boardId={boardId} archived={archived} />
+              ) : (
+                <p className="text-muted-foreground text-sm">{copy.readonlyNote}</p>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
       </div>
     </div>
   );

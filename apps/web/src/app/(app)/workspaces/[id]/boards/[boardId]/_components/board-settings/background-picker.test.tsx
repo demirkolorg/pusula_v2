@@ -74,6 +74,7 @@ describe('<BoardBackgroundPicker>', () => {
     setup();
 
     await user.click(screen.getByRole('tab', { name: copy.tabs.solid }));
+    expect(screen.getByText(copy.colorNames.mavi)).toBeVisible();
     await user.click(screen.getByRole('button', { name: copy.colorNames.mavi }));
 
     expect(h.mutate).toHaveBeenCalledWith({ boardId: 'b1', background: 'solid:mavi' });
@@ -83,8 +84,13 @@ describe('<BoardBackgroundPicker>', () => {
     const user = userEvent.setup();
     setup();
 
+    expect(screen.getByText('Trello Mavi')).toBeVisible();
+
     await user.click(screen.getByRole('button', { name: 'Lagun' }));
     expect(h.mutate).toHaveBeenCalledWith({ boardId: 'b1', background: 'gradient:lagoon' });
+
+    await user.click(screen.getByRole('button', { name: 'Trello Mavi' }));
+    expect(h.mutate).toHaveBeenCalledWith({ boardId: 'b1', background: 'gradient:trello-snow' });
 
     await user.click(screen.getByRole('tab', { name: copy.tabs.solid }));
     await user.click(screen.getByRole('button', { name: 'Beyaz' }));

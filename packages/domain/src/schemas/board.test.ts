@@ -18,6 +18,7 @@ describe('boardBackgroundSchema', () => {
 
   it('accepts the expanded board gradient presets', () => {
     expect(boardBackgroundSchema.parse('gradient:lagoon')).toBe('gradient:lagoon');
+    expect(boardBackgroundSchema.parse('gradient:trello-snow')).toBe('gradient:trello-snow');
   });
 
   it('accepts every shared palette colour with the solid prefix', () => {

@@ -290,6 +290,16 @@ export const BOARD_BACKGROUND_GRADIENTS = [
   'meadow',
   'dusk',
   'pearl',
+  'trello-bubble',
+  'trello-snow',
+  'trello-ocean',
+  'trello-crystal',
+  'trello-rainbow',
+  'trello-peach',
+  'trello-flower',
+  'trello-earth',
+  'trello-alien',
+  'trello-volcano',
 ] as const;
 export type BoardBackgroundGradient = (typeof BOARD_BACKGROUND_GRADIENTS)[number];
 

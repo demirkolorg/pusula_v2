@@ -16,6 +16,8 @@ type RenameBoardFormProps = {
   boardId: string;
   /** Current persisted board title — pre-fills the input. */
   title: string;
+  /** Inline is compact for the top bar; settings renders a fuller form row. */
+  variant?: 'inline' | 'settings';
   /**
    * Optionally control the editing state from the outside (e.g. a "rename" menu
    * item in the board top bar). When omitted, the form is uncontrolled and shows
@@ -28,15 +30,14 @@ type RenameBoardFormProps = {
 };
 
 /**
- * Inline board rename: shows the title as static text with an "edit" affordance;
- * on edit, an input + save/cancel. Save calls `board.update` and, on success,
- * invalidates `board.get` so the new title propagates. Only mounted by the page
- * when the viewer is a board `admin`. The editing state can be lifted via
- * `editing` / `onEditingChange` (e.g. driven by a top-bar menu).
+ * Board rename control shared by the compact top bar and the fuller settings
+ * page. Save calls `board.update`; the optimistic cache hook keeps `board.get`
+ * in sync and rolls back on conflicts.
  */
 export function RenameBoardForm({
   boardId,
   title,
+  variant = 'inline',
   editing: editingProp,
   onEditingChange,
   hideTrigger = false,
@@ -109,6 +110,20 @@ export function RenameBoardForm({
   };
 
   if (!editing) {
+    if (variant === 'settings') {
+      return (
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
+          {!hideTrigger && (
+            <Button type="button" variant="outline" size="sm" onClick={startEditing}>
+              <PencilIcon className="size-3.5" />
+              {copy.rename}
+            </Button>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-w-0 items-center gap-1.5">
         <h1 className="min-w-0 truncate text-[15px] font-semibold">
@@ -137,17 +152,22 @@ export function RenameBoardForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="min-w-0 space-y-1">
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className={cn(variant === 'settings' ? 'space-y-2' : 'min-w-0 space-y-1')}
+    >
       <Input
         id={inputId}
         name="boardTitle"
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        onBlur={commit}
+        onBlur={variant === 'settings' ? undefined : commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
-            event.currentTarget.blur();
+            if (variant === 'settings') commit();
+            else event.currentTarget.blur();
           }
           if (event.key === 'Escape') {
             event.preventDefault();
@@ -160,12 +180,31 @@ export function RenameBoardForm({
         autoComplete="off"
         autoFocus
         className={cn(
-          'h-7 max-w-xs border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50',
+          variant === 'settings'
+            ? 'h-9 max-w-none bg-background px-3 text-sm font-medium'
+            : 'h-7 max-w-xs border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50',
           valueError && 'ring-2 ring-destructive/40',
         )}
         aria-invalid={valueError || renameBoard.isError ? true : undefined}
         aria-describedby={valueError ? `${inputId}-error` : undefined}
       />
+      {variant === 'settings' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" size="sm" disabled={renameBoard.isPending}>
+            {renameBoard.isPending ? copy.renameSaving : copy.renameSave}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={renameBoard.isPending}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={cancel}
+          >
+            {copy.renameCancel}
+          </Button>
+        </div>
+      )}
       {valueError && (
         <p id={`${inputId}-error`} className="text-destructive w-full text-sm">
           {valueError}

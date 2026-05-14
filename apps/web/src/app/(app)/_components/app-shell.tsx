@@ -30,11 +30,11 @@ type ActiveBoardPayload = {
 };
 
 /**
- * Matches the board detail route (`/workspaces/<id>/boards/<boardId>` and below).
- * That screen is the only one that goes full-bleed — its board surface stretches
- * edge to edge; every other route stays in a centred max-width container.
+ * Matches the board detail route (`/workspaces/<id>/boards/<boardId>`).
+ * That screen is the only one that goes full-bleed — settings and other child
+ * routes stay in the standard centred page container.
  */
-const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+/;
+const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+\/?$/;
 
 /**
  * App chrome for signed-in users: a sticky header (brand + workspace/board

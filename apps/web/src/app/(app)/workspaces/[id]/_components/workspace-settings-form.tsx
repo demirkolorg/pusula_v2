@@ -7,7 +7,7 @@ import {
   workspaceSlugSchema,
   type EntityIcon,
 } from '@pusula/domain';
-import { Alert, AlertDescription, Button, Input, Label } from '@pusula/ui';
+import { Alert, AlertDescription, Button, Input, Label, Separator } from '@pusula/ui';
 import { EntityIconPicker } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 
@@ -87,53 +87,76 @@ export function WorkspaceSettingsForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor={nameId}>{strings.workspace.manage.nameLabel}</Label>
-        <Input
-          id={nameId}
-          name="name"
-          value={nameValue}
-          onChange={(event) => setNameValue(event.target.value)}
-          placeholder={strings.workspace.manage.namePlaceholder}
-          disabled={pending}
-          autoComplete="off"
-          aria-invalid={nameError ? true : undefined}
-          aria-describedby={nameError ? `${nameId}-error` : undefined}
-        />
-        {nameError && (
-          <p id={`${nameId}-error`} className="text-destructive text-sm">
-            {nameError}
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+        <div className="space-y-1">
+          <Label htmlFor={nameId}>{strings.workspace.manage.nameLabel}</Label>
+          <p className="text-muted-foreground text-sm">
+            {strings.workspace.manage.nameDescription}
           </p>
-        )}
+        </div>
+        <div className="space-y-2">
+          <Input
+            id={nameId}
+            name="name"
+            value={nameValue}
+            onChange={(event) => setNameValue(event.target.value)}
+            placeholder={strings.workspace.manage.namePlaceholder}
+            disabled={pending}
+            autoComplete="off"
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={nameError ? `${nameId}-error` : undefined}
+          />
+          {nameError && (
+            <p id={`${nameId}-error`} className="text-destructive text-sm">
+              {nameError}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={slugId}>{strings.workspace.manage.slugLabel}</Label>
-        <Input
-          id={slugId}
-          name="slug"
-          value={slugValue}
-          onChange={(event) => setSlugValue(event.target.value)}
-          placeholder={strings.workspace.manage.slugPlaceholder}
-          disabled={pending}
-          autoComplete="off"
-          aria-invalid={slugError ? true : undefined}
-          aria-describedby={slugError ? `${slugId}-error` : `${slugId}-help`}
-        />
-        {slugError ? (
-          <p id={`${slugId}-error`} className="text-destructive text-sm">
-            {slugError}
+      <Separator />
+
+      <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+        <div className="space-y-1">
+          <Label htmlFor={slugId}>{strings.workspace.manage.slugLabel}</Label>
+          <p className="text-muted-foreground text-sm">
+            {strings.workspace.manage.slugDescription}
           </p>
-        ) : (
-          <p id={`${slugId}-help`} className="text-muted-foreground text-sm">
-            {strings.workspace.manage.slugHelp}
-          </p>
-        )}
+        </div>
+        <div className="space-y-2">
+          <Input
+            id={slugId}
+            name="slug"
+            value={slugValue}
+            onChange={(event) => setSlugValue(event.target.value)}
+            placeholder={strings.workspace.manage.slugPlaceholder}
+            disabled={pending}
+            autoComplete="off"
+            aria-invalid={slugError ? true : undefined}
+            aria-describedby={slugError ? `${slugId}-error` : `${slugId}-help`}
+          />
+          {slugError ? (
+            <p id={`${slugId}-error`} className="text-destructive text-sm">
+              {slugError}
+            </p>
+          ) : (
+            <p id={`${slugId}-help`} className="text-muted-foreground text-sm">
+              {strings.workspace.manage.slugHelp}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>{strings.workspace.manage.iconLabel}</Label>
+      <Separator />
+
+      <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+        <div className="space-y-1">
+          <Label>{strings.workspace.manage.iconLabel}</Label>
+          <p className="text-muted-foreground text-sm">
+            {strings.workspace.manage.iconDescription}
+          </p>
+        </div>
         <EntityIconPicker
           value={iconValue}
           onValueChange={setIconValue}

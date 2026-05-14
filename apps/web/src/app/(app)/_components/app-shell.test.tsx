@@ -408,4 +408,26 @@ describe('<AppShell>', () => {
     expect(header?.className).toContain('bg-board-shell');
     expect(header?.className).not.toContain('bg-card');
   });
+
+  it('keeps board settings routes inside the standard page container', () => {
+    h.pathname = '/workspaces/w1/boards/b1/settings';
+    h.params = { id: 'w1', boardId: 'b1' };
+    h.boardGetData = { board: { id: 'b1', title: 'Sprint', background: 'solid:mavi' } };
+
+    render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <div>content</div>
+      </AppShell>,
+    );
+
+    const content = screen.getByText('content');
+    const main = content.closest('main');
+    const brand = screen.getByRole('link', { name: strings.common.appName });
+    const header = brand.closest('header');
+
+    expect(main?.className).toContain('max-w-5xl');
+    expect(main?.className).toContain('px-4');
+    expect(header?.className).toContain('bg-card');
+    expect(header?.className).not.toContain('bg-board-shell');
+  });
 });

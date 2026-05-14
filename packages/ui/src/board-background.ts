@@ -15,6 +15,16 @@ export const BOARD_BACKGROUND_GRADIENTS = [
   'meadow',
   'dusk',
   'pearl',
+  'trello-bubble',
+  'trello-snow',
+  'trello-ocean',
+  'trello-crystal',
+  'trello-rainbow',
+  'trello-peach',
+  'trello-flower',
+  'trello-earth',
+  'trello-alien',
+  'trello-volcano',
 ] as const;
 
 export type BoardBackgroundGradient = (typeof BOARD_BACKGROUND_GRADIENTS)[number];
@@ -36,6 +46,16 @@ export const BG_GRADIENT_CLASS: Record<BoardBackgroundGradient, string> = {
   meadow: 'board-bg-gradient-meadow',
   dusk: 'board-bg-gradient-dusk',
   pearl: 'board-bg-gradient-pearl',
+  'trello-bubble': 'board-bg-gradient-trello-bubble',
+  'trello-snow': 'board-bg-gradient-trello-snow',
+  'trello-ocean': 'board-bg-gradient-trello-ocean',
+  'trello-crystal': 'board-bg-gradient-trello-crystal',
+  'trello-rainbow': 'board-bg-gradient-trello-rainbow',
+  'trello-peach': 'board-bg-gradient-trello-peach',
+  'trello-flower': 'board-bg-gradient-trello-flower',
+  'trello-earth': 'board-bg-gradient-trello-earth',
+  'trello-alien': 'board-bg-gradient-trello-alien',
+  'trello-volcano': 'board-bg-gradient-trello-volcano',
 };
 
 // Manual sync with @pusula/domain BOARD_BACKGROUND_SOLID_COLORS and theme.css tokens.
