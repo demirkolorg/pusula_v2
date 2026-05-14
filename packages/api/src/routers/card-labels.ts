@@ -26,7 +26,7 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — card.labels procedure'leri)
  * and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { and, eq, sql } from '@pusula/db';
+import { and, eq } from '@pusula/db';
 import { activityEvents, boards, cardLabels, labels } from '@pusula/db';
 import {
   addCardLabelInput,
@@ -36,6 +36,11 @@ import {
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 export const cardLabelsRouter = router({
@@ -64,7 +69,8 @@ export const cardLabelsRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Karta etiket ekleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -78,7 +84,7 @@ export const cardLabelsRouter = router({
       }
 
       const [label] = await tx
-        .select({ id: labels.id, boardId: labels.boardId })
+        .select({ id: labels.id, boardId: labels.boardId, name: labels.name, color: labels.color })
         .from(labels)
         .where(eq(labels.id, input.labelId))
         .limit(1);
@@ -107,13 +113,26 @@ export const cardLabelsRouter = router({
         payload: { cardId: ctx.card.id, labelId: input.labelId },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.label_added',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          cardId: ctx.card.id,
+          labelId: input.labelId,
+          label: { labelId: label.id, name: label.name, color: label.color },
+        },
+      });
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -128,7 +147,8 @@ export const cardLabelsRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Karttan etiket çıkarma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -158,12 +178,21 @@ export const cardLabelsRouter = router({
         payload: { cardId: ctx.card.id, labelId: input.labelId },
       });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.card.boardId));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.label_removed',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { cardId: ctx.card.id, labelId: input.labelId },
+      });
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 });

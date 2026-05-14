@@ -1,15 +1,17 @@
 'use client';
 
-import { Suspense, use } from 'react';
+import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
+import { Alert, AlertDescription, AlertTitle, boardBackgroundClass, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
 import { BoardAccessRequestScreen } from './_components/board-access-request-screen';
 import { BoardColumns } from './_components/board-columns';
+import { countArchivedLists } from './_components/board-filter';
+import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
@@ -38,6 +40,52 @@ export default function BoardDetailPage({
   // other users. Subscribes to `board:{boardId}` on mount, applies envelopes,
   // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner.
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
+  const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [showArchivedLists, setShowArchivedLists] = useState(false);
+  const boardCardsForFilters = board.data?.cards ?? [];
+  const boardListsForFilters = board.data?.lists ?? [];
+
+  const boardLabels = useMemo<BoardFilterLabel[]>(() => {
+    const byId = new Map<string, BoardFilterLabel>();
+    for (const card of boardCardsForFilters) {
+      for (const label of card.labels) {
+        if (!byId.has(label.labelId)) {
+          byId.set(label.labelId, { id: label.labelId, name: label.name, color: label.color });
+        }
+      }
+    }
+    return [...byId.values()].sort(
+      (a, b) => a.name.localeCompare(b.name, 'tr') || a.color.localeCompare(b.color),
+    );
+  }, [boardCardsForFilters]);
+
+  const liveSelectedLabelIds = useMemo<ReadonlySet<string>>(() => {
+    if (selectedLabelIds.size === 0) return selectedLabelIds;
+    const live = new Set<string>();
+    for (const id of selectedLabelIds) {
+      if (boardLabels.some((label) => label.id === id)) live.add(id);
+    }
+    return live;
+  }, [selectedLabelIds, boardLabels]);
+
+  useEffect(() => {
+    if (liveSelectedLabelIds.size !== selectedLabelIds.size) {
+      setSelectedLabelIds(liveSelectedLabelIds);
+    }
+  }, [liveSelectedLabelIds, selectedLabelIds.size]);
+
+  const toggleLabelFilter = (labelId: string) =>
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) next.delete(labelId);
+      else next.add(labelId);
+      return next;
+    });
+
+  const archivedListCount = useMemo(
+    () => countArchivedLists(boardListsForFilters),
+    [boardListsForFilters],
+  );
 
   const backLink = (
     <Link
@@ -107,13 +155,23 @@ export default function BoardDetailPage({
   const isBoardAdmin = b.role === 'admin';
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
+    <div className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}>
       <BoardTopBar
         boardId={boardId}
         workspaceId={workspaceId}
         title={b.title}
+        background={b.background ?? null}
         archived={archived}
         isBoardAdmin={isBoardAdmin}
+        filter={{
+          labels: boardLabels,
+          selectedLabelIds: liveSelectedLabelIds,
+          onToggleLabel: toggleLabelFilter,
+          onClearLabels: () => setSelectedLabelIds(new Set()),
+          showArchivedLists,
+          onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
+          archivedListCount,
+        }}
       />
 
       {!realtime.connected && (
@@ -132,6 +190,8 @@ export default function BoardDetailPage({
           board={{ role: b.role, archivedAt: b.archivedAt }}
           lists={lists}
           cards={cards}
+          selectedLabelIds={liveSelectedLabelIds}
+          showArchivedLists={showArchivedLists}
         />
       </div>
 

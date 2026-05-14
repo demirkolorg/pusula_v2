@@ -69,13 +69,19 @@ export function createResendMailer(args: {
   apiKey: string | undefined;
   from: string;
   nodeEnv: 'development' | 'test' | 'production';
+  dryRun?: boolean;
 }): EmailMailer {
-  if (!args.apiKey) {
+  if (args.dryRun || !args.apiKey) {
     return {
-      // No Resend creds → log + pretend-success. Dev/CI ergonomics; the row
-      // still gets stamped so the processor flow is observable end-to-end.
+      // No Resend creds (or explicit dry-run) → log + pretend-success.
+      // Dev/CI ergonomics; the row still gets stamped so the processor flow is
+      // observable end-to-end.
       send: async (msg) => {
-        const where = args.nodeEnv === 'production' ? 'PROD (missing key!)' : args.nodeEnv;
+        const where = args.dryRun
+          ? `${args.nodeEnv} dry-run`
+          : args.nodeEnv === 'production'
+            ? 'PROD (missing key!)'
+            : args.nodeEnv;
         console.warn(
           `[worker:notification-email] RESEND_API_KEY not set (${where}) — would send to ${msg.to} (subject: ${msg.subject})`,
         );

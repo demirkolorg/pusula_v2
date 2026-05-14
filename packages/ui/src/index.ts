@@ -1,4 +1,11 @@
 export { cn } from './lib/utils';
+export {
+  BOARD_BACKGROUND_GRADIENTS,
+  BG_GRADIENT_CLASS,
+  BOARD_SOLID_BACKGROUND_CLASS,
+  boardBackgroundClass,
+  type BoardBackgroundGradient,
+} from './board-background';
 export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Input } from './components/input';
 export { Label } from './components/label';
@@ -39,6 +46,7 @@ export {
   SelectValue,
 } from './components/select';
 export { Avatar, type AvatarProps, type PaletteName } from './components/avatar';
+export { Separator, type SeparatorProps } from './components/separator';
 export { SectionHeader, type SectionHeaderProps } from './components/section-header';
 export { Progress, type ProgressProps } from './components/progress';
 export { EmptyState, type EmptyStateProps } from './components/empty-state';
@@ -71,6 +79,7 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './components/dropdown-menu';
+export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './components/popover';
 export { Checkbox } from './components/checkbox';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';
 export {

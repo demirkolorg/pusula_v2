@@ -79,6 +79,13 @@ export function useBoardRealtime(
         return getBoardFilter();
       },
       card: (cardId: string) => cacheKeysRef.current.card(cardId),
+      comments: (cardId: string) => cacheKeysRef.current.comments(cardId),
+      checklists: (cardId: string) => cacheKeysRef.current.checklists(cardId),
+      cardLabels: (cardId: string) => cacheKeysRef.current.cardLabels(cardId),
+      cardMembers: (cardId: string) => cacheKeysRef.current.cardMembers(cardId),
+      boardLabels: (boardId: string) => cacheKeysRef.current.boardLabels(boardId),
+      boardMembers: (boardId: string) => cacheKeysRef.current.boardMembers(boardId),
+      boardInvitations: (boardId: string) => cacheKeysRef.current.boardInvitations(boardId),
     };
     // Read the current `boards.version` straight from the cache. If multiple
     // queries match the filter (shouldn't, in practice — one board, one entry),

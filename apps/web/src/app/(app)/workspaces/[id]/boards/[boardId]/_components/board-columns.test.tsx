@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { strings } from '@/lib/strings';
 import type { BoardCard } from './card-item';
 import type { BoardList } from './list-column';
 
@@ -10,8 +11,12 @@ vi.mock('./use-board-dnd', () => ({
 }));
 
 vi.mock('./list-column', () => ({
-  ListColumn: ({ list }: { list: BoardList }) => (
-    <section aria-label={list.title} data-testid={`list-${list.id}`} />
+  ListColumn: ({ list, cards }: { list: BoardList; cards: Array<{ id: string; title: string }> }) => (
+    <section aria-label={list.title} data-testid={`list-${list.id}`}>
+      {cards.map((card) => (
+        <span key={card.id}>{card.title}</span>
+      ))}
+    </section>
   ),
 }));
 
@@ -60,6 +65,47 @@ const lists: BoardList[] = [
   },
 ];
 
+const cards: BoardCard[] = [
+  {
+    id: 'C1',
+    listId: 'L1',
+    boardId: 'b1',
+    title: 'Acil kart',
+    description: null,
+    position: 'a0',
+    dueAt: null,
+    archivedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    completed: false,
+    coverColor: null,
+    labels: [{ labelId: 'l1', name: 'Acil', color: 'red' }],
+    checklistTotal: 0,
+    checklistDone: 0,
+    commentCount: 0,
+    members: [],
+  },
+  {
+    id: 'C2',
+    listId: 'L2',
+    boardId: 'b1',
+    title: 'Beklemede kart',
+    description: null,
+    position: 'a0',
+    dueAt: null,
+    archivedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    completed: false,
+    coverColor: null,
+    labels: [{ labelId: 'l2', name: 'Beklemede', color: 'blue' }],
+    checklistTotal: 0,
+    checklistDone: 0,
+    commentCount: 0,
+    members: [],
+  },
+];
+
 describe('<BoardColumns>', () => {
   it('renders the list drop placeholder before the hovered target list', () => {
     h.dnd = makeDnd({
@@ -73,6 +119,8 @@ describe('<BoardColumns>', () => {
         board={{ role: 'member', archivedAt: null }}
         lists={lists}
         cards={[] as BoardCard[]}
+        selectedLabelIds={new Set()}
+        showArchivedLists={false}
       />,
     );
 
@@ -82,5 +130,24 @@ describe('<BoardColumns>', () => {
     expect(
       Boolean(placeholder.compareDocumentPosition(targetList) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true);
+  });
+
+  it('uses external filter state and does not render a separate filter row', () => {
+    h.dnd = makeDnd();
+
+    render(
+      <BoardColumns
+        boardId="b1"
+        board={{ role: 'member', archivedAt: null }}
+        lists={lists}
+        cards={cards}
+        selectedLabelIds={new Set(['l1'])}
+        showArchivedLists={false}
+      />,
+    );
+
+    expect(screen.getByTestId('list-L1')).toHaveTextContent('Acil kart');
+    expect(screen.getByTestId('list-L2')).not.toHaveTextContent('Beklemede kart');
+    expect(screen.queryByText(strings.board.filter.labelsTitle)).not.toBeInTheDocument();
   });
 });

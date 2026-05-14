@@ -31,7 +31,7 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — checklist / checklist.item
  * procedure'leri) and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { asc, desc, eq, inArray, sql } from '@pusula/db';
+import { asc, desc, eq, inArray } from '@pusula/db';
 import { activityEvents, boards, checklistItems, checklists } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
@@ -54,6 +54,11 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 /** A Drizzle transaction handle for our schema, as passed to `db.transaction(cb)`. */
@@ -130,11 +135,8 @@ function nextPosition(lastPosition: string | undefined): string {
 }
 
 /** Bump the board's optimistic-concurrency `version` column. */
-async function bumpBoardVersion(tx: Transaction, boardId: string): Promise<void> {
-  await tx
-    .update(boards)
-    .set({ version: sql`${boards.version} + 1` })
-    .where(eq(boards.id, boardId));
+async function bumpBoardVersion(tx: Transaction, boardId: string): Promise<number> {
+  return bumpBoardVersionForRealtime(tx, boardId);
 }
 
 const itemRouter = router({
@@ -147,7 +149,8 @@ const itemRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi ekleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -174,9 +177,27 @@ const itemRouter = router({
         payload: { checklistId: input.checklistId, itemId: created.id, cardId: ctx.card.id, content: created.content },
       });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.item_added',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          itemId: created.id,
+          checklistId: input.checklistId,
+          content: created.content,
+          position: created.position,
+          item: created,
+        },
+      });
       return created;
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -191,6 +212,7 @@ const itemRouter = router({
     }
 
     let notificationEventId: string | undefined;
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
@@ -226,7 +248,27 @@ const itemRouter = router({
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.item_toggled',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          itemId: item.id,
+          checklistId: input.checklistId,
+          completed: updated.completed,
+          completedBy: updated.completedBy,
+          patch: {
+            completed: updated.completed,
+            completedAt: updated.completedAt,
+            completedBy: updated.completedBy,
+          },
+        },
+      });
 
       // Faz 6A (DEM-90) — only `checked` produces a watcher notification (the
       // domain rules map `checklist.item_checked` → `checklist_item_completed`;
@@ -247,6 +289,7 @@ const itemRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
 
@@ -259,7 +302,8 @@ const itemRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi düzenleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -274,9 +318,26 @@ const itemRouter = router({
         .returning(itemCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.item_updated',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          itemId: item.id,
+          checklistId: input.checklistId,
+          content: updated.content,
+          patch: { content: updated.content },
+        },
+      });
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -289,7 +350,8 @@ const itemRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi silme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -304,9 +366,21 @@ const itemRouter = router({
         payload: { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id },
       });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.item_deleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { itemId: item.id, checklistId: input.checklistId },
+      });
       return { id: item.id, deleted: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -415,7 +489,8 @@ export const checklistRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist oluşturma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       await assertBoardWritable(tx, ctx.card.boardId);
 
       const [last] = await tx
@@ -441,9 +516,27 @@ export const checklistRouter = router({
         payload: { checklistId: created.id, cardId: ctx.card.id, title: created.title },
       });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.created',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          checklistId: created.id,
+          cardId: ctx.card.id,
+          title: created.title,
+          position: created.position,
+          checklist: { ...created, items: [] },
+        },
+      });
       return created;
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -455,7 +548,8 @@ export const checklistRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist düzenleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -470,9 +564,25 @@ export const checklistRouter = router({
         .returning(checklistCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.updated',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          checklistId: checklist.id,
+          title: updated.title,
+          patch: { title: updated.title },
+        },
+      });
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -484,15 +594,28 @@ export const checklistRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist silme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
       await tx.delete(checklists).where(eq(checklists.id, checklist.id));
 
-      await bumpBoardVersion(tx, ctx.card.boardId);
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.deleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { checklistId: checklist.id },
+      });
       return { id: checklist.id, deleted: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   item: itemRouter,

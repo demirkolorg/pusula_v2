@@ -17,6 +17,7 @@ related:
   - "[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]"
   - "[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]"
   - "[[docs/architecture/05-board-mekanigi|Board Mekaniği]]"
+  - "[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]"
   - "[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]"
 updated: 2026-05-14
 ---
@@ -49,7 +50,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 | Token | Light (≈) | Rol |
 | --- | --- | --- |
-| `--background` | `oklch(0.96 0.02 240)` | Board zemini (açık mavi-gri). Board-başına özelleştirilebilir renk/degrade → ileri faz; şimdilik bu token. App-shell/diğer sayfalar `oklch(0.985 0.005 240)` (daha açık). |
+| `--background` | `oklch(0.96 0.02 240)` | Board zemini (açık mavi-gri) ve `boards.background = null` varsayılanı. Board-başına renk/degrade DEM-100 ile `--bg-gradient-*` + `--palet-*` token'larından seçilir. App-shell/diğer sayfalar `oklch(0.985 0.005 240)` (daha açık). |
 | `--card` | `oklch(1 0 0)` | Kart, modal, popover yüzeyi (beyaz) |
 | `--muted` | `oklch(0.97 0.01 240)` | Kolon zemini (`bg-muted/40` ile yarı saydam), modal sağ panel (`bg-muted/40 backdrop-blur`), disabled |
 | `--muted-foreground` | `oklch(0.50 0.02 250)` | İkincil metin, kart metadata, kolon meta |
@@ -133,11 +134,28 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Board zemini & üst bar
 
-- **Zemin:** `bg-background` (açık mavi-gri). İçerik alanı `flex-1 overflow-hidden p-4`. (Board-başına özelleştirilebilir background → ileri faz; şimdilik tek token.)
+- **Zemin:** `bg-background` (açık mavi-gri; varsayılan — `boards.background = null`). İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<paletAd>'`; `null` varsayılan `bg-background` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. Fotoğraf/Unsplash kapsam dışı (MinIO → Faz 8).
+
+  **DEM-100 gradient token listesi ve class haritası (kesin):**
+
+  | Değer | CSS token | Utility class | Türkçe ad |
+  | --- | --- | --- | --- |
+  | `gradient:sunset` | `--bg-gradient-sunset` | `bg-gradient-sunset` | Gün batımı |
+  | `gradient:ocean` | `--bg-gradient-ocean` | `bg-gradient-ocean` | Okyanus |
+  | `gradient:rainbow` | `--bg-gradient-rainbow` | `bg-gradient-rainbow` | Gökkuşağı |
+  | `gradient:forest` | `--bg-gradient-forest` | `bg-gradient-forest` | Orman |
+  | `gradient:lavender` | `--bg-gradient-lavender` | `bg-gradient-lavender` | Lavanta |
+  | `gradient:sunrise` | `--bg-gradient-sunrise` | `bg-gradient-sunrise` | Gündoğumu |
+  | `gradient:midnight` | `--bg-gradient-midnight` | `bg-gradient-midnight` | Gece yarısı |
+  | `gradient:mint` | `--bg-gradient-mint` | `bg-gradient-mint` | Nane |
+  | `gradient:aurora` | `--bg-gradient-aurora` | `bg-gradient-aurora` | Kuzey ışığı |
+  | `gradient:coral` | `--bg-gradient-coral` | `bg-gradient-coral` | Mercan |
+
+  **Düz renk haritası:** `solid:<paletAd>` → `bg-palet-{paletAd}`; `paletAd ∈ CARD_COVER_COLORS` (`kirmizi`, `turuncu`, `sari`, `lime`, `yesil`, `sky`, `mavi`, `indigo`, `mor`, `pembe`, `gri`, `siyah`). Bu liste kart kapak rengiyle aynı token setini kullanır; `boardBackgroundClass(background)` utility'si gradient/düz renk class'larını tek yerden döndürür, bilinmeyen değerlerde `bg-background` fallback'ine düşer.
 - **Board üst barı (`BoardTopBar`):** sticky, `h-13 sm:h-14 flex items-center gap-3 px-4 bg-background border-b`.
   - Sol: `BoardIdentity` — board ikonu/renk noktası + "Pano" etiketi (`text-[10px] uppercase text-muted-foreground`) + board adı (`text-sm font-semibold truncate`) + ⭐ favori butonu (`StarIcon`; favori altyapısı Faz 8 / [DEM-57](https://linear.app/demirkol/issue/DEM-57) — şimdilik görsel toggle veya gizli).
   - Orta: `BoardViewSwitch` — "Pano / Liste / Etiketler" sekme grubu (`inline-flex rounded-md border bg-secondary p-[3px]`; aktif sekme `bg-card shadow-xs`). "Liste" ve "Etiketler" görünümleri Faz 2.7 kapsamında **değil** — sekme placeholder/disabled veya yalnız "Pano" görünür.
-  - Sağ: `BoardActions` — "Davet/Paylaş" butonu (board ayarları üye sekmesini açar) · `SearchIcon` (board içi arama → Faz 6.5, şimdilik gizli/disabled) · `ActivityIcon` (board activity → ileri faz) · ⋮ `DropdownMenu` (yeniden adlandır / arşivle / board ayarları).
+  - Sağ: `BoardActions` — `Davet et` (board ayarları dropdown'unu **Davetler** sekmesinde açar) · `Paylaş` (board linkini panoya kopyalar; kalıcı paylaşım linki/izin yönetimi ileri faz) · `SearchIcon` (board içi arama → Faz 6.5, şimdilik gizli/disabled) · `ActivityIcon` (board activity → ileri faz) · `Pano ayarları` `DropdownMenu` (sekme içerikleri: Üyeler / Davetler / Etiketler / Arka plan / Pano işlemleri). Eski `Davet et / paylaş` birleşik butonu ve ayrı `⋮` board menüsü yoktur; rename/archive/restore aynı işi tekrar eden ikinci yüzey oluşturmadan `Pano işlemleri` altında toplanır.
 
 ### Kolon (liste)
 
@@ -237,7 +255,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 ## 13.6 Kapsam dışı + uygulama sırası
 
-**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
+**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board favorileri/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · fotoğraf/Unsplash/user-uploaded/custom gradient arka planları (Faz 8 / ayrı iş) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
 **Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]) → **dark/light tema desteği** ([DEM-96](https://linear.app/demirkol/issue/DEM-96) — kapanış-sonrası #2: §13.7 "Tema modu" + `next-themes` wire + app-shell `ThemeToggle`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` / `strings.common.theme.*` genişletilir).
 
@@ -308,8 +326,8 @@ Tüm ekranlarda her ikisinde test:
 - **Workspaces**: workspace listesi, kart hover, empty state, onboarding ekranı.
 - **Workspace settings**: rename/slug formu, üye listesi, davet et dialog'u, gönderilmiş davetler, tehlikeli bölge.
 - **Account**: profil form, parola form, hesap silme dialog'u.
-- **Board ekranı**: zemin (`bg-background`), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
-- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler.
+- **Board ekranı**: zemin (`bg-background` varsayılanı + DEM-100 `bg-gradient-*` / `bg-palet-*` board background seçenekleri), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
+- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler, Arka plan sekmesi.
 - **Card detail modal**: header (kapak-renksiz `bg-background border-b` + kapak-renkli `bg-palet-{ad}`), sol kolon (sticky başlık + meta chip satırı + AÇIKLAMA Tiptap editör + KONTROL LİSTESİ + Progress bar), sağ panel (`bg-muted/40 backdrop-blur` — dark'ta backdrop-blur okunabilir kalmalı), Tabs strip, yorum composer, yorum kartı, aktivite satırı.
 - **Tiptap prose**: editör + read-only `RichTextContent` — `.dark` altında başlık/paragraf/bullet/link/inline-code/blockquote okunabilir (token-bazlı: `[&_h1]:text-foreground` vb. veya `prose-invert` alternatifi tartışılır; tercih: token-bazlı, palet tutarlı kalır).
 - **`--palet-*` etiket chip'leri**: solid (`bg-palet-{ad} text-palet-{ad}-foreground`) + soft (`bg-palet-{ad}/15 text-palet-{ad}`) — light + dark'ta WCAG **AA** kontrast (4.5:1 normal metin / 3:1 büyük metin); `-foreground` eşleri §13.1'de tanımlı — implementasyonda kontrol et.
@@ -324,4 +342,220 @@ Tüm ekranlarda her ikisinde test:
 - **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
 - **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
 - **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
-- **Board-başına özelleştirilebilir zemin** — §13.2'deki gibi ileri faz ([DEM-57](https://linear.app/demirkol/issue/DEM-57), Faz 8); tema modundan bağımsız.
+- **Board-başına renk/gradient zemin** — DEM-100 kapsamıyla §13.2'de tanımlı; tema modundan bağımsız aynı token setini kullanır. Fotoğraf/Unsplash/user-uploaded/custom gradient seçenekleri Faz 8 / ayrı iş.
+
+## 13.8 App-shell v2: workspace + board switcher + user nav menu
+
+> Eksen: **tasarım / teknik**. Bu bölüm, [DEM-97](https://linear.app/demirkol/issue/DEM-97) (Faz 2.7 kapanış-sonrası follow-up #3) "önce belge" çıktısıdır: app-shell header'ı `WorkspaceSwitcher` + `BoardSwitcher` + birleşik `UserNavMenu` ile yeniden düzenlenir; `BoardTopBar`'ın identity bloğu (kırmızı ikon + "PANO" eyebrow + ad + favori) switcher tarafından karşılandığı için **kaldırılır**. shadcn `team-switcher` (sidebar-07 bloğu) deseni header'a port edilir; yeni shadcn primitive gerekmez (`Button`/`DropdownMenu`/`Tooltip` + §13.4 `Avatar` zaten var). Uygulama DEM-97'de; **kod değişikliği bu belgede yok**.
+
+### 13.8.1 Kararlar (kullanıcı seçimi, 2026-05-14)
+
+- **K1 — Logo konumu = sol** (mevcut `LayoutGridIcon + "Pusula"`); switcher'lar logo'nun **sağında** aynı sol blokta sıralanır. Gerekçe: Trello/Linear/Asana standardı; üç-bölge "orta logo" dengesizliği (geniş sol + dar orta + orta sağ) reddedildi.
+- **K2 — `BoardTopBar` identity bloğu kaldırılır:** sol identity ( workspace'e dönüş `Link` + `LayoutGridIcon` + "PANO" eyebrow + `RenameBoardForm`/h1 + favori `StarIcon`) silinir; view switch (`Pano/Liste/Etiketler`) + actions (`Davet/Search/Activity/⋮`) yerinde kalır. Inline-rename → ⋮ menü "Yeniden adlandır" (mevcut akış zaten dialog destekliyor). Gerekçe: switcher trigger'ı board adını + workspace bağlamını zaten taşıyor; çift bilgi yok.
+- **K3 — Workspace switcher her zaman görünür:** tüm `(app)/*` route'larında. Aktif workspace yoksa trigger "Workspace seç" placeholder (disabled değil — tıklayınca dropdown açılır, create CTA görünür).
+- **K4 — Board switcher her zaman görünür:** workspace seçili değilse **disabled** (`opacity-50 cursor-not-allowed`); workspace seçili + board route'unda değilsek "Pano seç" placeholder. Arşivli panolar listede **yok** (Faz 8 — [DEM-71](https://linear.app/demirkol/issue/DEM-71)).
+- **K5 — Bildirim ikonu = disabled placeholder:** `Button variant=ghost size=icon` + `BellIcon` + `Tooltip: "Yakında"`. Gerçek `NotificationBell` Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)); bu iş yalnız yuvayı açar — sağ grupta sabit pozisyon.
+- **K6 — User nav menu = avatar dropdown:** mevcut "Hesap linki + Çıkış butonu" birleşir. Trigger: `Avatar` (§13.4 spec; baş harf + isimden deterministik `--palet-*` renk hash) + `size-9 rounded-full`. Content: kullanıcı adı + e-posta (üst, salt-okunur), separator, "Hesap ayarları" (→ `/account`), separator, "Çıkış yap" (`destructive` variant, `signingOut` state korunur).
+- **K7 — Tema toggle dışarıda:** avatar dropdown içine **girmez**; mevcut `ThemeToggle` (Sun/Moon tek-tık flip, §13.7) yerinde — sağ grupta avatar'ın solunda. Gerekçe: tek-tık flip iki klik (avatar aç → tema tıkla) gerektiren menüye gömmekten daha hızlı; §13.7 kararı bozulmasın.
+- **K8 — Faz/Linear pozisyonu:** Faz 2.7 follow-up #3 (DEM-58 epic Done; DEM-74 + DEM-96 ile aynı kapanış-sonrası disiplini, küçük scope, UI-only). Milestone = Faz 2.7.
+
+### 13.8.2 Header anatomisi
+
+Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçerik üç yatay grup:
+
+```
+┌─ Sol grup ───────────────────────────────┐  ┌─ Sağ grup ────────────────┐
+│ [⬢ Pusula]  [WS▼ ad rol ⇕]  [Pano▼ ad ⇕] │  │ [🔔][☀️][Avatar▼]         │
+└──────────────────────────────────────────┘  └───────────────────────────┘
+```
+
+- **Düzen:** `flex items-center justify-between gap-4`. Sol grup `flex items-center gap-2 min-w-0` (switcher'lar `truncate` ile uzun adları kısaltır). Sağ grup `flex items-center gap-1 shrink-0`.
+- **Brand link:** mevcut [app-shell.tsx:62-75](apps/web/src/app/(app)/_components/app-shell.tsx#L62-L75) (`LayoutGridIcon` rozet + "Pusula" tracking-tight) — dokunulmaz; sol grubun ilk öğesi.
+- **Switcher'lar arası ayırıcı:** brand ile WorkspaceSwitcher arasında `Separator orientation=vertical class="h-5"` (shadcn). WorkspaceSwitcher ile BoardSwitcher arasında: dropdown trigger'ların kendi border'ı yeterli — ek separator yok (görsel kalabalık olmasın).
+- **Responsive (`md:` altı):** `BoardSwitcher` ikon-only (renk noktası + chevron, ad gizli), `WorkspaceSwitcher` ikon-only (avatar + chevron). `sm:` altında brand metni gizli, yalnız `LayoutGridIcon` rozet. Sağ grup: bildirim placeholder + tema toggle + avatar (her zaman görünür).
+
+### 13.8.3 `WorkspaceSwitcher` bileşeni
+
+`apps/web/src/app/(app)/_components/workspace-switcher.tsx` (yeni).
+
+**Trigger** — `Button variant=outline size=sm` (h-9), `gap-2 px-2 max-w-56`:
+
+```tsx
+<Button variant="outline" size="sm" className="h-9 max-w-56 gap-2 px-2">
+  <span className="size-7 shrink-0 rounded-md bg-palet-{hash} text-palet-{hash}-foreground inline-flex items-center justify-center text-xs font-semibold">
+    {workspaceInitial}
+  </span>
+  <div className="grid min-w-0 flex-1 text-left leading-tight">
+    <span className="truncate text-sm font-medium">{workspaceName ?? strings.shell.workspaceSwitcher.placeholder}</span>
+    <span className="truncate text-[10px] text-muted-foreground">{workspaceRoleLabels[role]}</span>
+  </div>
+  <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+</Button>
+```
+
+- Aktif workspace yoksa (`/account` veya `/`): rol satırı boş; `workspaceInitial` = generic `LayoutGridIcon`.
+- Avatar rengi = workspace adının deterministik hash → `--palet-*` 12 rengin birinden seç (§13.4 `Avatar` ile aynı algoritma; yeni util `apps/web/src/lib/avatar-color.ts`).
+
+**Content** — `DropdownMenuContent align=start sideOffset=4 class="w-64"`:
+
+- `DropdownMenuLabel` — `strings.shell.workspaceSwitcher.heading` ("Workspace'ler").
+- `trpc.workspace.list` sonucu (`data?.workspaces.map`):
+  - `DropdownMenuItem` per workspace: aynı 28px avatar + ad + rol; aktif olan `data-active` (sağda `CheckIcon size-3.5 text-primary`); `onSelect={() => router.push(`/workspaces/${ws.id}`)}`.
+  - Empty state: workspace yoksa `DropdownMenuItem` disabled + `strings.shell.workspaceSwitcher.empty` ("Henüz workspace yok").
+- `DropdownMenuSeparator`.
+- `DropdownMenuItem` — `PlusIcon` + `strings.shell.workspaceSwitcher.create` ("Workspace oluştur") → mevcut `CreateWorkspaceDialog` açılır (state hoist veya `triggerLabel` prop pattern).
+- `DropdownMenuItem` — `ListIcon` + `strings.shell.workspaceSwitcher.manageAll` ("Tüm workspace'leri yönet") → `router.push('/')`.
+
+**Veri akışı:**
+
+- Aktif workspace ID: `useParams<{ id?: string }>()` (workspace ve board route'larında dolu). `useTRPC().workspace.get.queryOptions({ workspaceId })` cache hit beklenir (workspace sayfası zaten kullanıyor — [workspaces/[id]/page.tsx:41](apps/web/src/app/(app)/workspaces/[id]/page.tsx#L41)).
+- Liste: `useTRPC().workspace.list.queryOptions()`. `(app)/page.tsx` zaten kullanıyor — cache hit.
+
+**State'ler:**
+
+| Route | Trigger | Disabled? |
+| --- | --- | --- |
+| `/` (workspace list) | "Workspace seç" + chevron (workspace seçili yok) | hayır (tıklayınca liste açılır) |
+| `/workspaces/[id]` | aktif workspace adı + rol | hayır |
+| `/workspaces/[id]/boards/[boardId]` | aktif workspace adı + rol | hayır |
+| `/account` | "Workspace seç" + chevron | hayır |
+
+### 13.8.4 `BoardSwitcher` bileşeni
+
+`apps/web/src/app/(app)/_components/board-switcher.tsx` (yeni). `WorkspaceSwitcher` ile aynı pattern; farklar:
+
+**Trigger** — `Button variant=outline size=sm` (h-9), `gap-2 px-2 max-w-56`:
+
+```tsx
+<Button variant="outline" size="sm" className="h-9 max-w-56 gap-2 px-2" disabled={!workspaceId}>
+  <span className="size-2.5 shrink-0 rounded-full bg-palet-{hash}" aria-hidden />
+  <span className="truncate text-sm font-medium">
+    {boardTitle ?? (workspaceId ? strings.shell.boardSwitcher.placeholder : strings.shell.boardSwitcher.disabled)}
+  </span>
+  <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+</Button>
+```
+
+- Trigger boyut/yapı `WorkspaceSwitcher` ile aynı; tek satır (rol etiketi yok — board için anlamlı değil); workspace adının yerine 10px renk noktası (board "kapak rengi" / ad hash'i).
+- Workspace seçili değilse `disabled` (`opacity-50 cursor-not-allowed` shadcn `Button disabled` zaten verir); tooltip "Önce workspace seçin" (`Tooltip` wrapper).
+
+**Content** — `DropdownMenuContent align=start sideOffset=4 class="w-64"`:
+
+- `DropdownMenuLabel` — `strings.shell.boardSwitcher.heading` ("Panolar").
+- `trpc.board.list.queryOptions({ workspaceId })` (workspace switcher disabled ise hiç sorulmaz — `enabled: !!workspaceId`):
+  - Yalnız `archived=false` board'lar (UI tarafı filtre; backend zaten `board.list` "viewer+" panoları döner). Arşivli pano listesi Faz 8 — [DEM-71](https://linear.app/demirkol/issue/DEM-71).
+  - `DropdownMenuItem` per board: 10px renk noktası + board adı + sağda aktif olan için `CheckIcon size-3.5 text-primary`; `onSelect={() => router.push(`/workspaces/${workspaceId}/boards/${board.id}`)}`.
+  - Empty: "Henüz pano yok".
+- `DropdownMenuSeparator`.
+- `DropdownMenuItem` — `PlusIcon` + `strings.shell.boardSwitcher.create` ("Pano oluştur") → mevcut `CreateBoardDialog` açılır.
+- `DropdownMenuItem` — `Settings2Icon` + `strings.shell.boardSwitcher.manageWorkspace` ("Workspace'i yönet") → `router.push(`/workspaces/${workspaceId}`)`.
+
+### 13.8.5 `UserNavMenu` bileşeni
+
+`apps/web/src/app/(app)/_components/user-nav-menu.tsx` (yeni). Mevcut [app-shell.tsx:78-90](apps/web/src/app/(app)/_components/app-shell.tsx#L78-L90) "Hesap" link + "Çıkış yap" butonu **silinir**; bu bileşene taşınır.
+
+**Trigger** — `Button variant=ghost size=icon` (h-9 w-9), avatar rozet:
+
+```tsx
+<Button variant="ghost" size="icon" className="size-9 rounded-full">
+  <span className="size-8 rounded-full bg-palet-{hash} text-palet-{hash}-foreground inline-flex items-center justify-center text-xs font-semibold">
+    {userInitial}
+  </span>
+</Button>
+```
+
+- `userInitial` = ilk 1-2 harf (`Aria Chen` → `AC`; `Abdullah` → `A`); §13.4 `Avatar` algoritmasıyla aynı.
+
+**Content** — `DropdownMenuContent align=end sideOffset=4 class="w-56"`:
+
+- `DropdownMenuLabel` çift satır: `<div class="grid leading-tight"><span class="truncate text-sm font-medium">{userName}</span><span class="truncate text-xs text-muted-foreground">{userEmail}</span></div>`.
+- `DropdownMenuSeparator`.
+- `DropdownMenuItem` — `UserIcon` + `strings.shell.userMenu.account` ("Hesap ayarları") → `router.push('/account')`.
+- `DropdownMenuSeparator`.
+- `DropdownMenuItem variant=destructive` — `LogOutIcon` + `strings.shell.userMenu.signOut` (mevcut `strings.shell.signOut` reuse) → `signOut()` (mevcut `handleSignOut` çağrılır).
+- Çıkış pending state: `DropdownMenuItem disabled={signingOut}`; label `signingOut ? strings.shell.signingOut : strings.shell.signOut`.
+
+### 13.8.6 `NotificationBellPlaceholder` bileşeni
+
+`apps/web/src/app/(app)/_components/notification-bell-placeholder.tsx` (yeni). Faz 6D'de gerçek `NotificationBell` ([DEM-93](https://linear.app/demirkol/issue/DEM-93)) bunu **doğrudan değiştirir** (dosya adı korunabilir veya `notification-bell.tsx`'e rename — kod-yazma turunda karar).
+
+```tsx
+<Tooltip>
+  <TooltipTrigger asChild>
+    <span className="inline-flex">
+      <Button variant="ghost" size="icon" className="size-9" disabled aria-label={strings.shell.notifications.label}>
+        <BellIcon className="size-4" aria-hidden />
+      </Button>
+    </span>
+  </TooltipTrigger>
+  <TooltipContent>{strings.shell.notifications.soon}</TooltipContent>
+</Tooltip>
+```
+
+- Disabled `Button` `<span>` ile sarılır (tooltip için — disabled element'e pointer event gelmez, span'a gelir; mevcut `ComingSoonAction` pattern'i — [board-top-bar.tsx:45-73](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L45-L73) ile aynı).
+
+### 13.8.7 `BoardTopBar` etkisi (K2 uygulama notu)
+
+[board-top-bar.tsx:135-184](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L135-L184) içindeki **identity bloğu** (`{/* Identity */}` yorumundan view switch öncesine kadar — workspace `Link` rozet + eyebrow + `RenameBoardForm`/h1 + arşiv ikonu + arşivli rozet + favori `StarIcon` + `Tooltip`) **kaldırılır**.
+
+- Kalan: view switch (`BoardViewSwitch`) — sola çekilir (`flex-1` veya `mr-auto` yerine bilinçli sola hizalı); actions sağda.
+- `RenameBoardForm` render edilmeye devam eder, ama yalnız `editing=true` durumunda — tetikleyici ⋮ menüdeki "Yeniden adlandır" `DropdownMenuItem` (zaten var, [board-top-bar.tsx:228-231](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L228-L231)). `hideTrigger` prop zaten destekliyor — değişiklik yalnız identity bloğunun kaldırılması.
+- Arşivli `Badge` ve favori `Tooltip` → app-shell switcher'ı board adını gösterirken arşiv durumunu gösteremez (switcher kompakt kalır); arşivli rozet `BoardTopBar`'da view switch'in **solunda** (eski identity yerinde) kalabilir — Identity'nin tek kalıntısı.
+- **DEM-99 board aksiyon ayrışması:** `Davet et / paylaş` birleşik butonu kaldırılır. Board admin için `Davet et` ve `Paylaş` iki ayrı aksiyondur; `Pano ayarları` dropdown'u üyeler/davetler/etiketler/pano işlemleri sekmelerini taşır. Eski `⋮` menü kaldırılır; rename/archive/restore yalnız `Pano işlemleri` sekmesinde bulunur.
+
+> **Karar:** arşivli `Badge` `BoardTopBar`'da kalır (view switch'in solunda) → board switcher kompakt, view alanında arşiv durumu net.
+
+### 13.8.8 i18n / `strings.ts` anahtarları
+
+`apps/web/src/lib/strings.ts` `strings.shell` altına eklenecekler (hardcoded metin yasak — §13.4 ortak desen):
+
+```typescript
+shell: {
+  // ... mevcut: appName, accountSettings, signOut, signingOut, themeToggleTo{Light,Dark}
+  workspaceSwitcher: {
+    heading: 'Workspace\'ler',
+    placeholder: 'Workspace seç',
+    empty: 'Henüz workspace yok',
+    create: 'Workspace oluştur',
+    manageAll: 'Tüm workspace\'leri yönet',
+    ariaLabel: 'Workspace değiştir',
+  },
+  boardSwitcher: {
+    heading: 'Panolar',
+    placeholder: 'Pano seç',
+    disabled: 'Workspace seçin',
+    disabledTooltip: 'Önce bir workspace seçin',
+    empty: 'Henüz pano yok',
+    create: 'Pano oluştur',
+    manageWorkspace: 'Workspace\'i yönet',
+    ariaLabel: 'Pano değiştir',
+  },
+  userMenu: {
+    account: 'Hesap ayarları',
+    ariaLabel: 'Kullanıcı menüsü',
+    // signOut: mevcut `strings.shell.signOut` reuse
+  },
+  notifications: {
+    label: 'Bildirimler',
+    soon: 'Yakında',
+  },
+}
+```
+
+### 13.8.9 Dark/light pass (§13.7.5 checklist'ine ek)
+
+- App-shell `WorkspaceSwitcher` + `BoardSwitcher` trigger'ları (`Button variant=outline`) light + dark.
+- Switcher `DropdownMenuContent` (popover token'ları zaten ikili).
+- Disabled board switcher (`opacity-50`) light + dark okunabilir kalır.
+- `UserNavMenu` avatar (`bg-palet-*` solid + `text-palet-*-foreground`) light + dark WCAG **AA** (§13.7.5 paleti kontrast eşliğinde zaten kontrol edilir).
+- `NotificationBellPlaceholder` disabled state light + dark.
+
+### 13.8.10 Kapsam dışı
+
+- **NotificationBell** gerçek implementasyonu — Faz 6D, [DEM-93](https://linear.app/demirkol/issue/DEM-93).
+- **Board favori toggle** — Faz 8, [DEM-57](https://linear.app/demirkol/issue/DEM-57); `BoardTopBar`'da identity bloğuyla birlikte gitti, favori başka yerde restore edilmez (Faz 8'de switcher dropdown'una "Favoriler" alt-grubu eklenebilir).
+- **Arşivli workspace/board** switcher listesinde — Faz 8 ([DEM-71](https://linear.app/demirkol/issue/DEM-71) ile aynı disiplin).
+- **Klavye kısayolu** (örn. `⌘K` workspace/board command palette) — Faz 8, [DEM-73](https://linear.app/demirkol/issue/DEM-73).
+- **Search input** app-shell'de (global arama) — Faz 6.5, [DEM-56](https://linear.app/demirkol/issue/DEM-56).
+- **`apps/mobile` tema/switcher** — `apps/mobile` yok zaten; gelirse Expo bağlamında ayrı tartışılır.
+- **Server-side recent/pinned workspace/board** — Faz 8 (cookie veya `users.recent_boards` jsonb kolonu — ayrı iş).

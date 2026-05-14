@@ -2,16 +2,20 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { LayoutGridIcon } from 'lucide-react';
-import { Button, cn } from '@pusula/ui';
-import { authClient } from '@/lib/auth-client';
+import { Separator, cn } from '@pusula/ui';
+import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
 import { strings } from '@/lib/strings';
+import { BoardSwitcher } from './board-switcher';
+import { NotificationBell } from './notification-bell';
 import { ThemeToggle } from './theme-toggle';
+import { UserNavMenu } from './user-nav-menu';
+import { WorkspaceSwitcher } from './workspace-switcher';
 
 type AppShellProps = {
   userName: string;
+  userEmail: string;
   children: ReactNode;
 };
 
@@ -23,28 +27,16 @@ type AppShellProps = {
 const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+/;
 
 /**
- * App chrome for signed-in users: a sticky header (brand + account link +
- * sign-out) over the page content. The board screen renders full-bleed (so the
+ * App chrome for signed-in users: a sticky header (brand + workspace/board
+ * switchers + user actions) over the page content. The board screen renders full-bleed (so the
  * board surface can reach the viewport edges); all other screens get a centred
  * `max-w-5xl` container with comfortable padding.
  */
-export function AppShell({ userName, children }: AppShellProps) {
-  const router = useRouter();
+export function AppShell({ userName, userEmail, children }: AppShellProps) {
   const pathname = usePathname();
-  const [signingOut, setSigningOut] = useState(false);
+  useUserRealtime();
 
   const fullBleed = BOARD_ROUTE.test(pathname);
-
-  const handleSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await authClient.signOut();
-    } catch {
-      // Sign-out is best-effort; we leave for /sign-in either way.
-    } finally {
-      router.replace('/sign-in');
-    }
-  };
 
   return (
     <div
@@ -57,37 +49,32 @@ export function AppShell({ userName, children }: AppShellProps) {
       )}
     >
       <header className="bg-card sticky top-0 z-20 border-b shadow-card">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-4">
-          <Link
-            href="/"
-            className={cn(
-              'text-foreground inline-flex items-center gap-2 rounded-md text-sm font-semibold tracking-tight',
-              'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-            )}
-          >
-            <span
-              className="bg-primary text-primary-foreground inline-flex size-6 items-center justify-center rounded-md"
-              aria-hidden
-            >
-              <LayoutGridIcon className="size-3.5" />
-            </span>
-            {strings.common.appName}
-          </Link>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
+        <div className="mx-auto flex h-14 w-full items-center justify-between gap-4 px-4">
+          <div className="flex min-w-0 items-center gap-2">
             <Link
-              href="/account"
-              title={strings.shell.accountSettings}
+              href="/"
+              aria-label={strings.common.appName}
               className={cn(
-                'text-muted-foreground hover:bg-accent hover:text-foreground hidden rounded-md px-2.5 py-1.5 text-sm transition-colors sm:inline-flex',
+                'text-foreground inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-semibold tracking-tight',
                 'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               )}
             >
-              {userName}
+              <span
+                className="bg-primary text-primary-foreground inline-flex size-6 items-center justify-center rounded-md"
+                aria-hidden
+              >
+                <LayoutGridIcon className="size-3.5" />
+              </span>
+              <span className="hidden sm:inline">{strings.common.appName}</span>
             </Link>
-            <Button variant="outline" size="sm" onClick={handleSignOut} disabled={signingOut}>
-              {signingOut ? strings.shell.signingOut : strings.shell.signOut}
-            </Button>
+            <Separator orientation="vertical" className="h-5" />
+            <WorkspaceSwitcher />
+            <BoardSwitcher />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <NotificationBell />
+            <ThemeToggle />
+            <UserNavMenu userName={userName} userEmail={userEmail} />
           </div>
         </div>
       </header>

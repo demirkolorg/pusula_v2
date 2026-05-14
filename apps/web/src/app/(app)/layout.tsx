@@ -34,5 +34,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   if (!session) return null;
 
-  return <AppShell userName={session.user.name || session.user.email}>{children}</AppShell>;
+  return (
+    <AppShell userName={session.user.name || session.user.email} userEmail={session.user.email}>
+      {children}
+    </AppShell>
+  );
 }

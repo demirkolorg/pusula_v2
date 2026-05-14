@@ -7,8 +7,7 @@ import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardDndProvider } from './board-dnd-context';
-import { BoardFilterBar, type BoardFilterLabel } from './board-filter-bar';
-import { countArchivedLists, filterCardsByLabels, filterVisibleLists } from './board-filter';
+import { filterCardsByLabels, filterVisibleLists } from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
 import { useBoardDnd } from './use-board-dnd';
 import { type BoardCard } from './card-item';
@@ -21,6 +20,10 @@ type BoardColumnsProps = {
   lists: BoardList[];
   /** Active cards, already sorted by `position` (each carries its `labels`). */
   cards: BoardCard[];
+  /** Label ids selected in the board top-bar filter menu. */
+  selectedLabelIds: ReadonlySet<string>;
+  /** Whether archived lists are visible in the board strip. */
+  showArchivedLists: boolean;
 };
 
 function ListDropPlaceholderMarker({
@@ -43,56 +46,31 @@ function ListDropPlaceholderMarker({
 /**
  * Horizontal column layout for a board: one fixed-width column per list (in
  * `position` order), each with its cards grouped by `listId` (the server already
- * returns each list's cards in `position` order). A filter bar above the columns
- * lets the viewer filter cards by label (a card shows if it has at least one
- * selected label — purely client-side over `board.get` data) and toggle archived
- * lists in/out of view (hidden by default; shown dimmed when on — restore lives
- * in each column). A trailing "add list" column is shown when the viewer may edit
- * and the board is active. Fixed widths keep the layout stable — no shift on
+ * returns each list's cards in `position` order). The board page owns filter
+ * state and passes it in, so this surface starts directly with lists. A trailing
+ * "add list" column is shown when the viewer may edit and the board is active.
+ * Fixed widths keep the layout stable — no shift on
  * hover/edit. Drag-and-drop is wired here via `useBoardDnd` (Atlassian Pragmatic
  * DnD — Phase 3B, DEM-43): column reorder + card reorder / cross-list move.
  */
-export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps) {
+export function BoardColumns({
+  boardId,
+  board,
+  lists,
+  cards,
+  selectedLabelIds,
+  showArchivedLists,
+}: BoardColumnsProps) {
   const boardActive = board.archivedAt == null;
   const canEdit = boardRoleAtLeast(board.role, 'member') && boardActive;
 
-  // --- Filter state (local — not URL-persisted this phase) -----------------
-  const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [showArchivedLists, setShowArchivedLists] = useState(false);
-
-  // The board's label palette, derived from the cards' attached labels (the
-  // board screen doesn't fetch `label.list` — `board.get` carries enough).
-  const boardLabels = useMemo<BoardFilterLabel[]>(() => {
-    const byId = new Map<string, BoardFilterLabel>();
-    for (const card of cards) {
-      for (const label of card.labels) {
-        if (!byId.has(label.labelId)) {
-          byId.set(label.labelId, { id: label.labelId, name: label.name, color: label.color });
-        }
-      }
-    }
-    return [...byId.values()].sort(
-      (a, b) => a.name.localeCompare(b.name, 'tr') || a.color.localeCompare(b.color),
-    );
-  }, [cards]);
-
-  // Drop any selected label ids that no longer exist (e.g. a label was deleted
-  // and `board.get` refetched) so the filter doesn't get stuck.
-  const liveSelectedLabelIds = useMemo<ReadonlySet<string>>(() => {
-    if (selectedLabelIds.size === 0) return selectedLabelIds;
-    const live = new Set<string>();
-    for (const id of selectedLabelIds) if (boardLabels.some((l) => l.id === id)) live.add(id);
-    return live;
-  }, [selectedLabelIds, boardLabels]);
-
-  const archivedListCount = useMemo(() => countArchivedLists(lists), [lists]);
   const visibleLists = useMemo(
     () => filterVisibleLists(lists, showArchivedLists),
     [lists, showArchivedLists],
   );
 
   const cardsByList = useMemo(() => {
-    const filtered = filterCardsByLabels(cards, liveSelectedLabelIds);
+    const filtered = filterCardsByLabels(cards, selectedLabelIds);
     const map = new Map<string, BoardCard[]>();
     for (const card of filtered) {
       const bucket = map.get(card.listId);
@@ -100,15 +78,7 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
       else map.set(card.listId, [card]);
     }
     return map;
-  }, [cards, liveSelectedLabelIds]);
-
-  const toggleLabel = (labelId: string) =>
-    setSelectedLabelIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(labelId)) next.delete(labelId);
-      else next.add(labelId);
-      return next;
-    });
+  }, [cards, selectedLabelIds]);
 
   // --- Drag-and-drop (Phase 3B — DEM-43) -----------------------------------
   // Enabled only when the viewer may edit and the board is active; the hook
@@ -139,23 +109,9 @@ export function BoardColumns({ boardId, board, lists, cards }: BoardColumnsProps
     }
   }, [dnd.dragState.kind, dndCopy.announceDropped]);
 
-  const showFilterBar = boardLabels.length > 0 || archivedListCount > 0;
-
   return (
     <BoardDndProvider value={dnd}>
       <div className="flex h-full min-h-0 flex-col gap-3">
-        {showFilterBar && (
-          <BoardFilterBar
-            labels={boardLabels}
-            selectedLabelIds={liveSelectedLabelIds}
-            onToggleLabel={toggleLabel}
-            onClearLabels={() => setSelectedLabelIds(new Set())}
-            showArchivedLists={showArchivedLists}
-            onToggleArchivedLists={() => setShowArchivedLists((v) => !v)}
-            archivedListCount={archivedListCount}
-          />
-        )}
-
         {visibleLists.length === 0 && !canEdit ? (
           <EmptyState
             icon={<LayoutGridIcon className="size-8" />}

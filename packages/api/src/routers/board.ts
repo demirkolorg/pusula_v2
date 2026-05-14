@@ -48,6 +48,7 @@ const boardCols = {
   id: boards.id,
   workspaceId: boards.workspaceId,
   title: boards.title,
+  background: boards.background,
   version: boards.version,
   archivedAt: boards.archivedAt,
   createdAt: boards.createdAt,
@@ -65,6 +66,7 @@ export const boardRouter = router({
     const listCols = {
       id: boards.id,
       title: boards.title,
+      background: boards.background,
       version: boards.version,
       archivedAt: boards.archivedAt,
       createdAt: boards.createdAt,
@@ -100,6 +102,7 @@ export const boardRouter = router({
     return rows.map((row) => ({
       id: row.id,
       title: row.title,
+      background: row.background,
       version: row.version,
       archivedAt: row.archivedAt,
       createdAt: row.createdAt,
@@ -338,9 +341,9 @@ export const boardRouter = router({
   }),
 
   /**
-   * Update a board's title. Board `admin` only. An archived board is read-only.
-   * Idempotent: if the title is unchanged, returns `{ ..., changed: false }`
-   * without bumping `version` or writing activity.
+   * Update board settings. Board `admin` only. An archived board is read-only.
+   * Idempotent: unchanged requested fields return `{ ..., changed: false }`
+   * without bumping `version` or writing activity/realtime.
    */
   update: boardProcedure.input(updateBoardInput).mutation(async ({ ctx, input }) => {
     if (!canManageBoard(accessFromBoardRole(ctx.board.role))) {
@@ -349,7 +352,9 @@ export const boardRouter = router({
         message: 'Board ayarlarını değiştirme yetkiniz yok.',
       });
     }
-    if (input.title === undefined) {
+    const wantsTitle = input.title !== undefined;
+    const wantsBackground = input.background !== undefined;
+    if (!wantsTitle && !wantsBackground) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
@@ -366,28 +371,77 @@ export const boardRouter = router({
       if (current.archivedAt) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
       }
-      if (current.title === input.title) {
+      const titleChanged = wantsTitle && current.title !== input.title;
+      const backgroundChanged = wantsBackground && current.background !== input.background;
+      if (!titleChanged && !backgroundChanged) {
         return { ...current, role: ctx.board.role, changed: false as const };
+      }
+
+      const patch: { title?: string; background?: string | null } = {};
+      const updates: {
+        title?: string;
+        background?: string | null;
+        version: ReturnType<typeof sql>;
+      } = { version: sql`${boards.version} + 1` };
+      if (titleChanged) {
+        const nextTitle = input.title as string;
+        updates.title = nextTitle;
+        patch.title = nextTitle;
+      }
+      if (backgroundChanged) {
+        const nextBackground = input.background as string | null;
+        updates.background = nextBackground;
+        patch.background = nextBackground;
       }
 
       const [updated] = await tx
         .update(boards)
-        .set({ title: input.title, version: sql`${boards.version} + 1` })
+        .set(updates)
         .where(eq(boards.id, ctx.board.id))
         .returning(boardCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.board.workspaceId,
-        boardId: ctx.board.id,
-        actorId: ctx.session.user.id,
-        type: 'board.renamed',
-        payload: {
-          fromTitle: current.title,
-          toTitle: input.title,
-          clientMutationId: ctx.clientMutationId,
-        },
-      });
+      if (titleChanged) {
+        const nextTitle = input.title as string;
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.renamed',
+          payload: { fromTitle: current.title, toTitle: nextTitle, clientMutationId: ctx.clientMutationId },
+        });
+      }
+
+      if (backgroundChanged) {
+        const nextBackground = input.background as string | null;
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: nextBackground === null ? 'board.background_cleared' : 'board.background_changed',
+          payload:
+            nextBackground === null
+              ? { from: current.background, clientMutationId: ctx.clientMutationId }
+              : { from: current.background, to: nextBackground, clientMutationId: ctx.clientMutationId },
+        });
+      }
+
+      const realtimeData: {
+        boardId: string;
+        patch: { title?: string; background?: string | null };
+        fromTitle?: string;
+        toTitle?: string;
+        fromBackground?: string | null;
+        toBackground?: string | null;
+      } = { boardId: ctx.board.id, patch };
+      if (titleChanged) {
+        realtimeData.fromTitle = current.title;
+        realtimeData.toTitle = updated.title;
+      }
+      if (backgroundChanged) {
+        realtimeData.fromBackground = current.background;
+        realtimeData.toBackground = updated.background;
+      }
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'board.updated',
@@ -396,7 +450,7 @@ export const boardRouter = router({
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
         seq: updated.version,
-        data: { boardId: ctx.board.id, fromTitle: current.title, toTitle: updated.title },
+        data: realtimeData,
       });
 
       return { ...updated, role: ctx.board.role, changed: true as const };

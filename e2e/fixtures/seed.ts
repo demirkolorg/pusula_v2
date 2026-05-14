@@ -34,6 +34,7 @@ import {
   accounts,
   boardMembers,
   boards,
+  cardMembers,
   cards,
   lists,
   users,
@@ -151,6 +152,14 @@ async function resetThenSeed(db: Db): Promise<void> {
       })),
     );
   }
+
+  // DEM-94: Bob starts as a watcher on one deterministic card so the
+  // notification e2e can assert watcher comment fan-out without setup UI.
+  await db.insert(cardMembers).values({
+    cardId: E2E.cardIds.watched,
+    userId: E2E.bob.id,
+    role: 'watcher',
+  });
 }
 
 export async function seed(): Promise<void> {

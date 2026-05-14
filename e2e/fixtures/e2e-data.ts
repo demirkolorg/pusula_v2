@@ -37,6 +37,12 @@ export const E2E = {
     email: 'e2e-bob@pusula.test',
     password: 'e2e-password-1234',
   },
+  /** Fixed card ids used by the notification e2e suite (DEM-94). */
+  cardIds: {
+    assignment: 'e2e-card-1-1',
+    watched: 'e2e-card-1-2',
+    mention: 'e2e-card-1-3',
+  },
   /** List titles in `position` order. */
   listTitles: ['Liste 1', 'Liste 2', 'Liste 3'] as const,
   /** Card titles per list index (0-based), in `position` order. */

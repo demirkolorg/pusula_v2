@@ -5,6 +5,7 @@
  */
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium' });
+const relativeFormatter = new Intl.RelativeTimeFormat('tr-TR', { numeric: 'auto' });
 
 /** Format a date for display (medium, Turkish locale). Accepts a `Date` or ISO string. */
 export function formatDate(value: Date | string): string {
@@ -39,4 +40,21 @@ export function parseDateInputValue(value: string): Date | null {
   const [, year, month, day] = match;
   const date = new Date(Number(year), Number(month) - 1, Number(day));
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Format a timestamp as a compact Turkish relative time, e.g. "2 dakika önce". */
+export function formatRelativeTime(value: Date | string, now: Date = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  const abs = Math.abs(diffSeconds);
+
+  if (abs < 45) return relativeFormatter.format(0, 'second');
+  if (abs < 45 * 60) return relativeFormatter.format(Math.round(diffSeconds / 60), 'minute');
+  if (abs < 22 * 60 * 60) return relativeFormatter.format(Math.round(diffSeconds / 3600), 'hour');
+  if (abs < 26 * 24 * 60 * 60) return relativeFormatter.format(Math.round(diffSeconds / 86400), 'day');
+  if (abs < 320 * 24 * 60 * 60) {
+    return relativeFormatter.format(Math.round(diffSeconds / (30 * 86400)), 'month');
+  }
+  return relativeFormatter.format(Math.round(diffSeconds / (365 * 86400)), 'year');
 }

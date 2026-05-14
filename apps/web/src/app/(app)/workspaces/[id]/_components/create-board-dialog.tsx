@@ -6,6 +6,7 @@ import {
   Alert,
   AlertDescription,
   Button,
+  type ButtonProps,
   Dialog,
   DialogClose,
   DialogContent,
@@ -27,6 +28,12 @@ import { useTRPC } from '@/trpc/client';
 
 type CreateBoardDialogProps = {
   workspaceId: string;
+  triggerLabel?: string;
+  triggerVariant?: ButtonProps['variant'];
+  triggerClassName?: string;
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 /**
@@ -35,12 +42,25 @@ type CreateBoardDialogProps = {
  * server picks the id), but `clientMutationId` injection + error toast +
  * CONFLICT refetch + invalidate-on-settle all go through the shared hook.
  */
-export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
+export function CreateBoardDialog({
+  workspaceId,
+  triggerLabel,
+  triggerVariant,
+  triggerClassName,
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange,
+}: CreateBoardDialogProps) {
   const trpc = useTRPC();
   const nameId = useId();
   const copy = strings.board.create;
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setDialogOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
 
@@ -48,7 +68,7 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
     setTitle('');
     setTitleError(null);
     createBoard.reset();
-    setOpen(false);
+    setDialogOpen(false);
   };
 
   const createBoard = useOptimisticBoardListMutation({
@@ -75,13 +95,17 @@ export function CreateBoardDialog({ workspaceId }: CreateBoardDialogProps) {
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next) setOpen(true);
+        if (next) setDialogOpen(true);
         else resetAndClose();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm">{strings.board.newButton}</Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant={triggerVariant} className={triggerClassName}>
+            {triggerLabel ?? strings.board.newButton}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent closeLabel={strings.common.close}>
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>

@@ -4,11 +4,31 @@ import {
   applyBoardSummaryAdd,
   applyBoardSummaryPatch,
   applyBoardSummaryRemove,
+  applyBoardLabelAdd,
+  applyBoardLabelPatch,
+  applyBoardLabelRemove,
+  applyBoardMemberAdd,
+  applyBoardMemberRemove,
+  applyBoardMemberRolePatch,
   applyCardAdd,
   applyCardArchive,
+  applyCardLabelAdd,
+  applyCardLabelRemove,
+  applyCardMemberAdd,
+  applyCardMemberRemove,
   applyCardMove,
   applyCardPatch,
   applyCardRemove,
+  applyChecklistAdd,
+  applyChecklistItemAdd,
+  applyChecklistItemPatch,
+  applyChecklistItemRemove,
+  applyChecklistItemToggle,
+  applyChecklistPatch,
+  applyChecklistRemove,
+  applyCommentAdd,
+  applyCommentPatch,
+  applyCommentSoftDelete,
   applyListAdd,
   applyListArchive,
   applyListMove,
@@ -297,5 +317,109 @@ describe('applyBoardSummaryPatch', () => {
   it('returns input unchanged when the board is missing', () => {
     const list = summaries();
     expect(applyBoardSummaryPatch(list, 'NOPE', { title: 'x' })).toBe(list);
+  });
+});
+
+// --- Card detail subresource list transforms (Faz 6C) ----------------------
+
+type CommentRow = { id: string; body: string; deletedAt: string | null };
+
+describe('comment list transforms', () => {
+  it('applyCommentAdd prepends a new comment and dedupes by id', () => {
+    const rows: CommentRow[] = [{ id: 'c1', body: 'old', deletedAt: null }];
+    const next = applyCommentAdd(rows, { id: 'c2', body: 'new', deletedAt: null });
+    expect(next.map((row) => row.id)).toEqual(['c2', 'c1']);
+    expect(applyCommentAdd(next, { id: 'c2', body: 'dup', deletedAt: null })).toBe(next);
+  });
+
+  it('applyCommentPatch and applyCommentSoftDelete patch by id', () => {
+    const rows: CommentRow[] = [{ id: 'c1', body: 'old', deletedAt: null }];
+    expect(applyCommentPatch(rows, 'c1', { body: 'edited' })[0]?.body).toBe('edited');
+    const deleted = applyCommentSoftDelete(rows, 'c1', '2026-05-13T10:00:00.000Z');
+    expect(deleted[0]).toMatchObject({ id: 'c1', deletedAt: '2026-05-13T10:00:00.000Z' });
+    expect(applyCommentPatch(rows, 'missing', { body: 'x' })).toBe(rows);
+  });
+});
+
+type ChecklistItemRow = {
+  id: string;
+  checklistId: string;
+  content: string;
+  position: string;
+  completed: boolean;
+  completedAt: string | null;
+  completedBy: string | null;
+};
+type ChecklistRow = { id: string; title: string; position: string; items: ChecklistItemRow[] };
+
+describe('checklist list transforms', () => {
+  const item = (id: string, position: string): ChecklistItemRow => ({
+    id,
+    checklistId: 'cl1',
+    content: id,
+    position,
+    completed: false,
+    completedAt: null,
+    completedBy: null,
+  });
+
+  it('adds, patches, and removes checklists', () => {
+    const rows: ChecklistRow[] = [{ id: 'cl1', title: 'A', position: 'a0', items: [] }];
+    const added = applyChecklistAdd(rows, { id: 'cl2', title: 'B', position: 'a1', items: [] });
+    expect(added.map((row) => row.id)).toEqual(['cl1', 'cl2']);
+    expect(applyChecklistPatch(added, 'cl1', { title: 'A+' })[0]?.title).toBe('A+');
+    expect(applyChecklistRemove(added, 'cl1').map((row) => row.id)).toEqual(['cl2']);
+  });
+
+  it('adds, patches, toggles, and removes checklist items', () => {
+    const rows: ChecklistRow[] = [{ id: 'cl1', title: 'A', position: 'a0', items: [item('i1', 'a0')] }];
+    const added = applyChecklistItemAdd(rows, 'cl1', item('i2', 'a1'));
+    expect(added[0]?.items.map((row) => row.id)).toEqual(['i1', 'i2']);
+    expect(applyChecklistItemPatch(added, 'cl1', 'i1', { content: 'edited' })[0]?.items[0]?.content).toBe('edited');
+    const toggled = applyChecklistItemToggle(added, 'cl1', 'i1', {
+      completed: true,
+      completedAt: '2026-05-13T10:00:00.000Z',
+      completedBy: 'user1',
+    });
+    expect(toggled[0]?.items[0]).toMatchObject({ completed: true, completedBy: 'user1' });
+    expect(applyChecklistItemRemove(added, 'cl1', 'i1')[0]?.items.map((row) => row.id)).toEqual(['i2']);
+  });
+});
+
+describe('label and member list transforms', () => {
+  it('patches card labels and board labels', () => {
+    const cardLabels = [{ labelId: 'l1', name: 'Bug', color: 'green' }];
+    expect(applyCardLabelAdd(cardLabels, { labelId: 'l2', name: 'Ops', color: 'blue' })).toHaveLength(2);
+    expect(applyCardLabelRemove(cardLabels, 'l1')).toEqual([]);
+
+    const boardLabels = [{ id: 'l1', name: 'Bug', color: 'green' }];
+    expect(applyBoardLabelAdd(boardLabels, { id: 'l2', name: 'Ops', color: 'blue' })).toHaveLength(2);
+    expect(applyBoardLabelPatch(boardLabels, 'l1', { color: 'red' })[0]?.color).toBe('red');
+    expect(applyBoardLabelRemove(boardLabels, 'l1')).toEqual([]);
+  });
+
+  it('patches card members and board members', () => {
+    const cardMembers = [{ userId: 'u1', role: 'watcher', name: 'User 1' }];
+    expect(applyCardMemberAdd(cardMembers, { userId: 'u2', role: 'assignee', name: 'User 2' })).toHaveLength(2);
+    expect(applyCardMemberRemove(cardMembers, 'u1')).toEqual([]);
+
+    const boardMembers = [{ userId: 'u1', role: 'member', name: 'User 1', inherited: false }];
+    expect(applyBoardMemberAdd(boardMembers, { userId: 'u2', role: 'viewer', name: 'User 2', inherited: false })).toHaveLength(2);
+    expect(applyBoardMemberRolePatch(boardMembers, 'u1', 'admin')[0]?.role).toBe('admin');
+    expect(applyBoardMemberRemove(boardMembers, 'u1')).toEqual([]);
+  });
+
+  it('treats card member role as part of the cache identity', () => {
+    const cardMembers = [{ userId: 'u1', role: 'watcher', name: 'User 1' }];
+    const withAssignee = applyCardMemberAdd(cardMembers, {
+      userId: 'u1',
+      role: 'assignee',
+      name: 'User 1',
+    });
+    expect(withAssignee.map((member) => member.role)).toEqual(['watcher', 'assignee']);
+    expect(applyCardMemberAdd(withAssignee, { userId: 'u1', role: 'assignee', name: 'User 1' })).toBe(withAssignee);
+    expect(applyCardMemberRemove(withAssignee, 'u1', 'watcher').map((member) => member.role)).toEqual([
+      'assignee',
+    ]);
   });
 });

@@ -21,7 +21,7 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — label procedure'leri) and
  * `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { asc, eq, sql } from '@pusula/db';
+import { asc, eq } from '@pusula/db';
 import { boards, labels } from '@pusula/db';
 import {
   canEditBoardContent,
@@ -31,6 +31,11 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { router } from '../trpc';
 
 /** Columns of a full label row returned to clients. */
@@ -92,7 +97,8 @@ export const labelRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Etiket oluşturma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -113,13 +119,26 @@ export const labelRouter = router({
       );
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.label_created',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          labelId: created.id,
+          name: created.name,
+          color: created.color,
+          label: { id: created.id, name: created.name, color: created.color },
+        },
+      });
 
       return created;
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -139,7 +158,8 @@ export const labelRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Etiket düzenleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -175,13 +195,26 @@ export const labelRouter = router({
       );
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.label_updated',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          labelId: updated.id,
+          name: updated.name,
+          color: updated.color,
+          label: { id: updated.id, name: updated.name, color: updated.color },
+        },
+      });
 
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 
   /**
@@ -194,7 +227,8 @@ export const labelRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Etiket silme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -218,12 +252,20 @@ export const labelRouter = router({
 
       await tx.delete(labels).where(eq(labels.id, label.id));
 
-      await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, ctx.board.id));
+      const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'board.label_deleted',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { labelId: label.id },
+      });
 
       return { id: label.id, deleted: true as const };
     });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
   }),
 });

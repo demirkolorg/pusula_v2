@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
-import { AddBoardMemberForm } from './add-board-member-form';
 import { BoardMemberRow } from './board-member-row';
 
 type BoardMembersSectionProps = {
@@ -22,12 +21,13 @@ type BoardMembersSectionProps = {
 /**
  * Board member management section: loads `board.members.list`, renders a
  * presentational {@link BoardMemberRow} per member (explicit + inherited), and —
- * for board `admin`s — an {@link AddBoardMemberForm}. Each row's role-change /
  * remove mutation invalidates the list (+ `board.get`) on success; "leave" (the
  * viewer removing their own membership) instead invalidates `board.list` /
- * `workspace.list` and navigates to the workspace screen. The active mutation's
- * target id + error live here so only that row reflects pending/error state. No
- * optimistic UI (Phase 4) — mutation → await → invalidate → refetch.
+ * `workspace.list` and navigates to the workspace screen. Inviting/adding a new
+ * board member lives in the adjacent invitations section so the settings
+ * dropdown has one responsibility per tab. The active mutation's target id +
+ * error live here so only that row reflects pending/error state. No optimistic
+ * UI (Phase 4) — mutation → await → invalidate → refetch.
  */
 export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMembersSectionProps) {
   const trpc = useTRPC();
@@ -41,11 +41,6 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
 
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ userId: string; message: string } | null>(null);
-  const [addNotice, setAddNotice] = useState<string | null>(null);
-  // The e-mail of the in-flight `board.members.add` — the server's `added` /
-  // `added_as_guest` results only carry a `userId`, so we surface the address
-  // the admin typed in the success notice.
-  const [pendingAddEmail, setPendingAddEmail] = useState<string | null>(null);
 
   const clearRowState = () => {
     setActiveUserId(null);
@@ -90,26 +85,6 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
     }),
   );
 
-  const addMember = useMutation(
-    trpc.board.members.add.mutationOptions({
-      onSuccess: async (result) => {
-        const who = result.kind === 'invited' ? result.email : (pendingAddEmail ?? '');
-        setAddNotice(
-          result.kind === 'added'
-            ? `${who} ${copy.addedNotice}`
-            : result.kind === 'added_as_guest'
-              ? `${who} ${copy.addedAsGuestNotice}`
-              : `${result.email} ${copy.invitedNotice}`,
-        );
-        setPendingAddEmail(null);
-        await Promise.all([
-          refetchMembers(),
-          queryClient.invalidateQueries(trpc.board.invitations.list.queryFilter({ boardId })),
-        ]);
-      },
-    }),
-  );
-
   const isBusy = updateRole.isPending || removeMember.isPending;
 
   if (members.isPending || sessionPending) {
@@ -143,20 +118,6 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
 
   return (
     <div className="space-y-4">
-      {canManage && (
-        <AddBoardMemberForm
-          onSubmit={({ email, role }) => {
-            setAddNotice(null);
-            setPendingAddEmail(email);
-            addMember.reset();
-            addMember.mutate({ boardId, email, role, clientMutationId: crypto.randomUUID() });
-          }}
-          pending={addMember.isPending}
-          error={addMember.isError ? addMember.error.message || strings.common.unknownError : null}
-          notice={addNotice}
-        />
-      )}
-
       {members.data.length === 0 ? (
         <p className="text-muted-foreground text-sm">{copy.membersEmpty}</p>
       ) : (

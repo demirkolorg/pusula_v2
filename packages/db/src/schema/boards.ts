@@ -22,6 +22,7 @@ export const boards = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     title: text().notNull(),
+    background: text(),
     /** Monotonic counter bumped on every board mutation; lets clients detect missed realtime events. */
     version: integer().notNull().default(0),
     archivedAt: archivedAt(),

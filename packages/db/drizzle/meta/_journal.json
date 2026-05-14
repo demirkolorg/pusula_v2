@@ -99,6 +99,13 @@
       "when": 1778765179458,
       "tag": "0013_curvy_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778776551108,
+      "tag": "0014_familiar_blue_shield",
+      "breakpoints": true
     }
   ]
 }

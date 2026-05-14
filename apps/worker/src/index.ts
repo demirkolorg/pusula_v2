@@ -25,6 +25,7 @@ import {
   type NotificationEmailJobData,
 } from './jobs/notification-email';
 import {
+  createDryRunExpoClient,
   createExpoClient,
   NOTIFICATION_PUSH_JOB_NAME,
   processNotificationPushJob,
@@ -181,9 +182,10 @@ const scheduledWorker = new Worker(
 // Faz 6B (DEM-91) — email channel. Lazy Resend client: with no key it's a
 // log-only stub (dev/CI ergonomics; production must set RESEND_API_KEY).
 const emailMailer = createResendMailer({
-  apiKey: env.RESEND_API_KEY,
+  apiKey: env.NOTIFICATION_EXTERNAL_DRY_RUN ? undefined : env.RESEND_API_KEY,
   from: env.EMAIL_FROM,
   nodeEnv: env.NODE_ENV,
+  dryRun: env.NOTIFICATION_EXTERNAL_DRY_RUN,
 });
 
 const notificationEmailWorker = new Worker(
@@ -215,6 +217,10 @@ const notificationEmailWorker = new Worker(
 let expoClient: ReturnType<typeof createExpoClient> | null = null;
 function getExpoClient() {
   if (expoClient) return expoClient;
+  if (env.NOTIFICATION_EXTERNAL_DRY_RUN) {
+    expoClient = createDryRunExpoClient();
+    return expoClient;
+  }
   try {
     expoClient = createExpoClient({ accessToken: env.EXPO_PUSH_ACCESS_TOKEN });
     return expoClient;
