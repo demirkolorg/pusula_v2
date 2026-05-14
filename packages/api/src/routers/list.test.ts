@@ -140,6 +140,8 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     });
     expect(first).toMatchObject({ boardId, title: 'To Do' });
     expect(first.archivedAt).toBeNull();
+    expect(first.icon).toBeNull();
+    expect(first.iconColor).toBeNull();
 
     const second = await callerFor(memberId).list.create({
       boardId,
@@ -162,6 +164,23 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(created.some((a) => (a.payload as { listId?: string }).listId === first.id)).toBe(true);
 
     expect(await boardVersion(boardId)).toBe(v0 + 3);
+  });
+
+  it('create: new lists project null icon and iconColor through board.get', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Default Icon List',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    expect(list).toMatchObject({ icon: null, iconColor: null });
+
+    const board = await callerFor(ownerId).board.get({ boardId });
+    expect(board.lists.find((l) => l.id === list.id)).toMatchObject({
+      id: list.id,
+      icon: null,
+      iconColor: null,
+    });
   });
 
   it('create: a board viewer (workspace guest with an explicit viewer membership) is FORBIDDEN', async () => {
@@ -488,6 +507,283 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     );
     expect(updatedEvents).toHaveLength(1);
     expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('color');
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+  });
+
+  it('update icon: setting icon and iconColor persists DB state, writes activity + realtime, bumps version, and projects through board.get', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Icon Set List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const updated = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'star',
+      iconColor: 'mavi',
+      clientMutationId: cmid,
+    });
+
+    expect(updated).toMatchObject({
+      id: list.id,
+      icon: 'star',
+      iconColor: 'mavi',
+      changed: true,
+    });
+    const [row] = await db()
+      .select({ icon: dbMod.lists.icon, iconColor: dbMod.lists.iconColor })
+      .from(dbMod.lists)
+      .where(dbMod.eq(dbMod.lists.id, list.id))
+      .limit(1);
+    expect(row).toMatchObject({ icon: 'star', iconColor: 'mavi' });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const iconActivity = (await actsFor(boardId)).find(
+      (a) => a.type === 'list.icon_changed' && (a.payload as { listId?: string }).listId === list.id,
+    );
+    expect(iconActivity?.payload).toMatchObject({
+      listId: list.id,
+      oldIcon: null,
+      newIcon: 'star',
+      oldIconColor: null,
+      newIconColor: 'mavi',
+      clientMutationId: cmid,
+    });
+
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect(
+      (updatedEvents[0]!.payload as { data: { listId: string; icon: string | null; iconColor: string | null } }).data,
+    ).toMatchObject({
+      listId: list.id,
+      icon: 'star',
+      iconColor: 'mavi',
+    });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+
+    const board = await callerFor(ownerId).board.get({ boardId });
+    expect(board.lists.find((l) => l.id === list.id)).toMatchObject({
+      icon: 'star',
+      iconColor: 'mavi',
+    });
+  });
+
+  it('update icon: clearing only iconColor keeps the icon and writes list.icon_changed with realtime iconColor:null', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Icon Colour Clear List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'flag',
+      iconColor: 'kirmizi',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const cleared = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      iconColor: null,
+      clientMutationId: cmid,
+    });
+
+    expect(cleared).toMatchObject({
+      id: list.id,
+      icon: 'flag',
+      iconColor: null,
+      changed: true,
+    });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const iconActivity = (await actsFor(boardId)).find(
+      (a) => a.type === 'list.icon_changed' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+    );
+    expect(iconActivity?.payload).toMatchObject({
+      listId: list.id,
+      oldIcon: 'flag',
+      newIcon: 'flag',
+      oldIconColor: 'kirmizi',
+      newIconColor: null,
+      clientMutationId: cmid,
+    });
+
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).toMatchObject({
+      listId: list.id,
+      iconColor: null,
+    });
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('icon');
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+  });
+
+  it('update icon: clearing icon clears iconColor too and writes list.icon_cleared with realtime nulls', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Icon Clear List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'rocket',
+      iconColor: 'mor',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const cleared = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      icon: null,
+      clientMutationId: cmid,
+    });
+
+    expect(cleared).toMatchObject({
+      id: list.id,
+      icon: null,
+      iconColor: null,
+      changed: true,
+    });
+    const [row] = await db()
+      .select({ icon: dbMod.lists.icon, iconColor: dbMod.lists.iconColor })
+      .from(dbMod.lists)
+      .where(dbMod.eq(dbMod.lists.id, list.id))
+      .limit(1);
+    expect(row).toMatchObject({ icon: null, iconColor: null });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const iconActivity = (await actsFor(boardId)).find(
+      (a) => a.type === 'list.icon_cleared' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+    );
+    expect(iconActivity?.payload).toMatchObject({
+      listId: list.id,
+      oldIcon: 'rocket',
+      oldIconColor: 'mor',
+      clientMutationId: cmid,
+    });
+    expect(iconActivity?.payload).not.toHaveProperty('newIcon');
+    expect(iconActivity?.payload).not.toHaveProperty('newIconColor');
+
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).toMatchObject({
+      listId: list.id,
+      icon: null,
+      iconColor: null,
+    });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+  });
+
+  it('update icon: setting the same icon and iconColor is an idempotent no-op', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Icon Noop List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'calendar',
+      iconColor: 'sari',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const activityCount = (await actsFor(boardId)).filter(
+      (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
+    ).length;
+    const realtimeCount = (await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length;
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+
+    const noop = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'calendar',
+      iconColor: 'sari',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    expect(noop).toMatchObject({
+      id: list.id,
+      icon: 'calendar',
+      iconColor: 'sari',
+      changed: false,
+    });
+    expect(await boardVersion(boardId)).toBe(v0);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
+      ).length,
+    ).toBe(activityCount);
+    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(realtimeCount);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('update icon: explicit undefined does not clear existing icon fields', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Undefined Icon List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      icon: 'bookmark',
+      iconColor: 'pembe',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const iconActivityCount = (await actsFor(boardId)).filter(
+      (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
+    ).length;
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const renamed = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      title: 'Renamed without touching icon',
+      icon: undefined,
+      iconColor: undefined,
+      clientMutationId: cmid,
+    });
+
+    expect(renamed).toMatchObject({
+      id: list.id,
+      title: 'Renamed without touching icon',
+      icon: 'bookmark',
+      iconColor: 'pembe',
+      changed: true,
+    });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
+      ).length,
+    ).toBe(iconActivityCount);
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('icon');
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('iconColor');
     expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
   });
 

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  KeyRoundIcon,
   MailIcon,
   PaletteIcon,
   PencilIcon,
@@ -27,12 +28,19 @@ import {
   TabsTrigger,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+import { BoardAccessRequestsSection } from './board-access-requests-section';
 import { BoardInvitationsSection } from './board-invitations-section';
 import { BoardBackgroundPicker } from './background-picker';
 import { BoardLabelsSection } from './board-labels-section';
 import { BoardMembersSection } from './board-members-section';
 
-export type BoardSettingsTab = 'members' | 'invitations' | 'labels' | 'background' | 'actions';
+export type BoardSettingsTab =
+  | 'members'
+  | 'invitations'
+  | 'accessRequests'
+  | 'labels'
+  | 'background'
+  | 'actions';
 
 type BoardSettingsDropdownProps = {
   boardId: string;
@@ -128,7 +136,7 @@ export function BoardSettingsDropdown({
           onValueChange={(value) => onActiveTabChange(value as BoardSettingsTab)}
           className="gap-3"
         >
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5">
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-6">
             <TabsTrigger value="members" className="h-8">
               <UsersIcon className="size-3.5" />
               {settingsCopy.tabMembers}
@@ -136,6 +144,10 @@ export function BoardSettingsDropdown({
             <TabsTrigger value="invitations" className="h-8">
               <MailIcon className="size-3.5" />
               {settingsCopy.tabInvitations}
+            </TabsTrigger>
+            <TabsTrigger value="accessRequests" className="h-8">
+              <KeyRoundIcon className="size-3.5" />
+              {settingsCopy.tabAccessRequests}
             </TabsTrigger>
             <TabsTrigger value="labels" className="h-8">
               <TagsIcon className="size-3.5" />
@@ -172,6 +184,16 @@ export function BoardSettingsDropdown({
               description={settingsCopy.sentInvitationsDescription}
             >
               <BoardInvitationsSection boardId={boardId} canManage={canManage} />
+            </SettingsPanel>
+          </TabsContent>
+
+          <TabsContent value="accessRequests" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
+            <SettingsPanel
+              icon={<KeyRoundIcon className="size-3.5" />}
+              title={settingsCopy.accessRequestsTitle}
+              description={settingsCopy.accessRequestsDescription}
+            >
+              <BoardAccessRequestsSection boardId={boardId} canManage={canManage} />
             </SettingsPanel>
           </TabsContent>
 

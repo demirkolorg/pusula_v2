@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { POSITION_COMPACTION_MAX_LEN } from './constants';
-import { firstPosition, positionBetween, positionsBetween, shouldCompact } from './position';
+import { firstPosition, isValidPosition, positionBetween, positionsBetween, shouldCompact } from './position';
 
 /**
  * `position.ts` is a thin wrapper around `fractional-indexing`; the library
@@ -94,6 +94,20 @@ describe('positionsBetween', () => {
 
   it('positionsBetween(_, _, 0) returns an empty array', () => {
     expect(positionsBetween(null, null, 0)).toEqual([]);
+  });
+});
+
+describe('isValidPosition', () => {
+  it('accepts fractional-indexing keys produced by the helper', () => {
+    expect(isValidPosition(firstPosition())).toBe(true);
+    expect(isValidPosition(positionsBetween(null, null, 5)[4]!)).toBe(true);
+    expect(isValidPosition(positionBetween(firstPosition(), null))).toBe(true);
+  });
+
+  it('rejects legacy single-letter order keys', () => {
+    expect(isValidPosition('a')).toBe(false);
+    expect(isValidPosition('b')).toBe(false);
+    expect(isValidPosition('')).toBe(false);
   });
 });
 

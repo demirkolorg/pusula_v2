@@ -10,3 +10,4 @@ export * from './label';
 export * from './comment';
 export * from './checklist';
 export * from './push-token';
+export * from './search';

@@ -16,6 +16,17 @@ export const lists = pgTable(
      */
     color: text(),
     /**
+     * Optional list header icon token. Values are validated at the domain/API
+     * layer against `@pusula/domain` `LIST_ICONS`; `null` = no icon.
+     */
+    icon: text(),
+    /**
+     * Optional list header icon colour token. Values are validated at the
+     * domain/API layer against `LIST_ICON_COLORS`; `null` = default/current
+     * header text colour. Kept null whenever `icon` is null.
+     */
+    iconColor: text(),
+    /**
      * LexoRank-like fractional position string (NOT an integer). Inserting
      * between two lists only mutates the moved row. See architecture doc §5.
      */

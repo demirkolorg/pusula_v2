@@ -42,7 +42,7 @@ describe('planCardMove', () => {
     expect(plan!.beforeCardId).toBeNull();
     expect(plan!.afterCardId).toBe('a');
     expect(plan!.toListId).toBe('A');
-    expect(plan!.newPosition < 'a0').toBe(true);
+    expect(plan!.newPosition! < 'a0').toBe(true);
   });
 
   it('reorder within a list: drop `a` below `b` ⇒ between b and c', () => {
@@ -57,7 +57,7 @@ describe('planCardMove', () => {
     expect(plan).not.toBeNull();
     expect(plan!.beforeCardId).toBe('b');
     expect(plan!.afterCardId).toBe('c');
-    expect(plan!.newPosition > 'a1' && plan!.newPosition < 'a2').toBe(true);
+    expect(plan!.newPosition! > 'a1' && plan!.newPosition! < 'a2').toBe(true);
   });
 
   it('reorder within a list: drop `a` above `c` ⇒ between b and c (a removed from siblings first)', () => {
@@ -111,7 +111,7 @@ describe('planCardMove', () => {
     expect(plan!.toListId).toBe('B');
     expect(plan!.beforeCardId).toBe('x');
     expect(plan!.afterCardId).toBe('y');
-    expect(plan!.newPosition > 'a0' && plan!.newPosition < 'a1').toBe(true);
+    expect(plan!.newPosition! > 'a0' && plan!.newPosition! < 'a1').toBe(true);
   });
 
   it('cross-list move onto an empty column body (targetCardId=null) ⇒ end of list C', () => {
@@ -141,13 +141,37 @@ describe('planCardMove', () => {
     expect(plan).not.toBeNull();
     expect(plan!.beforeCardId).toBe('c'); // last of [b, c] after removing `a`
     expect(plan!.afterCardId).toBeNull();
-    expect(plan!.newPosition > 'a2').toBe(true);
+    expect(plan!.newPosition! > 'a2').toBe(true);
   });
 
   it('no-op: the last card dropped on the end of its own list', () => {
     expect(
       planCardMove({ cardId: 'c', fromListId: 'A', toListId: 'A', targetCardId: null, edge: 'bottom', cardsByListId }),
     ).toBeNull();
+  });
+
+  it('legacy invalid positions do not crash the drag monitor', () => {
+    const legacyCardsByListId = makeCards({
+      A: [
+        { id: 'a', position: 'a' },
+        { id: 'b', position: 'b' },
+        { id: 'c', position: 'c' },
+      ],
+    });
+
+    const plan = planCardMove({
+      cardId: 'c',
+      fromListId: 'A',
+      toListId: 'A',
+      targetCardId: 'a',
+      edge: 'top',
+      cardsByListId: legacyCardsByListId,
+    });
+
+    expect(plan).not.toBeNull();
+    expect(plan!.beforeCardId).toBeNull();
+    expect(plan!.afterCardId).toBe('a');
+    expect(plan!.newPosition).toBeNull();
   });
 });
 
@@ -167,7 +191,7 @@ describe('planCardMoveToListEnd', () => {
     expect(plan!.toListId).toBe('B');
     expect(plan!.beforeCardId).toBe('x');
     expect(plan!.afterCardId).toBeNull();
-    expect(plan!.newPosition > 'a0').toBe(true);
+    expect(plan!.newPosition! > 'a0').toBe(true);
   });
 
   it('appends to an empty target list (head position)', () => {
@@ -202,7 +226,7 @@ describe('planListMove', () => {
     expect(plan).not.toBeNull();
     expect(plan!.beforeListId).toBeNull();
     expect(plan!.afterListId).toBe('p');
-    expect(plan!.newPosition < 'a0').toBe(true);
+    expect(plan!.newPosition! < 'a0').toBe(true);
   });
 
   it('drop `p` to the right of `q` ⇒ between q and r', () => {
@@ -237,7 +261,7 @@ describe('planListMoveByOne', () => {
     expect(plan).not.toBeNull();
     expect(plan!.beforeListId).toBeNull();
     expect(plan!.afterListId).toBe('p');
-    expect(plan!.newPosition < 'a0').toBe(true);
+    expect(plan!.newPosition! < 'a0').toBe(true);
   });
 
   it('move `q` right ⇒ before=r, after=∅', () => {
@@ -245,7 +269,7 @@ describe('planListMoveByOne', () => {
     expect(plan).not.toBeNull();
     expect(plan!.beforeListId).toBe('r');
     expect(plan!.afterListId).toBeNull();
-    expect(plan!.newPosition > 'a2').toBe(true);
+    expect(plan!.newPosition! > 'a2').toBe(true);
   });
 
   it('move `p` right ⇒ between q and r', () => {

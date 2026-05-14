@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
@@ -12,7 +12,13 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useMutation: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null }),
+  useMutation: () => ({
+    mutate: vi.fn(),
+    reset: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
@@ -28,6 +34,17 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
+      get: { queryFilter: () => ({}) },
+      members: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
+      labels: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
     },
     board: { get: { queryFilter: () => ({}) } },
   }),
@@ -60,9 +77,9 @@ function makeDnd(over: Partial<BoardDnd> = {}): BoardDnd & {
 }
 
 const lists: BoardList[] = [
-  { id: 'L1', title: 'Yapılacak', position: 'a0', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L2', title: 'Devam Eden', position: 'a1', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L3', title: 'Bitti', position: 'a2', color: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L1', title: 'Yapılacak', position: 'a0', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L2', title: 'Devam Eden', position: 'a1', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'L3', title: 'Bitti', position: 'a2', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
 ];
 
 const card: BoardCard = {
@@ -136,8 +153,8 @@ describe('board drag-and-drop accessible alternatives (⋮ menus)', () => {
     });
   });
 
-  describe('card ⋮ "move to list"', () => {
-    it('opening the ⋮ menu lists the move targets and an archive action; the own list is disabled', async () => {
+  describe('card context menu "move to list"', () => {
+    it('right-clicking the card lists the move targets and an archive action; the own list is disabled', async () => {
       const user = userEvent.setup();
       const dnd = makeDnd();
       render(
@@ -145,7 +162,10 @@ describe('board drag-and-drop accessible alternatives (⋮ menus)', () => {
           <CardItem boardId="b1" card={card} canEdit allLists={lists} />
         </BoardDndProvider>,
       );
-      await user.click(screen.getByRole('button', { name: dndCopy.move }));
+      fireEvent.contextMenu(screen.getByRole('button', { name: card.title }));
+      const move = await screen.findByRole('menuitem', { name: dndCopy.move });
+      await user.hover(move);
+
       // The card sits in "Yapılacak" → that item is present but disabled.
       const ownList = await screen.findByRole('menuitem', { name: 'Yapılacak' });
       expect(ownList).toHaveAttribute('aria-disabled', 'true');
@@ -162,13 +182,15 @@ describe('board drag-and-drop accessible alternatives (⋮ menus)', () => {
           <CardItem boardId="b1" card={card} canEdit allLists={lists} />
         </BoardDndProvider>,
       );
-      await user.click(screen.getByRole('button', { name: dndCopy.move }));
+      fireEvent.contextMenu(screen.getByRole('button', { name: card.title }));
+      const move = await screen.findByRole('menuitem', { name: dndCopy.move });
+      await user.hover(move);
       const target = await screen.findByRole('menuitem', { name: /Bitti/ });
-      await user.click(target);
+      fireEvent.click(target);
       expect(dnd.moveCardToListEnd).toHaveBeenCalledWith('c1', 'L1', 'L3');
     });
 
-    it('without a DnD context the card has no ⋮ "move" menu', () => {
+    it('without a DnD context there is no separate move button on the card surface', () => {
       render(<CardItem boardId="b1" card={card} canEdit allLists={lists} />);
       expect(screen.queryByRole('button', { name: dndCopy.move })).not.toBeInTheDocument();
     });

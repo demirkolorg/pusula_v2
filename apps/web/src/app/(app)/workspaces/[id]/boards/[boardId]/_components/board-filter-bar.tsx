@@ -2,11 +2,9 @@
 
 import { LABEL_COLORS, type LabelColor } from '@pusula/domain';
 import {
-  Badge,
   DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   LabelChip,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
@@ -19,9 +17,6 @@ export type BoardFilterMenuContentProps = {
   selectedLabelIds: ReadonlySet<string>;
   onToggleLabel: (labelId: string) => void;
   onClearLabels: () => void;
-  showArchivedLists: boolean;
-  onToggleArchivedLists: () => void;
-  archivedListCount: number;
 };
 
 function isLabelColor(color: string): color is LabelColor {
@@ -33,9 +28,6 @@ export function BoardFilterMenuContent({
   selectedLabelIds,
   onToggleLabel,
   onClearLabels,
-  showArchivedLists,
-  onToggleArchivedLists,
-  archivedListCount,
 }: BoardFilterMenuContentProps) {
   const copy = strings.board.filter;
 
@@ -82,20 +74,6 @@ export function BoardFilterMenuContent({
           {copy.clearLabels}
         </DropdownMenuItem>
       )}
-
-      <DropdownMenuSeparator />
-      <DropdownMenuCheckboxItem
-        checked={showArchivedLists}
-        onCheckedChange={onToggleArchivedLists}
-        onSelect={(event) => event.preventDefault()}
-      >
-        <span className="min-w-0 flex-1 truncate">{copy.archivedListsToggle}</span>
-        {archivedListCount > 0 && (
-          <Badge variant="secondary" className="ml-auto" aria-hidden>
-            {archivedListCount} {copy.archivedListCount}
-          </Badge>
-        )}
-      </DropdownMenuCheckboxItem>
     </>
   );
 }

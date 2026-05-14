@@ -2,12 +2,31 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ArchiveIcon,
+  CalendarIcon,
+  CircleOffIcon,
+  MoveIcon,
+  PaletteIcon,
+  TagIcon,
+  UsersIcon,
+} from 'lucide-react';
 import {
   Alert,
   AlertDescription,
   Button,
   CardCompleteToggle,
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
   Dialog,
   DialogClose,
   DialogContent,
@@ -15,33 +34,32 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
   toast,
 } from '@pusula/ui';
-import { CARD_COVER_COLORS, type CardCoverColor } from '@pusula/domain';
+import {
+  CARD_COVER_COLORS,
+  LABEL_COLORS,
+  type CardCoverColor,
+  type LabelColor,
+} from '@pusula/domain';
 import {
   applyCardArchive,
   applyCardPatch,
   getMutationErrorMessage,
   useOptimisticBoardMutation,
 } from '@/lib/board-cache';
+import { formatDate, toDateInputValue } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
 import { CardMetaRow, type CardMember } from './card-meta-row';
+import { LABEL_SWATCH } from './label-colors';
 import type { BoardList } from './list-column';
 
 export type BoardCardLabel = { labelId: string; name: string; color: string };
+export type BoardCardLabelOption = { id: string; name: string; color: string };
+export type BoardCardMemberOption = { userId: string; name: string | null };
 
 export type BoardCard = {
   id: string;
@@ -54,11 +72,11 @@ export type BoardCard = {
   archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
-  /** Whether the card is marked complete (`board.get` → `cards[].completed`). */
+  /** Whether the card is marked complete (`board.get` -> `cards[].completed`). */
   completed: boolean;
-  /** Cover colour name, or `null` (`board.get` → `cards[].coverColor`). */
+  /** Cover colour name, or `null` (`board.get` -> `cards[].coverColor`). */
   coverColor: string | null;
-  /** Labels attached to this card (`board.get` → `cards[].labels`). May be empty. */
+  /** Labels attached to this card (`board.get` -> `cards[].labels`). May be empty. */
   labels: BoardCardLabel[];
   /** Total checklist items across the card's checklists (`board.get`). */
   checklistTotal: number;
@@ -66,7 +84,7 @@ export type BoardCard = {
   checklistDone: number;
   /** Non-deleted comment count (`board.get`). */
   commentCount: number;
-  /** Card members — name + image + role only, never e-mail (`board.get`). May be empty. */
+  /** Card members - name + image + role only, never e-mail (`board.get`). May be empty. */
   members: CardMember[];
 };
 
@@ -76,10 +94,15 @@ type CardItemProps = {
   /** Whether the viewer may edit/archive this card (board `member+`, list & board active). */
   canEdit: boolean;
   /**
-   * The board's lists (active + archived), `position`-sorted — used by the ⋮
-   * "move to list" picker. Optional so a `CardItem` rendered in isolation works.
+   * The board's lists (active + archived), `position`-sorted - used by the
+   * context menu "move to list" picker. Optional so a `CardItem` rendered in
+   * isolation works.
    */
   allLists?: BoardList[];
+  /** Board label palette used by the card context menu. */
+  boardLabels?: BoardCardLabelOption[];
+  /** Board members used by the card context menu. */
+  boardMembers?: BoardCardMemberOption[];
 };
 
 /** Whether `value` is one of the 12 cover-colour palette names. */
@@ -90,7 +113,7 @@ function asCoverColor(value: string | null): CardCoverColor | null {
 }
 
 /**
- * Cover-colour stripe background per palette name. Literal `bg-palet-*` strings —
+ * Cover-colour stripe background per palette name. Literal `bg-palet-*` strings -
  * spelled out so Tailwind's content scanner picks all 12 up.
  */
 const COVER_BAR: Record<CardCoverColor, string> = {
@@ -108,46 +131,79 @@ const COVER_BAR: Record<CardCoverColor, string> = {
   siyah: 'bg-palet-siyah',
 };
 
+function displayLabelName(label: { name: string }) {
+  return label.name.trim() || strings.board.card.unnamedLabel;
+}
+
+function asLabelColor(value: string): LabelColor | null {
+  return (LABEL_COLORS as readonly string[]).includes(value) ? (value as LabelColor) : null;
+}
+
+function displayMemberName(member: BoardCardMemberOption) {
+  return member.name?.trim() || member.userId;
+}
+
+function startOfLocalDay(value = new Date()) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function thisWeekend(today: Date) {
+  const day = today.getDay();
+  return addDays(today, day === 0 ? 0 : 6 - day);
+}
+
+function nextWeek(today: Date) {
+  const day = today.getDay();
+  return addDays(today, day === 0 ? 1 : 8 - day);
+}
+
+function dueQuickOptions(now = new Date()) {
+  const today = startOfLocalDay(now);
+  return [
+    { key: 'today', label: strings.board.card.contextDueToday, dueAt: today },
+    { key: 'tomorrow', label: strings.board.card.contextDueTomorrow, dueAt: addDays(today, 1) },
+    { key: 'weekend', label: strings.board.card.contextDueWeekend, dueAt: thisWeekend(today) },
+    { key: 'next-week', label: strings.board.card.contextDueNextWeek, dueAt: nextWeek(today) },
+  ] as const;
+}
+
 /**
  * A single card chip in a list column. Clicking (or pressing Enter/Space)
  * navigates to `?card=<id>` (shallow), which opens the card detail modal (the
- * board page renders `CardDetailRoute`); title / description / due editing lives
- * there. The chip surfaces an optional cover-colour stripe, a label-chip row,
- * the title (struck through when complete), and a compact metadata strip
- * (`CardMetaRow` — due / description / checklist / comments / members). A "card
- * done" toggle sits to the left of the title (always visible once complete,
- * hover-to-reveal otherwise); when `canEdit`, a "⋮" menu (hover → "move to
- * list" picker + archive) and a quick archive icon are in the top-right.
- *
- * Within the board's drag-and-drop context (Phase 3B — DEM-43) the card is
- * draggable and is a card-shaped drop target (top/bottom edge → reorder /
- * cross-list move); a drop line is drawn on the hovered edge and the card is
- * ghosted while it's the one being dragged. The complete toggle, the ⋮ menu and
- * the archive dialog `stopPropagation` so they don't also open the card. All
- * mutations invalidate `board.get`.
+ * board page renders `CardDetailRoute`). Right-click opens a Trello-style
+ * context menu for cover colour, labels, members, due date, move and archive.
  */
-export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProps) {
+export function CardItem({
+  boardId,
+  card,
+  canEdit,
+  allLists = [],
+  boardLabels = [],
+  boardMembers = [],
+}: CardItemProps) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const copy = strings.board.card;
   const dndCopy = strings.board.dnd;
+  const menuCopy = copy.context;
   const dnd = useBoardDndContext();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
 
-  // --- Drag-and-drop wiring ------------------------------------------------
   const articleRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
-  // Latest card data, read by the drag preview at drag start (DEM-87) so the
-  // registrar effect doesn't depend on the full `card` object (which would
-  // re-register on every parent render).
   const cardRef = useRef(card);
   cardRef.current = card;
 
-  // For a real move, keep the source card in placeholder mode until the async
-  // optimistic cache write moves its props; invalid/no-op drops reset here.
   const handleDraggingChange = useCallback(
     (next: boolean, options?: { settleUntilCacheUpdate?: boolean }) => {
       if (next) {
@@ -169,15 +225,12 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       cardId: card.id,
       listId: card.listId,
       position: card.position,
-      // A card in an archived list can be dragged *out* but isn't a drop target.
       isDropTarget: canEdit,
       onDraggingChange: handleDraggingChange,
       getCard: () => cardRef.current,
     });
   }, [dnd, card.id, card.listId, card.position, canEdit, handleDraggingChange]);
 
-  // Clear `dragging` in the same pre-paint cycle as the cache-update render
-  // that repositioned this card.
   useLayoutEffect(() => {
     if (dragging) setDragging(false);
   }, [card.position, card.listId]);
@@ -189,7 +242,6 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    // Only react to the article itself, not bubbled events from inner controls.
     if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -225,6 +277,33 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     onConflict,
     onMutationError,
   });
+  const updateCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId: card.id,
+    apply: (data, vars) => {
+      const patch: { coverColor?: string | null; dueAt?: Date | null } = {};
+      if ('coverColor' in vars) patch.coverColor = vars.coverColor ?? null;
+      if ('dueAt' in vars) patch.dueAt = (vars.dueAt as Date | null | undefined) ?? null;
+      return applyCardPatch(data, vars.cardId, patch as Partial<(typeof data.cards)[number]>);
+    },
+    onConflict,
+    onMutationError,
+  });
+
+  const invalidateBoardCardData = async () => {
+    await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
+    await queryClient.invalidateQueries(trpc.card.get.queryFilter({ cardId: card.id }));
+    await queryClient.invalidateQueries(trpc.card.members.list.queryFilter({ cardId: card.id }));
+    await queryClient.invalidateQueries(trpc.card.labels.list.queryFilter({ cardId: card.id }));
+  };
+
+  const mutationInvalidation = { onSuccess: invalidateBoardCardData };
+  const addLabel = useMutation(trpc.card.labels.add.mutationOptions(mutationInvalidation));
+  const removeLabel = useMutation(trpc.card.labels.remove.mutationOptions(mutationInvalidation));
+  const addMember = useMutation(trpc.card.members.add.mutationOptions(mutationInvalidation));
+  const removeMember = useMutation(trpc.card.members.remove.mutationOptions(mutationInvalidation));
+
   const completePending = completeCard.isPending || uncompleteCard.isPending;
 
   const handleArchiveOpenChange = (next: boolean) => {
@@ -233,19 +312,51 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
     if (!next) archiveCard.reset();
   };
 
-  // "Move to list" picker targets: every *active* list. (The current list is
-  // shown too but disabled — there's nowhere else to put the card within its
-  // own list from this minimal picker.) Only available within the DnD context
-  // (board `member+`, active) — which is the same condition as `canEdit`.
   const moveTargets = dnd
     ? [...allLists]
-        .filter((l) => l.archivedAt == null)
+        .filter((list) => list.archivedAt == null)
         .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
     : [];
 
   const coverColor = asCoverColor(card.coverColor);
+  const selectedLabelIds = new Set(card.labels.map((label) => label.labelId));
+  const memberRolesByUser = new Map<string, BoardCard['members']>();
+  for (const member of card.members) {
+    const bucket = memberRolesByUser.get(member.userId);
+    if (bucket) bucket.push(member);
+    else memberRolesByUser.set(member.userId, [member]);
+  }
+  const selectedDueKey = toDateInputValue(card.dueAt);
+  const dueOptions = dueQuickOptions();
 
-  return (
+  const toggleLabel = (labelId: string) => {
+    const vars = { cardId: card.id, labelId, clientMutationId: crypto.randomUUID() };
+    if (selectedLabelIds.has(labelId)) removeLabel.mutate(vars);
+    else addLabel.mutate(vars);
+  };
+
+  const toggleMember = (member: BoardCardMemberOption) => {
+    const assignments = memberRolesByUser.get(member.userId) ?? [];
+    if (assignments.length === 0) {
+      addMember.mutate({
+        cardId: card.id,
+        userId: member.userId,
+        role: 'assignee',
+        clientMutationId: crypto.randomUUID(),
+      });
+      return;
+    }
+    for (const assignment of assignments) {
+      removeMember.mutate({
+        cardId: card.id,
+        userId: member.userId,
+        role: assignment.role,
+        clientMutationId: crypto.randomUUID(),
+      });
+    }
+  };
+
+  const article = (
     <article
       ref={articleRef}
       role="button"
@@ -261,169 +372,257 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
         'focus-visible:ring-2 focus-visible:ring-ring/60',
         !dragging &&
           'group group/kart border bg-card shadow-sm hover:border-foreground/30 hover:shadow-card-hover',
-        // DEM-87 "rüya modu": original card stays in place as a dashed
-        // primary placeholder while the body-portal preview floats with the
-        // cursor. Inner wrapper is `invisible` so the card keeps its size.
         dragging && 'border border-dashed border-primary/60 bg-primary/5',
       )}
     >
       <div className={cn('flex flex-col gap-1', dragging && 'invisible')}>
-      {coverColor && (
-        <div
-          className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
-          aria-hidden
-        />
-      )}
+        {coverColor && (
+          <div
+            className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
+            aria-hidden
+          />
+        )}
 
-      <div className={cn('flex items-start gap-1.5', canEdit && 'pr-14')}>
-        <CardCompleteToggle
-          checked={card.completed}
-          alwaysVisible={card.completed}
-          disabled={!canEdit || completePending}
-          aria-label={card.completed ? copy.completeUntoggle : copy.completeToggle}
-          onClick={(event) => event.stopPropagation()}
-          onCheckedChange={(next) =>
-            next
-              ? completeCard.mutate({ cardId: card.id })
-              : uncompleteCard.mutate({ cardId: card.id })
-          }
-          className="mt-0.5"
-        />
-        <div
-          className={cn(
-            'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
-            card.completed && 'text-muted-foreground line-through',
-          )}
-        >
-          {card.title}
+        <div className="flex items-start gap-1.5">
+          <CardCompleteToggle
+            checked={card.completed}
+            alwaysVisible={card.completed}
+            disabled={!canEdit || completePending}
+            aria-label={card.completed ? copy.completeUntoggle : copy.completeToggle}
+            onClick={(event) => event.stopPropagation()}
+            onCheckedChange={(next) =>
+              next
+                ? completeCard.mutate({ cardId: card.id })
+                : uncompleteCard.mutate({ cardId: card.id })
+            }
+            className="mt-0.5"
+          />
+          <div
+            className={cn(
+              'min-w-0 flex-1 font-medium leading-snug break-words line-clamp-3',
+              card.completed && 'text-muted-foreground line-through',
+            )}
+          >
+            {card.title}
+          </div>
         </div>
-      </div>
 
-      <CardMetaRow
-        description={card.description}
-        dueAt={card.dueAt}
-        labelCount={card.labels.length}
-        checklistTotal={card.checklistTotal}
-        checklistDone={card.checklistDone}
-        commentCount={card.commentCount}
-        members={card.members}
-      />
-
-      {canEdit && (
-        <div
-          className={cn(
-            'absolute right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-background p-0.5 shadow-[0_4px_14px_rgba(15,23,42,0.16)] ring-1 ring-foreground/10',
-            'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-            coverColor ? 'top-5' : 'top-1.5',
-          )}
-        >
-          {moveTargets.length > 0 && (
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={dndCopy.move}
-                      onClick={(event) => event.stopPropagation()}
-                      className="size-6 text-foreground/75 hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
-                    >
-                      <MoreHorizontalIcon className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>{dndCopy.move}</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent
-                align="end"
-                onClick={(event) => event.stopPropagation()}
-                onCloseAutoFocus={(event) => event.preventDefault()}
-              >
-                <DropdownMenuLabel className="flex items-center gap-1.5">
-                  <MoveIcon className="size-3.5" aria-hidden />
-                  {dndCopy.moveToList}
-                </DropdownMenuLabel>
-                {moveTargets.map((l) => (
-                  <DropdownMenuItem
-                    key={l.id}
-                    disabled={l.id === card.listId}
-                    onSelect={() => dnd?.moveCardToListEnd(card.id, card.listId, l.id)}
-                  >
-                    <span className="truncate">
-                      {l.title}
-                      {l.id === card.listId ? '' : ` · ${dndCopy.moveToListEnd}`}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
-                  <ArchiveIcon />
-                  {copy.archive}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={copy.archive}
-                    onClick={(event) => event.stopPropagation()}
-                    className="size-6 text-foreground/75 hover:bg-muted hover:text-foreground"
-                  >
-                    <ArchiveIcon className="size-4" />
-                  </Button>
-                </DialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{copy.archive}</TooltipContent>
-            </Tooltip>
-            <DialogContent
-              closeLabel={strings.common.close}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <DialogHeader>
-                <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
-                <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>
-              </DialogHeader>
-              {archiveCard.isError && (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    {getMutationErrorMessage(archiveCard) ?? strings.common.unknownError}
-                  </AlertDescription>
-                </Alert>
-              )}
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline" disabled={archiveCard.isPending}>
-                    {strings.common.cancel}
-                  </Button>
-                </DialogClose>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={archiveCard.isPending}
-                  onClick={() =>
-                    archiveCard.mutate({
-                      cardId: card.id,
-                      archived: true,
-                    })
-                  }
-                >
-                  {archiveCard.isPending ? copy.archiving : copy.archiveConfirm}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      )}
+        <CardMetaRow
+          description={card.description}
+          dueAt={card.dueAt}
+          labelCount={card.labels.length}
+          checklistTotal={card.checklistTotal}
+          checklistDone={card.checklistDone}
+          commentCount={card.commentCount}
+          members={card.members}
+        />
       </div>
     </article>
+  );
+
+  const archiveDialog = (
+    <Dialog open={archiveOpen} onOpenChange={handleArchiveOpenChange}>
+      <DialogContent closeLabel={strings.common.close} onClick={(event) => event.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>{copy.archiveConfirmTitle}</DialogTitle>
+          <DialogDescription>{copy.archiveConfirmDescription}</DialogDescription>
+        </DialogHeader>
+        {archiveCard.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {getMutationErrorMessage(archiveCard) ?? strings.common.unknownError}
+            </AlertDescription>
+          </Alert>
+        )}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={archiveCard.isPending}>
+              {strings.common.cancel}
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={archiveCard.isPending}
+            onClick={() => archiveCard.mutate({ cardId: card.id, archived: true })}
+          >
+            {archiveCard.isPending ? copy.archiving : copy.archiveConfirm}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (!canEdit) return article;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{article}</ContextMenuTrigger>
+      <ContextMenuContent
+        className="w-56"
+        onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <PaletteIcon className="size-4" aria-hidden />
+            {menuCopy.coverColor}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-52">
+            <div className="grid grid-cols-4 gap-1.5 p-1">
+              {CARD_COVER_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`${menuCopy.coverColorOf} ${color}`}
+                  aria-pressed={coverColor === color}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (coverColor !== color) updateCard.mutate({ cardId: card.id, coverColor: color });
+                  }}
+                  className={cn(
+                    'size-8 rounded-md outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-ring/60',
+                    COVER_BAR[color],
+                    coverColor === color && 'ring-2 ring-foreground',
+                  )}
+                />
+              ))}
+            </div>
+            <ContextMenuSeparator />
+            <ContextMenuItem disabled={coverColor == null} onSelect={() => updateCard.mutate({ cardId: card.id, coverColor: null })}>
+              <CircleOffIcon className="size-4" aria-hidden />
+              {menuCopy.coverColorClear}
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <TagIcon className="size-4" aria-hidden />
+            {menuCopy.labels}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            {boardLabels.length === 0 ? (
+              <ContextMenuItem disabled>{menuCopy.noLabels}</ContextMenuItem>
+            ) : (
+              boardLabels.map((label) => {
+                const labelColor = asLabelColor(label.color);
+                return (
+                  <ContextMenuCheckboxItem
+                    key={label.id}
+                    checked={selectedLabelIds.has(label.id)}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      toggleLabel(label.id);
+                    }}
+                  >
+                    <span
+                      className={cn(
+                        'size-3 shrink-0 rounded-full',
+                        labelColor ? LABEL_SWATCH[labelColor] : 'bg-muted',
+                      )}
+                      aria-hidden
+                    />
+                    <span className="truncate">{displayLabelName(label)}</span>
+                  </ContextMenuCheckboxItem>
+                );
+              })
+            )}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <UsersIcon className="size-4" aria-hidden />
+            {menuCopy.members}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            {boardMembers.length === 0 ? (
+              <ContextMenuItem disabled>{menuCopy.noMembers}</ContextMenuItem>
+            ) : (
+              boardMembers.map((member) => (
+                <ContextMenuCheckboxItem
+                  key={member.userId}
+                  checked={memberRolesByUser.has(member.userId)}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    toggleMember(member);
+                  }}
+                >
+                  <span className="truncate">{displayMemberName(member)}</span>
+                </ContextMenuCheckboxItem>
+              ))
+            )}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <CalendarIcon className="size-4" aria-hidden />
+            {menuCopy.dueDate}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
+              {card.dueAt ? `${menuCopy.dueCurrent}: ${formatDate(card.dueAt)}` : menuCopy.dueEmpty}
+            </ContextMenuLabel>
+            <ContextMenuSeparator />
+            {dueOptions.map((option) => {
+              const optionKey = toDateInputValue(option.dueAt);
+              return (
+                <ContextMenuCheckboxItem
+                  key={option.key}
+                  checked={selectedDueKey === optionKey}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    updateCard.mutate({ cardId: card.id, dueAt: option.dueAt });
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  <span className="text-muted-foreground ml-auto text-xs">
+                    {formatDate(option.dueAt)}
+                  </span>
+                </ContextMenuCheckboxItem>
+              );
+            })}
+            <ContextMenuSeparator />
+            <ContextMenuItem disabled={card.dueAt == null} onSelect={() => updateCard.mutate({ cardId: card.id, dueAt: null })}>
+              <CircleOffIcon className="size-4" aria-hidden />
+              {menuCopy.dueClear}
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger disabled={moveTargets.length === 0}>
+            <MoveIcon className="size-4" aria-hidden />
+            {dndCopy.move}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            {moveTargets.map((list) => (
+              <ContextMenuItem
+                key={list.id}
+                disabled={list.id === card.listId}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (list.id !== card.listId) dnd?.moveCardToListEnd(card.id, card.listId, list.id);
+                }}
+              >
+                <span className="truncate">
+                  {list.title}
+                  {list.id === card.listId ? '' : ` - ${dndCopy.moveToListEnd}`}
+                </span>
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => setArchiveOpen(true)}>
+          <ArchiveIcon className="size-4" aria-hidden />
+          {copy.archive}
+        </ContextMenuItem>
+      </ContextMenuContent>
+      {archiveDialog}
+    </ContextMenu>
   );
 }

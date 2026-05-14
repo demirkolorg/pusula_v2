@@ -21,10 +21,7 @@ import { renderHook, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RealtimeEventEnvelope } from '@pusula/domain';
-import {
-  addInFlightClientMutationId,
-  clearInFlightClientMutationIds,
-} from './in-flight-store';
+import { addInFlightClientMutationId, clearInFlightClientMutationIds } from './in-flight-store';
 
 // --- Fake socket -----------------------------------------------------------
 type Listener = (...args: unknown[]) => void;
@@ -169,6 +166,22 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     expect(fakeSocket.connected).toBe(true);
     expect(fakeSocket.emitted).toContainEqual({ event: 'board:join', args: [{ boardId: 'b1' }] });
     expect(fakeSocket.listeners.get('realtime:event')?.size).toBe(1);
+  });
+
+  it('disabled: does not connect, join, or register realtime listeners', () => {
+    const qc = newQueryClient();
+    qc.setQueryData(boardKey('b1'), fixture());
+
+    const { result } = renderHook(() => useBoardRealtime('b1', { enabled: false }), {
+      wrapper: wrap(qc),
+    });
+
+    expect(result.current.connected).toBe(true);
+    expect(fakeSocket.connected).toBe(false);
+    expect(fakeSocket.emitted).toEqual([]);
+    expect(fakeSocket.listeners.get('realtime:event')?.size ?? 0).toBe(0);
+    expect(fakeSocket.listeners.get('connect')?.size ?? 0).toBe(0);
+    expect(fakeSocket.listeners.get('disconnect')?.size ?? 0).toBe(0);
   });
 
   it('mount: when the socket is already connected, emits board:join without reconnecting', () => {

@@ -25,6 +25,7 @@
     "./tooltip": "./src/components/tooltip.tsx",
     "./dropdown-menu": "./src/components/dropdown-menu.tsx",
     "./popover": "./src/components/popover.tsx",
+    "./context-menu": "./src/components/context-menu.tsx",
     "./checkbox": "./src/components/checkbox.tsx",
     "./tabs": "./src/components/tabs.tsx",
     "./rich-text-editor": "./src/components/rich-text-editor.tsx",
@@ -39,6 +40,7 @@
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.1.4",
+    "@radix-ui/react-context-menu": "2.2.16",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-dropdown-menu": "^2.1.6",
     "@radix-ui/react-label": "^2.1.2",

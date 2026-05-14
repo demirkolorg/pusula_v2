@@ -38,6 +38,10 @@ type BoardGetPayload = {
   board: BoardRow;
 };
 
+type WorkspaceRow = {
+  id: string;
+};
+
 function isActiveBoard(board: BoardRow) {
   if (typeof board.archived === 'boolean') return !board.archived;
   return board.archivedAt == null;
@@ -52,13 +56,17 @@ export function BoardSwitcher() {
   const copy = strings.shell.boardSwitcher;
   const [createOpen, setCreateOpen] = useState(false);
 
+  const workspaceList = useQuery(trpc.workspace.list.queryOptions());
+  const workspaces = (workspaceList.data ?? []) as WorkspaceRow[];
+  const hasWorkspaceAccess =
+    workspaceId == null ? false : workspaces.some((workspace) => workspace.id === workspaceId);
   const boards = useQuery({
     ...trpc.board.list.queryOptions({ workspaceId: workspaceId ?? '__none__' }),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId && hasWorkspaceAccess),
   });
   const boardGet = useQuery({
     ...trpc.board.get.queryOptions({ boardId: boardId ?? '__none__' }),
-    enabled: Boolean(boardId),
+    enabled: Boolean(boardId && hasWorkspaceAccess),
   });
 
   const list = (boards.data ?? []) as BoardRow[];

@@ -383,6 +383,115 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     ]);
   });
 
+  it('archive: restoring a card from an archived list is BAD_REQUEST', async () => {
+    const frozenList = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Frozen restore list',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const card = await callerFor(ownerId).card.create({
+      listId: frozenList.id,
+      title: 'Needs active list',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).card.archive({
+      cardId: card.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.archive({
+      boardId,
+      listId: frozenList.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await expect(
+      callerFor(memberId).card.archive({
+        cardId: card.id,
+        archived: false,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Arşivli listedeki kartı geri yüklemek için önce aktif bir listeye taşıyın.',
+    });
+  });
+
+  it('listArchived: a board viewer sees archived cards newest first with their list metadata', async () => {
+    const archiveBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Archived-card listing board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db().insert(boardMembers).values({ boardId: archiveBoard.id, userId: guestId, role: 'viewer' });
+    const firstList = await callerFor(ownerId).list.create({
+      boardId: archiveBoard.id,
+      title: 'Archived cards source',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const secondList = await callerFor(ownerId).list.create({
+      boardId: archiveBoard.id,
+      title: 'Archived cards target',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const active = await callerFor(ownerId).card.create({
+      listId: firstList.id,
+      title: 'Still active',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const older = await callerFor(ownerId).card.create({
+      listId: firstList.id,
+      title: 'Older archived card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const newer = await callerFor(ownerId).card.create({
+      listId: secondList.id,
+      title: 'Newer archived card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Other archived-card board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherList = await callerFor(ownerId).list.create({
+      boardId: otherBoard.id,
+      title: 'Other list',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherCard = await callerFor(ownerId).card.create({
+      listId: otherList.id,
+      title: 'Other board archived card',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await db()
+      .update(dbMod.cards)
+      .set({ archivedAt: new Date('2026-05-01T10:00:00.000Z') })
+      .where(dbMod.eq(dbMod.cards.id, older.id));
+    await db()
+      .update(dbMod.cards)
+      .set({ archivedAt: new Date('2026-05-03T10:00:00.000Z') })
+      .where(dbMod.eq(dbMod.cards.id, newer.id));
+    await db()
+      .update(dbMod.cards)
+      .set({ archivedAt: new Date('2026-05-04T10:00:00.000Z') })
+      .where(dbMod.eq(dbMod.cards.id, otherCard.id));
+
+    const archived = await callerFor(guestId).card.listArchived({ boardId: archiveBoard.id });
+
+    expect(archived.map((card) => card.id)).toEqual([newer.id, older.id]);
+    expect(archived.find((card) => card.id === active.id)).toBeUndefined();
+    expect(archived[0]).toMatchObject({
+      id: newer.id,
+      boardId: archiveBoard.id,
+      listId: secondList.id,
+      title: 'Newer archived card',
+      listTitle: 'Archived cards target',
+      listArchivedAt: null,
+    });
+    expect(archived[0]?.archivedAt).toEqual(new Date('2026-05-03T10:00:00.000Z'));
+  });
+
   // -------------------------------------------------------------- complete (DEM-66)
 
   it('complete: a member completes a card (completed/completedAt/completedBy set); card.completed activity; version bumps; second complete is an idempotent no-op', async () => {

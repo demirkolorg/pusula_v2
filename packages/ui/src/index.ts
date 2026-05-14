@@ -80,6 +80,22 @@ export {
   DropdownMenuTrigger,
 } from './components/dropdown-menu';
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './components/popover';
+export {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from './components/context-menu';
 export { Checkbox } from './components/checkbox';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';
 export {

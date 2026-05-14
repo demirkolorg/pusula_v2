@@ -21,9 +21,6 @@ function renderMenu(
     selectedLabelIds: new Set(),
     onToggleLabel: vi.fn(),
     onClearLabels: vi.fn(),
-    showArchivedLists: false,
-    onToggleArchivedLists: vi.fn(),
-    archivedListCount: 2,
   };
 
   return render(
@@ -36,15 +33,14 @@ function renderMenu(
 }
 
 describe('<BoardFilterMenuContent>', () => {
-  it('renders label checkbox items and the archived-lists checkbox item', () => {
+  it('renders label checkbox items without the archived-lists control', () => {
     renderMenu();
 
     expect(screen.getByRole('menuitemcheckbox', { name: /Acil/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitemcheckbox', { name: /Beklemede/ })).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitemcheckbox', { name: new RegExp(copy.archivedListsToggle) }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(`2 ${copy.archivedListCount}`)).toBeInTheDocument();
+      screen.queryByRole('menuitemcheckbox', { name: new RegExp(copy.archivedListsToggle) }),
+    ).not.toBeInTheDocument();
   });
 
   it('clicking a label item calls onToggleLabel with its id', async () => {
@@ -72,9 +68,6 @@ describe('<BoardFilterMenuContent>', () => {
             selectedLabelIds={new Set(['l1'])}
             onToggleLabel={vi.fn()}
             onClearLabels={onClearLabels}
-            showArchivedLists={false}
-            onToggleArchivedLists={vi.fn()}
-            archivedListCount={0}
           />
         </DropdownMenuContent>
       </DropdownMenu>,
@@ -84,47 +77,8 @@ describe('<BoardFilterMenuContent>', () => {
     expect(onClearLabels).toHaveBeenCalledTimes(1);
   });
 
-  it('the archived-lists item reflects state and fires onToggleArchivedLists', async () => {
-    const user = userEvent.setup();
-    const onToggle = vi.fn();
-    const { rerender } = renderMenu({
-      labels: [],
-      showArchivedLists: false,
-      onToggleArchivedLists: onToggle,
-      archivedListCount: 1,
-    });
-
-    const item = screen.getByRole('menuitemcheckbox', {
-      name: new RegExp(copy.archivedListsToggle),
-    });
-    expect(item).toHaveAttribute('aria-checked', 'false');
-
-    await user.click(item);
-    expect(onToggle).toHaveBeenCalledTimes(1);
-
-    rerender(
-      <DropdownMenu open>
-        <DropdownMenuContent forceMount>
-          <BoardFilterMenuContent
-            labels={[]}
-            selectedLabelIds={new Set()}
-            onToggleLabel={vi.fn()}
-            onClearLabels={vi.fn()}
-            showArchivedLists
-            onToggleArchivedLists={onToggle}
-            archivedListCount={1}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>,
-    );
-
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: new RegExp(copy.archivedListsToggle) }),
-    ).toHaveAttribute('aria-checked', 'true');
-  });
-
   it('shows the no-labels hint when the board has no labels', () => {
-    renderMenu({ labels: [], archivedListCount: 0 });
+    renderMenu({ labels: [] });
 
     expect(screen.getByText(copy.noLabels)).toBeInTheDocument();
   });

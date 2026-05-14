@@ -4,10 +4,12 @@ import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { boardRoleAtLeast } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle, boardBackgroundClass, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
+import { BoardAccessRequestScreen } from './_components/board-access-request-screen';
 import { BoardColumns } from './_components/board-columns';
 import { countArchivedLists } from './_components/board-filter';
 import type { BoardFilterLabel } from './_components/board-filter-bar';
@@ -32,13 +34,22 @@ export default function BoardDetailPage({
 }) {
   const { id: workspaceId, boardId } = use(params);
   const trpc = useTRPC();
-  const board = useQuery(trpc.board.get.queryOptions({ boardId }));
+  const accessContext = useQuery(trpc.board.accessRequests.context.queryOptions({ boardId }));
+  const hasBoardAccess = accessContext.data?.access.hasAccess === true;
+  const board = useQuery(trpc.board.get.queryOptions({ boardId }, { enabled: hasBoardAccess }));
+  const labelList = useQuery(
+    trpc.label.list.queryOptions({ boardId }, { enabled: hasBoardAccess }),
+  );
+  const boardMembers = useQuery(
+    trpc.board.members.list.queryOptions({ boardId }, { enabled: hasBoardAccess }),
+  );
   // Phase 5C (DEM-85) — keep `board.get` in sync with concurrent edits from
   // other users. Subscribes to `board:{boardId}` on mount, applies envelopes,
   // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner.
-  const realtime = useBoardRealtime(boardId);
+  const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
   const [showArchivedLists, setShowArchivedLists] = useState(false);
+  const [showArchivedCards, setShowArchivedCards] = useState(false);
   const boardCardsForFilters = board.data?.cards ?? [];
   const boardListsForFilters = board.data?.lists ?? [];
 
@@ -94,6 +105,38 @@ export default function BoardDetailPage({
     </Link>
   );
 
+  if (accessContext.isPending) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
+        {backLink}
+        <BoardSkeleton />
+      </div>
+    );
+  }
+
+  if (accessContext.isError) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
+        {backLink}
+        <Alert variant="destructive">
+          <AlertTitle>{strings.board.detail.accessContextLoadErrorTitle}</AlertTitle>
+          <AlertDescription>
+            {accessContext.error.message || strings.common.unknownError}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!accessContext.data.access.hasAccess) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
+        {backLink}
+        <BoardAccessRequestScreen boardId={boardId} context={accessContext.data} />
+      </div>
+    );
+  }
+
   if (board.isPending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6">
@@ -118,6 +161,7 @@ export default function BoardDetailPage({
   const { board: b, lists, cards } = board.data;
   const archived = b.archivedAt != null;
   const isBoardAdmin = b.role === 'admin';
+  const canEditBoardContent = boardRoleAtLeast(b.role, 'member') && !archived;
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}>
@@ -133,8 +177,14 @@ export default function BoardDetailPage({
           selectedLabelIds: liveSelectedLabelIds,
           onToggleLabel: toggleLabelFilter,
           onClearLabels: () => setSelectedLabelIds(new Set()),
+        }}
+        archive={{
+          lists,
+          canEdit: canEditBoardContent,
           showArchivedLists,
           onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
+          showArchivedCards,
+          onToggleArchivedCards: () => setShowArchivedCards((value) => !value),
           archivedListCount,
         }}
       />
@@ -157,6 +207,11 @@ export default function BoardDetailPage({
           cards={cards}
           selectedLabelIds={liveSelectedLabelIds}
           showArchivedLists={showArchivedLists}
+          boardLabels={labelList.data ?? boardLabels}
+          boardMembers={(boardMembers.data ?? []).map((member) => ({
+            userId: member.userId,
+            name: member.name,
+          }))}
         />
       </div>
 

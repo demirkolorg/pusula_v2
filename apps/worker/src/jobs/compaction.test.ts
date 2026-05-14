@@ -210,6 +210,29 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
     });
   });
 
+  it('list scope: re-balances a single card with a legacy invalid position', async () => {
+    const { boardId } = await seedBoard();
+    const [list] = await db()
+      .insert(lists)
+      .values({ boardId, title: 'Legacy', position: 'a0' })
+      .returning({ id: lists.id });
+    const listId = list!.id;
+    await db().insert(cards).values({ boardId, listId, title: 'legacy-card', position: 'a' });
+    const v0 = await boardVersion(boardId);
+
+    await expect(processCompactionJob(db(), { scope: { kind: 'list', listId } })).resolves.toEqual({
+      rebalanced: 1,
+    });
+
+    const [after] = await db()
+      .select({ position: cards.position })
+      .from(cards)
+      .where(dbMod.eq(cards.listId, listId))
+      .limit(1);
+    expect(after!.position).toBe(positionsBetween(null, null, 1)[0]);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+  });
+
   // ----------------------------------------------------------- board scope
 
   it('board scope: re-balances a board with an over-long list position; order preserved; boards.version bumps; no activity', async () => {
@@ -267,6 +290,24 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
       rebalanced: 0,
     });
     expect(await boardVersion(boardId)).toBe(v0);
+  });
+
+  it('board scope: re-balances a single list with a legacy invalid position', async () => {
+    const { boardId } = await seedBoard();
+    await db().insert(lists).values({ boardId, title: 'legacy-list', position: 'a' });
+    const v0 = await boardVersion(boardId);
+
+    await expect(processCompactionJob(db(), { scope: { kind: 'board', boardId } })).resolves.toEqual({
+      rebalanced: 1,
+    });
+
+    const [after] = await db()
+      .select({ position: lists.position })
+      .from(lists)
+      .where(dbMod.eq(lists.boardId, boardId))
+      .limit(1);
+    expect(after!.position).toBe(positionsBetween(null, null, 1)[0]);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
   });
 });
 

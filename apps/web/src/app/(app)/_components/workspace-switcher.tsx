@@ -59,12 +59,14 @@ export function WorkspaceSwitcher() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const workspaceList = useQuery(trpc.workspace.list.queryOptions());
+  const list = (workspaceList.data ?? []) as WorkspaceRow[];
+  const hasWorkspaceAccess =
+    workspaceId == null ? false : list.some((workspace) => workspace.id === workspaceId);
   const workspaceGet = useQuery({
     ...trpc.workspace.get.queryOptions({ workspaceId: workspaceId ?? '__none__' }),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId && hasWorkspaceAccess),
   });
 
-  const list = (workspaceList.data ?? []) as WorkspaceRow[];
   const activeWorkspace =
     workspaceId == null
       ? undefined

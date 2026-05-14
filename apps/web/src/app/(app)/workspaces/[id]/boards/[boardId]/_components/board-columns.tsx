@@ -10,7 +10,11 @@ import { BoardDndProvider } from './board-dnd-context';
 import { filterCardsByLabels, filterVisibleLists } from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
 import { useBoardDnd } from './use-board-dnd';
-import { type BoardCard } from './card-item';
+import {
+  type BoardCard,
+  type BoardCardLabelOption,
+  type BoardCardMemberOption,
+} from './card-item';
 
 type BoardColumnsProps = {
   boardId: string;
@@ -24,6 +28,10 @@ type BoardColumnsProps = {
   selectedLabelIds: ReadonlySet<string>;
   /** Whether archived lists are visible in the board strip. */
   showArchivedLists: boolean;
+  /** Board label palette used by each card context menu. */
+  boardLabels?: BoardCardLabelOption[];
+  /** Board members used by each card context menu. */
+  boardMembers?: BoardCardMemberOption[];
 };
 
 function ListDropPlaceholderMarker({
@@ -60,6 +68,8 @@ export function BoardColumns({
   cards,
   selectedLabelIds,
   showArchivedLists,
+  boardLabels = [],
+  boardMembers = [],
 }: BoardColumnsProps) {
   const boardActive = board.archivedAt == null;
   const canEdit = boardRoleAtLeast(board.role, 'member') && boardActive;
@@ -137,6 +147,8 @@ export function BoardColumns({
                   cards={cardsByList.get(list.id) ?? []}
                   canEdit={canEdit}
                   allLists={lists}
+                  boardLabels={boardLabels}
+                  boardMembers={boardMembers}
                 />
                 {dnd.listPlaceholder?.targetListId === list.id &&
                   dnd.listPlaceholder.edge === 'right' && (

@@ -8,19 +8,19 @@
  * event types log a warning and skip — Faz 5B is allowed to publish a new
  * type before this file learns to handle it (forward compatibility).
  *
- * Payload contract (matches the producer that 5B will land):
- *   - `card.moved`      → `{ cardId, fromListId, toListId, position }`
- *   - `card.created`    → `{ card }` — full row (`board.get` projection)
+ * Payload contract (producer shape first; legacy/full-row shape accepted):
+ *   - `card.moved`      → `{ cardId, fromListId, toListId, toPosition }`
+ *   - `card.created`    → `{ cardId, listId, title, position }` or `{ card }`
  *   - `card.updated`    → `{ cardId, patch }` — shallow merge over the card
- *   - `card.archived`   → `{ cardId }`
+ *   - `card.archived`   → `{ cardId, archived }`
  *   - `card.completed`  → `{ cardId, completedAt, completedBy? }`
  *   - `card.uncompleted`→ `{ cardId }`
- *   - `list.moved`      → `{ listId, position }`
- *   - `list.created`    → `{ list }`
+ *   - `list.moved`      → `{ listId, toPosition }`
+ *   - `list.created`    → `{ listId, title, position }` or `{ list }`
  *   - `list.updated`    → `{ listId, patch? }` or `{ listId, fromTitle?, toTitle?, color? }`
- *   - `list.archived`   → `{ listId, archivedAt }`
+ *   - `list.archived`   → `{ listId, archived }`
  *   - `board.updated`   → `{ patch }`
- *   - `board.archived`  → `{ archivedAt }`
+ *   - `board.archived`  → `{ archived }`
  *
  * Spec: `05-board-mekanigi.md` §5.3, `08-web-ve-mobil.md` §8.1.10.
  */
@@ -52,6 +52,96 @@ export interface RealtimeFilters {
 
 type Payload = Record<string, unknown>;
 
+function isPayload(value: unknown): value is Payload {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringField(payload: Payload, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function booleanField(payload: Payload, key: string): boolean | undefined {
+  const value = payload[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function createdAtDate(envelope: RealtimeEventEnvelope): Date {
+  const date = new Date(envelope.createdAt);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+function archivedAtFromPayload(
+  payload: Payload,
+  envelope: RealtimeEventEnvelope,
+): string | null | undefined {
+  if (Object.prototype.hasOwnProperty.call(payload, 'archivedAt')) {
+    const archivedAt = payload.archivedAt;
+    if (archivedAt === null || typeof archivedAt === 'string') return archivedAt;
+  }
+  const archived = booleanField(payload, 'archived');
+  if (archived === true) return envelope.createdAt;
+  if (archived === false) return null;
+  return undefined;
+}
+
+function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): CardCache | undefined {
+  const nested = payload.card;
+  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as CardCache;
+
+  const id = stringField(payload, 'cardId');
+  const listId = stringField(payload, 'listId');
+  const title = stringField(payload, 'title');
+  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+  if (!id || !listId || !title || !position) return undefined;
+
+  const timestamp = createdAtDate(envelope);
+  return {
+    id,
+    boardId: envelope.boardId ?? '',
+    listId,
+    title,
+    description: null,
+    position,
+    dueAt: null,
+    completed: false,
+    completedAt: null,
+    completedBy: null,
+    coverColor: null,
+    archivedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    labels: [],
+    checklistTotal: 0,
+    checklistDone: 0,
+    commentCount: 0,
+    members: [],
+  } as unknown as CardCache;
+}
+
+function listFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): ListCache | undefined {
+  const nested = payload.list;
+  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as ListCache;
+
+  const id = stringField(payload, 'listId');
+  const title = stringField(payload, 'title');
+  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+  if (!id || !title || !position) return undefined;
+
+  const timestamp = createdAtDate(envelope);
+  return {
+    id,
+    title,
+    color: null,
+    icon: null,
+    iconColor: null,
+    position,
+    archivedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  } as unknown as ListCache;
+}
+
 function setBoard(qc: QueryClient, filters: RealtimeFilters, mutate: (data: BoardCache) => BoardCache): void {
   qc.setQueriesData<BoardCache>(filters.board, (data) => (data == null ? data : mutate(data)));
 }
@@ -77,20 +167,20 @@ export function dispatchRealtimeEvent(
   filters: RealtimeFilters,
   envelope: RealtimeEventEnvelope,
 ): void {
-  const payload = (envelope.payload ?? {}) as Payload;
+  const payload = isPayload(envelope.payload) ? envelope.payload : {};
 
   switch (envelope.type) {
     case 'card.moved': {
-      const { cardId, toListId, position } = payload as {
-        cardId: string;
-        toListId: string;
-        position: string;
-      };
+      const cardId = stringField(payload, 'cardId');
+      const toListId = stringField(payload, 'toListId');
+      const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+      if (!cardId || !toListId || !position) return;
       setBoard(qc, filters, (data) => applyCardMove(data, { cardId, toListId, newPosition: position }));
       return;
     }
     case 'card.created': {
-      const { card } = payload as { card: CardCache };
+      const card = cardFromPayload(payload, envelope);
+      if (!card) return;
       setBoard(qc, filters, (data) => applyCardAdd(data, card));
       return;
     }
@@ -101,7 +191,12 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'card.archived': {
-      const { cardId } = payload as { cardId: string };
+      const cardId = stringField(payload, 'cardId');
+      if (!cardId) return;
+      if (booleanField(payload, 'archived') === false) {
+        void qc.invalidateQueries(filters.board);
+        return;
+      }
       setBoard(qc, filters, (data) => applyCardArchive(data, cardId));
       return;
     }
@@ -129,34 +224,42 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'list.moved': {
-      const { listId, position } = payload as { listId: string; position: string };
+      const listId = stringField(payload, 'listId');
+      const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+      if (!listId || !position) return;
       setBoard(qc, filters, (data) => applyListMove(data, { listId, newPosition: position }));
       return;
     }
     case 'list.created': {
-      const { list } = payload as { list: ListCache };
+      const list = listFromPayload(payload, envelope);
+      if (!list) return;
       setBoard(qc, filters, (data) => applyListAdd(data, list));
       return;
     }
     case 'list.updated': {
-      const { listId, patch, toTitle, color } = payload as {
+      const { listId, patch, toTitle, color, icon, iconColor } = payload as {
         listId: string;
         patch?: Partial<ListCache>;
         toTitle?: string;
         color?: ListCache['color'];
+        icon?: ListCache['icon'];
+        iconColor?: ListCache['iconColor'];
       };
       const nextPatch: Partial<ListCache> = { ...(patch ?? {}) };
       if (toTitle !== undefined) nextPatch.title = toTitle;
       if (Object.prototype.hasOwnProperty.call(payload, 'color')) nextPatch.color = color ?? null;
+      if (Object.prototype.hasOwnProperty.call(payload, 'icon')) nextPatch.icon = icon ?? null;
+      if (Object.prototype.hasOwnProperty.call(payload, 'iconColor')) {
+        nextPatch.iconColor = iconColor ?? null;
+      }
       if (Object.keys(nextPatch).length === 0) return;
       setBoard(qc, filters, (data) => applyListPatch(data, listId, nextPatch));
       return;
     }
     case 'list.archived': {
-      const { listId, archivedAt } = payload as {
-        listId: string;
-        archivedAt: string | null;
-      };
+      const listId = stringField(payload, 'listId');
+      const archivedAt = archivedAtFromPayload(payload, envelope);
+      if (!listId || archivedAt === undefined) return;
       setBoard(qc, filters, (data) => applyListArchive(data, listId, archivedAt));
       return;
     }
@@ -166,7 +269,8 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'board.archived': {
-      const { archivedAt } = payload as { archivedAt: string | null };
+      const archivedAt = archivedAtFromPayload(payload, envelope);
+      if (archivedAt === undefined) return;
       setBoard(qc, filters, (data) =>
         applyBoardPatch(data, { archivedAt } as Partial<BoardCache['board']>),
       );

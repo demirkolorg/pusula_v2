@@ -32,7 +32,7 @@ export type CardMovePlan = {
   toListId: string;
   beforeCardId: string | null;
   afterCardId: string | null;
-  newPosition: string;
+  newPosition: string | null;
 };
 
 /**
@@ -43,7 +43,7 @@ export type ListMovePlan = {
   listId: string;
   beforeListId: string | null;
   afterListId: string | null;
-  newPosition: string;
+  newPosition: string | null;
 };
 
 /** Cards sorted ascending by `position` (a stable copy). */
@@ -65,6 +65,14 @@ function dropIndexFromEdge(
   const idx = siblings.findIndex((s) => s.id === targetId);
   if (idx === -1) return siblings.length; // unknown target ⇒ append (defensive)
   return edgeIsAfter ? idx + 1 : idx;
+}
+
+function safePositionBetween(before: string | null, after: string | null): string | null {
+  try {
+    return positionBetween(before, after);
+  } catch {
+    return null;
+  }
 }
 
 /** A card sibling: just enough to order and identify it. */
@@ -118,14 +126,13 @@ export function planCardMove(args: {
     }
   }
 
-  const newPosition = positionBetween(before?.position ?? null, after?.position ?? null);
   return {
     cardId,
     fromListId,
     toListId,
     beforeCardId: before?.id ?? null,
     afterCardId: after?.id ?? null,
-    newPosition,
+    newPosition: safePositionBetween(before?.position ?? null, after?.position ?? null),
   };
 }
 
@@ -161,12 +168,11 @@ export function planListMove(args: {
     }
   }
 
-  const newPosition = positionBetween(before?.position ?? null, after?.position ?? null);
   return {
     listId,
     beforeListId: before?.id ?? null,
     afterListId: after?.id ?? null,
-    newPosition,
+    newPosition: safePositionBetween(before?.position ?? null, after?.position ?? null),
   };
 }
 
@@ -190,14 +196,13 @@ export function planCardMoveToListEnd(args: {
     if (all.length > 0 && all[all.length - 1]?.id === cardId) return null; // already last
   }
 
-  const newPosition = positionBetween(last?.position ?? null, null);
   return {
     cardId,
     fromListId,
     toListId,
     beforeCardId: last?.id ?? null,
     afterCardId: null,
-    newPosition,
+    newPosition: safePositionBetween(last?.position ?? null, null),
   };
 }
 
@@ -219,21 +224,23 @@ export function planListMoveByOne(args: {
     if (idx === 0) return null;
     const prev = ordered[idx - 1]!;
     const prevPrev = idx - 2 >= 0 ? ordered[idx - 2] : undefined;
+    const newPosition = safePositionBetween(prevPrev?.position ?? null, prev.position);
     return {
       listId: args.listId,
       beforeListId: prevPrev?.id ?? null,
       afterListId: prev.id,
-      newPosition: positionBetween(prevPrev?.position ?? null, prev.position),
+      newPosition,
     };
   }
   // direction === 'right'
   if (idx >= ordered.length - 1) return null;
   const next = ordered[idx + 1]!;
   const nextNext = idx + 2 < ordered.length ? ordered[idx + 2] : undefined;
+  const newPosition = safePositionBetween(next.position, nextNext?.position ?? null);
   return {
     listId: args.listId,
     beforeListId: next.id,
     afterListId: nextNext?.id ?? null,
-    newPosition: positionBetween(next.position, nextNext?.position ?? null),
+    newPosition,
   };
 }
