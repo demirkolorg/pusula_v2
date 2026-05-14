@@ -23,6 +23,9 @@ describe('<SignInPage>', () => {
 
   it('renders the sign-in form with a "forgot password" link', async () => {
     render(<SignInPage />);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: strings.auth.signIn.title }),
+    ).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: strings.auth.signIn.submit })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: strings.auth.signIn.forgotPassword })).toHaveAttribute(
       'href',

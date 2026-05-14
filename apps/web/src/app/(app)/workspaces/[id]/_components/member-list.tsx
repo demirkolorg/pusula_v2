@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { WorkspaceRole } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -87,7 +88,7 @@ export function MemberList({ workspaceId, canManage }: MemberListProps) {
   // action depend on it) — avoids a flash + layout shift when the session
   // resolves a tick after the member list does.
   if (members.isPending || sessionPending) {
-    return <p className="text-muted-foreground text-sm">{strings.common.loading}</p>;
+    return <AppSpinner label={strings.common.loading} showLabel className="justify-start" />;
   }
 
   if (members.isError) {

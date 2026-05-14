@@ -221,6 +221,33 @@ export const LIST_ICON_COLORS = [
 export type ListIconColor = (typeof LIST_ICON_COLORS)[number];
 
 /**
+ * Curated workspace/board icon set. Stored verbatim in `workspaces.icon` and
+ * `boards.icon`; UI maps these stable tokens to lucide-react components.
+ */
+export const ENTITY_ICONS = [
+  'layout-grid',
+  'briefcase',
+  'folder',
+  'building',
+  'users',
+  'target',
+  'rocket',
+  'flag',
+  'star',
+  'bookmark',
+  'calendar',
+  'clock',
+  'map',
+  'compass',
+  'inbox',
+  'zap',
+  'archive',
+] as const;
+export type EntityIcon = (typeof ENTITY_ICONS)[number];
+export const DEFAULT_WORKSPACE_ICON = 'briefcase' satisfies EntityIcon;
+export const DEFAULT_BOARD_ICON = 'layout-grid' satisfies EntityIcon;
+
+/**
  * Card cover colour palette — one of the 12 design-token palette names
  * (`@pusula/ui` `theme.css` `--palet-*` / `PaletteName`). A card's `cover_color`,
  * when set, is one of these; `null` = no cover colour. Stored verbatim in
@@ -257,8 +284,28 @@ export const BOARD_BACKGROUND_GRADIENTS = [
   'mint',
   'aurora',
   'coral',
+  'lagoon',
+  'ember',
+  'blossom',
+  'meadow',
+  'dusk',
+  'pearl',
 ] as const;
 export type BoardBackgroundGradient = (typeof BOARD_BACKGROUND_GRADIENTS)[number];
+
+/**
+ * Board solid background presets. Starts with the card cover palette, then adds
+ * board-only neutral/white variants that should not appear as card cover colours.
+ */
+export const BOARD_BACKGROUND_SOLID_COLORS = [
+  ...CARD_COVER_COLORS,
+  'beyaz',
+  'kirik-beyaz',
+  'fildisi',
+  'buz-beyazi',
+  'gumus',
+] as const;
+export type BoardBackgroundSolidColor = (typeof BOARD_BACKGROUND_SOLID_COLORS)[number];
 
 /**
  * Position compaction trigger threshold: if any newly-produced fractional

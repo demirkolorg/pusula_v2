@@ -79,6 +79,19 @@ describe('<BoardBackgroundPicker>', () => {
     expect(h.mutate).toHaveBeenCalledWith({ boardId: 'b1', background: 'solid:mavi' });
   });
 
+  it('renders expanded gradient and board-only white solid swatches', async () => {
+    const user = userEvent.setup();
+    setup();
+
+    await user.click(screen.getByRole('button', { name: 'Lagun' }));
+    expect(h.mutate).toHaveBeenCalledWith({ boardId: 'b1', background: 'gradient:lagoon' });
+
+    await user.click(screen.getByRole('tab', { name: copy.tabs.solid }));
+    await user.click(screen.getByRole('button', { name: 'Beyaz' }));
+
+    expect(h.mutate).toHaveBeenLastCalledWith({ boardId: 'b1', background: 'solid:beyaz' });
+  });
+
   it('clears the background from the default tile', async () => {
     const user = userEvent.setup();
     setup({ background: 'solid:mavi' });

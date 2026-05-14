@@ -70,7 +70,7 @@ function MetaChip({
       : 'inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground';
   const interactiveClass =
     interactive && variant === 'modal'
-      ? 'transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none'
+      ? 'cursor-pointer transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none'
       : '';
   const merged = cn(base, TONE_CLASS[tone], interactiveClass, className);
 

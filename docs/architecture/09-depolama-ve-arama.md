@@ -109,6 +109,8 @@ Arama sonuçları her zaman query anında permission scope'undan geçer:
 
 Typo tolerance bekleniyorsa · instant search UX merkezine giriyorsa · facet/filter ihtiyacı artıyorsa · ranking PostgreSQL'de fazla manuel hale geliyorsa · search yükü ana PostgreSQL'i etkiliyorsa.
 
+**DEM-108 QA notu (2026-05-14):** mevcut Faz 6.5 doğrulaması küçük/orta fixture kapsamında PostgreSQL FTS ile temiz geçti; Playwright global/board search ve permission leak senaryolarında Meilisearch'e geçiş gerektiren typo/facet/latency sinyali görülmedi. Büyük dataset latency/load eşiği Faz 8 sertleştirme kapsamına bırakıldı.
+
 Geçiş modeli: `DB transaction → search_outbox → worker → Meilisearch index update; client → tRPC search procedure → permission scope → Meilisearch query → güvenlik filtresi`.
 
 OpenSearch/Elasticsearch bu fazda **önerilmez** (operasyon maliyeti yüksek); ağır arama analitiği gerekirse tekrar değerlendirilir. Typesense iyi bir alternatif olabilir; self-hosted basitlik önceliği nedeniyle ileri aşama varsayılanı Meilisearch.

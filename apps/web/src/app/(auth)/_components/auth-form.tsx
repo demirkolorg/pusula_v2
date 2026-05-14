@@ -1,6 +1,8 @@
 'use client';
 
 import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import { signInInput, signUpInput } from '@pusula/domain';
 import { Alert, AlertDescription, Button, Input, Label } from '@pusula/ui';
 import { strings } from '@/lib/strings';
@@ -21,6 +23,8 @@ type AuthFormProps = {
   pending?: boolean;
   /** Server-side error message (e.g. from Better Auth) to surface inline. */
   error?: string | null;
+  /** Optional action aligned with the password label, e.g. the reset-password link. */
+  passwordAction?: ReactNode;
 };
 
 /**
@@ -28,7 +32,13 @@ type AuthFormProps = {
  * dependency — the page wrappers wire those in. Validation uses the shared
  * `@pusula/domain` zod schemas so the rules match the server.
  */
-export function AuthForm({ variant, onSubmit, pending = false, error }: AuthFormProps) {
+export function AuthForm({
+  variant,
+  onSubmit,
+  pending = false,
+  error,
+  passwordAction,
+}: AuthFormProps) {
   const ids = {
     name: useId(),
     email: useId(),
@@ -71,7 +81,7 @@ export function AuthForm({ variant, onSubmit, pending = false, error }: AuthForm
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       {variant === 'sign-up' && (
         <div className="space-y-2">
           <Label htmlFor={ids.name}>{strings.auth.nameLabel}</Label>
@@ -113,7 +123,10 @@ export function AuthForm({ variant, onSubmit, pending = false, error }: AuthForm
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={ids.password}>{strings.auth.passwordLabel}</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor={ids.password}>{strings.auth.passwordLabel}</Label>
+          {passwordAction}
+        </div>
         <Input
           id={ids.password}
           name="password"
@@ -137,8 +150,15 @@ export function AuthForm({ variant, onSubmit, pending = false, error }: AuthForm
         </Alert>
       )}
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? copy.submitting : copy.submit}
+      <Button type="submit" className="mt-2 h-11 w-full" disabled={pending}>
+        {pending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            {copy.submitting}
+          </>
+        ) : (
+          copy.submit
+        )}
       </Button>
     </form>
   );

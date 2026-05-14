@@ -1,13 +1,17 @@
 export { cn } from './lib/utils';
 export {
   BOARD_BACKGROUND_GRADIENTS,
+  BOARD_BACKGROUND_SOLID_COLORS,
   BG_GRADIENT_CLASS,
   BOARD_SOLID_BACKGROUND_CLASS,
   boardBackgroundClass,
   type BoardBackgroundGradient,
+  type BoardBackgroundSolidColor,
 } from './board-background';
 export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Input } from './components/input';
+export { Calendar, type CalendarProps } from './components/calendar';
+export { DatePickerInput, type DatePickerInputProps } from './components/date-picker-input';
 export { Label } from './components/label';
 export {
   Card,

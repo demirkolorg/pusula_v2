@@ -1,10 +1,10 @@
 # Pusula e2e (Playwright)
 
-End-to-end tests — Faz 3D ([DEM-45](https://linear.app/demirkol/issue/DEM-45)).
-This pass covers the board **drag-drop** subset: card reorder, list (column)
-reorder, cross-list card move, optimistic rollback on `card.move` failure
-(generic + `CONFLICT`), and a read-only `viewer`. The wide e2e suite (auth /
-board / card / all flows) is Faz 8 ([DEM-31](https://linear.app/demirkol/issue/DEM-31)).
+End-to-end tests. The first pass was Faz 3D ([DEM-45](https://linear.app/demirkol/issue/DEM-45))
+for board drag-drop; later passes add focused flows such as notifications
+([DEM-94](https://linear.app/demirkol/issue/DEM-94)) and search
+([DEM-108](https://linear.app/demirkol/issue/DEM-108)). The wide e2e suite
+(auth / board / card / all flows) is Faz 8 ([DEM-31](https://linear.app/demirkol/issue/DEM-31)).
 
 Harness layout (repo-root `e2e/`, not a workspace package — see
 [`docs/architecture/10-platform.md`](../docs/architecture/10-platform.md) §10.1):
@@ -14,6 +14,7 @@ playwright.config.ts           # repo root — webServer (api + web), globalSetu
 e2e/
   global-setup.ts              # pnpm db:migrate + run the e2e seed
   board-drag-drop.spec.ts      # the drag-drop specs
+  search.spec.ts               # global/board search + permission + card deep-link specs
   fixtures/
     seed.ts                    # deterministic reset-then-seed; also runnable as `tsx e2e/fixtures/seed.ts`
     auth.fixture.ts            # `test.authedPage` / `test.viewerPage` — sign in via Better Auth HTTP
@@ -73,11 +74,14 @@ Seeded by `e2e/fixtures/seed.ts` (fixed ids/credentials in `E2E`):
 [DEM-86](https://linear.app/demirkol/issue/DEM-86)) sign in side-by-side; either
 can edit the shared board and the other receives the realtime echo.
 
-Seeded data: one workspace (`e2e-workspace`), one board (`e2e-board`, "E2E Pano")
-with 3 lists ("Liste 1/2/3") — Liste 1 has cards A/B/C, Liste 2 has D/E, Liste 3
-has F/G — all at known fractional positions. The seed is **reset-then-seed**, run
-once in `globalSetup` and again in each test's `beforeEach`, so tests are
-order-independent.
+Seeded data: one visible workspace (`e2e-workspace`), one board (`e2e-board`,
+"E2E Pano") with 3 lists ("Liste 1/2/3") — Liste 1 has cards A/B/C, Liste 2 has
+D/E, Liste 3 has F/G — all at known fractional positions. DEM-108 also seeds
+search-only metadata without changing card titles: a unique card description, a
+unique comment, a unique label, populated `search_documents`, and one hidden
+Bob-owned workspace/board for permission-leak checks. The seed is
+**reset-then-seed**, run once in `globalSetup` and again in each test's
+`beforeEach`, so tests are order-independent.
 
 ## CI
 

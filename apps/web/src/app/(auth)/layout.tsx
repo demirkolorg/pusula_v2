@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Suspense } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { strings } from '@/lib/strings';
+import { AuthShell } from './_components/auth-shell';
 import { RedirectIfAuthenticated } from './_components/redirect-if-authenticated';
 
 /**
@@ -23,14 +23,5 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return (
-    <main className="bg-muted/30 flex min-h-svh flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <span className="text-xl font-semibold tracking-tight">{strings.common.appName}</span>
-        </div>
-        {children}
-      </div>
-    </main>
-  );
+  return <AuthShell>{children}</AuthShell>;
 }

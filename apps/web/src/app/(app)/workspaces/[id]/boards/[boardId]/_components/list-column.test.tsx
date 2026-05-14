@@ -48,6 +48,7 @@ vi.mock('@/trpc/client', () => ({
       },
     },
     board: { get: { queryFilter: () => ({}) } },
+    attachment: { createUpload: { mutationOptions: (o: unknown) => o } },
   }),
 }));
 
@@ -70,7 +71,12 @@ const list: BoardList = {
   updatedAt: new Date('2026-01-01'),
 };
 
-const archivedList: BoardList = { ...list, id: 'l2', title: 'Eski', archivedAt: new Date('2026-04-01') };
+const archivedList: BoardList = {
+  ...list,
+  id: 'l2',
+  title: 'Eski',
+  archivedAt: new Date('2026-04-01'),
+};
 
 const card = (id: string, title: string): BoardCard => ({
   id,
@@ -112,7 +118,14 @@ describe('<ListColumn>', () => {
   });
 
   it('renders the list title and the card count', () => {
-    render(<ListColumn boardId="b1" list={list} cards={[card('c1', 'Bir'), card('c2', 'İki')]} canEdit={false} />);
+    render(
+      <ListColumn
+        boardId="b1"
+        list={list}
+        cards={[card('c1', 'Bir'), card('c2', 'İki')]}
+        canEdit={false}
+      />,
+    );
     expect(screen.getByRole('heading', { name: 'Yapılacak' })).toBeInTheDocument();
     expect(screen.getByText(`2 ${columnCopy.cardCount}`)).toBeInTheDocument();
   });
@@ -127,9 +140,15 @@ describe('<ListColumn>', () => {
     const user = userEvent.setup();
     render(<ListColumn boardId="b1" list={list} cards={[]} canEdit />);
     await user.click(screen.getByRole('button', { name: columnCopy.more }));
-    expect(await screen.findByRole('menuitem', { name: columnCopy.menuRename })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: strings.board.list.colorPicker.title })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: strings.board.list.iconPicker.title })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('menuitem', { name: columnCopy.menuRename }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: strings.board.list.colorPicker.title }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: strings.board.list.iconPicker.title }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
   });
 
@@ -147,12 +166,15 @@ describe('<ListColumn>', () => {
     expect(icon).toHaveClass('text-palet-mavi');
   });
 
-  it('renders a coloured list with full-column palette classes', () => {
+  it('renders a coloured list as a stable surface with a palette accent', () => {
     render(<ListColumn boardId="b1" list={{ ...list, color: 'mavi' }} cards={[]} canEdit />);
 
     const column = screen.getByRole('region', { name: list.title });
-    expect(column).toHaveClass('bg-palet-mavi');
-    expect(column.querySelector('header')).toHaveClass('text-palet-mavi-foreground');
+    expect(column).toHaveClass('bg-[color:var(--board-list-bg)]');
+    expect(column).toHaveClass('border-[color:var(--board-list-border)]');
+    expect(column).not.toHaveClass('bg-palet-mavi');
+    expect(column.querySelector('[data-list-accent]')).toHaveClass('bg-palet-mavi');
+    expect(column.querySelector('header')).toHaveClass('text-card-foreground');
   });
 
   it('editor can rename the list inline by clicking the title', async () => {
@@ -165,12 +187,15 @@ describe('<ListColumn>', () => {
     await user.type(input, 'Devam Eden');
     await user.tab();
 
-    expect(h.mutate).toHaveBeenCalledWith({
-      boardId: 'b1',
-      listId: 'l1',
-      title: 'Devam Eden',
-      clientMutationId: expect.any(String),
-    }, undefined);
+    expect(h.mutate).toHaveBeenCalledWith(
+      {
+        boardId: 'b1',
+        listId: 'l1',
+        title: 'Devam Eden',
+        clientMutationId: expect.any(String),
+      },
+      undefined,
+    );
   });
 
   it('an archived list is read-only: shows the archived label, no add-card form, "⋮" offers restore', async () => {
@@ -180,7 +205,9 @@ describe('<ListColumn>', () => {
     expect(screen.getByRole('heading', { name: 'Eski' })).toBeInTheDocument();
     expect(screen.queryByLabelText(strings.board.card.addCardPlaceholder)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: columnCopy.more }));
-    expect(await screen.findByRole('menuitem', { name: columnCopy.menuRestore })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('menuitem', { name: columnCopy.menuRestore }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: columnCopy.menuRename })).not.toBeInTheDocument();
   });
 
@@ -208,6 +235,65 @@ describe('<ListColumn>', () => {
     const placeholder = screen.getByTestId('card-drop-placeholder');
     const targetCard = screen.getByRole('button', { name: 'Two' });
     expect(placeholder).toHaveStyle({ height: '52px' });
-    expect(Boolean(placeholder.compareDocumentPosition(targetCard) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(
+      Boolean(placeholder.compareDocumentPosition(targetCard) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+  });
+
+  it('collapses into a narrow summary that hides cards and no longer accepts card drops', async () => {
+    const user = userEvent.setup();
+    const cleanupCardsArea = vi.fn();
+    const dnd = makeDnd({
+      registerColumn: vi.fn(() => vi.fn()),
+      registerListCardsArea: vi.fn(() => cleanupCardsArea),
+    });
+
+    render(
+      <BoardDndProvider value={dnd}>
+        <ListColumn boardId="b1" list={list} cards={[card('c1', 'One')]} canEdit />
+      </BoardDndProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: columnCopy.collapse }));
+
+    const column = screen.getByRole('region', { name: list.title });
+    expect(column).toHaveClass('w-10');
+    expect(screen.queryByRole('button', { name: 'One' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: strings.board.card.addCard }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: columnCopy.expand })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    const latestColumnRegistration = vi.mocked(dnd.registerColumn).mock.calls.at(-1)?.[0];
+    expect(latestColumnRegistration?.listId).toBe(list.id);
+    expect(latestColumnRegistration?.dragHandle.isConnected).toBe(true);
+    expect(cleanupCardsArea).toHaveBeenCalledTimes(1);
+  });
+
+  it('expands a collapsed list and re-enables the card drop area', async () => {
+    const user = userEvent.setup();
+    const cleanupCardsArea = vi.fn();
+    const dnd = makeDnd({
+      registerListCardsArea: vi.fn(() => cleanupCardsArea),
+    });
+
+    render(
+      <BoardDndProvider value={dnd}>
+        <ListColumn boardId="b1" list={list} cards={[card('c1', 'One')]} canEdit />
+      </BoardDndProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: columnCopy.collapse }));
+    await user.click(screen.getByRole('button', { name: columnCopy.expand }));
+
+    expect(screen.getByRole('button', { name: 'One' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: strings.board.card.addCard })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: columnCopy.collapse })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(dnd.registerListCardsArea).toHaveBeenCalledTimes(2);
   });
 });

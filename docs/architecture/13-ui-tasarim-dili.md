@@ -50,7 +50,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 | Token | Light (≈) | Rol |
 | --- | --- | --- |
-| `--background` | `oklch(0.96 0.02 240)` | Board zemini (açık mavi-gri) ve `boards.background = null` varsayılanı. Board-başına renk/degrade DEM-100 ile `--bg-gradient-*` + `--palet-*` token'larından seçilir. App-shell/diğer sayfalar `oklch(0.985 0.005 240)` (daha açık). |
+| `--background` | `oklch(1 0 0)` | App-shell dışı genel sayfa zemini. Board zemini artık `--board-*` token'larıyla ayrı yönetilir; `boards.background = null` varsayılanı seçili indigo board zemini (`board-bg-default`). |
 | `--card` | `oklch(1 0 0)` | Kart, modal, popover yüzeyi (beyaz) |
 | `--muted` | `oklch(0.97 0.01 240)` | Kolon zemini (`bg-muted/40` ile yarı saydam), modal sağ panel (`bg-muted/40 backdrop-blur`), disabled |
 | `--muted-foreground` | `oklch(0.50 0.02 250)` | İkincil metin, kart metadata, kolon meta |
@@ -58,7 +58,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 | `--border` | `oklch(0.91 0.01 240)` | Kenarlıklar |
 | `--input` | `oklch(0.91 0.01 240)` | Form kenarlığı |
 | `--ring` | `oklch(0.55 0.16 245)` | Focus halkası (primary-türevli; görünür — a11y) |
-| `--primary` | `oklch(0.55 0.16 245)` | Parlak mavi — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme |
+| `--primary` | `oklch(0.56 0.17 275)` | Ekte seçili indigo/mor-mavi — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme |
 | `--primary-foreground` | `oklch(0.99 0 0)` | Primary üstü metin |
 | `--secondary` | `oklch(0.97 0.01 240)` | İkincil/ghost buton zemini |
 | `--secondary-foreground` | `oklch(0.20 0.01 250)` | |
@@ -104,7 +104,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
   --card: oklch(1 0 0);
   --muted: oklch(0.97 0.01 240);
   --foreground: oklch(0.18 0.01 250);
-  --primary: oklch(0.55 0.16 245);
+  --primary: oklch(0.56 0.17 275);
   --primary-foreground: oklch(0.99 0 0);
   --success: oklch(0.62 0.16 150); --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.78 0.14 75);
@@ -134,25 +134,32 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Board zemini & üst bar
 
-- **Zemin:** `bg-background` (açık mavi-gri; varsayılan — `boards.background = null`). İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<paletAd>'`; `null` varsayılan `bg-background` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. Fotoğraf/Unsplash kapsam dışı (MinIO → Faz 8).
+- **Zemin:** `board-bg-*` sınıfları pano yüzeyini ve pano chrome token'larını birlikte belirler. `boards.background = null` varsayılanı `board-bg-default` ile ekte seçili indigo/mor-mavi board zemindir. İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<ad>'`; `null` varsayılan `board-bg-default` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. Fotoğraf/Unsplash kapsam dışı (MinIO → Faz 8).
 
   **DEM-100 gradient token listesi ve class haritası (kesin):**
 
   | Değer | CSS token | Utility class | Türkçe ad |
   | --- | --- | --- | --- |
-  | `gradient:sunset` | `--bg-gradient-sunset` | `bg-gradient-sunset` | Gün batımı |
-  | `gradient:ocean` | `--bg-gradient-ocean` | `bg-gradient-ocean` | Okyanus |
-  | `gradient:rainbow` | `--bg-gradient-rainbow` | `bg-gradient-rainbow` | Gökkuşağı |
-  | `gradient:forest` | `--bg-gradient-forest` | `bg-gradient-forest` | Orman |
-  | `gradient:lavender` | `--bg-gradient-lavender` | `bg-gradient-lavender` | Lavanta |
-  | `gradient:sunrise` | `--bg-gradient-sunrise` | `bg-gradient-sunrise` | Gündoğumu |
-  | `gradient:midnight` | `--bg-gradient-midnight` | `bg-gradient-midnight` | Gece yarısı |
-  | `gradient:mint` | `--bg-gradient-mint` | `bg-gradient-mint` | Nane |
-  | `gradient:aurora` | `--bg-gradient-aurora` | `bg-gradient-aurora` | Kuzey ışığı |
-  | `gradient:coral` | `--bg-gradient-coral` | `bg-gradient-coral` | Mercan |
+  | `gradient:sunset` | `--bg-gradient-sunset` | `board-bg-gradient-sunset` | Gün batımı |
+  | `gradient:ocean` | `--bg-gradient-ocean` | `board-bg-gradient-ocean` | Okyanus |
+  | `gradient:rainbow` | `--bg-gradient-rainbow` | `board-bg-gradient-rainbow` | Gökkuşağı |
+  | `gradient:forest` | `--bg-gradient-forest` | `board-bg-gradient-forest` | Orman |
+  | `gradient:lavender` | `--bg-gradient-lavender` | `board-bg-gradient-lavender` | Lavanta |
+  | `gradient:sunrise` | `--bg-gradient-sunrise` | `board-bg-gradient-sunrise` | Gündoğumu |
+  | `gradient:midnight` | `--bg-gradient-midnight` | `board-bg-gradient-midnight` | Gece yarısı |
+  | `gradient:mint` | `--bg-gradient-mint` | `board-bg-gradient-mint` | Nane |
+  | `gradient:aurora` | `--bg-gradient-aurora` | `board-bg-gradient-aurora` | Kuzey ışığı |
+  | `gradient:coral` | `--bg-gradient-coral` | `board-bg-gradient-coral` | Mercan |
+  | `gradient:lagoon` | `--bg-gradient-lagoon` | `board-bg-gradient-lagoon` | Lagun |
+  | `gradient:ember` | `--bg-gradient-ember` | `board-bg-gradient-ember` | Kor |
+  | `gradient:blossom` | `--bg-gradient-blossom` | `board-bg-gradient-blossom` | Cicek |
+  | `gradient:meadow` | `--bg-gradient-meadow` | `board-bg-gradient-meadow` | Cayir |
+  | `gradient:dusk` | `--bg-gradient-dusk` | `board-bg-gradient-dusk` | Alacakaranlik |
+  | `gradient:pearl` | `--bg-gradient-pearl` | `board-bg-gradient-pearl` | Inci |
 
-  **Düz renk haritası:** `solid:<paletAd>` → `bg-palet-{paletAd}`; `paletAd ∈ CARD_COVER_COLORS` (`kirmizi`, `turuncu`, `sari`, `lime`, `yesil`, `sky`, `mavi`, `indigo`, `mor`, `pembe`, `gri`, `siyah`). Bu liste kart kapak rengiyle aynı token setini kullanır; `boardBackgroundClass(background)` utility'si gradient/düz renk class'larını tek yerden döndürür, bilinmeyen değerlerde `bg-background` fallback'ine düşer.
-- **Board üst barı (`BoardTopBar`):** sticky, `h-13 sm:h-14 flex items-center gap-3 px-4 bg-background border-b`.
+  **Düz renk haritası:** `solid:<ad>` → `board-bg-solid-{ad}`; `ad ∈ BOARD_BACKGROUND_SOLID_COLORS`. Liste, kart kapak rengiyle ortak 12 paleti (`kirmizi`, `turuncu`, `sari`, `lime`, `yesil`, `sky`, `mavi`, `indigo`, `mor`, `pembe`, `gri`, `siyah`) ve pano-özel beyaz/nötr varyantları (`beyaz`, `kirik-beyaz`, `fildisi`, `buz-beyazi`, `gumus`) içerir. Pano-özel varyantlar kart kapak rengi olarak kullanılmaz. Board yüzeyi light/dark tema için `color-mix()` ile ayrı tonlanır. `boardBackgroundClass(background)` utility'si gradient/düz renk class'larını tek yerden döndürür, bilinmeyen değerlerde `board-bg-default` fallback'ine düşer.
+- **Pano chrome token'ları (DEM-111):** `board-bg-*` sınıfı `--board-surface-bg`, `--board-topbar-bg`, `--board-shell-bg`, `--board-chrome-fg` ve `--board-shell-border` değişkenlerini set eder. Light modda `BoardTopBar` seçilen renge yakın koyu, AppShell header daha koyu tonu kullanır; dark modda `BoardTopBar` renge yakın koyu kalır, AppShell header ise siyaha daha yakın tonlanır. Gradient preset'leri de `.dark` altında ayrı gradient token'larına sahiptir.
+- **Board üst barı (`BoardTopBar`):** sticky, `h-13 sm:h-14 flex items-center gap-3 px-4 bg-board-topbar text-[color:var(--board-chrome-fg)]`.
   - Sol: `BoardIdentity` — board ikonu/renk noktası + "Pano" etiketi (`text-[10px] uppercase text-muted-foreground`) + board adı (`text-sm font-semibold truncate`) + ⭐ favori butonu (`StarIcon`; favori altyapısı Faz 8 / [DEM-57](https://linear.app/demirkol/issue/DEM-57) — şimdilik görsel toggle veya gizli).
   - Orta: `BoardViewSwitch` — "Pano / Liste / Etiketler" sekme grubu (`inline-flex rounded-md border bg-secondary p-[3px]`; aktif sekme `bg-card shadow-xs`). "Liste" ve "Etiketler" görünümleri Faz 2.7 kapsamında **değil** — sekme placeholder/disabled veya yalnız "Pano" görünür.
   - Sağ: `BoardActions` — `Davet et` (board ayarları dropdown'unu **Davetler** sekmesinde açar) · `Paylaş` (board linkini panoya kopyalar; kalıcı paylaşım linki/izin yönetimi ileri faz) · `SearchIcon` (board içi arama → Faz 6.5, şimdilik gizli/disabled) · `ActivityIcon` (board activity → ileri faz) · `Pano ayarları` `DropdownMenu` (sekme içerikleri: Üyeler / Davetler / Etiketler / Arka plan / Pano işlemleri). Eski `Davet et / paylaş` birleşik butonu ve ayrı `⋮` board menüsü yoktur; rename/archive/restore aynı işi tekrar eden ikinci yüzey oluşturmadan `Pano işlemleri` altında toplanır.
@@ -160,7 +167,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 ### Kolon (liste)
 
 ```
-<section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border bg-muted/30">
+<section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-bg)]">
   <header class="flex shrink-0 items-center justify-between gap-1 p-2">
     <div> liste adı (text-sm font-semibold truncate) · kart sayısı (text-muted-foreground text-xs) </div>
     <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / liste rengini değiştir / arşivle) </div>
@@ -171,13 +178,13 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 ```
 
 - Arşivli liste: `bg-muted/20 border-dashed`, başlıkta arşiv ikonu; içi salt-okunur (yeni kart eklenemez — backend kapısı + UI).
-- Sona: "+ Liste ekle" — `w-72 shrink-0 rounded-lg border border-dashed bg-muted/30 p-2` içinde ghost buton / inline form.
+- Sona: "+ Liste ekle" — `w-72 shrink-0 rounded-lg border border-dashed border-[color:var(--board-list-border)] bg-[color:var(--board-list-add-bg)] p-2` içinde ghost buton / inline form; hover `--board-list-add-bg-hover` kullanır.
 - Drag (Faz 3 — placeholder spec): sürüklenen kolon `shadow-drag`, bırakılacak yer `w-72 h-32 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5`.
 - **Scroll & scrollbar ([DEM-88](https://linear.app/demirkol/issue/DEM-88) — 2026-05-13):** kolon `max-h-full` (parent strip yüksekliği kadar; içerik az ise içeriği kadar kompakt durur — `h-full` değil) + 3-segment (header `shrink-0` / cards area `flex min-h-0 overflow-y-auto pusula-scrollbar` / footer `shrink-0`); cards area `flex-1` taşımaz (boş kolonlar viewport-tall görünmesin). Strip `items-start` ile kolonlar top-aligned; strip kendisi `overflow-x-auto overflow-y-hidden` (yatay scroll yalnız). Custom scrollbar utility `.pusula-scrollbar` (`packages/ui/src/styles/theme.css` `@layer utilities` — 6px thin, transparent track, soft OKLCH thumb); token'lar `--scrollbar-thumb` + `--scrollbar-thumb-hover` (light + dark). Wired chain → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.4 "Layout & scroll davranışı".
 
 #### Renkli kolon (DEM-98)
 
-- **Model:** `lists.color` nullable. `null` eski görünümü korur: kolon container `bg-muted/30`, başlık/metin `text-foreground`. Renk seçilince tüm kolon yüzeyi solid `bg-palet-{ad}` olur; başlık ve kolon chrome metni `text-palet-{ad}-foreground`, ikincil metinler `text-current/70` kullanır. Kartlar içeride yine `bg-card` kalır; kart içeriği renklenmez.
+- **Model:** `lists.color` nullable. `null` ve renkli listeler aynı stabil kolon yüzeyini kullanır: container `bg-[color:var(--board-list-bg)] border-[color:var(--board-list-border)]`, arşivli liste `--board-list-archived-bg`, hover yüzeyleri `--board-list-bg-hover`. Renk seçilince tüm kolon solid `bg-palet-{ad}` olmaz; renk yalnız üstteki `data-list-accent` şeridi ve varsayılan ikon accent'i olarak görünür. Başlık/metin `text-card-foreground`, ikincil metinler `text-muted-foreground` kalır. Kartlar içeride opak `--board-card-bg` / `--board-card-border` tokenlarıyla kalır; kart içeriği liste rengine karışmaz.
 - **Picker:** liste header ⋮ menüsünde `PaletteIcon` + "Liste rengini değiştir" `DropdownMenuSub` tetikleyicisi. İçerik shadcn `Popover`/submenu içinde 2×5 grid (`grid-cols-5 gap-1.5`): 10 `LIST_COLORS` (`yesil/sari/turuncu/kirmizi/mor/mavi/sky/lime/pembe/gri`) swatch butonu `size-9 rounded-md bg-palet-{ad} border border-border/30 hover:ring-2 ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring`; seçili renkte `CheckIcon size-4 text-palet-{ad}-foreground`.
 - **Clear:** grid altında ghost `Button` (`w-full justify-center`) "Rengi kaldır"; mevcut renk `null` ise disabled. Tüm metinler `apps/web/src/lib/strings.ts` (`board.list.colorPicker.*`) üzerinden gelir; hardcode yok.
 - **Mutation:** swatch click `useOptimisticBoardListMutation(api.list.update)` ile `{ listId, color, clientMutationId }`; clear `{ listId, color: null, clientMutationId }`. Aynı renge tıklama UI tarafında no-op olabilir; backend de idempotent no-op'tur. Realtime `list.updated` `color` payload'ı ikinci tarayıcı cache'ine işler.
@@ -192,7 +199,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Kart (`CardItem`)
 
-`<article class="bg-card rounded-md border p-2 text-sm shadow-card hover:border-foreground/30 hover:shadow-card-hover group/kart cursor-pointer">` — tıklayınca kart detay modalı (`?card=<id>`). İçerik sırası (yalnızca ilgili veri varsa render):
+`<article class="bg-[color:var(--board-card-bg)] border-[color:var(--board-card-border)] rounded-md border p-2 text-sm shadow-card hover:border-[color:var(--board-card-border-hover)] hover:shadow-card-hover group/kart cursor-pointer">` — tıklayınca kart detay modalı (`?card=<id>`). İçerik sırası (yalnızca ilgili veri varsa render):
 
 1. **Kapak görseli** (varsa) — `-mx-2 -mt-2 mb-1.5 h-24 w-[calc(100%+1rem)] rounded-t-md object-cover`.
 2. **Etiket chip'leri** (varsa) — `flex flex-wrap gap-1 mb-1.5`; her chip `LabelChip` solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`; adı varsa ad, yoksa kısa renkli bar `h-2 w-8`). Kapak görseli yoksa ve etiket varsa chip'ler kartın görsel "rengini" verir (Trello hissi).
@@ -280,7 +287,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 - **Toggle = app-shell header sağ üst.** `Sun` (light aktifken) / `Moon` (dark aktifken) ikon swap, `Button variant=ghost size=icon`. İkili mod → DropdownMenu **gerekmez** (tıklayınca diğer moda flip).
 - **Persistence = `localStorage`** (next-themes default). `storageKey="pusula-theme"` (namespaced — diğer Pusula key'leriyle aynı disiplin). Cihaz başına ayrı tercih; server preference YOK (sonraki tur — `users` tablosuna kolon eklemek istenirse Faz 8 / `bosluk-tara` benzeri ayrı iş).
 - **Cookie modu YOK.** Kullanıcı seçimi: SSR'da ilk render her zaman `light` ile gelir; client mount sonrası localStorage'tan okunan tercih `<html class>` üzerinden uygulanır. Hydration flash riskini next-themes script'i (provider'ın eklediği inline `<script>`) küçültür; ilk render flash'ı kabul edilir (UX trade-off; `system` algılama olmadığı için daha az kritik).
-- **Auth route'larında toggle:** opsiyonel; ilk turda **dışarıda** (sign-in/sign-up basit kalır). Kullanıcı isterse sonraki tur eklenir.
+- **Auth route'larında toggle:** `AuthShell` üst satırında aynı shared `ThemeToggle` kullanılır. Sign-in/sign-up kaynak projedeki split-screen auth tasarımına taşındığı için tema kontrolü de marka satırının sağında görünür.
 
 ### 13.7.2 ThemeProvider entegrasyonu
 
@@ -352,7 +359,7 @@ Tüm ekranlarda her ikisinde test:
 - **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
 - **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
 - **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
-- **Board-başına renk/gradient zemin** — DEM-100 kapsamıyla §13.2'de tanımlı; tema modundan bağımsız aynı token setini kullanır. Fotoğraf/Unsplash/user-uploaded/custom gradient seçenekleri Faz 8 / ayrı iş.
+- **Board-başına fotoğraf/Unsplash/user-uploaded/custom gradient seçenekleri** — Faz 8 / ayrı iş. Renk/gradient zemin DEM-100 + DEM-111 ile light/dark temaya duyarlı `board-bg-*` token sistemine bağlıdır.
 
 ## 13.8 App-shell v2: workspace + board switcher + user nav menu
 
@@ -367,7 +374,8 @@ Tüm ekranlarda her ikisinde test:
 - **K5 — Bildirim ikonu = disabled placeholder:** `Button variant=ghost size=icon` + `BellIcon` + `Tooltip: "Yakında"`. Gerçek `NotificationBell` Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)); bu iş yalnız yuvayı açar — sağ grupta sabit pozisyon.
 - **K6 — User nav menu = avatar dropdown:** mevcut "Hesap linki + Çıkış butonu" birleşir. Trigger: `Avatar` (§13.4 spec; baş harf + isimden deterministik `--palet-*` renk hash) + `size-9 rounded-full`. Content: kullanıcı adı + e-posta (üst, salt-okunur), separator, "Hesap ayarları" (→ `/account`), separator, "Çıkış yap" (`destructive` variant, `signingOut` state korunur).
 - **K7 — Tema toggle dışarıda:** avatar dropdown içine **girmez**; mevcut `ThemeToggle` (Sun/Moon tek-tık flip, §13.7) yerinde — sağ grupta avatar'ın solunda. Gerekçe: tek-tık flip iki klik (avatar aç → tema tıkla) gerektiren menüye gömmekten daha hızlı; §13.7 kararı bozulmasın.
-- **K8 — Faz/Linear pozisyonu:** Faz 2.7 follow-up #3 (DEM-58 epic Done; DEM-74 + DEM-96 ile aynı kapanış-sonrası disiplini, küçük scope, UI-only). Milestone = Faz 2.7.
+- **K8 — Font boyutu kontrolü:** [DEM-112](https://linear.app/demirkol/issue/DEM-112) ile sağ gruba `FontSizeToggle` eklenir; konumu `NotificationBell` → `ThemeToggle` → `FontSizeToggle` → `UserNavMenu`. Trigger ikon-only `Button variant=ghost size=icon`; dropdown içinde küçült, büyüt, mevcut yüzde ve reset bulunur. Ölçek aralığı `%90`-`%120`, adım `%5`, default `%100`; persistence `localStorage` `pusula-font-scale`. Uygulama root provider'ı `<html>` font-size'ını ayarlar, böylece Tailwind `rem` tabanlı tipografi sistem genelinde büyür/küçülür. Server-side preference, cookie tabanlı SSR ve auth ekranlarına ayrı toggle kapsam dışıdır.
+- **K9 — Faz/Linear pozisyonu:** Faz 2.7 follow-up #3 (DEM-58 epic Done; DEM-74 + DEM-96 ile aynı kapanış-sonrası disiplini, küçük scope, UI-only). Milestone = Faz 2.7.
 
 ### 13.8.2 Header anatomisi
 

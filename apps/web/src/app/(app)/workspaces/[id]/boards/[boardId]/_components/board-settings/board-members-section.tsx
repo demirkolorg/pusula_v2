@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BoardRole } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -88,7 +89,7 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
   const isBusy = updateRole.isPending || removeMember.isPending;
 
   if (members.isPending || sessionPending) {
-    return <p className="text-muted-foreground text-sm">{copy.membersLoading}</p>;
+    return <AppSpinner label={copy.membersLoading} showLabel className="justify-start" />;
   }
 
   if (members.isError) {

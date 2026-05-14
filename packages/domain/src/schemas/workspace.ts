@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { emailSchema } from './auth';
 import { idSchema, withClientMutationId } from './common';
 import { workspaceRoleSchema } from '../roles';
+import { DEFAULT_WORKSPACE_ICON, ENTITY_ICONS } from '../constants';
 
 export const workspaceNameSchema = z.string().trim().min(1).max(100);
 export const workspaceSlugSchema = z
@@ -13,10 +14,12 @@ export const workspaceSlugSchema = z
 
 /** Workspace member roles that may be assigned via member management (never `owner`). */
 export const assignableWorkspaceRoleSchema = workspaceRoleSchema.exclude(['owner']);
+export const workspaceIconSchema = z.enum(ENTITY_ICONS);
 
 export const createWorkspaceInput = z.object({
   name: workspaceNameSchema,
   slug: workspaceSlugSchema.optional(),
+  icon: workspaceIconSchema.default(DEFAULT_WORKSPACE_ICON),
   ...withClientMutationId,
 });
 
@@ -29,6 +32,7 @@ export const updateWorkspaceInput = z.object({
   workspaceId: idSchema,
   name: workspaceNameSchema.optional(),
   slug: workspaceSlugSchema.optional(),
+  icon: workspaceIconSchema.optional(),
   ...withClientMutationId,
 });
 

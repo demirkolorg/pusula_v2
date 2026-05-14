@@ -467,6 +467,7 @@ const workspaceInvitationsRouter = router({
             id: workspaces.id,
             name: workspaces.name,
             slug: workspaces.slug,
+            icon: workspaces.icon,
             archivedAt: workspaces.archivedAt,
           })
           .from(workspaces)
@@ -502,7 +503,13 @@ const workspaceInvitationsRouter = router({
           });
         }
 
-        return { id: workspace.id, name: workspace.name, slug: workspace.slug, role: invitation.role };
+        return {
+          id: workspace.id,
+          name: workspace.name,
+          slug: workspace.slug,
+          icon: workspace.icon,
+          role: invitation.role,
+        };
       });
     }),
 
@@ -552,6 +559,7 @@ export const workspaceRouter = router({
         id: workspaces.id,
         name: workspaces.name,
         slug: workspaces.slug,
+        icon: workspaces.icon,
         role: workspaceMembers.role,
         createdAt: workspaces.createdAt,
       })
@@ -577,7 +585,10 @@ export const workspaceRouter = router({
       }
 
       const [workspace] = await withSlugConflict(() =>
-        tx.insert(workspaces).values({ name: input.name, slug, ownerId: userId }).returning(),
+        tx
+          .insert(workspaces)
+          .values({ name: input.name, slug, icon: input.icon, ownerId: userId })
+          .returning(),
       );
       if (!workspace) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
@@ -587,7 +598,7 @@ export const workspaceRouter = router({
         workspaceId: workspace.id,
         actorId: userId,
         type: 'workspace.created',
-        payload: { name: workspace.name, slug: workspace.slug },
+        payload: { name: workspace.name, slug: workspace.slug, icon: workspace.icon },
       });
 
       // Realtime publish + notification outbox are added in later phases.
@@ -602,6 +613,7 @@ export const workspaceRouter = router({
         id: workspaces.id,
         name: workspaces.name,
         slug: workspaces.slug,
+        icon: workspaces.icon,
         ownerId: workspaces.ownerId,
         createdAt: workspaces.createdAt,
       })
@@ -626,14 +638,18 @@ export const workspaceRouter = router({
     if (!canManageWorkspace(accessFromWorkspaceRole(ctx.workspace.role))) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Workspace ayarlarını değiştirme yetkiniz yok.' });
     }
-    if (input.name === undefined && input.slug === undefined) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin (name veya slug).' });
+    if (input.name === undefined && input.slug === undefined && input.icon === undefined) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Güncellenecek bir alan belirtin (name, slug veya icon).',
+      });
     }
 
     const workspaceCols = {
       id: workspaces.id,
       name: workspaces.name,
       slug: workspaces.slug,
+      icon: workspaces.icon,
       ownerId: workspaces.ownerId,
       createdAt: workspaces.createdAt,
     } as const;
@@ -659,9 +675,10 @@ export const workspaceRouter = router({
         }
       }
 
-      const patch: { name?: string; slug?: string } = {};
+      const patch: { name?: string; slug?: string; icon?: string } = {};
       if (input.name !== undefined && input.name !== current.name) patch.name = input.name;
       if (input.slug !== undefined && input.slug !== current.slug) patch.slug = input.slug;
+      if (input.icon !== undefined && input.icon !== current.icon) patch.icon = input.icon;
 
       if (Object.keys(patch).length === 0) {
         return { ...current, changed: false as const };
@@ -679,6 +696,7 @@ export const workspaceRouter = router({
         payload: {
           ...(patch.name !== undefined ? { fromName: current.name, toName: patch.name } : {}),
           ...(patch.slug !== undefined ? { fromSlug: current.slug, toSlug: patch.slug } : {}),
+          ...(patch.icon !== undefined ? { fromIcon: current.icon, toIcon: patch.icon } : {}),
         },
       });
 

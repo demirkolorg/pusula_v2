@@ -24,7 +24,7 @@
   --input: oklch(0.922 0 0);
 
   /* Brand & accents */
-  --primary: oklch(0.27 0.06 265);
+  --primary: oklch(0.56 0.17 275);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -55,7 +55,7 @@
   --palet-sky-foreground: oklch(0.28 0.05 225);
   --palet-mavi: oklch(0.55 0.16 245);
   --palet-mavi-foreground: oklch(0.99 0 0);
-  --palet-indigo: oklch(0.48 0.18 275);
+  --palet-indigo: oklch(0.56 0.17 275);
   --palet-indigo-foreground: oklch(0.99 0 0);
   --palet-mor: oklch(0.54 0.21 305);
   --palet-mor-foreground: oklch(0.99 0 0);
@@ -66,17 +66,105 @@
   --palet-siyah: oklch(0.28 0.01 250);
   --palet-siyah-foreground: oklch(0.99 0 0);
 
-  /* Board background gradient presets (DEM-100). Same tokens in light/dark. */
-  --bg-gradient-sunset: linear-gradient(135deg, oklch(0.72 0.18 35), oklch(0.66 0.2 350), oklch(0.5 0.16 275));
-  --bg-gradient-ocean: linear-gradient(135deg, oklch(0.56 0.16 245), oklch(0.68 0.14 215), oklch(0.76 0.1 185));
-  --bg-gradient-rainbow: linear-gradient(135deg, oklch(0.62 0.2 25), oklch(0.82 0.16 90), oklch(0.66 0.16 150), oklch(0.62 0.15 245), oklch(0.58 0.2 305));
-  --bg-gradient-forest: linear-gradient(135deg, oklch(0.38 0.1 150), oklch(0.55 0.14 145), oklch(0.72 0.12 120));
-  --bg-gradient-lavender: linear-gradient(135deg, oklch(0.78 0.08 305), oklch(0.7 0.1 285), oklch(0.86 0.05 320));
-  --bg-gradient-sunrise: linear-gradient(135deg, oklch(0.86 0.13 85), oklch(0.74 0.16 45), oklch(0.64 0.16 20));
-  --bg-gradient-midnight: linear-gradient(135deg, oklch(0.24 0.05 265), oklch(0.32 0.08 245), oklch(0.2 0.04 285));
-  --bg-gradient-mint: linear-gradient(135deg, oklch(0.84 0.1 165), oklch(0.75 0.12 180), oklch(0.92 0.04 150));
-  --bg-gradient-aurora: linear-gradient(135deg, oklch(0.45 0.12 255), oklch(0.7 0.16 155), oklch(0.7 0.16 320));
-  --bg-gradient-coral: linear-gradient(135deg, oklch(0.72 0.18 25), oklch(0.76 0.14 45), oklch(0.66 0.18 350));
+  /* Board background gradient presets (DEM-100/DEM-111). Light defaults. */
+  --bg-gradient-sunset: linear-gradient(
+    135deg,
+    oklch(0.72 0.18 35),
+    oklch(0.66 0.2 350),
+    oklch(0.5 0.16 275)
+  );
+  --bg-gradient-ocean: linear-gradient(
+    135deg,
+    oklch(0.56 0.16 245),
+    oklch(0.68 0.14 215),
+    oklch(0.76 0.1 185)
+  );
+  --bg-gradient-rainbow: linear-gradient(
+    135deg,
+    oklch(0.62 0.2 25),
+    oklch(0.82 0.16 90),
+    oklch(0.66 0.16 150),
+    oklch(0.62 0.15 245),
+    oklch(0.58 0.2 305)
+  );
+  --bg-gradient-forest: linear-gradient(
+    135deg,
+    oklch(0.38 0.1 150),
+    oklch(0.55 0.14 145),
+    oklch(0.72 0.12 120)
+  );
+  --bg-gradient-lavender: linear-gradient(
+    135deg,
+    oklch(0.78 0.08 305),
+    oklch(0.7 0.1 285),
+    oklch(0.86 0.05 320)
+  );
+  --bg-gradient-sunrise: linear-gradient(
+    135deg,
+    oklch(0.86 0.13 85),
+    oklch(0.74 0.16 45),
+    oklch(0.64 0.16 20)
+  );
+  --bg-gradient-midnight: linear-gradient(
+    135deg,
+    oklch(0.24 0.05 265),
+    oklch(0.32 0.08 245),
+    oklch(0.2 0.04 285)
+  );
+  --bg-gradient-mint: linear-gradient(
+    135deg,
+    oklch(0.84 0.1 165),
+    oklch(0.75 0.12 180),
+    oklch(0.92 0.04 150)
+  );
+  --bg-gradient-aurora: linear-gradient(
+    135deg,
+    oklch(0.45 0.12 255),
+    oklch(0.7 0.16 155),
+    oklch(0.7 0.16 320)
+  );
+  --bg-gradient-coral: linear-gradient(
+    135deg,
+    oklch(0.72 0.18 25),
+    oklch(0.76 0.14 45),
+    oklch(0.66 0.18 350)
+  );
+  --bg-gradient-lagoon: linear-gradient(
+    135deg,
+    oklch(0.58 0.14 220),
+    oklch(0.72 0.13 180),
+    oklch(0.62 0.15 255)
+  );
+  --bg-gradient-ember: linear-gradient(
+    135deg,
+    oklch(0.45 0.12 25),
+    oklch(0.68 0.18 45),
+    oklch(0.78 0.14 80)
+  );
+  --bg-gradient-blossom: linear-gradient(
+    135deg,
+    oklch(0.84 0.08 20),
+    oklch(0.74 0.14 350),
+    oklch(0.82 0.07 310)
+  );
+  --bg-gradient-meadow: linear-gradient(
+    135deg,
+    oklch(0.7 0.14 145),
+    oklch(0.82 0.14 120),
+    oklch(0.74 0.1 195)
+  );
+  --bg-gradient-dusk: linear-gradient(
+    135deg,
+    oklch(0.36 0.08 255),
+    oklch(0.52 0.12 300),
+    oklch(0.66 0.12 35)
+  );
+  --bg-gradient-pearl: linear-gradient(
+    135deg,
+    oklch(0.98 0.01 250),
+    oklch(0.94 0.03 220),
+    oklch(0.97 0.02 80)
+  );
 
   /* Elevation */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04);
@@ -104,13 +192,13 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 14%);
 
-  --primary: oklch(0.62 0.15 245);
+  --primary: oklch(0.62 0.15 275);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.27 0.01 250);
   --secondary-foreground: oklch(0.97 0 0);
   --accent: oklch(0.3 0.02 250);
   --accent-foreground: oklch(0.97 0 0);
-  --ring: oklch(0.62 0.15 245);
+  --ring: oklch(0.62 0.15 275);
 
   --success: oklch(0.68 0.16 150);
   --success-foreground: oklch(0.16 0.02 150);
@@ -133,7 +221,7 @@
   --palet-sky-foreground: oklch(0.18 0.04 225);
   --palet-mavi: oklch(0.62 0.15 245);
   --palet-mavi-foreground: oklch(0.99 0 0);
-  --palet-indigo: oklch(0.56 0.17 275);
+  --palet-indigo: oklch(0.58 0.16 275);
   --palet-indigo-foreground: oklch(0.99 0 0);
   --palet-mor: oklch(0.58 0.2 305);
   --palet-mor-foreground: oklch(0.99 0 0);
@@ -143,6 +231,105 @@
   --palet-gri-foreground: oklch(0.99 0 0);
   --palet-siyah: oklch(0.32 0.01 250);
   --palet-siyah-foreground: oklch(0.97 0 0);
+
+  --bg-gradient-sunset: linear-gradient(
+    135deg,
+    oklch(0.44 0.14 35),
+    oklch(0.36 0.14 350),
+    oklch(0.28 0.1 275)
+  );
+  --bg-gradient-ocean: linear-gradient(
+    135deg,
+    oklch(0.32 0.12 245),
+    oklch(0.38 0.1 215),
+    oklch(0.42 0.08 185)
+  );
+  --bg-gradient-rainbow: linear-gradient(
+    135deg,
+    oklch(0.36 0.15 25),
+    oklch(0.42 0.12 90),
+    oklch(0.34 0.11 150),
+    oklch(0.33 0.12 245),
+    oklch(0.32 0.13 305)
+  );
+  --bg-gradient-forest: linear-gradient(
+    135deg,
+    oklch(0.22 0.07 150),
+    oklch(0.28 0.09 145),
+    oklch(0.36 0.08 120)
+  );
+  --bg-gradient-lavender: linear-gradient(
+    135deg,
+    oklch(0.38 0.08 305),
+    oklch(0.32 0.09 285),
+    oklch(0.42 0.06 320)
+  );
+  --bg-gradient-sunrise: linear-gradient(
+    135deg,
+    oklch(0.45 0.11 85),
+    oklch(0.38 0.12 45),
+    oklch(0.32 0.12 20)
+  );
+  --bg-gradient-midnight: linear-gradient(
+    135deg,
+    oklch(0.16 0.03 265),
+    oklch(0.22 0.06 245),
+    oklch(0.14 0.03 285)
+  );
+  --bg-gradient-mint: linear-gradient(
+    135deg,
+    oklch(0.4 0.08 165),
+    oklch(0.34 0.09 180),
+    oklch(0.44 0.05 150)
+  );
+  --bg-gradient-aurora: linear-gradient(
+    135deg,
+    oklch(0.26 0.1 255),
+    oklch(0.34 0.11 155),
+    oklch(0.34 0.12 320)
+  );
+  --bg-gradient-coral: linear-gradient(
+    135deg,
+    oklch(0.4 0.14 25),
+    oklch(0.42 0.11 45),
+    oklch(0.35 0.13 350)
+  );
+  --bg-gradient-lagoon: linear-gradient(
+    135deg,
+    oklch(0.28 0.1 220),
+    oklch(0.34 0.1 180),
+    oklch(0.3 0.11 255)
+  );
+  --bg-gradient-ember: linear-gradient(
+    135deg,
+    oklch(0.24 0.08 25),
+    oklch(0.34 0.12 45),
+    oklch(0.4 0.11 80)
+  );
+  --bg-gradient-blossom: linear-gradient(
+    135deg,
+    oklch(0.42 0.07 20),
+    oklch(0.36 0.12 350),
+    oklch(0.4 0.08 310)
+  );
+  --bg-gradient-meadow: linear-gradient(
+    135deg,
+    oklch(0.3 0.09 145),
+    oklch(0.38 0.1 120),
+    oklch(0.34 0.08 195)
+  );
+  --bg-gradient-dusk: linear-gradient(
+    135deg,
+    oklch(0.22 0.06 255),
+    oklch(0.28 0.09 300),
+    oklch(0.34 0.09 35)
+  );
+  --bg-gradient-pearl: linear-gradient(
+    135deg,
+    oklch(0.38 0.02 250),
+    oklch(0.32 0.04 220),
+    oklch(0.36 0.03 80)
+  );
 
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.4), 0 1px 1px oklch(0 0 0 / 0.3);
   --shadow-card-hover: 0 2px 6px oklch(0 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.4);
@@ -265,6 +452,170 @@
     background-color: var(--scrollbar-thumb-hover);
   }
 
+  .board-bg-default,
+  [class*='board-bg-solid-'],
+  [class*='board-bg-gradient-'] {
+    --board-surface-bg: var(--board-base);
+    --board-surface-image: none;
+    --board-topbar-bg: color-mix(in oklch, var(--board-base) 78%, black);
+    --board-shell-bg: color-mix(in oklch, var(--board-base) 58%, black);
+    --board-chrome-fg: oklch(0.99 0 0);
+    --board-shell-border: color-mix(in oklch, var(--board-shell-bg) 76%, white 24%);
+    --board-list-bg: color-mix(in oklch, var(--card) 88%, var(--board-base) 12%);
+    --board-list-bg-hover: color-mix(in oklch, var(--card) 84%, var(--board-base) 16%);
+    --board-list-border: color-mix(in oklch, var(--board-list-bg) 84%, var(--foreground) 16%);
+    --board-list-add-bg: color-mix(in oklch, var(--board-list-bg) 52%, transparent);
+    --board-list-add-bg-hover: color-mix(in oklch, var(--board-list-bg) 70%, transparent);
+    --board-list-archived-bg: color-mix(in oklch, var(--board-list-bg) 68%, transparent);
+    --board-card-bg: var(--card);
+    --board-card-border: color-mix(in oklch, var(--board-card-bg) 82%, var(--foreground) 18%);
+    --board-card-border-hover: color-mix(in oklch, var(--board-card-bg) 64%, var(--foreground) 36%);
+    background-color: var(--board-surface-bg);
+    background-image: var(--board-surface-image);
+  }
+
+  .dark .board-bg-default,
+  .dark [class*='board-bg-solid-'],
+  .dark [class*='board-bg-gradient-'] {
+    --board-surface-bg: color-mix(in oklch, var(--board-base) 62%, black);
+    --board-topbar-bg: color-mix(in oklch, var(--board-base) 42%, black);
+    --board-shell-bg: color-mix(in oklch, var(--board-base) 16%, black);
+    --board-shell-border: color-mix(in oklch, var(--board-shell-bg) 82%, white 18%);
+  }
+
+  .bg-board-topbar {
+    background-color: var(--board-topbar-bg, var(--background));
+  }
+
+  .bg-board-shell {
+    background-color: var(--board-shell-bg, var(--card));
+  }
+
+  .border-board-shell {
+    border-color: var(--board-shell-border, var(--border));
+  }
+
+  .board-bg-default {
+    --board-base: var(--palet-indigo);
+  }
+
+  .board-bg-solid-kirmizi {
+    --board-base: var(--palet-kirmizi);
+  }
+  .board-bg-solid-turuncu {
+    --board-base: var(--palet-turuncu);
+  }
+  .board-bg-solid-sari {
+    --board-base: var(--palet-sari);
+  }
+  .board-bg-solid-lime {
+    --board-base: var(--palet-lime);
+  }
+  .board-bg-solid-yesil {
+    --board-base: var(--palet-yesil);
+  }
+  .board-bg-solid-sky {
+    --board-base: var(--palet-sky);
+  }
+  .board-bg-solid-mavi {
+    --board-base: var(--palet-mavi);
+  }
+  .board-bg-solid-indigo {
+    --board-base: var(--palet-indigo);
+  }
+  .board-bg-solid-mor {
+    --board-base: var(--palet-mor);
+  }
+  .board-bg-solid-pembe {
+    --board-base: var(--palet-pembe);
+  }
+  .board-bg-solid-gri {
+    --board-base: var(--palet-gri);
+  }
+  .board-bg-solid-siyah {
+    --board-base: var(--palet-siyah);
+  }
+  .board-bg-solid-beyaz {
+    --board-base: oklch(0.99 0 0);
+  }
+  .board-bg-solid-kirik-beyaz {
+    --board-base: oklch(0.97 0.01 95);
+  }
+  .board-bg-solid-fildisi {
+    --board-base: oklch(0.95 0.03 95);
+  }
+  .board-bg-solid-buz-beyazi {
+    --board-base: oklch(0.94 0.03 220);
+  }
+  .board-bg-solid-gumus {
+    --board-base: oklch(0.82 0.01 250);
+  }
+
+  .board-bg-gradient-sunset {
+    --board-base: oklch(0.66 0.18 35);
+    --board-surface-image: var(--bg-gradient-sunset);
+  }
+  .board-bg-gradient-ocean {
+    --board-base: oklch(0.56 0.16 245);
+    --board-surface-image: var(--bg-gradient-ocean);
+  }
+  .board-bg-gradient-rainbow {
+    --board-base: oklch(0.62 0.17 245);
+    --board-surface-image: var(--bg-gradient-rainbow);
+  }
+  .board-bg-gradient-forest {
+    --board-base: oklch(0.45 0.12 145);
+    --board-surface-image: var(--bg-gradient-forest);
+  }
+  .board-bg-gradient-lavender {
+    --board-base: oklch(0.58 0.13 295);
+    --board-surface-image: var(--bg-gradient-lavender);
+  }
+  .board-bg-gradient-sunrise {
+    --board-base: oklch(0.68 0.15 45);
+    --board-surface-image: var(--bg-gradient-sunrise);
+  }
+  .board-bg-gradient-midnight {
+    --board-base: oklch(0.32 0.08 245);
+    --board-surface-image: var(--bg-gradient-midnight);
+  }
+  .board-bg-gradient-mint {
+    --board-base: oklch(0.7 0.12 170);
+    --board-surface-image: var(--bg-gradient-mint);
+  }
+  .board-bg-gradient-aurora {
+    --board-base: oklch(0.5 0.13 255);
+    --board-surface-image: var(--bg-gradient-aurora);
+  }
+  .board-bg-gradient-coral {
+    --board-base: oklch(0.66 0.17 25);
+    --board-surface-image: var(--bg-gradient-coral);
+  }
+  .board-bg-gradient-lagoon {
+    --board-base: oklch(0.58 0.13 210);
+    --board-surface-image: var(--bg-gradient-lagoon);
+  }
+  .board-bg-gradient-ember {
+    --board-base: oklch(0.55 0.14 45);
+    --board-surface-image: var(--bg-gradient-ember);
+  }
+  .board-bg-gradient-blossom {
+    --board-base: oklch(0.68 0.12 350);
+    --board-surface-image: var(--bg-gradient-blossom);
+  }
+  .board-bg-gradient-meadow {
+    --board-base: oklch(0.62 0.13 145);
+    --board-surface-image: var(--bg-gradient-meadow);
+  }
+  .board-bg-gradient-dusk {
+    --board-base: oklch(0.48 0.11 285);
+    --board-surface-image: var(--bg-gradient-dusk);
+  }
+  .board-bg-gradient-pearl {
+    --board-base: oklch(0.9 0.03 220);
+    --board-surface-image: var(--bg-gradient-pearl);
+  }
+
   .bg-gradient-sunset {
     background-color: var(--background);
     background-image: var(--bg-gradient-sunset);
@@ -304,5 +655,29 @@
   .bg-gradient-coral {
     background-color: var(--background);
     background-image: var(--bg-gradient-coral);
+  }
+  .bg-gradient-lagoon {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-lagoon);
+  }
+  .bg-gradient-ember {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-ember);
+  }
+  .bg-gradient-blossom {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-blossom);
+  }
+  .bg-gradient-meadow {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-meadow);
+  }
+  .bg-gradient-dusk {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-dusk);
+  }
+  .bg-gradient-pearl {
+    background-color: var(--background);
+    background-image: var(--bg-gradient-pearl);
   }
 }

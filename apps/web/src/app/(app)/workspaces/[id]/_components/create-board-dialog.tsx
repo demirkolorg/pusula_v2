@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { boardTitleSchema } from '@pusula/domain';
+import { DEFAULT_BOARD_ICON, boardTitleSchema, type EntityIcon } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
@@ -19,6 +19,7 @@ import {
   Label,
   toast,
 } from '@pusula/ui';
+import { EntityIconPicker } from '@/components/entity-icon';
 import {
   getMutationErrorMessage,
   useOptimisticBoardListMutation,
@@ -62,10 +63,12 @@ export function CreateBoardDialog({
     onOpenChange?.(next);
   };
   const [title, setTitle] = useState('');
+  const [icon, setIcon] = useState<EntityIcon>(DEFAULT_BOARD_ICON);
   const [titleError, setTitleError] = useState<string | null>(null);
 
   const resetAndClose = () => {
     setTitle('');
+    setIcon(DEFAULT_BOARD_ICON);
     setTitleError(null);
     createBoard.reset();
     setDialogOpen(false);
@@ -88,7 +91,7 @@ export function CreateBoardDialog({
       return;
     }
     setTitleError(null);
-    createBoard.mutate({ workspaceId, title: parsed.data });
+    createBoard.mutate({ workspaceId, title: parsed.data, icon });
   };
 
   return (
@@ -130,6 +133,16 @@ export function CreateBoardDialog({
                 {titleError}
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>{copy.iconLabel}</Label>
+            <EntityIconPicker
+              value={icon}
+              onValueChange={setIcon}
+              labels={strings.entityIcons}
+              disabled={createBoard.isPending}
+            />
           </div>
 
           {createBoard.isError && (

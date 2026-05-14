@@ -54,6 +54,7 @@ const boardCols = {
   id: boards.id,
   workspaceId: boards.workspaceId,
   title: boards.title,
+  icon: boards.icon,
   background: boards.background,
   version: boards.version,
   archivedAt: boards.archivedAt,
@@ -112,6 +113,7 @@ export const boardRouter = router({
     const listCols = {
       id: boards.id,
       title: boards.title,
+      icon: boards.icon,
       background: boards.background,
       version: boards.version,
       archivedAt: boards.archivedAt,
@@ -148,6 +150,7 @@ export const boardRouter = router({
     return rows.map((row) => ({
       id: row.id,
       title: row.title,
+      icon: row.icon,
       background: row.background,
       version: row.version,
       archivedAt: row.archivedAt,
@@ -175,7 +178,7 @@ export const boardRouter = router({
     return ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .insert(boards)
-        .values({ workspaceId: ctx.workspace.id, title: input.title })
+        .values({ workspaceId: ctx.workspace.id, title: input.title, icon: input.icon })
         .returning(boardCols);
       if (!board) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
@@ -192,7 +195,7 @@ export const boardRouter = router({
         // every collaborative activity payload. `undefined` keys are stripped
         // by jsonb serialisation, so omission leaves no on-disk trace —
         // Phase 5 dedupe reads `payload->>'clientMutationId'` on present rows.
-        payload: { title: board.title, clientMutationId: ctx.clientMutationId },
+        payload: { title: board.title, icon: board.icon, clientMutationId: ctx.clientMutationId },
       });
 
       await upsertSearchDocument(tx, { entityType: 'board', entityId: board.id });
@@ -478,7 +481,8 @@ export const boardRouter = router({
     }
     const wantsTitle = input.title !== undefined;
     const wantsBackground = input.background !== undefined;
-    if (!wantsTitle && !wantsBackground) {
+    const wantsIcon = input.icon !== undefined;
+    if (!wantsTitle && !wantsBackground && !wantsIcon) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
@@ -497,14 +501,16 @@ export const boardRouter = router({
       }
       const titleChanged = wantsTitle && current.title !== input.title;
       const backgroundChanged = wantsBackground && current.background !== input.background;
-      if (!titleChanged && !backgroundChanged) {
+      const iconChanged = wantsIcon && current.icon !== input.icon;
+      if (!titleChanged && !backgroundChanged && !iconChanged) {
         return { ...current, role: ctx.board.role, changed: false as const };
       }
 
-      const patch: { title?: string; background?: string | null } = {};
+      const patch: { title?: string; background?: string | null; icon?: string } = {};
       const updates: {
         title?: string;
         background?: string | null;
+        icon?: string;
         version: ReturnType<typeof sql>;
       } = { version: sql`${boards.version} + 1` };
       if (titleChanged) {
@@ -516,6 +522,11 @@ export const boardRouter = router({
         const nextBackground = input.background as string | null;
         updates.background = nextBackground;
         patch.background = nextBackground;
+      }
+      if (iconChanged) {
+        const nextIcon = input.icon as string;
+        updates.icon = nextIcon;
+        patch.icon = nextIcon;
       }
 
       const [updated] = await tx
@@ -549,14 +560,26 @@ export const boardRouter = router({
               : { from: current.background, to: nextBackground, clientMutationId: ctx.clientMutationId },
         });
       }
+      if (iconChanged) {
+        const nextIcon = input.icon as string;
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.updated',
+          payload: { fromIcon: current.icon, toIcon: nextIcon, clientMutationId: ctx.clientMutationId },
+        });
+      }
 
       const realtimeData: {
         boardId: string;
-        patch: { title?: string; background?: string | null };
+        patch: { title?: string; background?: string | null; icon?: string };
         fromTitle?: string;
         toTitle?: string;
         fromBackground?: string | null;
         toBackground?: string | null;
+        fromIcon?: string;
+        toIcon?: string;
       } = { boardId: ctx.board.id, patch };
       if (titleChanged) {
         realtimeData.fromTitle = current.title;
@@ -565,6 +588,10 @@ export const boardRouter = router({
       if (backgroundChanged) {
         realtimeData.fromBackground = current.background;
         realtimeData.toBackground = updated.background;
+      }
+      if (iconChanged) {
+        realtimeData.fromIcon = current.icon;
+        realtimeData.toIcon = updated.icon;
       }
 
       realtimeEventId = await insertRealtimeEvent(tx, {

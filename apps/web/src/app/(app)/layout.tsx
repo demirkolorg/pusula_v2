@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { AppShell } from './_components/app-shell';
@@ -26,8 +27,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   if (isPending) {
     return (
-      <div className="text-muted-foreground flex min-h-svh items-center justify-center text-sm">
-        {strings.common.loading}
+      <div className="flex min-h-svh items-center justify-center">
+        <AppSpinner label={strings.common.loading} showLabel />
       </div>
     );
   }

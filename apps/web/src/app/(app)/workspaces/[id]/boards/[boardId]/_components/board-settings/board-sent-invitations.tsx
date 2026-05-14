@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { formatDate } from '@/lib/format';
 import { boardRoleLabels, strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -41,7 +42,7 @@ export function BoardSentInvitations({ boardId, canManage }: BoardSentInvitation
   const invitations = useQuery(trpc.board.invitations.list.queryOptions({ boardId }));
 
   if (invitations.isPending) {
-    return <p className="text-muted-foreground text-sm">{strings.common.loading}</p>;
+    return <AppSpinner label={strings.common.loading} showLabel className="justify-start" />;
   }
 
   if (invitations.isError) {

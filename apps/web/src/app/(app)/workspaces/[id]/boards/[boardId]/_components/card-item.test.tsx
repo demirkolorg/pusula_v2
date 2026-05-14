@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   routerPush: vi.fn(),
   searchParams: new URLSearchParams(),
   mutate: vi.fn(),
+  mutateAsync: vi.fn(),
   registerCard: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: { url: 'https://storage.test/card-cover.png' } }),
   useMutation: () => ({
     mutate: h.mutate,
+    mutateAsync: h.mutateAsync,
     reset: vi.fn(),
     isPending: false,
     isError: false,
@@ -31,6 +33,7 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     attachment: {
+      createUpload: { mutationOptions: (o: unknown) => o },
       getDownloadUrl: {
         queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
           input,
@@ -141,11 +144,13 @@ describe('<CardItem>', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-05-12T12:00:00Z'));
     h.mutate.mockReset();
+    h.mutateAsync.mockReset();
     h.registerCard.mockReset();
     h.registerCard.mockReturnValue(() => {});
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('clicking the card navigates to ?card=<id> (shallow), preserving the pathname', async () => {
@@ -213,7 +218,7 @@ describe('<CardItem>', () => {
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Bir kart' }));
 
-    expect(await screen.findByRole('menuitem', { name: /kapak rengi/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^kapak$/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /etiketler/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /üyeler/i })).toBeInTheDocument();
     expect(screen.queryByText(/yetkililer/i)).not.toBeInTheDocument();
@@ -223,6 +228,70 @@ describe('<CardItem>', () => {
     await user.click(screen.getByRole('menuitem', { name: /kartı arşivle/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(h.routerPush).not.toHaveBeenCalled();
+  });
+
+  it('can upload a cover photo from the cover context menu', async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    h.mutateAsync
+      .mockResolvedValueOnce({
+        attachment: {
+          attachmentId: 'att-new',
+          fileName: 'cover.png',
+          mimeType: 'image/png',
+          size: 5,
+        },
+        upload: {
+          url: 'https://storage.test/put',
+          headers: { 'content-type': 'image/png' },
+        },
+      })
+      .mockResolvedValueOnce(undefined);
+
+    render(
+      <BoardDndProvider value={makeDnd()}>
+        <CardItem
+          boardId="b1"
+          card={baseCard}
+          canEdit
+          allLists={lists}
+          boardLabels={labels}
+          boardMembers={boardMembers}
+        />
+      </BoardDndProvider>,
+    );
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Bir kart' }));
+    const coverMenu = await screen.findByRole('menuitem', { name: /^kapak$/i });
+    await user.hover(coverMenu);
+
+    expect(
+      await screen.findByRole('menuitem', { name: /^kapak fotoğrafı yükle$/i }),
+    ).toBeInTheDocument();
+
+    const file = new File(['cover'], 'cover.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText(/^kapak fotoğrafı yükle$/i), {
+      target: { files: [file] },
+    });
+
+    await vi.waitFor(() => expect(h.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(h.mutateAsync.mock.calls[0]?.[0]).toMatchObject({
+      cardId: 'card1',
+      fileName: 'cover.png',
+      mimeType: 'image/png',
+      size: file.size,
+    });
+    expect(fetchMock).toHaveBeenCalledWith('https://storage.test/put', {
+      method: 'PUT',
+      headers: { 'content-type': 'image/png' },
+      body: file,
+    });
+    expect(h.mutateAsync.mock.calls[1]?.[0]).toMatchObject({
+      cardId: 'card1',
+      coverImageAttachmentId: 'att-new',
+    });
   });
 
   it('canEdit=true: clicking the card title still opens the detail modal', async () => {
@@ -238,16 +307,34 @@ describe('<CardItem>', () => {
     expect(h.mutate).not.toHaveBeenCalled();
   });
 
-  it('renders the v1-style label count in the metadata row', () => {
+  it('renders labels in the bottom-right metadata group with the other card signals', () => {
     render(
       <CardItem
         boardId="b1"
-        card={card({ labels: [{ labelId: 'l1', name: 'Acil', color: 'red' }] })}
+        card={card({
+          labels: [
+            { labelId: 'l1', name: 'Acil', color: 'red' },
+            { labelId: 'l2', name: 'Sağlık', color: 'green' },
+          ],
+          commentCount: 5,
+          members: [{ userId: 'u1', name: 'Ada Lovelace', image: null, role: 'assignee' }],
+        })}
         canEdit={false}
       />,
     );
-    expect(screen.queryByText('Acil')).not.toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument();
+
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const bottomMeta = article.querySelector('[data-slot="card-bottom-meta"]');
+    expect(bottomMeta).not.toBeNull();
+
+    const members = bottomMeta!.querySelector('[data-slot="card-meta-members"]');
+    const actions = bottomMeta!.querySelector('[data-slot="card-meta-actions"]');
+    expect(members).not.toBeNull();
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveClass('ml-auto');
+    expect(within(actions as HTMLElement).getByText('2')).toBeInTheDocument();
+    expect(within(actions as HTMLElement).getByText('5')).toBeInTheDocument();
+    expect(actions).not.toHaveTextContent('AL');
   });
 
   it('shows the due chip with the "GECİKTİ" badge when the due date is in the past', () => {
@@ -263,25 +350,23 @@ describe('<CardItem>', () => {
     expect(screen.getByText(/gecikti/i)).toBeInTheDocument();
   });
 
-  it('shows the checklist progress; complete checklists are styled with text-success', () => {
-    const { rerender } = render(
+  it('shows checklist progress as a separate card section with a progress bar', () => {
+    render(
       <CardItem
         boardId="b1"
         card={card({ checklistTotal: 3, checklistDone: 2 })}
         canEdit={false}
       />,
     );
-    expect(screen.getByText('2/3')).toBeInTheDocument();
-    rerender(
-      <CardItem
-        boardId="b1"
-        card={card({ checklistTotal: 3, checklistDone: 3 })}
-        canEdit={false}
-      />,
-    );
-    const chip = screen.getByText('3/3');
-    // The MetaChip wrapper carries the success colour class when complete.
-    expect(chip.closest('[data-slot="meta-chip"]')).toHaveClass('text-success');
+
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const checklist = article.querySelector('[data-slot="card-checklist-progress"]');
+    expect(checklist).not.toBeNull();
+    expect(checklist).toHaveTextContent('Yapılacaklar');
+    expect(within(checklist as HTMLElement).getByText('2/3')).toBeInTheDocument();
+    const progress = within(checklist as HTMLElement).getByRole('progressbar');
+    expect(progress).toHaveAttribute('aria-valuenow', '2');
+    expect(progress).toHaveAttribute('aria-valuemax', '3');
   });
 
   it('shows the comment count', () => {
@@ -302,12 +387,12 @@ describe('<CardItem>', () => {
     expect(screen.getByText('AL')).toBeInTheDocument(); // Ada Lovelace
   });
 
-  it('renders a cover-colour stripe when a cover colour is set', () => {
+  it('renders the cover-colour stripe at the same height as the list accent', () => {
     render(<CardItem boardId="b1" card={card({ coverColor: 'mavi' })} canEdit={false} />);
     const article = screen.getByRole('button', { name: 'Bir kart' });
     const stripe = article.querySelector('.bg-palet-mavi');
     expect(stripe).not.toBeNull();
-    expect(stripe).toHaveClass('h-3');
+    expect(stripe).toHaveClass('h-1');
   });
 
   it('renders the cover image before the colour stripe when a cover image is set', () => {
@@ -331,6 +416,29 @@ describe('<CardItem>', () => {
     const image = article.querySelector('img');
     expect(image).toHaveAttribute('src', 'https://storage.test/card-cover.png');
     expect(article.querySelector('.bg-palet-mavi')).toBeNull();
+  });
+
+  it('marks cover images as non-draggable so card drags can start from the image', () => {
+    render(
+      <CardItem
+        boardId="b1"
+        card={card({
+          coverImageAttachmentId: 'att1',
+          coverImage: {
+            attachmentId: 'att1',
+            fileName: 'cover.png',
+            mimeType: 'image/png',
+            size: 1234,
+          },
+        })}
+        canEdit
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'Bir kart kapak' })).toHaveAttribute(
+      'draggable',
+      'false',
+    );
   });
 
   it('no cover stripe when the cover colour is unknown', () => {

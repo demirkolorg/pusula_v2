@@ -1,10 +1,10 @@
 'use client';
 
 import { CheckIcon } from 'lucide-react';
-import { CARD_COVER_COLORS, type CardCoverColor } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
+  BOARD_BACKGROUND_SOLID_COLORS,
   BG_GRADIENT_CLASS,
   BOARD_BACKGROUND_GRADIENTS,
   BOARD_SOLID_BACKGROUND_CLASS,
@@ -12,7 +12,9 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  boardBackgroundClass,
   cn,
+  type BoardBackgroundSolidColor,
 } from '@pusula/ui';
 import {
   applyBoardPatch,
@@ -104,8 +106,9 @@ export function BoardBackgroundPicker({
               disabled={disabled}
               onClick={() => selectBackground(null)}
               className={cn(
-                'relative aspect-[5/3] rounded-md border bg-background text-xs font-medium outline-none ring-offset-2 transition',
+                'relative aspect-[5/3] rounded-md border text-xs font-medium text-[color:var(--board-chrome-fg)] outline-none ring-offset-2 transition',
                 'focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50',
+                boardBackgroundClass(null),
                 background == null && 'ring-2 ring-foreground',
               )}
             >
@@ -116,7 +119,7 @@ export function BoardBackgroundPicker({
                 </span>
               )}
             </button>
-            {CARD_COVER_COLORS.map((name: CardCoverColor) => {
+            {BOARD_BACKGROUND_SOLID_COLORS.map((name: BoardBackgroundSolidColor) => {
               const value = `solid:${name}`;
               const selected = background === value;
               return (

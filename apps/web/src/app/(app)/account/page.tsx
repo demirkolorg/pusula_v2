@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -41,7 +42,7 @@ export default function AccountPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   if (isPending) {
-    return <p className="text-muted-foreground text-sm">{strings.account.loading}</p>;
+    return <AppSpinner label={strings.account.loading} showLabel className="justify-start" />;
   }
   if (!session) return null;
 

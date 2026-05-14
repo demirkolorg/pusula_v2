@@ -4,6 +4,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 import { CardModalHeader } from './card-modal-header';
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: { url: 'https://storage.test/modal-cover.png' } }),
+}));
+
+vi.mock('@/trpc/client', () => ({
+  useTRPC: () => ({
+    attachment: {
+      getDownloadUrl: {
+        queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
+          input,
+          ...(options ?? {}),
+        }),
+      },
+    },
+  }),
+}));
+
 const copy = strings.card.detail;
 const m = copy.modal;
 
@@ -66,7 +83,10 @@ describe('<CardModalHeader>', () => {
     setup({ archived: false });
     await user.click(screen.getByRole('button', { name: m.more }));
     expect(await screen.findByRole('menuitem', { name: m.menuArchive })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: m.menuMove })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: m.menuMove })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 
   it('the ⋮ menu offers restore when the card is archived', async () => {
@@ -110,5 +130,32 @@ describe('<CardModalHeader>', () => {
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
     expect(bar).toHaveClass('bg-palet-mavi');
     expect(bar).not.toHaveClass('border-b');
+  });
+
+  it('renders the cover image above the modal chrome and suppresses the colour bar', () => {
+    render(
+      <CardModalHeader
+        boardName="B"
+        listName="L"
+        coverColor="mavi"
+        coverImage={{
+          attachmentId: 'att1',
+          fileName: 'kapak.png',
+          mimeType: 'image/png',
+          size: 1234,
+        }}
+        archived={false}
+        canArchive
+        onArchiveToggle={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const image = screen.getByRole('img', { name: 'kapak.png' });
+    expect(image).toHaveAttribute('src', 'https://storage.test/modal-cover.png');
+    expect(image.closest('[data-slot="card-modal-cover-image"]')).toHaveClass('h-40');
+    const bar = document.querySelector('[data-slot="card-modal-header"]')!;
+    expect(bar).toHaveClass('bg-background', 'border-b');
+    expect(bar.className).not.toMatch(/bg-palet-/);
   });
 });

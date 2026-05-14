@@ -95,9 +95,16 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     const board = await callerFor(memberId).board.create({
       workspaceId,
       title: 'Sprint Board',
+      icon: 'rocket',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(board).toMatchObject({ workspaceId, title: 'Sprint Board', role: 'admin', version: 0 });
+    expect(board).toMatchObject({
+      workspaceId,
+      title: 'Sprint Board',
+      icon: 'rocket',
+      role: 'admin',
+      version: 0,
+    });
     expect(board.archivedAt).toBeNull();
 
     const members = await db()
@@ -109,6 +116,7 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
     const acts = await actsFor(board.id);
     expect(acts.some((a) => a.type === 'board.created')).toBe(true);
+    expect(acts.find((a) => a.type === 'board.created')?.payload).toMatchObject({ icon: 'rocket' });
   });
 
   it('create: a workspace guest cannot create a board (FORBIDDEN)', async () => {
@@ -148,6 +156,7 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     // guest sees only the board they were added to, with the explicit role
     expect(guestList).toHaveLength(1);
     expect(guestList[0]).toMatchObject({ id: ownerBoard.id, role: 'viewer' });
+    expect(guestList[0]?.icon).toBe('layout-grid');
     expect(guestList[0]?.archivedAt).toBeNull();
   });
 
@@ -184,7 +193,12 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
     // empty board first
     const empty = await callerFor(ownerId).board.get({ boardId: board.id });
-    expect(empty.board).toMatchObject({ id: board.id, title: 'Shaped Board', role: 'admin' });
+    expect(empty.board).toMatchObject({
+      id: board.id,
+      title: 'Shaped Board',
+      icon: 'layout-grid',
+      role: 'admin',
+    });
     expect(empty.lists).toEqual([]);
     expect(empty.cards).toEqual([]);
 
@@ -554,6 +568,43 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       clientMutationId: setMutationId,
     });
     expect(cleared[0]?.payload).toMatchObject({ from: 'gradient:ocean' });
+  });
+
+  it('update: board admin changes icon, projects it through get/list, writes activity, and no-ops unchanged icon', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Icon Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const updated = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      icon: 'rocket',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(updated).toMatchObject({
+      id: board.id,
+      icon: 'rocket',
+      changed: true,
+      version: board.version + 1,
+    });
+
+    const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
+    expect(shaped.board.icon).toBe('rocket');
+    const listed = await callerFor(ownerId).board.list({ workspaceId });
+    expect(listed.find((item) => item.id === board.id)?.icon).toBe('rocket');
+
+    const noop = await callerFor(ownerId).board.update({
+      boardId: board.id,
+      icon: 'rocket',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(noop).toMatchObject({ id: board.id, icon: 'rocket', changed: false });
+    expect(noop.version).toBe(updated.version);
+
+    const acts = await actsFor(board.id);
+    const iconEvent = acts.find((event) => event.type === 'board.updated');
+    expect(iconEvent?.payload).toMatchObject({ fromIcon: 'layout-grid', toIcon: 'rocket' });
   });
 
   it('update: background is admin-only; member and viewer are FORBIDDEN, workspace owner inherited admin can update', async () => {

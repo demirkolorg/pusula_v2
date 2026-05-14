@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { workspaceNameSchema, workspaceSlugSchema } from '@pusula/domain';
+import {
+  workspaceIconSchema,
+  workspaceNameSchema,
+  workspaceSlugSchema,
+  type EntityIcon,
+} from '@pusula/domain';
 import { Alert, AlertDescription, Button, Input, Label } from '@pusula/ui';
+import { EntityIconPicker } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 
 export type WorkspaceSettingsValues = {
@@ -10,6 +16,8 @@ export type WorkspaceSettingsValues = {
   name: string;
   /** Validated, trimmed slug. */
   slug: string;
+  /** Stable icon token shown in shell switchers. */
+  icon: EntityIcon;
 };
 
 type WorkspaceSettingsFormProps = {
@@ -17,6 +25,8 @@ type WorkspaceSettingsFormProps = {
   name: string;
   /** Current persisted slug. */
   slug: string;
+  /** Current persisted icon token. */
+  icon: EntityIcon;
   /** Called with the validated, normalized values on submit. */
   onSubmit: (values: WorkspaceSettingsValues) => void;
   /** Mutation in flight — disables the inputs and the submit button. */
@@ -36,6 +46,7 @@ type WorkspaceSettingsFormProps = {
 export function WorkspaceSettingsForm({
   name,
   slug,
+  icon,
   onSubmit,
   pending = false,
   error,
@@ -45,19 +56,22 @@ export function WorkspaceSettingsForm({
   const slugId = useId();
   const [nameValue, setNameValue] = useState(name);
   const [slugValue, setSlugValue] = useState(slug);
+  const [iconValue, setIconValue] = useState<EntityIcon>(icon);
   const [nameError, setNameError] = useState<string | null>(null);
   const [slugError, setSlugError] = useState<string | null>(null);
 
   // Re-sync the fields when the persisted values change (e.g. after a save).
   useEffect(() => setNameValue(name), [name]);
   useEffect(() => setSlugValue(slug), [slug]);
+  useEffect(() => setIconValue(icon), [icon]);
 
-  const dirty = nameValue !== name || slugValue !== slug;
+  const dirty = nameValue !== name || slugValue !== slug || iconValue !== icon;
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const parsedName = workspaceNameSchema.safeParse(nameValue);
     const parsedSlug = workspaceSlugSchema.safeParse(slugValue);
+    const parsedIcon = workspaceIconSchema.safeParse(iconValue);
     setNameError(
       parsedName.success
         ? null
@@ -68,8 +82,8 @@ export function WorkspaceSettingsForm({
         ? null
         : (parsedSlug.error.issues[0]?.message ?? strings.common.unknownError),
     );
-    if (!parsedName.success || !parsedSlug.success) return;
-    onSubmit({ name: parsedName.data, slug: parsedSlug.data });
+    if (!parsedName.success || !parsedSlug.success || !parsedIcon.success) return;
+    onSubmit({ name: parsedName.data, slug: parsedSlug.data, icon: parsedIcon.data });
   };
 
   return (
@@ -116,6 +130,16 @@ export function WorkspaceSettingsForm({
             {strings.workspace.manage.slugHelp}
           </p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>{strings.workspace.manage.iconLabel}</Label>
+        <EntityIconPicker
+          value={iconValue}
+          onValueChange={setIconValue}
+          labels={strings.entityIcons}
+          disabled={pending}
+        />
       </div>
 
       {error && (

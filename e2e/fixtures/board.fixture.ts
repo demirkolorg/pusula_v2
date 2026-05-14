@@ -5,8 +5,7 @@
  * `card-item.tsx`):
  *  - a list column is a `<section aria-label="<list title>">`;
  *  - a card chip is an `<article role="button" aria-label="<card title>">`;
- *  - the list drag handle is a `<button aria-label="Listeyi sürükleyerek taşı">`
- *    inside the column header.
+ *  - the list drag handle is a labelled element inside the column header.
  */
 import { expect, type Locator, type Page } from '@playwright/test';
 import { strings } from '../../apps/web/src/lib/strings';
@@ -33,9 +32,9 @@ export class BoardPage {
     return this.page.getByRole('region', { name: title, exact: true });
   }
 
-  /** The drag handle button inside a column header. */
+  /** The drag handle inside a column header. */
   columnDragHandle(title: string): Locator {
-    return this.column(title).getByRole('button', { name: LIST_DRAG_HANDLE_LABEL });
+    return this.column(title).getByLabel(LIST_DRAG_HANDLE_LABEL);
   }
 
   /** A card chip `<article>` by its title. Scoped to a column when given. */

@@ -43,6 +43,17 @@ export const E2E = {
     watched: 'e2e-card-1-2',
     mention: 'e2e-card-1-3',
   },
+  /** Fixed search terms used by the DEM-108 Playwright search suite. */
+  search: {
+    cardTerm: 'maas destek dosyasi',
+    commentTerm: 'yorum takip imzasi',
+    labelName: 'E2E Arama Etiketi',
+    labelId: 'e2e-search-label',
+    commentId: 'e2e-search-comment',
+    hiddenWorkspaceId: 'e2e-hidden-search-workspace',
+    hiddenBoardId: 'e2e-hidden-search-board',
+    hiddenTerm: 'gizli arama hazinesi',
+  },
   /** List titles in `position` order. */
   listTitles: ['Liste 1', 'Liste 2', 'Liste 3'] as const,
   /** Card titles per list index (0-based), in `position` order. */

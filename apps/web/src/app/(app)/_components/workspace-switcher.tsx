@@ -3,13 +3,8 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  CheckIcon,
-  ChevronsUpDownIcon,
-  LayoutGridIcon,
-  ListIcon,
-  PlusIcon,
-} from 'lucide-react';
+import { CheckIcon, ChevronsUpDownIcon, ListIcon, PlusIcon } from 'lucide-react';
+import { DEFAULT_WORKSPACE_ICON, type EntityIcon } from '@pusula/domain';
 import {
   Button,
   DropdownMenu,
@@ -20,10 +15,7 @@ import {
   DropdownMenuTrigger,
   cn,
 } from '@pusula/ui';
-import {
-  avatarInitials,
-  avatarPaletteSolidClass,
-} from '@/lib/avatar-color';
+import { EntityIconBadge } from '@/components/entity-icon';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
@@ -32,6 +24,7 @@ type WorkspaceRow = {
   id: string;
   name: string;
   slug: string;
+  icon?: EntityIcon | string | null;
   role: keyof typeof workspaceRoleLabels;
   createdAt: Date;
 };
@@ -42,6 +35,9 @@ type BoardRow = {
   archived?: boolean;
   archivedAt?: Date | string | null;
 };
+
+const boardChromeTriggerClass =
+  'text-[color:var(--board-chrome-fg)] hover:bg-white/10 hover:text-[color:var(--board-chrome-fg)] data-[state=open]:bg-white/10 data-[state=open]:text-[color:var(--board-chrome-fg)]';
 
 function isActiveBoard(board: BoardRow) {
   if (typeof board.archived === 'boolean') return !board.archived;
@@ -55,6 +51,7 @@ export function WorkspaceSwitcher() {
   const params = useParams<{ id?: string; boardId?: string }>();
   const workspaceId = typeof params.id === 'string' ? params.id : undefined;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
+  const onBoardChrome = Boolean(boardId);
   const copy = strings.shell.workspaceSwitcher;
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -74,7 +71,7 @@ export function WorkspaceSwitcher() {
         list.find((workspace) => workspace.id === workspaceId));
   const triggerLabel = activeWorkspace?.name ?? copy.placeholder;
   const roleLabel = activeWorkspace ? workspaceRoleLabels[activeWorkspace.role] : '';
-  const initial = avatarInitials(activeWorkspace?.name).slice(0, 1);
+  const activeIcon = activeWorkspace?.icon ?? DEFAULT_WORKSPACE_ICON;
 
   const navigateToWorkspace = async (targetWorkspaceId: string) => {
     try {
@@ -102,36 +99,54 @@ export function WorkspaceSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant={onBoardChrome ? 'ghost' : 'outline'}
           size="sm"
           aria-label={copy.ariaLabel}
-          className="h-9 max-w-56 gap-2 px-2"
+          className={cn('h-9 max-w-56 gap-2 px-2', onBoardChrome && boardChromeTriggerClass)}
         >
           {activeWorkspace ? (
-            <span
+            <EntityIconBadge
+              icon={activeIcon}
               className={cn(
-                'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold',
-                avatarPaletteSolidClass(activeWorkspace.name),
+                onBoardChrome
+                  ? 'bg-white/10 text-[color:var(--board-chrome-fg)]'
+                  : 'bg-primary/10 text-primary',
               )}
-              aria-hidden
-            >
-              {initial}
-            </span>
+            />
           ) : (
-            <span
-              className="bg-muted text-muted-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-              aria-hidden
-            >
-              <LayoutGridIcon className="size-3.5" />
-            </span>
+            <EntityIconBadge
+              icon={DEFAULT_WORKSPACE_ICON}
+              className={cn(
+                onBoardChrome
+                  ? 'bg-white/10 text-[color:var(--board-chrome-fg)]'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            />
           )}
           <span className="hidden min-w-0 flex-1 text-left leading-tight md:grid">
             <span className="truncate text-sm font-medium">{triggerLabel}</span>
             {roleLabel && (
-              <span className="text-muted-foreground truncate text-[10px]">{roleLabel}</span>
+              <span
+                className={cn(
+                  'truncate text-[10px]',
+                  onBoardChrome
+                    ? 'text-[color:var(--board-chrome-fg)] opacity-75'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {roleLabel}
+              </span>
             )}
           </span>
-          <ChevronsUpDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+          <ChevronsUpDownIcon
+            className={cn(
+              'size-3.5 shrink-0',
+              onBoardChrome
+                ? 'text-[color:var(--board-chrome-fg)] opacity-75'
+                : 'text-muted-foreground',
+            )}
+            aria-hidden
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" sideOffset={4} className="w-64">
@@ -148,15 +163,10 @@ export function WorkspaceSwitcher() {
                 onSelect={() => handleSelectWorkspace(workspace.id)}
                 className="gap-2"
               >
-                <span
-                  className={cn(
-                    'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold',
-                    avatarPaletteSolidClass(workspace.name),
-                  )}
-                  aria-hidden
-                >
-                  {avatarInitials(workspace.name).slice(0, 1)}
-                </span>
+                <EntityIconBadge
+                  icon={workspace.icon ?? DEFAULT_WORKSPACE_ICON}
+                  className={active ? 'bg-primary/10 text-primary' : undefined}
+                />
                 <span className="grid min-w-0 flex-1 leading-tight">
                   <span className="truncate text-sm font-medium">{workspace.name}</span>
                   <span className="text-muted-foreground truncate text-[10px]">

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LabelColor } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { BoardLabelRow } from './board-label-row';
@@ -76,7 +77,7 @@ export function BoardLabelsSection({ boardId, canEdit }: BoardLabelsSectionProps
   const isBusy = updateLabel.isPending || deleteLabel.isPending;
 
   if (labels.isPending) {
-    return <p className="text-muted-foreground text-sm">{copy.labelsLoading}</p>;
+    return <AppSpinner label={copy.labelsLoading} showLabel className="justify-start" />;
   }
 
   if (labels.isError) {

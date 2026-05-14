@@ -54,7 +54,7 @@ function CardCompleteToggle({
       aria-disabled={disabled || undefined}
       onClick={handleClick}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full border-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50',
         SIZE_CLASS[size],
         checked
           ? 'border-success bg-success text-success-foreground'

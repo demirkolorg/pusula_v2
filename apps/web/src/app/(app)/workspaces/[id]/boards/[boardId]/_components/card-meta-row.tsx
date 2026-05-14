@@ -3,7 +3,6 @@
 import {
   AlignLeftIcon,
   CalendarIcon,
-  CheckSquareIcon,
   MessageSquareIcon,
   TagIcon,
 } from 'lucide-react';
@@ -23,8 +22,6 @@ type CardMetaRowProps = {
   description: string | null;
   dueAt: Date | string | null;
   labelCount?: number;
-  checklistTotal: number;
-  checklistDone: number;
   commentCount: number;
   members: CardMember[];
   /** Injectable "now" for deterministic tests. Defaults to `Date.now()`. */
@@ -58,8 +55,6 @@ export function CardMetaRow({
   description,
   dueAt,
   labelCount = 0,
-  checklistTotal,
-  checklistDone,
   commentCount,
   members,
   now,
@@ -69,109 +64,26 @@ export function CardMetaRow({
 
   const hasDescription = description != null && description.trim() !== '';
   const hasLabels = labelCount > 0;
-  const hasChecklist = checklistTotal > 0;
   const hasComments = commentCount > 0;
   const hasMembers = members.length > 0;
   const hasDue = dueAt != null;
+  const hasActions = hasDue || hasDescription || hasLabels || hasComments;
 
-  if (!hasDescription && !hasLabels && !hasChecklist && !hasComments && !hasMembers && !hasDue) {
+  if (!hasActions && !hasMembers) {
     return null;
   }
 
   const due = hasDue ? dueState(dueAt, nowMs) : 'normal';
-  const checklistComplete = hasChecklist && checklistDone >= checklistTotal;
 
   return (
-    <MetaRow className="mt-1.5">
-      {hasDue && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1">
-              <MetaChip
-                icon={<CalendarIcon className="size-3" />}
-                tone={due === 'overdue' ? 'overdue' : 'default'}
-              >
-                {formatDate(dueAt)}
-                {due === 'overdue' && (
-                  <span className="bg-destructive text-destructive-foreground rounded-sm px-1 text-[9px] font-medium tracking-wide uppercase">
-                    {copy.overdueBadge}
-                  </span>
-                )}
-              </MetaChip>
-              {due === 'soon' && (
-                <span className="bg-warning size-1.5 shrink-0 rounded-full" aria-hidden />
-              )}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {(due === 'overdue'
-              ? copy.overdueTooltip
-              : due === 'soon'
-                ? copy.dueSoonTooltip
-                : copy.dueTooltip) +
-              ' · ' +
-              formatDate(dueAt)}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {hasDescription && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <MetaChip icon={<AlignLeftIcon className="size-3" aria-hidden />}>
-                <span className="sr-only">{copy.descriptionTooltip}</span>
-              </MetaChip>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{copy.descriptionTooltip}</TooltipContent>
-        </Tooltip>
-      )}
-
-      {hasLabels && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <MetaChip icon={<TagIcon className="size-3" aria-hidden />}>{labelCount}</MetaChip>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{`${copy.labelsTooltip} · ${labelCount}`}</TooltipContent>
-        </Tooltip>
-      )}
-
-      {hasChecklist && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <MetaChip
-                icon={<CheckSquareIcon className="size-3" aria-hidden />}
-                className={cn(checklistComplete && 'text-success')}
-              >
-                {checklistDone}/{checklistTotal}
-              </MetaChip>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{`${copy.checklistTooltip} · ${checklistDone}/${checklistTotal}`}</TooltipContent>
-        </Tooltip>
-      )}
-
-      {hasComments && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <MetaChip icon={<MessageSquareIcon className="size-3" aria-hidden />}>
-                {commentCount}
-              </MetaChip>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{`${copy.commentsTooltip} · ${commentCount}`}</TooltipContent>
-        </Tooltip>
-      )}
-
+    <div data-slot="card-bottom-meta" className="mt-1.5 flex items-center gap-2">
       {hasMembers && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="ml-auto inline-flex items-center -space-x-1">
+            <span
+              data-slot="card-meta-members"
+              className="inline-flex shrink-0 items-center -space-x-1"
+            >
               {members.slice(0, MAX_AVATARS).map((m) => (
                 <Avatar
                   key={`${m.userId}-${m.role}`}
@@ -195,6 +107,81 @@ export function CardMetaRow({
           </TooltipContent>
         </Tooltip>
       )}
-    </MetaRow>
+
+      {hasActions && (
+        <MetaRow data-slot="card-meta-actions" className="ml-auto justify-end">
+          {hasDue && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1">
+                  <MetaChip
+                    icon={<CalendarIcon className="size-3" />}
+                    tone={due === 'overdue' ? 'overdue' : 'default'}
+                  >
+                    {formatDate(dueAt)}
+                    {due === 'overdue' && (
+                      <span className="bg-destructive text-destructive-foreground rounded-sm px-1 text-[9px] font-medium tracking-wide uppercase">
+                        {copy.overdueBadge}
+                      </span>
+                    )}
+                  </MetaChip>
+                  {due === 'soon' && (
+                    <span className="bg-warning size-1.5 shrink-0 rounded-full" aria-hidden />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {(due === 'overdue'
+                  ? copy.overdueTooltip
+                  : due === 'soon'
+                    ? copy.dueSoonTooltip
+                    : copy.dueTooltip) +
+                  ' · ' +
+                  formatDate(dueAt)}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasDescription && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <MetaChip icon={<AlignLeftIcon className="size-3" aria-hidden />}>
+                    <span className="sr-only">{copy.descriptionTooltip}</span>
+                  </MetaChip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{copy.descriptionTooltip}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasLabels && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <MetaChip icon={<TagIcon className="size-3" aria-hidden />}>
+                    {labelCount}
+                  </MetaChip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{`${copy.labelsTooltip} · ${labelCount}`}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasComments && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <MetaChip icon={<MessageSquareIcon className="size-3" aria-hidden />}>
+                    {commentCount}
+                  </MetaChip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{`${copy.commentsTooltip} · ${commentCount}`}</TooltipContent>
+            </Tooltip>
+          )}
+        </MetaRow>
+      )}
+    </div>
   );
 }

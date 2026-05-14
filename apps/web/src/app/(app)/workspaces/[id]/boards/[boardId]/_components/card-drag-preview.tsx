@@ -57,13 +57,13 @@ export function CardDragPreview({ card, width }: CardDragPreviewProps) {
     <div
       style={{ width }}
       className={cn(
-        'pointer-events-none flex flex-col gap-1 rounded-md border border-foreground/15 bg-card p-2 text-sm',
+        'pointer-events-none flex flex-col gap-1 rounded-md border border-[color:var(--board-card-border)] bg-[color:var(--board-card-bg)] p-2 text-sm',
         'rotate-2 shadow-md',
       )}
     >
       {coverColor && (
         <div
-          className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
+          className={cn('-mx-2 -mt-2 mb-1.5 h-1 rounded-t-md', COVER_BAR[coverColor])}
           aria-hidden
         />
       )}

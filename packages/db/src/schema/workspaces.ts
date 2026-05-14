@@ -10,6 +10,7 @@ export const workspaces = pgTable(
     id: primaryId(),
     name: text().notNull(),
     slug: text().notNull(),
+    icon: text().notNull().default('briefcase'),
     ownerId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),

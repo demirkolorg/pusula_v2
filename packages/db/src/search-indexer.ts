@@ -63,6 +63,115 @@ export function normalizeSearchLabels(values: readonly (string | null | undefine
   return out;
 }
 
+const FOLD_FROM = 'ÇĞİIÖŞÜÂÎÛçğıöşüâîû';
+const FOLD_TO = 'CGIIOSUAIUcgiosuaiu';
+const SEARCH_TOKEN_RE = /[a-z0-9]+/g;
+const TURKISH_SUFFIXES = [
+  'larindan',
+  'lerinden',
+  'larinin',
+  'lerinin',
+  'larla',
+  'lerle',
+  'lardan',
+  'lerden',
+  'larin',
+  'lerin',
+  'lari',
+  'leri',
+  'lara',
+  'lere',
+  'dan',
+  'den',
+  'tan',
+  'ten',
+  'nin',
+  'nun',
+  'lar',
+  'ler',
+  'ini',
+  'inu',
+  'unu',
+  'ye',
+  'ya',
+  'de',
+  'da',
+  'te',
+  'ta',
+  'i',
+  'u',
+] as const;
+
+function uniq(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+export function foldSearchText(value: string | null | undefined): string {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) return '';
+
+  let folded = normalized;
+  for (let i = 0; i < FOLD_FROM.length; i++) {
+    folded = folded.replaceAll(FOLD_FROM[i]!, FOLD_TO[i]!);
+  }
+
+  return folded
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function tokenRootVariants(token: string): string[] {
+  const variants = [token];
+  for (const suffix of TURKISH_SUFFIXES) {
+    if (token.length <= suffix.length + 2 || !token.endsWith(suffix)) continue;
+    variants.push(token.slice(0, -suffix.length));
+  }
+  return uniq(variants);
+}
+
+export function searchTermGroups(value: string): string[][] {
+  const folded = foldSearchText(value);
+  const tokens = folded.match(SEARCH_TOKEN_RE) ?? [];
+  return tokens.map(tokenRootVariants).filter((group) => group.length > 0);
+}
+
+export function normalizedSearchQuery(value: string): string {
+  return searchTermGroups(value)
+    .map((group) => group[0])
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function buildSearchTsQueryText(value: string): string | null {
+  const groups = searchTermGroups(value);
+  if (groups.length === 0) return null;
+  return groups
+    .map((group) => {
+      const terms = group.map((term) => `${term}:*`);
+      return terms.length === 1 ? terms[0] : `(${terms.join(' | ')})`;
+    })
+    .join(' & ');
+}
+
+export function buildSearchableText(value: string | null | undefined): string {
+  const original = normalizeSearchText(value);
+  if (!original) return '';
+
+  const folded = foldSearchText(original);
+  const variants = searchTermGroups(original).flat();
+  return uniq([original, folded, ...variants]).join(' ');
+}
+
 export function buildSearchVectorSql(input: {
   title: string | null | undefined;
   body?: string | null | undefined;
@@ -71,11 +180,14 @@ export function buildSearchVectorSql(input: {
   const title = normalizeSearchText(input.title) ?? '';
   const body = normalizeSearchText(input.body) ?? '';
   const labelText = normalizeSearchLabels(input.labels ?? []).join(' ');
+  const searchableTitle = buildSearchableText(title);
+  const searchableBody = buildSearchableText(body);
+  const searchableLabels = buildSearchableText(labelText);
 
   return sql`
-    setweight(to_tsvector('simple', ${title}), 'A') ||
-    setweight(to_tsvector('simple', ${labelText}), 'B') ||
-    setweight(to_tsvector('simple', ${body}), 'C')
+    setweight(to_tsvector('simple', ${searchableTitle}), 'A') ||
+    setweight(to_tsvector('simple', ${searchableLabels}), 'B') ||
+    setweight(to_tsvector('simple', ${searchableBody}), 'C')
   `;
 }
 

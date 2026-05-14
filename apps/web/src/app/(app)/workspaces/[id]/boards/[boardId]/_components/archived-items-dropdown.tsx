@@ -18,8 +18,10 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
   toast,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { getMutationErrorMessage } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -38,10 +40,11 @@ type ArchivedItemsDropdownProps = {
   canEdit: boolean;
   showArchivedLists: boolean;
   onToggleArchivedLists: () => void;
-  showArchivedCards: boolean;
-  onToggleArchivedCards: () => void;
   archivedListCount: number;
 };
+
+const boardChromeButtonClass =
+  'text-[color:var(--board-chrome-fg)] hover:bg-white/10 hover:text-[color:var(--board-chrome-fg)] data-[state=open]:bg-white/10 data-[state=open]:text-[color:var(--board-chrome-fg)]';
 
 function mutationMessage(mutation: { isError: boolean; error: unknown }) {
   return getMutationErrorMessage(mutation) ?? strings.common.unknownError;
@@ -53,8 +56,6 @@ export function ArchivedItemsDropdown({
   canEdit,
   showArchivedLists,
   onToggleArchivedLists,
-  showArchivedCards,
-  onToggleArchivedCards,
   archivedListCount,
 }: ArchivedItemsDropdownProps) {
   const trpc = useTRPC();
@@ -151,7 +152,7 @@ export function ArchivedItemsDropdown({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8"
+              className={cn('size-8', boardChromeButtonClass)}
               aria-label={copy.open}
             >
               <ArchiveIcon className="size-4" />
@@ -176,18 +177,6 @@ export function ArchivedItemsDropdown({
             {archivedListCount > 0 && (
               <Badge variant="secondary" className="ml-auto" aria-hidden>
                 {archivedListCount} {copy.archivedListCount}
-              </Badge>
-            )}
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={showArchivedCards}
-            onCheckedChange={() => onToggleArchivedCards()}
-            onSelect={(event) => event.preventDefault()}
-          >
-            <span className="min-w-0 flex-1 truncate">{copy.showArchivedCards}</span>
-            {archivedCards.length > 0 && (
-              <Badge variant="secondary" className="ml-auto" aria-hidden>
-                {archivedCards.length} {copy.archivedCardCount}
               </Badge>
             )}
           </DropdownMenuCheckboxItem>
@@ -244,9 +233,7 @@ export function ArchivedItemsDropdown({
           </h2>
 
           {archivedCardsQuery.isPending ? (
-            <p role="status" className="text-muted-foreground text-sm">
-              {copy.cardsLoading}
-            </p>
+            <AppSpinner label={copy.cardsLoading} showLabel className="justify-start" />
           ) : archivedCardsQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>

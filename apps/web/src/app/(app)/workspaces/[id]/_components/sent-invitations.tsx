@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -45,7 +46,7 @@ export function SentInvitations({ workspaceId, canManage }: SentInvitationsProps
   const invitations = useQuery(trpc.workspace.invitations.list.queryOptions({ workspaceId }));
 
   if (invitations.isPending) {
-    return <p className="text-muted-foreground text-sm">{strings.common.loading}</p>;
+    return <AppSpinner label={strings.common.loading} showLabel className="justify-start" />;
   }
 
   if (invitations.isError) {

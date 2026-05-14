@@ -39,6 +39,7 @@ export function CardCoverImage({
       <img
         src={download.data.url}
         alt={alt}
+        draggable={false}
         className={cn('h-full w-full object-cover', imageClassName)}
       />
     </div>

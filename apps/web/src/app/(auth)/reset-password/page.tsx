@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { ResetPasswordForm } from '../_components/reset-password-form';
@@ -134,7 +135,7 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<p className="text-muted-foreground text-sm">{strings.common.loading}</p>}>
+    <Suspense fallback={<AppSpinner label={strings.common.loading} showLabel />}>
       <ResetPasswordContent />
     </Suspense>
   );

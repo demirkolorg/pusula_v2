@@ -64,10 +64,7 @@ type RegisterCardArgs = {
    * dropped *onto* it / into its list). Defaults to `true`.
    */
   isDropTarget?: boolean;
-  onDraggingChange: (
-    dragging: boolean,
-    options?: { settleUntilCacheUpdate?: boolean },
-  ) => void;
+  onDraggingChange: (dragging: boolean, options?: { settleUntilCacheUpdate?: boolean }) => void;
   /**
    * Latest card data for the drag preview (DEM-87). Read once at drag start so
    * the preview always reflects the current card without forcing the leaf to
@@ -128,7 +125,28 @@ export type BoardDnd = {
   moveColumnByOne: (listId: string, direction: 'left' | 'right') => void;
 };
 
-function renderLiftedPreview({
+const BOARD_SURFACE_CSS_VARS = [
+  '--board-list-bg',
+  '--board-list-bg-hover',
+  '--board-list-border',
+  '--board-list-add-bg',
+  '--board-list-add-bg-hover',
+  '--board-list-archived-bg',
+  '--board-card-bg',
+  '--board-card-border',
+  '--board-card-border-hover',
+] as const;
+
+function copyBoardSurfaceVars(source: HTMLElement, target: HTMLElement) {
+  const computed = window.getComputedStyle(source);
+  for (const name of BOARD_SURFACE_CSS_VARS) {
+    const value = computed.getPropertyValue(name).trim();
+    if (value) target.style.setProperty(name, value);
+    else target.style.removeProperty(name);
+  }
+}
+
+export function renderLiftedPreview({
   container,
   element,
   kind,
@@ -140,6 +158,7 @@ function renderLiftedPreview({
   const rect = element.getBoundingClientRect();
   const clone = element.cloneNode(true) as HTMLElement;
 
+  copyBoardSurfaceVars(element, container);
   container.style.width = `${rect.width}px`;
   container.style.height = `${rect.height}px`;
   container.style.pointerEvents = 'none';
@@ -213,6 +232,7 @@ export function createCardDragOverlayController() {
         y: input.clientY - sourceRect.top,
       };
       ensureEl();
+      copyBoardSurfaceVars(sourceElement, el!);
       applyTransform(input.clientX, input.clientY);
       flushSync(() => {
         root!.render(createElement(CardDragPreview, { card, width: sourceRect.width }));

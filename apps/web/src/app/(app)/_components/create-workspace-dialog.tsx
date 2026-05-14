@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { workspaceNameSchema } from '@pusula/domain';
+import { DEFAULT_WORKSPACE_ICON, workspaceNameSchema, type EntityIcon } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
@@ -19,6 +19,7 @@ import {
   Input,
   Label,
 } from '@pusula/ui';
+import { EntityIconPicker } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -56,6 +57,7 @@ export function CreateWorkspaceDialog({
     onOpenChange?.(next);
   };
   const [name, setName] = useState('');
+  const [icon, setIcon] = useState<EntityIcon>(DEFAULT_WORKSPACE_ICON);
   const [nameError, setNameError] = useState<string | null>(null);
 
   const createWorkspace = useMutation(
@@ -69,6 +71,7 @@ export function CreateWorkspaceDialog({
 
   const resetAndClose = () => {
     setName('');
+    setIcon(DEFAULT_WORKSPACE_ICON);
     setNameError(null);
     createWorkspace.reset();
     setDialogOpen(false);
@@ -82,7 +85,7 @@ export function CreateWorkspaceDialog({
       return;
     }
     setNameError(null);
-    createWorkspace.mutate({ name: parsed.data, clientMutationId: crypto.randomUUID() });
+    createWorkspace.mutate({ name: parsed.data, icon, clientMutationId: crypto.randomUUID() });
   };
 
   return (
@@ -124,6 +127,16 @@ export function CreateWorkspaceDialog({
                 {nameError}
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>{copy.iconLabel}</Label>
+            <EntityIconPicker
+              value={icon}
+              onValueChange={setIcon}
+              labels={strings.entityIcons}
+              disabled={createWorkspace.isPending}
+            />
           </div>
 
           {createWorkspace.isError && (

@@ -3,14 +3,20 @@ import { emailSchema } from './auth';
 import { idSchema, withClientMutationId } from './common';
 import { invitationTokenSchema } from './invitation';
 import { boardRoleSchema } from '../roles';
-import { BOARD_BACKGROUND_GRADIENTS, CARD_COVER_COLORS } from '../constants';
+import {
+  BOARD_BACKGROUND_GRADIENTS,
+  BOARD_BACKGROUND_SOLID_COLORS,
+  DEFAULT_BOARD_ICON,
+  ENTITY_ICONS,
+} from '../constants';
 
 export const boardTitleSchema = z.string().trim().min(1).max(120);
 export const boardBackgroundGradientSchema = z.enum(BOARD_BACKGROUND_GRADIENTS);
-export const boardBackgroundSolidColorSchema = z.enum(CARD_COVER_COLORS);
+export const boardBackgroundSolidColorSchema = z.enum(BOARD_BACKGROUND_SOLID_COLORS);
+export const boardIconSchema = z.enum(ENTITY_ICONS);
 
 const boardBackgroundPattern = new RegExp(
-  `^(?:gradient:(?:${BOARD_BACKGROUND_GRADIENTS.join('|')})|solid:(?:${CARD_COVER_COLORS.join('|')}))$`,
+  `^(?:gradient:(?:${BOARD_BACKGROUND_GRADIENTS.join('|')})|solid:(?:${BOARD_BACKGROUND_SOLID_COLORS.join('|')}))$`,
 );
 
 export const boardBackgroundSchema = z.union([
@@ -21,6 +27,7 @@ export const boardBackgroundSchema = z.union([
 export const createBoardInput = z.object({
   workspaceId: idSchema,
   title: boardTitleSchema,
+  icon: boardIconSchema.default(DEFAULT_BOARD_ICON),
   ...withClientMutationId,
 });
 
@@ -28,6 +35,7 @@ export const updateBoardInput = z.object({
   boardId: idSchema,
   title: boardTitleSchema.optional(),
   background: boardBackgroundSchema.optional(),
+  icon: boardIconSchema.optional(),
   ...withClientMutationId,
 });
 

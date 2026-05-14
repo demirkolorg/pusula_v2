@@ -106,6 +106,7 @@ describe('<CreateBoardDialog>', () => {
     render(<CreateBoardDialog workspaceId="w1" />);
 
     await user.click(screen.getByRole('button', { name: strings.board.newButton }));
+    await user.click(screen.getByRole('button', { name: 'Roket' }));
     await user.type(screen.getByLabelText(strings.board.create.nameLabel), '  Yol Haritası  ');
     await user.click(screen.getByRole('button', { name: strings.board.create.submit }));
 
@@ -113,10 +114,12 @@ describe('<CreateBoardDialog>', () => {
     const arg = h.mutate.mock.calls[0]?.[0] as {
       workspaceId: string;
       title: string;
+      icon: string;
       clientMutationId: string;
     };
     expect(arg.workspaceId).toBe('w1');
     expect(arg.title).toBe('Yol Haritası');
+    expect(arg.icon).toBe('rocket');
     expect(arg.clientMutationId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );

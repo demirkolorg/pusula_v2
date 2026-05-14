@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
     id: string;
     name: string;
     slug: string;
+    icon: string;
     role: 'owner' | 'admin' | 'member' | 'guest';
     createdAt: Date;
   }>,
@@ -17,6 +18,7 @@ const h = vi.hoisted(() => ({
     id: string;
     name: string;
     slug: string;
+    icon: string;
     role: 'owner' | 'admin' | 'member' | 'guest';
     memberCount: number;
     ownerId: string;
@@ -99,6 +101,7 @@ describe('<WorkspaceSwitcher>', () => {
         id: 'w1',
         name: 'Alpha Workspace',
         slug: 'alpha',
+        icon: 'briefcase',
         role: 'owner',
         createdAt: new Date('2026-01-01T00:00:00Z'),
       },
@@ -106,6 +109,7 @@ describe('<WorkspaceSwitcher>', () => {
         id: 'w2',
         name: 'Beta Workspace',
         slug: 'beta',
+        icon: 'rocket',
         role: 'member',
         createdAt: new Date('2026-01-02T00:00:00Z'),
       },
@@ -166,6 +170,7 @@ describe('<WorkspaceSwitcher>', () => {
       id: 'w1',
       name: 'Alpha Workspace',
       slug: 'alpha',
+      icon: 'briefcase',
       role: 'owner',
       memberCount: 3,
       ownerId: 'u1',
@@ -188,6 +193,7 @@ describe('<WorkspaceSwitcher>', () => {
       id: 'w1',
       name: 'Alpha Workspace',
       slug: 'alpha',
+      icon: 'briefcase',
       role: 'owner',
       memberCount: 3,
       ownerId: 'u1',
@@ -201,5 +207,52 @@ describe('<WorkspaceSwitcher>', () => {
 
     expect(h.fetchQuery).not.toHaveBeenCalled();
     expect(h.push).not.toHaveBeenCalled();
+  });
+
+  it('uses transparent board chrome styling on board routes', () => {
+    h.params = { id: 'w1', boardId: 'b-current' };
+    h.workspaceGet = {
+      id: 'w1',
+      name: 'Alpha Workspace',
+      slug: 'alpha',
+      icon: 'briefcase',
+      role: 'owner',
+      memberCount: 3,
+      ownerId: 'u1',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    };
+
+    render(<WorkspaceSwitcher />);
+
+    const trigger = screen.getByRole('button', { name: copy.ariaLabel });
+    expect(trigger.className).not.toContain('bg-background');
+    expect(trigger.className).toContain('text-[color:var(--board-chrome-fg)]');
+  });
+
+  it('renders the persisted workspace icon in the trigger and dropdown rows', async () => {
+    const user = userEvent.setup();
+    h.params = { id: 'w1' };
+    h.workspaceGet = {
+      id: 'w1',
+      name: 'Alpha Workspace',
+      slug: 'alpha',
+      icon: 'briefcase',
+      role: 'owner',
+      memberCount: 3,
+      ownerId: 'u1',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    };
+
+    render(<WorkspaceSwitcher />);
+
+    expect(
+      screen
+        .getByRole('button', { name: copy.ariaLabel })
+        .querySelector('[data-entity-icon="briefcase"]'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
+    const beta = await screen.findByRole('menuitem', { name: /Beta Workspace/ });
+    expect(beta.querySelector('[data-entity-icon="rocket"]')).toBeInTheDocument();
   });
 });

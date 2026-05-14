@@ -1,25 +1,6 @@
 'use client';
 
-import {
-  ArchiveIcon,
-  BookmarkIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CheckIcon,
-  CircleIcon,
-  ClockIcon,
-  FlagIcon,
-  InboxIcon,
-  RocketIcon,
-  StarIcon,
-  TagIcon,
-  TargetIcon,
-  UserIcon,
-  UsersIcon,
-  XIcon,
-  ZapIcon,
-  type LucideIcon,
-} from 'lucide-react';
+import { CheckIcon, XIcon } from 'lucide-react';
 import {
   LIST_ICON_COLORS,
   LIST_ICONS,
@@ -34,61 +15,17 @@ import {
 } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import {
+  LIST_ICON_CHECK_FG,
+  LIST_ICON_COMPONENTS,
+  LIST_ICON_SWATCH_BG,
+} from './list-icon-presentation';
 
 type ListIconPickerProps = {
   boardId: string;
   listId: string;
   value: ListIcon | null;
   color: ListIconColor | null;
-};
-
-const ICONS: Record<ListIcon, LucideIcon> = {
-  circle: CircleIcon,
-  check: CheckIcon,
-  star: StarIcon,
-  flag: FlagIcon,
-  bookmark: BookmarkIcon,
-  tag: TagIcon,
-  clock: ClockIcon,
-  calendar: CalendarIcon,
-  user: UserIcon,
-  users: UsersIcon,
-  briefcase: BriefcaseIcon,
-  zap: ZapIcon,
-  target: TargetIcon,
-  rocket: RocketIcon,
-  inbox: InboxIcon,
-  archive: ArchiveIcon,
-};
-
-const SWATCH_BG: Record<ListIconColor, string> = {
-  kirmizi: 'bg-palet-kirmizi',
-  turuncu: 'bg-palet-turuncu',
-  sari: 'bg-palet-sari',
-  lime: 'bg-palet-lime',
-  yesil: 'bg-palet-yesil',
-  sky: 'bg-palet-sky',
-  mavi: 'bg-palet-mavi',
-  indigo: 'bg-palet-indigo',
-  mor: 'bg-palet-mor',
-  pembe: 'bg-palet-pembe',
-  gri: 'bg-palet-gri',
-  siyah: 'bg-palet-siyah',
-};
-
-const CHECK_FG: Record<ListIconColor, string> = {
-  kirmizi: 'text-palet-kirmizi-foreground',
-  turuncu: 'text-palet-turuncu-foreground',
-  sari: 'text-palet-sari-foreground',
-  lime: 'text-palet-lime-foreground',
-  yesil: 'text-palet-yesil-foreground',
-  sky: 'text-palet-sky-foreground',
-  mavi: 'text-palet-mavi-foreground',
-  indigo: 'text-palet-indigo-foreground',
-  mor: 'text-palet-mor-foreground',
-  pembe: 'text-palet-pembe-foreground',
-  gri: 'text-palet-gri-foreground',
-  siyah: 'text-palet-siyah-foreground',
 };
 
 export function ListIconPicker({ boardId, listId, value, color }: ListIconPickerProps) {
@@ -139,7 +76,7 @@ export function ListIconPicker({ boardId, listId, value, color }: ListIconPicker
     <div role="group" aria-label={copy.title} className="w-[15rem] space-y-3 p-1">
       <div className="grid grid-cols-4 gap-1.5">
         {LIST_ICONS.map((icon) => {
-          const Icon = ICONS[icon];
+          const Icon = LIST_ICON_COMPONENTS[icon];
           const selected = value === icon;
           return (
             <button
@@ -173,10 +110,15 @@ export function ListIconPicker({ boardId, listId, value, color }: ListIconPicker
               onClick={() => selectColor(nextColor)}
               className={cn(
                 'flex size-8 items-center justify-center rounded-md border border-border/30 outline-none hover:ring-2 hover:ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-35',
-                SWATCH_BG[nextColor],
+                LIST_ICON_SWATCH_BG[nextColor],
               )}
             >
-              {selected && <CheckIcon className={cn('size-4', CHECK_FG[nextColor])} aria-hidden />}
+              {selected && (
+                <CheckIcon
+                  className={cn('size-4', LIST_ICON_CHECK_FG[nextColor])}
+                  aria-hidden
+                />
+              )}
             </button>
           );
         })}

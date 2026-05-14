@@ -5,6 +5,7 @@ import { strings } from '@/lib/strings';
 
 const h = vi.hoisted(() => ({
   mutate: vi.fn(),
+  push: vi.fn(),
   clipboardWriteText: vi.fn(),
   archivedCards: {
     data: [] as unknown[],
@@ -12,10 +13,51 @@ const h = vi.hoisted(() => ({
     isError: false,
     error: null,
   },
+  searchCalls: [] as Array<{ input: Record<string, unknown>; enabled?: boolean }>,
+  searchQuery: {
+    data: {
+      items: [
+        {
+          id: 'search-1',
+          entityType: 'card',
+          entityId: 'c1',
+          workspaceId: 'w1',
+          workspaceTitle: 'Ürün',
+          boardId: 'b1',
+          boardTitle: 'Sprint',
+          cardId: 'c1',
+          cardTitle: 'Etiket kartı',
+          title: 'Etiket kartı',
+          snippet: 'Etiketli kart açıklaması',
+          rank: 1,
+          targetUrl: '/workspaces/w1/boards/b1?card=c1',
+          updatedAt: new Date('2026-05-14T10:00:00.000Z'),
+        },
+      ],
+      nextCursor: null,
+    },
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+  },
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: h.push }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => h.archivedCards,
+  useQuery: (options: { queryKey?: unknown[]; enabled?: boolean }) => {
+    if (options.queryKey?.[0] === 'search.query') {
+      h.searchCalls.push({
+        input: (options.queryKey?.[1] ?? {}) as Record<string, unknown>,
+        enabled: options.enabled,
+      });
+      return h.searchQuery;
+    }
+    return h.archivedCards;
+  },
   useMutation: () => ({
     mutate: h.mutate,
     reset: vi.fn(),
@@ -42,6 +84,12 @@ vi.mock('./board-settings/background-picker', () => ({
   BoardBackgroundPicker: () => <div>Arka plan paneli</div>,
 }));
 
+vi.mock('./board-settings/board-icon-picker', () => ({
+  BoardIconPicker: ({ icon }: { icon: string }) => (
+    <div data-testid="board-icon-picker">Pano ikon paneli: {icon}</div>
+  ),
+}));
+
 vi.mock('./board-activity-drawer', () => ({
   BoardActivityDrawer: ({ open }: { open?: boolean }) =>
     open ? <div role="dialog" aria-label={strings.board.activity.title} /> : null,
@@ -62,6 +110,14 @@ vi.mock('@/trpc/client', () => ({
     list: {
       archive: { mutationOptions: (o: unknown) => o },
     },
+    search: {
+      query: {
+        queryOptions: (input: unknown, options?: { enabled?: boolean }) => ({
+          queryKey: ['search.query', input],
+          enabled: options?.enabled,
+        }),
+      },
+    },
   }),
 }));
 
@@ -79,6 +135,7 @@ const actionCopy = {
   settingsLabels: 'Etiketler',
   settingsBackground: 'Arka plan',
   settingsActions: 'Pano işlemleri',
+  settingsIcon: 'İkon',
 };
 
 const filterProps = {
@@ -102,6 +159,8 @@ describe('<BoardTopBar>', () => {
     };
     filterProps.onToggleLabel.mockReset();
     filterProps.onClearLabels.mockReset();
+    h.push.mockReset();
+    h.searchCalls = [];
     h.clipboardWriteText.mockRestore?.();
     const clipboard =
       window.navigator.clipboard ??
@@ -114,12 +173,10 @@ describe('<BoardTopBar>', () => {
         get: () => clipboard,
       });
     }
-    h.clipboardWriteText = vi
-      .spyOn(clipboard, 'writeText')
-      .mockResolvedValue(undefined);
+    h.clipboardWriteText = vi.spyOn(clipboard, 'writeText').mockResolvedValue(undefined);
   });
 
-  it('renders the board title on the far left without the old workspace identity or favorite action', () => {
+  it('renders the view menu before the board title without the old workspace identity or favorite action', () => {
     const { container } = render(
       <BoardTopBar
         boardId="b1"
@@ -131,12 +188,30 @@ describe('<BoardTopBar>', () => {
         filter={filterProps}
       />,
     );
-    expect(screen.getByRole('heading', { name: 'Sprint Panosu' })).toBeInTheDocument();
+    const viewMenuButton = screen.getByRole('button', { name: topCopy.viewMenu });
+    const title = screen.getByRole('heading', { name: 'Sprint Panosu' });
+    expect(viewMenuButton.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(container.querySelector('.uppercase')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: strings.board.detail.backToWorkspace }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: topCopy.favorite })).not.toBeInTheDocument();
+  });
+
+  it('uses the board chrome background token for the top bar surface', () => {
+    const { container } = render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint Panosu"
+        background="solid:mavi"
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+
+    expect(container.querySelector('header')?.className).toContain('bg-board-topbar');
   });
 
   it('shows the archived badge beside the title when the board is archived', () => {
@@ -192,10 +267,9 @@ describe('<BoardTopBar>', () => {
 
     expect(screen.queryByRole('tablist', { name: topCopy.eyebrow })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: topCopy.viewMenu }));
-    expect(await screen.findByRole('menuitemcheckbox', { name: topCopy.viewBoard })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: topCopy.viewBoard }),
+    ).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('menuitem', { name: topCopy.viewList })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -232,7 +306,46 @@ describe('<BoardTopBar>', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('admin active board: split invite/share/settings controls replace the old invite/share and more menu', async () => {
+  it('opens board-scoped search from the top bar and follows result targetUrl', async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: topCopy.search }));
+    const input = await screen.findByRole('searchbox', { name: 'Arama sorgusu' });
+
+    await user.type(input, 'etiket');
+
+    await waitFor(() => {
+      expect(h.searchCalls).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            enabled: true,
+            input: expect.objectContaining({
+              query: 'etiket',
+              workspaceId: 'w1',
+              boardId: 'b1',
+              limit: 10,
+            }),
+          }),
+        ]),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: /Etiket kartı/ }));
+    expect(h.push).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=c1');
+  });
+
+  it('admin active board: share/settings controls replace the old invite/share and more menu', async () => {
     const user = userEvent.setup();
     render(
       <BoardTopBar
@@ -247,16 +360,90 @@ describe('<BoardTopBar>', () => {
     );
     expect(screen.queryByRole('button', { name: oldInviteShareCopy })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: topCopy.more })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: actionCopy.invite })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: actionCopy.invite })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: actionCopy.share })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: actionCopy.settings })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: actionCopy.settings }));
-    expect(await screen.findByRole('tab', { name: actionCopy.settingsMembers })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('tab', { name: actionCopy.settingsMembers }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsInvitations })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsLabels })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsBackground })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsActions })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: actionCopy.settingsIcon })).not.toBeInTheDocument();
+  });
+
+  it('admin can change the board icon from the settings actions tab', async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        icon="rocket"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: actionCopy.settings }));
+    await user.click(await screen.findByRole('tab', { name: actionCopy.settingsActions }));
+
+    expect(await screen.findByTestId('board-icon-picker')).toHaveTextContent(
+      'Pano ikon paneli: rocket',
+    );
+  });
+
+  it('uses a horizontally scrollable settings tab row to avoid crowded tab labels', async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: actionCopy.settings }));
+    const tabList = await screen.findByRole('tablist');
+
+    expect(tabList.className).toContain('w-max');
+    expect(tabList.className).toContain('gap-1');
+    expect(tabList.className).not.toContain('grid-cols-6');
+
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).toContain('shrink-0');
+      expect(tab.className).toContain('px-3');
+    }
+  });
+
+  it('keeps right-side board actions transparent on colored board chrome', () => {
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+
+    for (const name of [actionCopy.share, actionCopy.settings]) {
+      const action = screen.getByRole('button', { name });
+      expect(action.className).not.toContain('bg-background');
+      expect(action.className).toContain('text-[color:var(--board-chrome-fg)]');
+    }
+    expect(screen.queryByRole('button', { name: actionCopy.invite })).not.toBeInTheDocument();
   });
 
   it('admin can rename the board from the settings actions tab', async () => {
@@ -341,7 +528,7 @@ describe('<BoardTopBar>', () => {
     expect(screen.queryByRole('menuitem', { name: topCopy.menuRename })).not.toBeInTheDocument();
   });
 
-  it('admin: invite opens board settings on the invitations tab', async () => {
+  it('admin: invitations remain available inside board settings', async () => {
     const user = userEvent.setup();
     render(
       <BoardTopBar
@@ -354,12 +541,14 @@ describe('<BoardTopBar>', () => {
         filter={filterProps}
       />,
     );
-    expect(screen.queryByRole('tab', { name: actionCopy.settingsInvitations })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: actionCopy.invite }));
-    expect(await screen.findByRole('tab', { name: actionCopy.settingsInvitations })).toHaveAttribute(
-      'data-state',
-      'active',
-    );
+    expect(
+      screen.queryByRole('tab', { name: actionCopy.settingsInvitations }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: actionCopy.invite })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: actionCopy.settings }));
+    expect(
+      await screen.findByRole('tab', { name: actionCopy.settingsInvitations }),
+    ).toBeInTheDocument();
   });
 
   it('copies the canonical board link from the share button', async () => {
@@ -401,10 +590,9 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
   });
 
-  it('opens archived items as a dropdown and keeps list/card rows visible while toggles affect board state', async () => {
+  it('opens archived items as a dropdown, keeps archived cards listed, and only exposes the list board toggle', async () => {
     const user = userEvent.setup();
     const onToggleArchivedLists = vi.fn();
-    const onToggleArchivedCards = vi.fn();
     h.archivedCards = {
       data: [
         {
@@ -435,8 +623,6 @@ describe('<BoardTopBar>', () => {
           canEdit: true,
           showArchivedLists: true,
           onToggleArchivedLists,
-          showArchivedCards: false,
-          onToggleArchivedCards,
           archivedListCount: 1,
           lists: [
             { id: 'l-active', title: 'Aktif liste', archivedAt: null },
@@ -459,15 +645,12 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByText('Eski liste')).toBeInTheDocument();
     expect(screen.getByText('Eski kart')).toBeInTheDocument();
 
-    const cardsToggle = screen.getByRole('menuitemcheckbox', {
+    const cardsToggle = screen.queryByRole('menuitemcheckbox', {
       name: /Ar.ivli kartlar. g.ster/,
     });
-    expect(cardsToggle).toHaveAttribute('aria-checked', 'false');
-
-    await user.click(cardsToggle);
+    expect(cardsToggle).not.toBeInTheDocument();
 
     expect(screen.getAllByRole('button', { name: 'Geri yükle' })).toHaveLength(2);
-    expect(onToggleArchivedCards).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('menuitemcheckbox', { name: /Ar.ivli listeleri g.ster/ }));
     expect(onToggleArchivedLists).toHaveBeenCalledTimes(1);
   });

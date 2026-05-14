@@ -3,15 +3,17 @@ import { boardBackgroundClass } from '@pusula/ui/board-background';
 
 describe('boardBackgroundClass', () => {
   it('maps known board background tokens to utility classes', () => {
-    expect(boardBackgroundClass(null)).toBe('bg-background');
-    expect(boardBackgroundClass('gradient:ocean')).toBe('bg-gradient-ocean');
-    expect(boardBackgroundClass('solid:mavi')).toBe('bg-palet-mavi');
+    expect(boardBackgroundClass(null)).toBe('board-bg-default');
+    expect(boardBackgroundClass('gradient:ocean')).toBe('board-bg-gradient-ocean');
+    expect(boardBackgroundClass('gradient:lagoon')).toBe('board-bg-gradient-lagoon');
+    expect(boardBackgroundClass('solid:mavi')).toBe('board-bg-solid-mavi');
+    expect(boardBackgroundClass('solid:beyaz')).toBe('board-bg-solid-beyaz');
   });
 
   it('falls back for malformed or unknown stored values', () => {
-    expect(boardBackgroundClass('gradient:ocean:extra')).toBe('bg-background');
-    expect(boardBackgroundClass('solid:mavi:extra')).toBe('bg-background');
-    expect(boardBackgroundClass('gradient:unknown')).toBe('bg-background');
-    expect(boardBackgroundClass('solid:unknown')).toBe('bg-background');
+    expect(boardBackgroundClass('gradient:ocean:extra')).toBe('board-bg-default');
+    expect(boardBackgroundClass('solid:mavi:extra')).toBe('board-bg-default');
+    expect(boardBackgroundClass('gradient:unknown')).toBe('board-bg-default');
+    expect(boardBackgroundClass('solid:unknown')).toBe('board-bg-default');
   });
 });

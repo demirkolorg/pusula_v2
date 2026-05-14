@@ -9,6 +9,7 @@ import {
   PlusIcon,
   Settings2Icon,
 } from 'lucide-react';
+import { DEFAULT_BOARD_ICON, type EntityIcon } from '@pusula/domain';
 import {
   Button,
   DropdownMenu,
@@ -22,7 +23,7 @@ import {
   TooltipTrigger,
   cn,
 } from '@pusula/ui';
-import { avatarPaletteSwatchClass } from '@/lib/avatar-color';
+import { EntityIconBadge } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateBoardDialog } from '../workspaces/[id]/_components/create-board-dialog';
@@ -30,6 +31,7 @@ import { CreateBoardDialog } from '../workspaces/[id]/_components/create-board-d
 type BoardRow = {
   id: string;
   title: string;
+  icon?: EntityIcon | string | null;
   archived?: boolean;
   archivedAt?: Date | null;
 };
@@ -42,6 +44,9 @@ type WorkspaceRow = {
   id: string;
 };
 
+const boardChromeTriggerClass =
+  'text-[color:var(--board-chrome-fg)] hover:bg-white/10 hover:text-[color:var(--board-chrome-fg)] data-[state=open]:bg-white/10 data-[state=open]:text-[color:var(--board-chrome-fg)]';
+
 function isActiveBoard(board: BoardRow) {
   if (typeof board.archived === 'boolean') return !board.archived;
   return board.archivedAt == null;
@@ -53,6 +58,7 @@ export function BoardSwitcher() {
   const params = useParams<{ id?: string; boardId?: string }>();
   const workspaceId = typeof params.id === 'string' ? params.id : undefined;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
+  const onBoardChrome = Boolean(boardId);
   const copy = strings.shell.boardSwitcher;
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -79,28 +85,40 @@ export function BoardSwitcher() {
   const triggerText = workspaceId
     ? activeBoard?.title ?? copy.placeholder
     : copy.disabled;
-  const swatchKey = activeBoard?.title ?? triggerText;
+  const triggerIcon = activeBoard?.icon ?? DEFAULT_BOARD_ICON;
 
   const trigger = (
     <Button
       type="button"
-      variant="outline"
+      variant={onBoardChrome ? 'ghost' : 'outline'}
       size="sm"
       aria-label={copy.ariaLabel}
       disabled={!workspaceId}
-      className="h-9 max-w-56 gap-2 px-2"
+      className={cn('h-9 max-w-56 gap-2 px-2', onBoardChrome && boardChromeTriggerClass)}
     >
-      <span
+      <EntityIconBadge
+        icon={triggerIcon}
         className={cn(
-          'size-2.5 shrink-0 rounded-full',
-          workspaceId ? avatarPaletteSwatchClass(swatchKey) : 'bg-muted-foreground/40',
+          'size-7 rounded-md',
+          workspaceId
+            ? onBoardChrome
+              ? 'bg-white/10 text-[color:var(--board-chrome-fg)]'
+              : 'bg-primary/10 text-primary'
+            : 'bg-muted text-muted-foreground',
         )}
-        aria-hidden
       />
       <span className="hidden min-w-0 truncate text-sm font-medium md:inline">
         {triggerText}
       </span>
-      <ChevronsUpDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+      <ChevronsUpDownIcon
+        className={cn(
+          'size-3.5 shrink-0',
+          onBoardChrome
+            ? 'text-[color:var(--board-chrome-fg)] opacity-75'
+            : 'text-muted-foreground',
+        )}
+        aria-hidden
+      />
     </Button>
   );
 
@@ -132,12 +150,9 @@ export function BoardSwitcher() {
                 data-active={active ? 'true' : undefined}
                 onSelect={() => router.push(`/workspaces/${workspaceId}/boards/${board.id}`)}
               >
-                <span
-                  className={cn(
-                    'size-2.5 shrink-0 rounded-full',
-                    avatarPaletteSwatchClass(displayBoard.title),
-                  )}
-                  aria-hidden
+                <EntityIconBadge
+                  icon={displayBoard.icon ?? DEFAULT_BOARD_ICON}
+                  className={cn('size-7 rounded-md', active && 'bg-primary/10 text-primary')}
                 />
                 <span className="min-w-0 flex-1 truncate">{displayBoard.title}</span>
                 {active && <CheckIcon className="text-primary ml-auto size-3.5" aria-hidden />}

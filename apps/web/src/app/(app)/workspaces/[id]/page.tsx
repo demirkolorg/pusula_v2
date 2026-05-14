@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from '@pusula/ui';
 import { workspaceRoleAtLeast } from '@pusula/domain';
+import { AppSpinner } from '@/components/app-spinner';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberDialog } from '../../_components/invite-member-dialog';
@@ -54,7 +55,7 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
     return (
       <div className="space-y-6">
         {backLink}
-        <p className="text-muted-foreground text-sm">{strings.workspace.manage.loading}</p>
+        <AppSpinner label={strings.workspace.manage.loading} showLabel className="justify-start" />
       </div>
     );
   }
@@ -115,7 +116,7 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
             <CardDescription>{strings.workspace.manage.settingsDescription}</CardDescription>
           </CardHeader>
           <CardContent>
-            <WorkspaceSettings workspaceId={workspaceId} name={ws.name} slug={ws.slug} />
+            <WorkspaceSettings workspaceId={workspaceId} name={ws.name} slug={ws.slug} icon={ws.icon} />
           </CardContent>
         </Card>
       )}

@@ -7,10 +7,12 @@ import {
   ArchiveIcon,
   CalendarIcon,
   CircleOffIcon,
+  ImageIcon,
   MoveIcon,
-  PaletteIcon,
   TagIcon,
+  UploadIcon,
   UsersIcon,
+  XIcon,
 } from 'lucide-react';
 import {
   Alert,
@@ -34,11 +36,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Progress,
   cn,
   toast,
 } from '@pusula/ui';
 import {
   CARD_COVER_COLORS,
+  CARD_COVER_IMAGE_MIME_TYPES,
   LABEL_COLORS,
   type CardCoverColor,
   type LabelColor,
@@ -115,6 +119,12 @@ function asCoverColor(value: string | null): CardCoverColor | null {
     : null;
 }
 
+function asCoverImageMimeType(value: string) {
+  return (CARD_COVER_IMAGE_MIME_TYPES as readonly string[]).includes(value)
+    ? (value as (typeof CARD_COVER_IMAGE_MIME_TYPES)[number])
+    : null;
+}
+
 /**
  * Cover-colour stripe background per palette name. Literal `bg-palet-*` strings -
  * spelled out so Tailwind's content scanner picks all 12 up.
@@ -144,6 +154,23 @@ function asLabelColor(value: string): LabelColor | null {
 
 function displayMemberName(member: BoardCardMemberOption) {
   return member.name?.trim() || member.userId;
+}
+
+function CardChecklistProgress({ done, total }: { done: number; total: number }) {
+  if (total <= 0) return null;
+  const complete = done >= total;
+
+  return (
+    <div data-slot="card-checklist-progress" className="mt-1.5 space-y-1">
+      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span className="font-medium">{strings.card.checklist.title}</span>
+        <span className={cn('shrink-0 tabular-nums', complete && 'text-success')}>
+          {done}/{total}
+        </span>
+      </div>
+      <Progress value={done} max={total} complete={complete} className="h-1" />
+    </div>
+  );
 }
 
 function startOfLocalDay(value = new Date()) {
@@ -201,6 +228,8 @@ export function CardItem({
   const dnd = useBoardDndContext();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const coverImageInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
   const articleRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -285,14 +314,24 @@ export function CardItem({
     boardId,
     cardId: card.id,
     apply: (data, vars) => {
-      const patch: { coverColor?: string | null; dueAt?: Date | null } = {};
+      const patch: {
+        coverColor?: string | null;
+        dueAt?: Date | null;
+        coverImageAttachmentId?: string | null;
+        coverImage?: CoverImage | null;
+      } = {};
       if ('coverColor' in vars) patch.coverColor = vars.coverColor ?? null;
       if ('dueAt' in vars) patch.dueAt = (vars.dueAt as Date | null | undefined) ?? null;
+      if ('coverImageAttachmentId' in vars) {
+        patch.coverImageAttachmentId = vars.coverImageAttachmentId ?? null;
+        patch.coverImage = pendingCoverImageRef.current;
+      }
       return applyCardPatch(data, vars.cardId, patch as Partial<(typeof data.cards)[number]>);
     },
     onConflict,
     onMutationError,
   });
+  const createCoverUpload = useMutation(trpc.attachment.createUpload.mutationOptions());
 
   const invalidateBoardCardData = async () => {
     await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
@@ -331,6 +370,7 @@ export function CardItem({
   }
   const selectedDueKey = toDateInputValue(card.dueAt);
   const dueOptions = dueQuickOptions();
+  const imageControlsDisabled = createCoverUpload.isPending || updateCard.isPending;
 
   const toggleLabel = (labelId: string) => {
     const vars = { cardId: card.id, labelId, clientMutationId: crypto.randomUUID() };
@@ -359,6 +399,45 @@ export function CardItem({
     }
   };
 
+  const uploadCoverImage = async (file: File) => {
+    const mimeType = asCoverImageMimeType(file.type);
+    if (!mimeType) {
+      toast.error(menuCopy.coverImageUploadFailed);
+      return;
+    }
+
+    try {
+      const upload = await createCoverUpload.mutateAsync({
+        cardId: card.id,
+        fileName: file.name,
+        mimeType,
+        size: file.size,
+      });
+      const response = await fetch(upload.upload.url, {
+        method: 'PUT',
+        headers: upload.upload.headers,
+        body: file,
+      });
+      if (!response.ok) throw new Error(menuCopy.coverImageUploadFailed);
+
+      pendingCoverImageRef.current = upload.attachment;
+      await updateCard.mutateAsync({
+        cardId: card.id,
+        coverImageAttachmentId: upload.attachment.attachmentId,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : menuCopy.coverImageUploadFailed);
+    } finally {
+      pendingCoverImageRef.current = null;
+      if (coverImageInputRef.current) coverImageInputRef.current.value = '';
+    }
+  };
+
+  const clearCoverImage = () => {
+    pendingCoverImageRef.current = null;
+    updateCard.mutate({ cardId: card.id, coverImageAttachmentId: null });
+  };
+
   const article = (
     <article
       ref={articleRef}
@@ -374,7 +453,7 @@ export function CardItem({
         'transition-[box-shadow,border-color]',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
         !dragging &&
-          'group group/kart border bg-card shadow-sm hover:border-foreground/30 hover:shadow-card-hover',
+          'group group/kart border border-[color:var(--board-card-border)] bg-[color:var(--board-card-bg)] shadow-sm hover:border-[color:var(--board-card-border-hover)] hover:shadow-card-hover',
         dragging && 'border border-dashed border-primary/60 bg-primary/5',
       )}
     >
@@ -387,7 +466,7 @@ export function CardItem({
           />
         ) : coverColor ? (
           <div
-            className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
+            className={cn('-mx-2 -mt-2 mb-1.5 h-1 rounded-t-md', COVER_BAR[coverColor])}
             aria-hidden
           />
         ) : null}
@@ -416,12 +495,11 @@ export function CardItem({
           </div>
         </div>
 
+        <CardChecklistProgress done={card.checklistDone} total={card.checklistTotal} />
         <CardMetaRow
           description={card.description}
           dueAt={card.dueAt}
           labelCount={card.labels.length}
-          checklistTotal={card.checklistTotal}
-          checklistDone={card.checklistDone}
           commentCount={card.commentCount}
           members={card.members}
         />
@@ -465,173 +543,221 @@ export function CardItem({
   if (!canEdit) return article;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{article}</ContextMenuTrigger>
-      <ContextMenuContent
-        className="w-56"
-        onClick={(event) => event.stopPropagation()}
-        onCloseAutoFocus={(event) => event.preventDefault()}
-      >
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <PaletteIcon className="size-4" aria-hidden />
-            {menuCopy.coverColor}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-52">
-            <div className="grid grid-cols-4 gap-1.5 p-1">
-              {CARD_COVER_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`${menuCopy.coverColorOf} ${color}`}
-                  aria-pressed={coverColor === color}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (coverColor !== color) updateCard.mutate({ cardId: card.id, coverColor: color });
-                  }}
-                  className={cn(
-                    'size-8 rounded-md outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-ring/60',
-                    COVER_BAR[color],
-                    coverColor === color && 'ring-2 ring-foreground',
-                  )}
-                />
-              ))}
-            </div>
-            <ContextMenuSeparator />
-            <ContextMenuItem disabled={coverColor == null} onSelect={() => updateCard.mutate({ cardId: card.id, coverColor: null })}>
-              <CircleOffIcon className="size-4" aria-hidden />
-              {menuCopy.coverColorClear}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <TagIcon className="size-4" aria-hidden />
-            {menuCopy.labels}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-56">
-            {boardLabels.length === 0 ? (
-              <ContextMenuItem disabled>{menuCopy.noLabels}</ContextMenuItem>
-            ) : (
-              boardLabels.map((label) => {
-                const labelColor = asLabelColor(label.color);
-                return (
-                  <ContextMenuCheckboxItem
-                    key={label.id}
-                    checked={selectedLabelIds.has(label.id)}
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      toggleLabel(label.id);
+    <>
+      <input
+        ref={coverImageInputRef}
+        type="file"
+        aria-label={menuCopy.coverImageUpload}
+        accept={CARD_COVER_IMAGE_MIME_TYPES.join(',')}
+        disabled={imageControlsDisabled}
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) void uploadCoverImage(file);
+        }}
+      />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{article}</ContextMenuTrigger>
+        <ContextMenuContent
+          className="w-56"
+          onClick={(event) => event.stopPropagation()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ImageIcon className="size-4" aria-hidden />
+              {menuCopy.coverColor}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56">
+              <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
+                {menuCopy.coverColorSection}
+              </ContextMenuLabel>
+              <div className="grid grid-cols-4 gap-1.5 p-1 pt-0">
+                {CARD_COVER_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={`${menuCopy.coverColorOf} ${color}`}
+                    aria-pressed={coverColor === color}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (coverColor !== color)
+                        updateCard.mutate({ cardId: card.id, coverColor: color });
                     }}
-                  >
-                    <span
-                      className={cn(
-                        'size-3 shrink-0 rounded-full',
-                        labelColor ? LABEL_SWATCH[labelColor] : 'bg-muted',
-                      )}
-                      aria-hidden
-                    />
-                    <span className="truncate">{displayLabelName(label)}</span>
-                  </ContextMenuCheckboxItem>
-                );
-              })
-            )}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <UsersIcon className="size-4" aria-hidden />
-            {menuCopy.members}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-56">
-            {boardMembers.length === 0 ? (
-              <ContextMenuItem disabled>{menuCopy.noMembers}</ContextMenuItem>
-            ) : (
-              boardMembers.map((member) => (
-                <ContextMenuCheckboxItem
-                  key={member.userId}
-                  checked={memberRolesByUser.has(member.userId)}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    toggleMember(member);
-                  }}
-                >
-                  <span className="truncate">{displayMemberName(member)}</span>
-                </ContextMenuCheckboxItem>
-              ))
-            )}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <CalendarIcon className="size-4" aria-hidden />
-            {menuCopy.dueDate}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-56">
-            <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
-              {card.dueAt ? `${menuCopy.dueCurrent}: ${formatDate(card.dueAt)}` : menuCopy.dueEmpty}
-            </ContextMenuLabel>
-            <ContextMenuSeparator />
-            {dueOptions.map((option) => {
-              const optionKey = toDateInputValue(option.dueAt);
-              return (
-                <ContextMenuCheckboxItem
-                  key={option.key}
-                  checked={selectedDueKey === optionKey}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    updateCard.mutate({ cardId: card.id, dueAt: option.dueAt });
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                  <span className="text-muted-foreground ml-auto text-xs">
-                    {formatDate(option.dueAt)}
-                  </span>
-                </ContextMenuCheckboxItem>
-              );
-            })}
-            <ContextMenuSeparator />
-            <ContextMenuItem disabled={card.dueAt == null} onSelect={() => updateCard.mutate({ cardId: card.id, dueAt: null })}>
-              <CircleOffIcon className="size-4" aria-hidden />
-              {menuCopy.dueClear}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger disabled={moveTargets.length === 0}>
-            <MoveIcon className="size-4" aria-hidden />
-            {dndCopy.move}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-56">
-            {moveTargets.map((list) => (
+                    className={cn(
+                      'size-8 rounded-md outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-ring/60',
+                      COVER_BAR[color],
+                      coverColor === color && 'ring-2 ring-foreground',
+                    )}
+                  />
+                ))}
+              </div>
+              <ContextMenuSeparator />
               <ContextMenuItem
-                key={list.id}
-                disabled={list.id === card.listId}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (list.id !== card.listId) dnd?.moveCardToListEnd(card.id, card.listId, list.id);
+                disabled={coverColor == null}
+                onSelect={() => updateCard.mutate({ cardId: card.id, coverColor: null })}
+              >
+                <CircleOffIcon className="size-4" aria-hidden />
+                {menuCopy.coverColorClear}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
+                {menuCopy.coverImageSection}
+              </ContextMenuLabel>
+              <ContextMenuItem
+                disabled={imageControlsDisabled}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  coverImageInputRef.current?.click();
                 }}
               >
-                <span className="truncate">
-                  {list.title}
-                  {list.id === card.listId ? '' : ` - ${dndCopy.moveToListEnd}`}
-                </span>
+                <UploadIcon className="size-4" aria-hidden />
+                {menuCopy.coverImageUpload}
               </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+              <ContextMenuItem
+                disabled={!card.coverImage || imageControlsDisabled}
+                onSelect={clearCoverImage}
+              >
+                <XIcon className="size-4" aria-hidden />
+                {menuCopy.coverImageClear}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
 
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => setArchiveOpen(true)}>
-          <ArchiveIcon className="size-4" aria-hidden />
-          {copy.archive}
-        </ContextMenuItem>
-      </ContextMenuContent>
-      {archiveDialog}
-    </ContextMenu>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <TagIcon className="size-4" aria-hidden />
+              {menuCopy.labels}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56">
+              {boardLabels.length === 0 ? (
+                <ContextMenuItem disabled>{menuCopy.noLabels}</ContextMenuItem>
+              ) : (
+                boardLabels.map((label) => {
+                  const labelColor = asLabelColor(label.color);
+                  return (
+                    <ContextMenuCheckboxItem
+                      key={label.id}
+                      checked={selectedLabelIds.has(label.id)}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        toggleLabel(label.id);
+                      }}
+                    >
+                      <span
+                        className={cn(
+                          'size-3 shrink-0 rounded-full',
+                          labelColor ? LABEL_SWATCH[labelColor] : 'bg-muted',
+                        )}
+                        aria-hidden
+                      />
+                      <span className="truncate">{displayLabelName(label)}</span>
+                    </ContextMenuCheckboxItem>
+                  );
+                })
+              )}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <UsersIcon className="size-4" aria-hidden />
+              {menuCopy.members}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56">
+              {boardMembers.length === 0 ? (
+                <ContextMenuItem disabled>{menuCopy.noMembers}</ContextMenuItem>
+              ) : (
+                boardMembers.map((member) => (
+                  <ContextMenuCheckboxItem
+                    key={member.userId}
+                    checked={memberRolesByUser.has(member.userId)}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      toggleMember(member);
+                    }}
+                  >
+                    <span className="truncate">{displayMemberName(member)}</span>
+                  </ContextMenuCheckboxItem>
+                ))
+              )}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <CalendarIcon className="size-4" aria-hidden />
+              {menuCopy.dueDate}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56">
+              <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
+                {card.dueAt
+                  ? `${menuCopy.dueCurrent}: ${formatDate(card.dueAt)}`
+                  : menuCopy.dueEmpty}
+              </ContextMenuLabel>
+              <ContextMenuSeparator />
+              {dueOptions.map((option) => {
+                const optionKey = toDateInputValue(option.dueAt);
+                return (
+                  <ContextMenuCheckboxItem
+                    key={option.key}
+                    checked={selectedDueKey === optionKey}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      updateCard.mutate({ cardId: card.id, dueAt: option.dueAt });
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    <span className="text-muted-foreground ml-auto text-xs">
+                      {formatDate(option.dueAt)}
+                    </span>
+                  </ContextMenuCheckboxItem>
+                );
+              })}
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                disabled={card.dueAt == null}
+                onSelect={() => updateCard.mutate({ cardId: card.id, dueAt: null })}
+              >
+                <CircleOffIcon className="size-4" aria-hidden />
+                {menuCopy.dueClear}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={moveTargets.length === 0}>
+              <MoveIcon className="size-4" aria-hidden />
+              {dndCopy.move}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56">
+              {moveTargets.map((list) => (
+                <ContextMenuItem
+                  key={list.id}
+                  disabled={list.id === card.listId}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (list.id !== card.listId)
+                      dnd?.moveCardToListEnd(card.id, card.listId, list.id);
+                  }}
+                >
+                  <span className="truncate">
+                    {list.title}
+                    {list.id === card.listId ? '' : ` - ${dndCopy.moveToListEnd}`}
+                  </span>
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => setArchiveOpen(true)}>
+            <ArchiveIcon className="size-4" aria-hidden />
+            {copy.archive}
+          </ContextMenuItem>
+        </ContextMenuContent>
+        {archiveDialog}
+      </ContextMenu>
+    </>
   );
 }

@@ -1,6 +1,29 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
+import { createElement } from 'react';
+import { afterEach, vi } from 'vitest';
+
+vi.mock('lottie-react', () => ({
+  default: ({
+    animationData,
+    autoplay,
+    loop,
+    className,
+  }: {
+    animationData?: { nm?: string };
+    autoplay?: boolean;
+    loop?: boolean;
+    className?: string;
+  }) =>
+    createElement('div', {
+      'aria-hidden': 'true',
+      className,
+      'data-animation-name': animationData?.nm,
+      'data-autoplay': String(autoplay),
+      'data-loop': String(loop),
+      'data-testid': 'lottie-player',
+    }),
+}));
 
 afterEach(() => {
   cleanup();

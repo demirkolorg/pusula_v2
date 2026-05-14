@@ -13,6 +13,9 @@ import {
   CardTitle,
   cn,
 } from '@pusula/ui';
+import { DEFAULT_BOARD_ICON } from '@pusula/domain';
+import { EntityIconBadge } from '@/components/entity-icon';
+import { AppSpinner } from '@/components/app-spinner';
 import { boardRoleLabels, strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateBoardDialog } from './create-board-dialog';
@@ -41,7 +44,7 @@ export function BoardListSection({ workspaceId, canCreateBoard }: BoardListSecti
       </div>
 
       {boards.isPending && (
-        <p className="text-muted-foreground text-sm">{strings.board.loading}</p>
+        <AppSpinner label={strings.board.loading} showLabel className="justify-start" />
       )}
 
       {boards.isError && (
@@ -68,7 +71,11 @@ export function BoardListSection({ workspaceId, canCreateBoard }: BoardListSecti
                   )}
                 >
                   <CardHeader>
-                    <CardTitle>
+                    <CardTitle className="flex min-w-0 items-center gap-2">
+                      <EntityIconBadge
+                        icon={board.icon ?? DEFAULT_BOARD_ICON}
+                        className="bg-primary/10 text-primary"
+                      />
                       <Link
                         href={`/workspaces/${workspaceId}/boards/${board.id}`}
                         className="rounded-md underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"

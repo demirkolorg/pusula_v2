@@ -120,6 +120,20 @@
       "when": 1778778763772,
       "tag": "0016_icy_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778786319000,
+      "tag": "0017_search_pg_trgm",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778789000000,
+      "tag": "0018_entity_icons",
+      "breakpoints": true
     }
   ]
 }

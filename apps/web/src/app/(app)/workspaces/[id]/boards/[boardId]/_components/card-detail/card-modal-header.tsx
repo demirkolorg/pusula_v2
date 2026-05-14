@@ -26,6 +26,7 @@ import {
   type PaletteName,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+import { CardCoverImage, type CoverImage } from '../card-cover-image';
 
 const PALETTE_BAR: Record<PaletteName, string> = {
   kirmizi: 'bg-palet-kirmizi text-palet-kirmizi-foreground',
@@ -45,6 +46,8 @@ const PALETTE_BAR: Record<PaletteName, string> = {
 type CardModalHeaderProps = {
   boardName: string | null;
   listName: string | null;
+  /** Cover image metadata; when present, the image band takes precedence over `coverColor`. */
+  coverImage?: CoverImage | null;
   /** Cover colour for the bar; `null` ⇒ plain `bg-background border-b` variant (DEM-67 not landed). */
   coverColor?: PaletteName | null;
   /** Whether the card is archived (affects the ⋮ menu's archive/restore item). */
@@ -66,6 +69,7 @@ type CardModalHeaderProps = {
 export function CardModalHeader({
   boardName,
   listName,
+  coverImage = null,
   coverColor = null,
   archived,
   canArchive,
@@ -75,6 +79,7 @@ export function CardModalHeader({
 }: CardModalHeaderProps) {
   const copy = strings.card.detail.modal;
   const [copied, setCopied] = useState(false);
+  const hasCoverImage = coverImage != null;
 
   useEffect(() => {
     if (!copied) return;
@@ -82,8 +87,9 @@ export function CardModalHeader({
     return () => window.clearTimeout(t);
   }, [copied]);
 
-  const coverClass = coverColor ? PALETTE_BAR[coverColor] : 'bg-background border-b';
-  const onColored = coverColor != null;
+  const coverClass =
+    !hasCoverImage && coverColor ? PALETTE_BAR[coverColor] : 'bg-background border-b';
+  const onColored = !hasCoverImage && coverColor != null;
 
   const copyLink = async () => {
     try {
@@ -95,148 +101,155 @@ export function CardModalHeader({
   };
 
   return (
-    <div
-      data-slot="card-modal-header"
-      className={cn('flex items-center justify-between gap-2 px-4 py-2.5', coverClass)}
-    >
+    <div className="shrink-0">
+      {coverImage ? (
+        <div data-slot="card-modal-cover-image" className="h-40 overflow-hidden border-b bg-muted">
+          <CardCoverImage coverImage={coverImage} alt={coverImage.fileName} className="h-full" />
+        </div>
+      ) : null}
       <div
-        className={cn(
-          'flex min-w-0 items-center gap-1.5 text-xs',
-          onColored ? 'text-current/80' : 'text-muted-foreground',
-        )}
+        data-slot="card-modal-header"
+        className={cn('flex items-center justify-between gap-2 px-4 py-2.5', coverClass)}
       >
-        <ListIcon className="size-3.5 shrink-0" aria-hidden />
-        <span className="truncate">
-          {boardName?.trim() || copy.breadcrumbBoard} <span aria-hidden>/</span>{' '}
-          {listName?.trim() || copy.breadcrumbList}
-        </span>
-        {archived && (
-          <Badge
-            variant="outline"
-            className={cn('ml-1 shrink-0', onColored && 'border-current/40 text-current')}
-          >
-            {copy.archivedBadge}
-          </Badge>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-0.5">
-        {/* Notifications — disabled placeholder until the watch/notify UI lands. */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              disabled
-              aria-label={copy.notifications}
-              className={cn(
-                'inline-flex size-7 cursor-not-allowed items-center justify-center rounded-md opacity-50 [&_svg]:size-4',
-                onColored ? 'text-current' : 'text-muted-foreground',
-              )}
-            >
-              <BellIcon aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{copy.notificationsSoon}</TooltipContent>
-        </Tooltip>
-
-        {/* Copy deep link. */}
-        <Tooltip open={copied ? true : undefined}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={copyLink}
-              aria-label={copy.copyLink}
-              className={cn(
-                'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
-                onColored
-                  ? 'text-current hover:bg-current/15'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-              )}
-            >
-              <LinkIcon aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{copied ? copy.linkCopied : copy.copyLink}</TooltipContent>
-        </Tooltip>
-        <span className="sr-only" aria-live="polite">
-          {copied ? copy.linkCopied : ''}
-        </span>
-
-        {/* ⋮ menu — move/copy are disabled placeholders; archive/restore wired. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={copy.more}
-              className={cn(
-                'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
-                onColored
-                  ? 'text-current hover:bg-current/15'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-              )}
-            >
-              <MoreHorizontalIcon aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuItem disabled>
-              <MoveIcon aria-hidden />
-              {copy.menuMove}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              <CopyPlusIcon aria-hidden />
-              {copy.menuCopy}
-            </DropdownMenuItem>
-            {canArchive && (
-              <>
-                <DropdownMenuSeparator />
-                {archived ? (
-                  <DropdownMenuItem
-                    disabled={archivePending}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      onArchiveToggle(false);
-                    }}
-                  >
-                    <ArchiveRestoreIcon aria-hidden />
-                    {copy.menuRestore}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={archivePending}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      onArchiveToggle(true);
-                    }}
-                  >
-                    <ArchiveIcon aria-hidden />
-                    {copy.menuArchive}
-                  </DropdownMenuItem>
-                )}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <span
-          aria-hidden
-          className={cn('mx-0.5 h-5 w-px', onColored ? 'bg-current/20' : 'bg-border')}
-        />
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={strings.card.detail.close}
+        <div
           className={cn(
-            'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
-            onColored
-              ? 'text-current hover:bg-current/15'
-              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            'flex min-w-0 items-center gap-1.5 text-xs',
+            onColored ? 'text-current/80' : 'text-muted-foreground',
           )}
         >
-          <XIcon aria-hidden />
-        </button>
+          <ListIcon className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            {boardName?.trim() || copy.breadcrumbBoard} <span aria-hidden>/</span>{' '}
+            {listName?.trim() || copy.breadcrumbList}
+          </span>
+          {archived && (
+            <Badge
+              variant="outline"
+              className={cn('ml-1 shrink-0', onColored && 'border-current/40 text-current')}
+            >
+              {copy.archivedBadge}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          {/* Notifications — disabled placeholder until the watch/notify UI lands. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled
+                aria-label={copy.notifications}
+                className={cn(
+                  'inline-flex size-7 cursor-not-allowed items-center justify-center rounded-md opacity-50 [&_svg]:size-4',
+                  onColored ? 'text-current' : 'text-muted-foreground',
+                )}
+              >
+                <BellIcon aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{copy.notificationsSoon}</TooltipContent>
+          </Tooltip>
+
+          {/* Copy deep link. */}
+          <Tooltip open={copied ? true : undefined}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={copyLink}
+                aria-label={copy.copyLink}
+                className={cn(
+                  'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
+                  onColored
+                    ? 'text-current hover:bg-current/15'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <LinkIcon aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? copy.linkCopied : copy.copyLink}</TooltipContent>
+          </Tooltip>
+          <span className="sr-only" aria-live="polite">
+            {copied ? copy.linkCopied : ''}
+          </span>
+
+          {/* ⋮ menu — move/copy are disabled placeholders; archive/restore wired. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={copy.more}
+                className={cn(
+                  'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
+                  onColored
+                    ? 'text-current hover:bg-current/15'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <MoreHorizontalIcon aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuItem disabled>
+                <MoveIcon aria-hidden />
+                {copy.menuMove}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                <CopyPlusIcon aria-hidden />
+                {copy.menuCopy}
+              </DropdownMenuItem>
+              {canArchive && (
+                <>
+                  <DropdownMenuSeparator />
+                  {archived ? (
+                    <DropdownMenuItem
+                      disabled={archivePending}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        onArchiveToggle(false);
+                      }}
+                    >
+                      <ArchiveRestoreIcon aria-hidden />
+                      {copy.menuRestore}
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={archivePending}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        onArchiveToggle(true);
+                      }}
+                    >
+                      <ArchiveIcon aria-hidden />
+                      {copy.menuArchive}
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <span
+            aria-hidden
+            className={cn('mx-0.5 h-5 w-px', onColored ? 'bg-current/20' : 'bg-border')}
+          />
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={strings.card.detail.close}
+            className={cn(
+              'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-4',
+              onColored
+                ? 'text-current hover:bg-current/15'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            <XIcon aria-hidden />
+          </button>
+        </div>
       </div>
     </div>
   );

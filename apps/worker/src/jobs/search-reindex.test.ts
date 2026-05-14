@@ -62,4 +62,48 @@ describe.runIf(dbAvailable)('processSearchReindexJob (integration)', () => {
     expect(result.upserted).toBeGreaterThanOrEqual(1);
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('is idempotent and removes stale documents in the requested board scope', async () => {
+    const ownerId = newId('u-search-worker-stale');
+    createdUserIds.push(ownerId);
+    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    const [ws] = await db()
+      .insert(workspaces)
+      .values({ name: 'Worker Stale Search Co', slug: newId('worker-stale-search-co'), ownerId })
+      .returning({ id: workspaces.id });
+    createdWorkspaceIds.push(ws!.id);
+    const [board] = await db()
+      .insert(boards)
+      .values({ workspaceId: ws!.id, title: 'Worker Stale Board' })
+      .returning({ id: boards.id });
+
+    await processSearchReindexJob(db(), { boardId: board!.id });
+    await db().insert(searchDocuments).values({
+      workspaceId: ws!.id,
+      boardId: board!.id,
+      cardId: null,
+      entityType: 'card',
+      entityId: newId('stale-card'),
+      title: 'Stale worker search document',
+      body: null,
+      labels: [],
+      searchVector: dbMod.sql`to_tsvector('simple', 'stale worker search document')`,
+    });
+
+    const second = await processSearchReindexJob(db(), { boardId: board!.id });
+    const third = await processSearchReindexJob(db(), { boardId: board!.id });
+    const staleRows = await db()
+      .select({ id: searchDocuments.id })
+      .from(searchDocuments)
+      .where(
+        dbMod.and(
+          dbMod.eq(searchDocuments.boardId, board!.id),
+          dbMod.eq(searchDocuments.title, 'Stale worker search document'),
+        ),
+      );
+
+    expect(second.deleted).toBe(1);
+    expect(third.deleted).toBe(0);
+    expect(staleRows).toHaveLength(0);
+  });
 });

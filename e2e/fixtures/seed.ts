@@ -34,9 +34,13 @@ import {
   accounts,
   boardMembers,
   boards,
+  cardLabels,
   cardMembers,
   cards,
+  comments,
   lists,
+  labels,
+  reindexSearchDocuments,
   users,
   workspaceMembers,
   workspaces,
@@ -47,6 +51,7 @@ type Db = ReturnType<typeof createDb>['db'];
 
 async function resetThenSeed(db: Db): Promise<void> {
   // --- Reset (cascades clean up board_members / lists / cards / accounts) ---
+  await db.delete(workspaces).where(eq(workspaces.id, E2E.search.hiddenWorkspaceId));
   await db.delete(workspaces).where(eq(workspaces.id, E2E.workspaceId));
   for (const u of [E2E.user, E2E.viewer, E2E.alice, E2E.bob]) {
     await db.delete(users).where(eq(users.id, u.id));
@@ -148,6 +153,7 @@ async function resetThenSeed(db: Db): Promise<void> {
         boardId: E2E.boardId,
         listId: listRows[i]!.id,
         title,
+        description: i === 0 && j === 0 ? `Deterministic search body: ${E2E.search.cardTerm}` : null,
         position: cardPositions[j]!,
       })),
     );
@@ -160,6 +166,47 @@ async function resetThenSeed(db: Db): Promise<void> {
     userId: E2E.bob.id,
     role: 'watcher',
   });
+
+  // DEM-108: deterministic content for global/board search e2e. This keeps
+  // visible card titles unchanged so earlier board interaction specs remain stable.
+  await db.insert(labels).values({
+    id: E2E.search.labelId,
+    boardId: E2E.boardId,
+    name: E2E.search.labelName,
+    color: 'blue',
+  });
+  await db.insert(cardLabels).values({
+    cardId: E2E.cardIds.assignment,
+    labelId: E2E.search.labelId,
+  });
+  await db.insert(comments).values({
+    id: E2E.search.commentId,
+    cardId: E2E.cardIds.watched,
+    authorId: E2E.user.id,
+    body: `Deterministic search comment: ${E2E.search.commentTerm}`,
+  });
+
+  // A second workspace/board owned by Bob gives the search e2e a fixed
+  // inaccessible result candidate for permission-leak checks.
+  await db.insert(workspaces).values({
+    id: E2E.search.hiddenWorkspaceId,
+    name: 'E2E Hidden Search Workspace',
+    slug: 'e2e-hidden-search-workspace',
+    ownerId: E2E.bob.id,
+  });
+  await db.insert(workspaceMembers).values({
+    workspaceId: E2E.search.hiddenWorkspaceId,
+    userId: E2E.bob.id,
+    role: 'owner',
+  });
+  await db.insert(boards).values({
+    id: E2E.search.hiddenBoardId,
+    workspaceId: E2E.search.hiddenWorkspaceId,
+    title: E2E.search.hiddenTerm,
+  });
+
+  await reindexSearchDocuments(db, { workspaceId: E2E.workspaceId });
+  await reindexSearchDocuments(db, { workspaceId: E2E.search.hiddenWorkspaceId });
 }
 
 export async function seed(): Promise<void> {

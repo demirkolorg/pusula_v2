@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   boards: [] as Array<{
     id: string;
     title: string;
+    icon: string;
     role: 'admin' | 'member' | 'viewer';
     version: number;
     archivedAt: Date | null;
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => ({
         board: {
           id: string;
           title: string;
+          icon: string;
           version: number;
           archivedAt: Date | null;
           createdAt: Date;
@@ -87,6 +89,7 @@ describe('<BoardSwitcher>', () => {
       {
         id: 'b1',
         title: 'Roadmap',
+        icon: 'layout-grid',
         role: 'admin',
         version: 1,
         archivedAt: null,
@@ -95,6 +98,7 @@ describe('<BoardSwitcher>', () => {
       {
         id: 'b2',
         title: 'Archived Board',
+        icon: 'archive',
         role: 'viewer',
         version: 1,
         archivedAt: new Date('2026-01-02T00:00:00Z'),
@@ -144,6 +148,7 @@ describe('<BoardSwitcher>', () => {
       board: {
         id: 'b2',
         title: 'Archived Board',
+        icon: 'archive',
         version: 2,
         archivedAt: new Date('2026-01-02T00:00:00Z'),
         createdAt: new Date('2026-01-02T00:00:00Z'),
@@ -167,6 +172,7 @@ describe('<BoardSwitcher>', () => {
       board: {
         id: 'b1',
         title: 'Renamed Roadmap',
+        icon: 'rocket',
         version: 2,
         archivedAt: null,
         createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -182,5 +188,58 @@ describe('<BoardSwitcher>', () => {
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
     expect(await screen.findByRole('menuitem', { name: 'Renamed Roadmap' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Roadmap' })).not.toBeInTheDocument();
+  });
+
+  it('uses transparent board chrome styling on board routes', () => {
+    h.params = { id: 'w1', boardId: 'b1' };
+    h.boardGet = {
+      board: {
+        id: 'b1',
+        title: 'Roadmap',
+        icon: 'layout-grid',
+        version: 1,
+        archivedAt: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-03T00:00:00Z'),
+        workspaceId: 'w1',
+        role: 'admin',
+      },
+    };
+
+    render(<BoardSwitcher />);
+
+    const trigger = screen.getByRole('button', { name: copy.ariaLabel });
+    expect(trigger.className).not.toContain('bg-background');
+    expect(trigger.className).toContain('text-[color:var(--board-chrome-fg)]');
+  });
+
+  it('renders the persisted board icon in the trigger and dropdown rows', async () => {
+    const user = userEvent.setup();
+    h.params = { id: 'w1', boardId: 'b1' };
+    h.boardGet = {
+      board: {
+        id: 'b1',
+        title: 'Roadmap',
+        icon: 'rocket',
+        version: 2,
+        archivedAt: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-03T00:00:00Z'),
+        workspaceId: 'w1',
+        role: 'admin',
+      },
+    };
+
+    render(<BoardSwitcher />);
+
+    expect(
+      screen
+        .getByRole('button', { name: copy.ariaLabel })
+        .querySelector('[data-entity-icon="rocket"]'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
+    const roadmap = await screen.findByRole('menuitem', { name: 'Roadmap' });
+    expect(roadmap.querySelector('[data-entity-icon="rocket"]')).toBeInTheDocument();
   });
 });

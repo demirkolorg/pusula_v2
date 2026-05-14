@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@pusula/ui';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { AuthForm, type AuthFormValues } from '../_components/auth-form';
@@ -34,16 +33,20 @@ function SignUpForm() {
 export default function SignUpPage() {
   const copy = strings.auth.signUp;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{copy.title}</CardTitle>
-        <CardDescription>{copy.description}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="mx-auto w-full max-w-sm">
+      <div className="mb-8 flex flex-col gap-2">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight sm:text-3xl">
+          {copy.title}
+        </h1>
+        <p className="text-muted-foreground text-sm">{copy.description}</p>
+      </div>
+
+      <div>
         <SignUpForm />
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-muted-foreground text-sm">
+      </div>
+
+      <div className="text-muted-foreground mt-6 flex flex-col items-center gap-2 text-center text-sm">
+        <span>
           {copy.hasAccount}{' '}
           <Link
             href="/sign-in"
@@ -51,8 +54,8 @@ export default function SignUpPage() {
           >
             {copy.goToSignIn}
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </span>
+      </div>
+    </div>
   );
 }

@@ -67,10 +67,12 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     const ws = await callerFor(ownerId).workspace.create({
       name: 'Acme Inc',
       slug: newSlug('acme'),
+      icon: 'rocket',
       clientMutationId: crypto.randomUUID(),
     });
     workspaceId = ws.id;
     expect(ws.name).toBe('Acme Inc');
+    expect(ws.icon).toBe('rocket');
 
     const members = await db()
       .select()
@@ -98,6 +100,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
   it('list: returns the workspaces the user belongs to', async () => {
     const list = await callerFor(ownerId).workspace.list();
     expect(list.some((w) => w.id === workspaceId)).toBe(true);
+    expect(list.find((w) => w.id === workspaceId)?.icon).toBe('rocket');
   });
 
   it('get: a non-member gets FORBIDDEN; a member gets the shell', async () => {
@@ -106,7 +109,7 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     });
 
     const shell = await callerFor(ownerId).workspace.get({ workspaceId });
-    expect(shell).toMatchObject({ id: workspaceId, role: 'owner' });
+    expect(shell).toMatchObject({ id: workspaceId, icon: 'rocket', role: 'owner' });
     expect(shell.memberCount).toBeGreaterThanOrEqual(1);
   });
 
@@ -188,15 +191,18 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
       workspaceId,
       name: 'Acme Renamed',
       slug,
+      icon: 'target',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(updated).toMatchObject({ name: 'Acme Renamed', slug, changed: true });
+    expect(updated).toMatchObject({ name: 'Acme Renamed', slug, icon: 'target', changed: true });
 
     const acts = await db()
       .select()
       .from(activityEvents)
       .where(dbMod.eq(activityEvents.workspaceId, workspaceId));
-    expect(acts.some((a) => a.type === 'workspace.updated')).toBe(true);
+    const event = acts.find((a) => a.type === 'workspace.updated');
+    expect(event).toBeDefined();
+    expect(event?.payload).toMatchObject({ fromIcon: 'rocket', toIcon: 'target' });
   });
 
   it('archive: only the owner can archive; afterwards the workspace 404s', async () => {

@@ -6,13 +6,8 @@ import { Suspense, useState } from 'react';
 import {
   Alert,
   AlertDescription,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { AuthForm, type AuthFormValues } from '../_components/auth-form';
@@ -38,7 +33,22 @@ function SignInForm() {
     }
   };
 
-  return <AuthForm variant="sign-in" onSubmit={handleSubmit} pending={pending} error={error} />;
+  return (
+    <AuthForm
+      variant="sign-in"
+      onSubmit={handleSubmit}
+      pending={pending}
+      error={error}
+      passwordAction={
+        <Link
+          href="/forgot-password"
+          className="text-muted-foreground hover:text-foreground rounded-md text-xs underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+        >
+          {strings.auth.signIn.forgotPassword}
+        </Link>
+      }
+    />
+  );
 }
 
 function SignInContent() {
@@ -49,47 +59,38 @@ function SignInContent() {
   const justReset = searchParams.get('reset') === '1';
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{copy.title}</CardTitle>
-        <CardDescription>{copy.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="mx-auto w-full max-w-sm">
+      <div className="mb-8 flex flex-col gap-2">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight sm:text-3xl">
+          {copy.title}
+        </h1>
+        <p className="text-muted-foreground text-sm">{copy.description}</p>
+      </div>
+
+      <div className="space-y-4">
         {justReset && (
           <Alert>
             <AlertDescription>{copy.resetDone}</AlertDescription>
           </Alert>
         )}
         <SignInForm />
-        <p className="text-center text-sm">
-          <Link
-            href="/forgot-password"
-            className="text-muted-foreground hover:text-foreground rounded-md underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
-            {copy.forgotPassword}
-          </Link>
-        </p>
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-muted-foreground text-sm">
+      </div>
+
+      <div className="text-muted-foreground mt-6 flex flex-col items-center gap-2 text-center text-sm">
+        <span>
           {copy.noAccount}{' '}
-          <Link
-            href="/sign-up"
-            className="text-foreground font-medium underline-offset-4 hover:underline"
-          >
+          <Link href="/sign-up" className="text-foreground font-medium underline-offset-4 hover:underline">
             {copy.goToSignUp}
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </span>
+      </div>
+    </div>
   );
 }
 
 export default function SignInPage() {
   return (
-    <Suspense
-      fallback={<p className="text-muted-foreground text-sm">{strings.common.loading}</p>}
-    >
+    <Suspense fallback={<AppSpinner label={strings.common.loading} showLabel />}>
       <SignInContent />
     </Suspense>
   );

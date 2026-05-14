@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_WORKSPACE_ICON, ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { WorkspaceSettingsForm, type WorkspaceSettingsValues } from './workspace-settings-form';
@@ -10,6 +11,7 @@ type WorkspaceSettingsProps = {
   workspaceId: string;
   name: string;
   slug: string;
+  icon: EntityIcon | string;
 };
 
 /**
@@ -17,10 +19,13 @@ type WorkspaceSettingsProps = {
  * success, invalidates `workspace.get`/`workspace.list` so the new name/slug
  * propagate. The form is presentational and does the client-side validation.
  */
-export function WorkspaceSettings({ workspaceId, name, slug }: WorkspaceSettingsProps) {
+export function WorkspaceSettings({ workspaceId, name, slug, icon }: WorkspaceSettingsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
+  const currentIcon = ENTITY_ICONS.includes(icon as EntityIcon)
+    ? (icon as EntityIcon)
+    : DEFAULT_WORKSPACE_ICON;
 
   const updateWorkspace = useMutation(
     trpc.workspace.update.mutationOptions({
@@ -40,10 +45,11 @@ export function WorkspaceSettings({ workspaceId, name, slug }: WorkspaceSettings
     setNotice(null);
     updateWorkspace.reset();
     // Only send fields that actually changed; the server rejects the no-op case.
-    const patch: { name?: string; slug?: string } = {};
+    const patch: { name?: string; slug?: string; icon?: EntityIcon } = {};
     if (values.name !== name) patch.name = values.name;
     if (values.slug !== slug) patch.slug = values.slug;
-    if (patch.name === undefined && patch.slug === undefined) {
+    if (values.icon !== currentIcon) patch.icon = values.icon;
+    if (patch.name === undefined && patch.slug === undefined && patch.icon === undefined) {
       setNotice(strings.workspace.manage.noChange);
       return;
     }
@@ -54,6 +60,7 @@ export function WorkspaceSettings({ workspaceId, name, slug }: WorkspaceSettings
     <WorkspaceSettingsForm
       name={name}
       slug={slug}
+      icon={currentIcon}
       onSubmit={handleSubmit}
       pending={updateWorkspace.isPending}
       error={

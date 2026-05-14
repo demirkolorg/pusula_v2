@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Alert, AlertDescription, Badge, Button, Input } from '@pusula/ui';
+import { Alert, AlertDescription, Badge, Button, DatePickerInput } from '@pusula/ui';
 import { formatDate, parseDateInputValue, toDateInputValue } from '@/lib/format';
 import { strings } from '@/lib/strings';
 
@@ -18,8 +18,9 @@ type CardDetailDueDateProps = {
 
 /**
  * Card due date: shows the formatted date (or a placeholder) with edit / clear
- * affordances for board `member+`. The editor is a TZ-safe `<input type="date">`
- * (`toDateInputValue` / `parseDateInputValue`). A no-op save just closes the editor.
+ * affordances for board `member+`. The editor keeps the same TZ-safe
+ * `yyyy-mm-dd` value contract while allowing both manual typing and calendar
+ * selection. A no-op save just closes the editor.
  */
 export function CardDetailDueDate({ dueAt, canEdit, onSave, pending = false, error }: CardDetailDueDateProps) {
   const fieldId = useId();
@@ -68,13 +69,14 @@ export function CardDetailDueDate({ dueAt, canEdit, onSave, pending = false, err
 
       {editing && canEdit ? (
         <form onSubmit={handleSubmit} noValidate className="space-y-2">
-          <Input
+          <DatePickerInput
             id={fieldId}
             name="cardDueAt"
-            type="date"
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onValueChange={setValue}
             aria-label={copy.dueLabel}
+            placeholder={copy.duePlaceholder}
+            calendarButtonLabel={copy.dueCalendarSelect}
             disabled={pending}
             className="max-w-xs"
           />

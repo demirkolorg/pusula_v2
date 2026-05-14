@@ -47,6 +47,7 @@ vi.mock('@/trpc/client', () => ({
       },
     },
     board: { get: { queryFilter: () => ({}) } },
+    attachment: { createUpload: { mutationOptions: (o: unknown) => o } },
   }),
 }));
 

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pusula/ui';
+import { AppSpinner } from '@/components/app-spinner';
 import { boardRoleLabels, strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -43,7 +44,7 @@ export function BoardAccessRequestsSection({
   if (!canManage) return null;
 
   if (requests.isPending) {
-    return <p className="text-muted-foreground text-sm">{copy.accessRequestsLoading}</p>;
+    return <AppSpinner label={copy.accessRequestsLoading} showLabel className="justify-start" />;
   }
 
   if (requests.isError) {

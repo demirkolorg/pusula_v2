@@ -12,19 +12,39 @@ describe('<CardDetailDueDate>', () => {
     expect(screen.getByText(copy.dueEmpty)).toBeInTheDocument();
   });
 
-  it('member: edit → set a date sends a Date at local midnight', async () => {
+  it('member: edit -> typing a date sends a Date at local midnight', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<CardDetailDueDate dueAt={null} canEdit onSave={onSave} />);
 
     await user.click(screen.getByRole('button', { name: copy.dueAdd }));
-    const input = screen.getByLabelText(copy.dueLabel);
+    const input = screen.getByRole('textbox', { name: copy.dueLabel });
+    expect(input).toHaveAttribute('type', 'text');
     await user.type(input, '2026-06-15');
     await user.click(screen.getByRole('button', { name: copy.dueSave }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     const arg = onSave.mock.calls[0]?.[0] as Date;
     expect(arg).toBeInstanceOf(Date);
+    expect(arg.getFullYear()).toBe(2026);
+    expect(arg.getMonth()).toBe(5);
+    expect(arg.getDate()).toBe(15);
+  });
+
+  it('member: calendar selection updates the writable date field', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<CardDetailDueDate dueAt={new Date(2026, 5, 1)} canEdit onSave={onSave} />);
+
+    await user.click(screen.getByRole('button', { name: copy.dueEdit }));
+    await user.click(screen.getByRole('button', { name: copy.dueCalendarSelect }));
+    await user.click(screen.getByRole('button', { name: /15/ }));
+    expect(screen.getByRole('textbox', { name: copy.dueLabel })).toHaveValue('2026-06-15');
+
+    await user.click(screen.getByRole('button', { name: copy.dueSave }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const arg = onSave.mock.calls[0]?.[0] as Date;
     expect(arg.getFullYear()).toBe(2026);
     expect(arg.getMonth()).toBe(5);
     expect(arg.getDate()).toBe(15);
