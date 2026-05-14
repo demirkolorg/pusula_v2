@@ -28,6 +28,7 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
+import { BoardActivityDrawer } from './board-activity-drawer';
 import { BoardSettingsDialog } from './board-settings/board-settings-dialog';
 import { RenameBoardForm } from './rename-board-form';
 
@@ -129,6 +130,7 @@ export function BoardTopBar({
   const [renaming, setRenaming] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const restoreBoard = useRestoreBoard(boardId);
 
   return (
@@ -205,11 +207,21 @@ export function BoardTopBar({
           label={copy.search}
           hint={copy.searchSoon}
         />
-        <ComingSoonAction
-          icon={<ActivityIcon className="size-4" />}
-          label={copy.activity}
-          hint={copy.activitySoon}
-        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label={copy.activity}
+              onClick={() => setActivityOpen(true)}
+            >
+              <ActivityIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{copy.activity}</TooltipContent>
+        </Tooltip>
         {isBoardAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -260,6 +272,7 @@ export function BoardTopBar({
       </div>
 
       {/* External-trigger dialogs (rendered once; opened from the menu / invite button). */}
+      <BoardActivityDrawer boardId={boardId} open={activityOpen} onOpenChange={setActivityOpen} />
       {isBoardAdmin && (
         <>
           <ArchiveBoardDialog

@@ -498,6 +498,120 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(archivedActs).toHaveLength(2);
     expect(archivedActs.map((a) => (a.payload as { archived?: boolean }).archived).sort()).toEqual([false, true]);
   });
+
+  it('activity.list: a board viewer reads newest-first events with cursor pagination and actor names', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Activity Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db().insert(boardMembers).values({ boardId: board.id, userId: guestId, role: 'viewer' });
+
+    const base = Date.now() + 60_000;
+    const inserted = await db()
+      .insert(activityEvents)
+      .values([
+        {
+          workspaceId,
+          boardId: board.id,
+          actorId: ownerId,
+          type: 'board.renamed',
+          payload: { fromTitle: 'Eski', toTitle: 'Yeni' },
+          createdAt: new Date(base),
+        },
+        {
+          workspaceId,
+          boardId: board.id,
+          actorId: memberId,
+          type: 'list.created',
+          payload: { listId: 'l1', title: 'Backlog' },
+          createdAt: new Date(base + 1_000),
+        },
+        {
+          workspaceId,
+          boardId: board.id,
+          actorId: ownerId,
+          type: 'card.created',
+          payload: { cardId: 'c1', title: 'Kart' },
+          createdAt: new Date(base + 2_000),
+        },
+      ])
+      .returning({ id: activityEvents.id });
+
+    const page1 = await callerFor(guestId).board.activity.list({ boardId: board.id, limit: 2 });
+    expect(page1.items.map((event) => event.type)).toEqual(['card.created', 'list.created']);
+    expect(page1.items[0]).toMatchObject({ id: inserted[2]!.id, actorId: ownerId, actorName: ownerId });
+    expect(page1.nextCursor).not.toBeNull();
+
+    const page2 = await callerFor(guestId).board.activity.list({
+      boardId: board.id,
+      limit: 2,
+      cursor: page1.nextCursor!,
+    });
+    expect(page2.items.map((event) => event.type)).toEqual(['board.renamed', 'board.created']);
+    expect(page2.nextCursor).toBeNull();
+  });
+
+  it('activity.list: filters by type and keeps unrelated boards out', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Filtered Activity Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const other = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Other Activity Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await db()
+      .insert(activityEvents)
+      .values([
+        {
+          workspaceId,
+          boardId: board.id,
+          actorId: ownerId,
+          type: 'card.created',
+          payload: { cardId: 'c-filtered' },
+        },
+        {
+          workspaceId,
+          boardId: board.id,
+          actorId: ownerId,
+          type: 'list.created',
+          payload: { listId: 'l-filtered' },
+        },
+        {
+          workspaceId,
+          boardId: other.id,
+          actorId: ownerId,
+          type: 'card.created',
+          payload: { cardId: 'c-other' },
+        },
+      ]);
+
+    const result = await callerFor(ownerId).board.activity.list({
+      boardId: board.id,
+      type: 'card.created',
+      limit: 10,
+    });
+
+    expect(result.items.map((event) => event.payload)).toContainEqual({ cardId: 'c-filtered' });
+    expect(result.items.map((event) => event.payload)).not.toContainEqual({ cardId: 'c-other' });
+    expect(result.items.every((event) => event.type === 'card.created')).toBe(true);
+  });
+
+  it('activity.list: a workspace guest without board membership is FORBIDDEN', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Private Activity Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await expect(callerFor(guestId).board.activity.list({ boardId: board.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });
 
 describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)', () => {

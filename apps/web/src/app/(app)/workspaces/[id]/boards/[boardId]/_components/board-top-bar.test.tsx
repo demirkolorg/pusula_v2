@@ -21,6 +21,11 @@ vi.mock('./board-settings/board-settings-dialog', () => ({
     open ? <div role="dialog" aria-label="board-settings" /> : null,
 }));
 
+vi.mock('./board-activity-drawer', () => ({
+  BoardActivityDrawer: ({ open }: { open?: boolean }) =>
+    open ? <div role="dialog" aria-label={strings.board.activity.title} /> : null,
+}));
+
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     board: {
@@ -113,5 +118,14 @@ describe('<BoardTopBar>', () => {
     expect(screen.queryByRole('dialog', { name: 'board-settings' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: topCopy.invite }));
     expect(screen.getByRole('dialog', { name: 'board-settings' })).toBeInTheDocument();
+  });
+
+  it('activity action opens the board activity drawer', async () => {
+    const user = userEvent.setup();
+    render(<BoardTopBar boardId="b1" workspaceId="w1" title="Sprint" archived={false} isBoardAdmin />);
+
+    await user.click(screen.getByRole('button', { name: topCopy.activity }));
+
+    expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
   });
 });

@@ -342,6 +342,16 @@ export const strings = {
       menuRestore: 'Panoyu geri yükle',
       menuSettings: 'Pano ayarları',
     },
+    activity: {
+      title: 'Pano aktivitesi',
+      description: 'Bu panoda yapılan son işlemler.',
+      empty: 'Henüz pano aktivitesi yok.',
+      loading: 'Aktivite yükleniyor…',
+      loadErrorTitle: 'Aktivite yüklenemedi',
+      unknownActor: 'Bir kullanıcı',
+      loadMore: 'Daha fazla yükle',
+      loadingMore: 'Yükleniyor…',
+    },
     column: {
       addList: 'Liste ekle',
       addListPlaceholder: 'Liste adı',
