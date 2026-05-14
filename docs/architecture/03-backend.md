@@ -90,16 +90,17 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | `board` | `create` | `workspaceProcedure` | workspace `member+`; oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
 | `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
 | `board` | `update` | `boardProcedure` | board `admin` (`canManageBoard`); `title?: string`, `background?: string \| null`; arşivli board düzenlenemez; no-op aynı değer activity/version üretmez; başlık → `board.renamed`, background set → `board.background_changed`, background clear → `board.background_cleared`; `boards.version` + realtime outbox artar/yazar |
-| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her liste `color` alanını taşır (`null` veya `LIST_COLORS` — DEM-98, kolon tam-yüzey rengi için additive). Her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
+| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her liste `color` alanını (`null` veya `LIST_COLORS` — DEM-98) ve opsiyonel `icon`/`iconColor` alanlarını (`null`/`null` varsayılan — DEM-109) taşır. Her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
 | `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
 | `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); arşivli board'a liste eklenemez; `activity_events` (`list.created`); `boards.version` artar |
-| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma ve/veya `color` güncelleme (`null` ya da `LIST_COLORS`, DEM-98); arşivli board salt-okunur, renk için arşivli liste de reddedilir; başlık → `list.renamed`, renk set/change → `list.color_changed`, renk clear → `list.color_cleared`; gerçek değişiklikte `boards.version` artar, aynı başlık/renk no-op'tur |
+| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma, `color` güncelleme (`null` ya da `LIST_COLORS`, DEM-98) ve/veya `icon`/`iconColor` güncelleme (`null` ya da domain enum'ları, DEM-109); arşivli board salt-okunur, liste görsel tercihleri için arşivli liste de reddedilir; başlık → `list.renamed`, renk set/change → `list.color_changed`, renk clear → `list.color_cleared`, ikon/ikon rengi set/change → `list.icon_changed`, ikon clear → `list.icon_cleared`; gerçek değişiklikte `boards.version` artar, aynı değerler no-op'tur |
 | `list` | `archive` | `boardProcedure` | board `member+`; `archived_at` (set/restore); arşivli liste aktif kart almaz (yeni kart eklenemez); `activity_events` (`list.archived`); `boards.version` artar |
 | `card` | `create` | `protectedProcedure` (listenin board'unu `resolveBoardAccess` ile çözer) | `createCardInput` yalnızca `listId` taşır → liste transaction içinde okunur, board ondan türetilir; board `member+`; liste sonuna `position`; kart `board_id` = listenin board'u (**kart ⊆ liste.board invariant'ı**); arşivli board/listeye eklenemez; `activity_events` (`card.created`); `boards.version` artar |
 | `card` | `get` | `cardProcedure` | board `viewer+`; kart detayı (Faz 2.7'den itibaren `completed`/`completedAt`/`completedBy`/`coverColor` dahil — additive) + kullanıcının kart ilişkileri (`card_members`) |
+| `card` | `listArchived` | `boardProcedure` | board `viewer+`; board genelindeki arşivli kartları `archived_at DESC` döndürür; her satır kart alanları + `listTitle`/`listArchivedAt` taşır. `board.get` aktif-kart-only kalır; arşiv görünümü ayrı query ile açılır. |
 | `card` | `update` | `cardProcedure` | board `member+`; arşivli board salt-okunur; başlık → `card.renamed`, açıklama → `card.description_changed`, `due_at` set → `card.due_set` / null → `card.due_cleared`, kapak rengi (Faz 2.7 — DEM-67) set → `card.cover_changed` / null → `card.cover_cleared` (her değişen alan için ayrı activity; `coverColor` değeri `CARD_COVER_COLORS` paletinden ya da `null`); `boards.version` artar |
-| `card` | `archive` | `cardProcedure` | board `member+`; `archived_at` (set/restore); arşivli board salt-okunur; `activity_events` (`card.archived`); `boards.version` artar |
+| `card` | `archive` | `cardProcedure` | board `member+`; `archived_at` (set/restore); arşivli board salt-okunur; arşivli listedeki kart doğrudan restore edilemez (`BAD_REQUEST`) — önce `card.moveToList` ile aktif listeye taşınır; `activity_events` (`card.archived`); `boards.version` artar |
 | `card` | `complete` | `cardProcedure` | board `member+` (Faz 2.7 — DEM-66); `completed=true`, `completed_at=now()`, `completed_by=actor`; arşivli board salt-okunur (kart/liste arşivi engellemez — `card.update` ile aynı kapı); idempotent (zaten tamam → `changed: false`, activity/version yok); `activity_events` (`card.completed`); `boards.version` artar |
 | `card` | `uncomplete` | `cardProcedure` | board `member+` (Faz 2.7 — DEM-66); `completed=false`, `completed_at=null`, `completed_by=null`; arşivli board salt-okunur; idempotent; `activity_events` (`card.uncompleted`); `boards.version` artar |
 
@@ -183,6 +184,18 @@ Transaction akışı: board tx içinde tekrar okunur, arşivli board `BAD_REQUES
 - **Activity:** title için mevcut `list.renamed`; renk için `list.color_changed` payload `{ listId, oldColor, newColor }`, clear için `list.color_cleared` payload `{ listId, oldColor }`. Tüm payload'lar `clientMutationId` taşır.
 - **Realtime:** gerçek değişiklikte `realtime_events` outbox'a `list.updated` yazılır; payload additive olarak `color` alanını taşır (title değişiminde mevcut `fromTitle`/`toTitle` korunur, renk değişiminde `color: newColor`). `seq` yeni `boards.version` değeridir.
 - **Projection:** `board.get` `lists[].color` döndürür; default `null` eski `bg-muted/30` davranışını korur.
+
+### DEM-109 — liste ikonu ve ikon rengi (`list.update({ icon, iconColor })`)
+
+> DEM-109, DEM-98'in aynı `list.update` yüzeyindeki ikinci additive görsel tercihidir. `icon` ve `iconColor` ayrı alanlardır; ikisi de yeni listelerde `null` döner. `icon = null` kolon başlığında ikon olmadığını ifade eder ve server `iconColor`'ı da `null` tutar.
+
+- **Input:** `list.update({ listId, title?, color?, icon?, iconColor?, clientMutationId? })`; `title`, `color`, `icon` veya `iconColor` alanlarından en az biri bulunmalı. `icon: null` ikonu kaldırır ve `iconColor`'ı da temizler. `iconColor: null` ikon kalırken özel rengi sıfırlar; `undefined` ilgili alana dokunmaz.
+- **Kapılar:** `boardProcedure` board erişimini çözer; board `member+` gerekir. Arşivli board tüm güncellemeleri reddeder; `icon`/`iconColor` değişikliği arşivli listede de reddedilir (`BAD_REQUEST`). Liste başka board'a aitse `BAD_REQUEST`.
+- **Validation:** `icon` yalnız `@pusula/domain` `LIST_ICONS` kümesinden, `iconColor` yalnız `LIST_ICON_COLORS` paletinden veya `null` gelir. DB-level CHECK yok; doğrulama Zod/API katmanındadır.
+- **Transaction:** mevcut liste ve board arşiv durumu tx içinde yeniden okunur. Gerçek değişiklik varsa `lists.icon` ve/veya `lists.icon_color` update edilir; `icon` `null` ise `icon_color` da `null` yazılır. Hiçbir alan değişmediyse `{ changed:false }` döner; activity, realtime ve version bump yazılmaz.
+- **Activity:** ikon ekleme/değiştirme ve yalnız renk değişimi/sıfırlama `list.icon_changed` payload `{ listId, oldIcon, newIcon, oldIconColor, newIconColor }`; ikon kaldırma `list.icon_cleared` payload `{ listId, oldIcon, oldIconColor }`. Payload'lar `clientMutationId` taşır.
+- **Realtime:** gerçek değişiklikte `list.updated` payload'ı additive `icon` ve/veya `iconColor` alanlarını taşır. `icon: null` event'i her zaman `iconColor: null` ile gelir; title/color payload alanlarıyla aynı envelope içinde birleşebilir.
+- **Projection:** `board.get` ve `list.create` sonuçları `lists[].icon` ve `lists[].iconColor` alanlarını döndürür; default `null`/`null` eski ikonsuz kolon davranışını korur.
 
 ### Faz 3 — `list.move` / `card.move` (drag-drop backend) ([DEM-42](https://linear.app/demirkol/issue/DEM-42))
 
@@ -313,6 +326,74 @@ Varsa skip (silently); yoksa insert. İstisnalar: `comment.mentioned` + `*_invit
 - `push.tokens.register`/`revoke` integration (duplicate token → update; revoked → reactivate).
 
 > **Kapsam dışı:** notification tercih ekranı UI (default tercihlerle çalışır; UI sonraki tur), email digest (saatlik/günlük özet — Faz 8), slack/teams entegrasyonu, recurring task'lar.
+
+### Faz 6.5 — Search procedure'leri ([DEM-56](https://linear.app/demirkol/issue/DEM-56))
+
+> Faz 6.5 = PostgreSQL full-text search. Arama kapsamı ve permission davranışı → [`../domain/06-arama-kapsami.md`](../domain/06-arama-kapsami.md); tablo/index modeli → [`04-veri-katmani.md`](04-veri-katmani.md) "Faz 6.5"; FTS mimarisi ve Meilisearch'e geçiş eşiği → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.2; web tüketimi → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.12.
+
+| Router | Procedure | Middleware | Not |
+| --- | --- | --- | --- |
+| `search` | `query` | `protectedProcedure` | Global veya scoped arama. Input: `{ query: string, workspaceId?: string, boardId?: string, entityTypes?: SearchEntityType[], includeArchived?: boolean, limit?: number, cursor?: string }`. Minimum query uzunluğu 2; `limit` üst sınırı 50. Permission: `workspaceId` varsa workspace üyeliği; `boardId` varsa `resolveBoardAccess(viewer+)`; ikisi yoksa kullanıcının erişebildiği workspace/board scope'u server-side join/subquery ile kısıtlanır. |
+
+**`search.query` response shape:**
+
+```ts
+type SearchResult = {
+  id: string;
+  entityType: "board" | "list" | "card" | "comment" | "label";
+  entityId: string;
+  workspaceId: string;
+  workspaceTitle: string;
+  boardId: string | null;
+  boardTitle: string | null;
+  cardId: string | null;
+  cardTitle: string | null;
+  title: string;
+  snippet: string | null;
+  rank: number;
+  targetUrl: string;
+  updatedAt: string;
+};
+```
+
+`targetUrl` backend tarafından deterministik hesaplanır: board → board sayfası, card/comment → board sayfası + `?card=<cardId>`, list/label → board sayfası + context metadata. UI HTML snippet render etmez; snippet düz metindir. `ts_headline` kullanılacaksa escaping server tarafında garanti edilir, aksi sade context döner.
+
+**FTS query pattern:**
+
+```txt
+protectedProcedure
+  → input validation (`@pusula/domain` searchQueryInput)
+  → tsquery = websearch_to_tsquery('simple', normalizedQuery)
+  → search_documents WHERE search_vector @@ tsquery
+  → permission scope join/subquery
+  → archived_at filter (unless includeArchived)
+  → rank DESC, updated_at DESC
+  → result projection + targetUrl
+```
+
+**Index helper pattern (DEM-105):**
+
+```txt
+domain mutation tx
+  → source entity mutation
+  → activity_events / realtime_events / notification_outbox (ilgili fazlarda)
+  → upsertSearchDocument(tx, { entityType, entityId })
+  → commit
+```
+
+- Helper'lar `packages/api/src/lib/search-indexer.ts` altında toplanır: `upsertSearchDocument`, `deleteSearchDocument`, `buildSearchVectorSql`, `resolveSearchDocumentPayload`.
+- Kapsam mutation'ları: `board.create/update/archive`, `list.create/update/archive`, `card.create/update/archive/complete?` (tamamlama metin değiştirmez ama archived/visibility kontrolü etkilenmez), `comment.create/update/delete`, `label.create/update/delete`, kart label add/remove (label metnini kart document'ının `labels` alanına yansıtmak için).
+- Ağır reindex/backfill `apps/worker` job'udur; public tRPC procedure değildir. Gerekiyorsa admin-only internal command/queue producer ayrı eklenir, kullanıcı arayüzüne açılmaz.
+
+**Test (Faz 6.5C + 6.5E):**
+
+- Permission leak: erişimsiz board/card/comment/label sonucu dönmez.
+- Archived default: arşivli board/list/card dışarıda; `includeArchived=true` yalnız erişilebilir kayıtları döndürür.
+- Rank/snippet: title match body match'ten önce; snippet düz metin.
+- Query guard: boş/tek karakterli query API çağrısında güvenli validation.
+- Index güncelliği: create/update/archive/delete sonrası `search_documents` doğru halde.
+
+> **Kapsam dışı:** Meilisearch/OpenSearch, attachment OCR/full-text extraction, mobil arama UI, fuzzy typo tolerance, ağır facet/filter API'si.
 
 ## Worker (background job)
 

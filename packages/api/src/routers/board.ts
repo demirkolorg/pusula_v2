@@ -244,6 +244,8 @@ export const boardRouter = router({
         id: lists.id,
         title: lists.title,
         color: lists.color,
+        icon: lists.icon,
+        iconColor: lists.iconColor,
         position: lists.position,
         archivedAt: lists.archivedAt,
         createdAt: lists.createdAt,

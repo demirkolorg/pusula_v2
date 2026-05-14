@@ -6,12 +6,36 @@ import {
   ArchiveRestoreIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  BookmarkIcon,
+  BriefcaseIcon,
+  CalendarIcon,
+  CheckIcon,
+  CircleIcon,
+  ClockIcon,
+  FlagIcon,
+  InboxIcon,
   MoreHorizontalIcon,
   PaletteIcon,
   PencilIcon,
   PlusIcon,
+  RocketIcon,
+  StarIcon,
+  TagIcon,
+  TargetIcon,
+  UserIcon,
+  UsersIcon,
+  ZapIcon,
+  type LucideIcon,
 } from 'lucide-react';
-import { LIST_COLORS, listTitleSchema, type ListColor } from '@pusula/domain';
+import {
+  LIST_COLORS,
+  LIST_ICON_COLORS,
+  LIST_ICONS,
+  listTitleSchema,
+  type ListColor,
+  type ListIcon,
+  type ListIconColor,
+} from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
@@ -45,8 +69,14 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { AddCardForm } from './add-card-form';
 import { useBoardDndContext } from './board-dnd-context';
-import { CardItem, type BoardCard } from './card-item';
+import {
+  CardItem,
+  type BoardCard,
+  type BoardCardLabelOption,
+  type BoardCardMemberOption,
+} from './card-item';
 import { ListColorPicker } from './list-color-picker';
+import { ListIconPicker } from './list-icon-picker';
 import type { CardDropPlaceholder } from './use-board-dnd';
 
 export type BoardList = {
@@ -54,6 +84,8 @@ export type BoardList = {
   title: string;
   position: string;
   color: string | null;
+  icon: string | null;
+  iconColor: string | null;
   archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -75,6 +107,10 @@ type ListColumnProps = {
    * list" picker. Optional so a `ListColumn` rendered in isolation still works.
    */
   allLists?: BoardList[];
+  /** Board label palette used by each card's context menu. */
+  boardLabels?: BoardCardLabelOption[];
+  /** Board members used by each card's context menu. */
+  boardMembers?: BoardCardMemberOption[];
 };
 
 function CardDropPlaceholderMarker({ height }: { height: number | null }) {
@@ -89,6 +125,8 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
 }
 
 const LIST_COLOR_SET = new Set<string>(LIST_COLORS);
+const LIST_ICON_SET = new Set<string>(LIST_ICONS);
+const LIST_ICON_COLOR_SET = new Set<string>(LIST_ICON_COLORS);
 
 const COLUMN_BG: Record<ListColor, string> = {
   yesil: 'bg-palet-yesil',
@@ -116,8 +154,50 @@ const COLUMN_FG: Record<ListColor, string> = {
   gri: 'text-palet-gri-foreground',
 };
 
+const LIST_ICON_COMPONENTS: Record<ListIcon, LucideIcon> = {
+  circle: CircleIcon,
+  check: CheckIcon,
+  star: StarIcon,
+  flag: FlagIcon,
+  bookmark: BookmarkIcon,
+  tag: TagIcon,
+  clock: ClockIcon,
+  calendar: CalendarIcon,
+  user: UserIcon,
+  users: UsersIcon,
+  briefcase: BriefcaseIcon,
+  zap: ZapIcon,
+  target: TargetIcon,
+  rocket: RocketIcon,
+  inbox: InboxIcon,
+  archive: ArchiveIcon,
+};
+
+const LIST_ICON_FG: Record<ListIconColor, string> = {
+  kirmizi: 'text-palet-kirmizi',
+  turuncu: 'text-palet-turuncu',
+  sari: 'text-palet-sari',
+  lime: 'text-palet-lime',
+  yesil: 'text-palet-yesil',
+  sky: 'text-palet-sky',
+  mavi: 'text-palet-mavi',
+  indigo: 'text-palet-indigo',
+  mor: 'text-palet-mor',
+  pembe: 'text-palet-pembe',
+  gri: 'text-palet-gri',
+  siyah: 'text-palet-siyah',
+};
+
 function asListColor(color: string | null): ListColor | null {
   return color != null && LIST_COLOR_SET.has(color) ? (color as ListColor) : null;
+}
+
+function asListIcon(icon: string | null): ListIcon | null {
+  return icon != null && LIST_ICON_SET.has(icon) ? (icon as ListIcon) : null;
+}
+
+function asListIconColor(color: string | null): ListIconColor | null {
+  return color != null && LIST_ICON_COLOR_SET.has(color) ? (color as ListIconColor) : null;
 }
 
 /**
@@ -132,7 +212,15 @@ function asListColor(color: string | null): ListColor | null {
  * menu actions reuse the existing mutations (`list.update` / `list.archive` /
  * `list.move`); archiving still goes through a confirm dialog.
  */
-export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: ListColumnProps) {
+export function ListColumn({
+  boardId,
+  list,
+  cards,
+  canEdit,
+  allLists = [],
+  boardLabels = [],
+  boardMembers = [],
+}: ListColumnProps) {
   const trpc = useTRPC();
   const renameId = useId();
   const columnCopy = strings.board.column;
@@ -142,6 +230,9 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
 
   const listArchived = list.archivedAt != null;
   const listColor = asListColor(list.color);
+  const listIcon = asListIcon(list.icon);
+  const listIconColor = asListIconColor(list.iconColor);
+  const ListHeaderIcon = listIcon ? LIST_ICON_COMPONENTS[listIcon] : null;
   // An archived list never accepts mutations, even if the viewer could otherwise edit.
   const listEditable = canEdit && !listArchived;
 
@@ -352,6 +443,20 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                   aria-hidden
                 />
               )}
+              {ListHeaderIcon && listIcon && (
+                <ListHeaderIcon
+                  data-testid={`list-icon-${listIcon}`}
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    listIconColor
+                      ? LIST_ICON_FG[listIconColor]
+                      : listColor === null
+                        ? 'text-muted-foreground'
+                        : 'text-current/80',
+                  )}
+                  aria-hidden
+                />
+              )}
               {listEditable ? (
                 <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
                   <button
@@ -406,6 +511,20 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                           <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <StarIcon />
+                          {strings.board.list.iconPicker.title}
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="p-2">
+                          <ListIconPicker
+                            boardId={boardId}
+                            listId={list.id}
+                            value={listIcon}
+                            color={listIconColor}
+                          />
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                     </>
                   )}
                   {(canMoveLeft || canMoveRight) && (
@@ -455,6 +574,8 @@ export function ListColumn({ boardId, list, cards, canEdit, allLists = [] }: Lis
                   card={card}
                   canEdit={listEditable}
                   allLists={allLists}
+                  boardLabels={boardLabels}
+                  boardMembers={boardMembers}
                 />
                 {cardPlaceholder?.targetCardId === card.id &&
                   cardPlaceholder.edge === 'bottom' && (

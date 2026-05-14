@@ -35,6 +35,16 @@ export function firstPosition(): string {
   return generateKeyBetween(null, null);
 }
 
+/** True when `position` is a valid `fractional-indexing` order key. */
+export function isValidPosition(position: string): boolean {
+  try {
+    generateKeyBetween(position, null);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * True if any of the given position keys is long enough to warrant compaction
  * (≥ `POSITION_COMPACTION_MAX_LEN`). Move procedures call this on the key(s)

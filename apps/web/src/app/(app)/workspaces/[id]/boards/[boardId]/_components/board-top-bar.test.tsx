@@ -3,9 +3,19 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 
-const h = vi.hoisted(() => ({ mutate: vi.fn(), clipboardWriteText: vi.fn() }));
+const h = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  clipboardWriteText: vi.fn(),
+  archivedCards: {
+    data: [] as unknown[],
+    isPending: false,
+    isError: false,
+    error: null,
+  },
+}));
 
 vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => h.archivedCards,
   useMutation: () => ({
     mutate: h.mutate,
     reset: vi.fn(),
@@ -44,6 +54,14 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
       get: { queryFilter: () => ({}) },
     },
+    card: {
+      archive: { mutationOptions: (o: unknown) => o },
+      moveToList: { mutationOptions: (o: unknown) => o },
+      listArchived: { queryOptions: (o: unknown) => o, queryFilter: () => ({}) },
+    },
+    list: {
+      archive: { mutationOptions: (o: unknown) => o },
+    },
   }),
 }));
 
@@ -71,17 +89,19 @@ const filterProps = {
   selectedLabelIds: new Set<string>(['l1']),
   onToggleLabel: vi.fn(),
   onClearLabels: vi.fn(),
-  showArchivedLists: false,
-  onToggleArchivedLists: vi.fn(),
-  archivedListCount: 2,
 };
 
 describe('<BoardTopBar>', () => {
   beforeEach(() => {
     h.mutate.mockReset();
+    h.archivedCards = {
+      data: [],
+      isPending: false,
+      isError: false,
+      error: null,
+    };
     filterProps.onToggleLabel.mockReset();
     filterProps.onClearLabels.mockReset();
-    filterProps.onToggleArchivedLists.mockReset();
     h.clipboardWriteText.mockRestore?.();
     const clipboard =
       window.navigator.clipboard ??
@@ -207,8 +227,9 @@ describe('<BoardTopBar>', () => {
     );
     await user.click(screen.getByRole('menuitemcheckbox', { name: /Beklemede/ }));
     expect(filterProps.onToggleLabel).toHaveBeenCalledWith('l2');
-    await user.click(screen.getByRole('menuitemcheckbox', { name: filterCopy.archivedListsToggle }));
-    expect(filterProps.onToggleArchivedLists).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: filterCopy.archivedListsToggle }),
+    ).not.toBeInTheDocument();
   });
 
   it('admin active board: split invite/share/settings controls replace the old invite/share and more menu', async () => {
@@ -378,5 +399,76 @@ describe('<BoardTopBar>', () => {
     await user.click(screen.getByRole('button', { name: topCopy.activity }));
 
     expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
+  });
+
+  it('opens archived items as a dropdown and keeps list/card rows visible while toggles affect board state', async () => {
+    const user = userEvent.setup();
+    const onToggleArchivedLists = vi.fn();
+    const onToggleArchivedCards = vi.fn();
+    h.archivedCards = {
+      data: [
+        {
+          id: 'c-archived',
+          boardId: 'b1',
+          listId: 'l-active',
+          title: 'Eski kart',
+          archivedAt: new Date('2026-05-03T10:00:00.000Z'),
+          listTitle: 'Aktif liste',
+          listArchivedAt: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    };
+
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+        archive={{
+          canEdit: true,
+          showArchivedLists: true,
+          onToggleArchivedLists,
+          showArchivedCards: false,
+          onToggleArchivedCards,
+          archivedListCount: 1,
+          lists: [
+            { id: 'l-active', title: 'Aktif liste', archivedAt: null },
+            {
+              id: 'l-archived',
+              title: 'Eski liste',
+              archivedAt: new Date('2026-05-01T10:00:00.000Z'),
+            },
+          ],
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Arşivli öğeler' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Arşivli öğeler' })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: /Ar.ivli listeleri g.ster/ }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Eski liste')).toBeInTheDocument();
+    expect(screen.getByText('Eski kart')).toBeInTheDocument();
+
+    const cardsToggle = screen.getByRole('menuitemcheckbox', {
+      name: /Ar.ivli kartlar. g.ster/,
+    });
+    expect(cardsToggle).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(cardsToggle);
+
+    expect(screen.getAllByRole('button', { name: 'Geri yükle' })).toHaveLength(2);
+    expect(onToggleArchivedCards).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /Ar.ivli listeleri g.ster/ }));
+    expect(onToggleArchivedLists).toHaveBeenCalledTimes(1);
   });
 });

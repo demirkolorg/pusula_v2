@@ -45,6 +45,24 @@ vi.mock('@/trpc/client', () => ({
           }),
         },
       },
+      members: {
+        list: {
+          queryOptions: (input: unknown, options?: unknown) => ({
+            key: 'board.members.list',
+            input,
+            ...(typeof options === 'object' && options ? options : {}),
+          }),
+        },
+      },
+    },
+    label: {
+      list: {
+        queryOptions: (input: unknown, options?: unknown) => ({
+          key: 'label.list',
+          input,
+          ...(typeof options === 'object' && options ? options : {}),
+        }),
+      },
     },
   }),
 }));

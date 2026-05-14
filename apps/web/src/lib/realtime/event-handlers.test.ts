@@ -38,6 +38,8 @@ type FixList = {
   title: string;
   archivedAt: string | null;
   color: string | null;
+  icon: string | null;
+  iconColor: string | null;
 };
 type FixBoard = { id: string; title: string; version: number; archivedAt: string | null };
 type FixCache = { board: FixBoard; lists: FixList[]; cards: FixCard[] };
@@ -69,8 +71,8 @@ const boardInvitationsKey = (boardId: string) => ['board.invitations.list', { bo
 const fixture = (): FixCache => ({
   board: { id: 'b1', title: 'Pano', version: 7, archivedAt: null },
   lists: [
-    { id: 'L1', position: 'l0', title: 'Yapılacak', archivedAt: null, color: null },
-    { id: 'L2', position: 'l1', title: 'Bitti', archivedAt: null, color: null },
+    { id: 'L1', position: 'l0', title: 'Yapılacak', archivedAt: null, color: null, icon: null, iconColor: null },
+    { id: 'L2', position: 'l1', title: 'Bitti', archivedAt: null, color: null, icon: null, iconColor: null },
   ],
   cards: [
     {
@@ -181,6 +183,24 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(moved.position).toBe('b0V');
   });
 
+  it('card.moved accepts the compact producer toPosition field', () => {
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.moved', {
+        cardId: 'c1',
+        fromListId: 'L1',
+        toListId: 'L2',
+        fromPosition: 'a0',
+        toPosition: 'b0V',
+      }),
+    );
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    const moved = next.cards.find((c) => c.id === 'c1')!;
+    expect(moved.listId).toBe('L2');
+    expect(moved.position).toBe('b0V');
+  });
+
   it('card.created → appends the card row and re-sorts', () => {
     dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('card.created', {
       card: {
@@ -193,6 +213,22 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     }));
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.cards.find((c) => c.id === 'c4')).toBeDefined();
+  });
+
+  it('card.created accepts the compact producer payload', () => {
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('card.created', {
+      cardId: 'c4',
+      listId: 'L2',
+      title: 'dört',
+      position: 'b1',
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.cards.find((c) => c.id === 'c4')).toMatchObject({
+      id: 'c4',
+      listId: 'L2',
+      title: 'dört',
+      position: 'b1',
+    });
   });
 
   it('card.updated → shallow-patches the card by id', () => {
@@ -243,6 +279,16 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(next.lists.find((l) => l.id === 'L1')!.position).toBe('l2');
   });
 
+  it('list.moved accepts the compact producer toPosition field', () => {
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.moved', {
+      listId: 'L1',
+      fromPosition: 'l0',
+      toPosition: 'l2',
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L1')!.position).toBe('l2');
+  });
+
   it('list.created → appends and re-sorts', () => {
     dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.created', {
       list: {
@@ -251,10 +297,27 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
         title: 'Yeni liste',
         archivedAt: null,
         color: null,
+        icon: null,
+        iconColor: null,
       } satisfies FixList,
     }));
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.lists.find((l) => l.id === 'L3')).toBeDefined();
+  });
+
+  it('list.created accepts the compact producer payload', () => {
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.created', {
+      listId: 'L3',
+      title: 'Yeni liste',
+      position: 'l2',
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L3')).toMatchObject({
+      id: 'L3',
+      title: 'Yeni liste',
+      position: 'l2',
+      archivedAt: null,
+    });
   });
 
   it('list.updated → shallow-patches the list', () => {
@@ -288,6 +351,38 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(next.lists.find((l) => l.id === 'L1')!.color).toBeNull();
   });
 
+  it('list.updated with icon fields → patches the list icon and icon colour', () => {
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.updated', {
+      listId: 'L1',
+      icon: 'star',
+      iconColor: 'mavi',
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L1')).toMatchObject({
+      icon: 'star',
+      iconColor: 'mavi',
+    });
+  });
+
+  it('list.updated with icon:null → clears icon and icon colour', () => {
+    qc.setQueryData(boardKey('b1'), {
+      ...fixture(),
+      lists: fixture().lists.map((l) =>
+        l.id === 'L1' ? { ...l, icon: 'rocket', iconColor: 'mor' } : l,
+      ),
+    });
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.updated', {
+      listId: 'L1',
+      icon: null,
+      iconColor: null,
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L1')).toMatchObject({
+      icon: null,
+      iconColor: null,
+    });
+  });
+
   it('list.archived → stamps archivedAt without removing the list', () => {
     const archivedAt = '2026-05-13T11:00:00.000Z';
     dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.archived', {
@@ -297,6 +392,16 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     const next = qc.getQueryData<FixCache>(boardFilter.queryKey)!;
     const archived = next.lists.find((l) => l.id === 'L1')!;
     expect(archived.archivedAt).toBe(archivedAt);
+  });
+
+  it('list.archived accepts the compact producer archived flag', () => {
+    const createdAt = '2026-05-13T11:00:00.000Z';
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.archived', {
+      listId: 'L1',
+      archived: true,
+    }, { createdAt }));
+    const next = qc.getQueryData<FixCache>(boardFilter.queryKey)!;
+    expect(next.lists.find((l) => l.id === 'L1')!.archivedAt).toBe(createdAt);
   });
 
   it('board.updated → patches the board node', () => {
@@ -312,6 +417,17 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('board.archived', { archivedAt }));
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.board.archivedAt).toBe(archivedAt);
+  });
+
+  it('board.archived accepts the compact producer archived flag', () => {
+    const createdAt = '2026-05-13T11:00:00.000Z';
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('board.archived', { boardId: 'b1', archived: true }, { createdAt }),
+    );
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.board.archivedAt).toBe(createdAt);
   });
 
   it('unknown event type → warns and leaves the cache untouched', () => {

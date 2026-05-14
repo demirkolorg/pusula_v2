@@ -100,6 +100,9 @@ export const ACTIVITY_EVENT_TYPES = [
   // DEM-110 (Card cover photo). Appended to keep the Postgres enum append-only.
   'card.cover_image_changed',
   'card.cover_image_cleared',
+  // DEM-109 (List icon + icon colour). Appended to keep the Postgres enum append-only.
+  'list.icon_changed',
+  'list.icon_cleared',
 ] as const;
 
 /**
@@ -172,6 +175,50 @@ export const LIST_COLORS = [
   'gri',
 ] as const;
 export type ListColor = (typeof LIST_COLORS)[number];
+
+/**
+ * Curated list icon set. Stored verbatim in `lists.icon`; `null` = no icon.
+ * UI maps these stable tokens to lucide-react components.
+ */
+export const LIST_ICONS = [
+  'circle',
+  'check',
+  'star',
+  'flag',
+  'bookmark',
+  'tag',
+  'clock',
+  'calendar',
+  'user',
+  'users',
+  'briefcase',
+  'zap',
+  'target',
+  'rocket',
+  'inbox',
+  'archive',
+] as const;
+export type ListIcon = (typeof LIST_ICONS)[number];
+
+/**
+ * List icon colour palette. Mirrors the 12 design-token palette names; `null`
+ * means "use the column header's default/current text colour".
+ */
+export const LIST_ICON_COLORS = [
+  'kirmizi',
+  'turuncu',
+  'sari',
+  'lime',
+  'yesil',
+  'sky',
+  'mavi',
+  'indigo',
+  'mor',
+  'pembe',
+  'gri',
+  'siyah',
+] as const;
+export type ListIconColor = (typeof LIST_ICON_COLORS)[number];
 
 /**
  * Card cover colour palette — one of the 12 design-token palette names
@@ -250,7 +297,7 @@ export const MUTE_LEVELS = ['none', 'mentions_only', 'all'] as const;
 export const OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'dead'] as const;
 
 /** Entity kinds indexed in `search_documents`. */
-export const SEARCH_ENTITY_TYPES = ['board', 'card', 'comment', 'label'] as const;
+export const SEARCH_ENTITY_TYPES = ['board', 'list', 'card', 'comment', 'label'] as const;
 
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type BoardRole = (typeof BOARD_ROLES)[number];

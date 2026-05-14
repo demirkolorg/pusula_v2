@@ -45,7 +45,7 @@
  * `completed` / `completed_at` / `completed_by` columns; `card.update` also
  * accepts `coverColor` (one of the 12 palette names, or `null` to clear).
  */
-import { and, asc, desc, eq, inArray, sql } from '@pusula/db';
+import { and, asc, desc, eq, inArray, isNotNull, sql } from '@pusula/db';
 import {
   activityEvents,
   attachments,
@@ -84,7 +84,7 @@ import {
 import { toCoverImage } from '../lib/object-storage';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
-import { accessFromBoardRole } from '../middleware/board';
+import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { type Queryable, resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
 import { protectedProcedure, router } from '../trpc';
@@ -308,6 +308,29 @@ export const cardRouter = router({
     }
 
     return { card: { ...card, coverImage }, relations: ctx.card.relations };
+  }),
+
+  /**
+   * Archived cards for a board, newest archive first. Kept separate from
+   * `board.get` so the live board payload stays active-card-only and fast.
+   * Board `viewer+` can inspect the archive; restore/move still require
+   * mutation-level `member+` checks.
+   */
+  listArchived: boardProcedure.query(async ({ ctx }) => {
+    if (!canViewBoard(accessFromBoardRole(ctx.board.role))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: "Bu board'a erişiminiz yok." });
+    }
+
+    return ctx.db
+      .select({
+        ...cardCols,
+        listTitle: lists.title,
+        listArchivedAt: lists.archivedAt,
+      })
+      .from(cards)
+      .innerJoin(lists, eq(lists.id, cards.listId))
+      .where(and(eq(cards.boardId, ctx.board.id), isNotNull(cards.archivedAt)))
+      .orderBy(desc(cards.archivedAt));
   }),
 
   /**
@@ -585,6 +608,22 @@ export const cardRouter = router({
       const isArchived = card.archivedAt !== null;
       if (isArchived === input.archived) {
         return { id: card.id, archivedAt: card.archivedAt, changed: false as const };
+      }
+      if (!input.archived && isArchived) {
+        const [list] = await tx
+          .select({ archivedAt: lists.archivedAt })
+          .from(lists)
+          .where(eq(lists.id, card.listId))
+          .limit(1);
+        if (!list) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Liste bulunamadı.' });
+        }
+        if (list.archivedAt) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Arşivli listedeki kartı geri yüklemek için önce aktif bir listeye taşıyın.',
+          });
+        }
       }
 
       const nextArchivedAt = input.archived ? new Date() : null;

@@ -28,6 +28,10 @@ import {
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
 import { BoardActivityDrawer } from './board-activity-drawer';
+import {
+  ArchivedItemsDropdown,
+  type BoardArchiveList,
+} from './archived-items-dropdown';
 import { BoardFilterMenuContent, type BoardFilterMenuContentProps } from './board-filter-bar';
 import {
   BoardSettingsDropdown,
@@ -43,6 +47,15 @@ type BoardTopBarProps = {
   archived: boolean;
   isBoardAdmin: boolean;
   filter?: BoardFilterMenuContentProps;
+  archive?: {
+    lists: BoardArchiveList[];
+    canEdit: boolean;
+    showArchivedLists: boolean;
+    onToggleArchivedLists: () => void;
+    showArchivedCards: boolean;
+    onToggleArchivedCards: () => void;
+    archivedListCount: number;
+  };
 };
 
 function ComingSoonAction({
@@ -144,6 +157,7 @@ export function BoardTopBar({
   archived,
   isBoardAdmin,
   filter,
+  archive,
 }: BoardTopBarProps) {
   const copy = strings.board.topBar;
 
@@ -197,6 +211,7 @@ export function BoardTopBar({
 
       <div className="flex shrink-0 items-center gap-1">
         {filter && <BoardFilterMenu filter={filter} />}
+        {archive && <ArchivedItemsDropdown boardId={boardId} {...archive} />}
         <ComingSoonAction
           icon={<SearchIcon className="size-4" />}
           label={copy.search}

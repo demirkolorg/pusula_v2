@@ -10,7 +10,8 @@
     "./permissions": "./src/permissions.ts",
     "./position": "./src/position.ts",
     "./events": "./src/events.ts",
-    "./schemas": "./src/schemas/index.ts"
+    "./schemas": "./src/schemas/index.ts",
+    "./schemas/search": "./src/schemas/search.ts"
   },
   "scripts": {
     "lint": "eslint .",

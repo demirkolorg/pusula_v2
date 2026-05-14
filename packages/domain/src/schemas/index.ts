@@ -11,3 +11,4 @@ export * from './comment';
 export * from './attachment';
 export * from './checklist';
 export * from './push-token';
+export * from './search';

@@ -459,7 +459,7 @@ export function useBoardDnd(opts: {
         toListId: plan.toListId,
         beforeCardId: plan.beforeCardId ?? undefined,
         afterCardId: plan.afterCardId ?? undefined,
-        newPosition: plan.newPosition,
+        newPosition: plan.newPosition ?? undefined,
       });
     },
     [enabled, isListActive, cardsByListId],
@@ -475,7 +475,7 @@ export function useBoardDnd(opts: {
         listId: plan.listId,
         beforeListId: plan.beforeListId ?? undefined,
         afterListId: plan.afterListId ?? undefined,
-        newPosition: plan.newPosition,
+        newPosition: plan.newPosition ?? undefined,
       });
     },
     [enabled, boardId, listsForPlan],
@@ -624,18 +624,25 @@ export function useBoardDnd(opts: {
               cardOverlay().hide();
               return;
             }
-            settlingCardDropRef.current = {
-              cardId: plan.cardId,
-              toListId: plan.toListId,
-              newPosition: plan.newPosition,
-            };
+            if (plan.newPosition == null) {
+              settlingCardDropRef.current = null;
+              clearCardPlaceholder();
+              draggedCardHeightRef.current = null;
+              cardOverlay().hide();
+            } else {
+              settlingCardDropRef.current = {
+                cardId: plan.cardId,
+                toListId: plan.toListId,
+                newPosition: plan.newPosition,
+              };
+            }
             cardMoveRef.current.mutate({
               cardId: plan.cardId,
               fromListId: plan.fromListId,
               toListId: plan.toListId,
               beforeCardId: plan.beforeCardId ?? undefined,
               afterCardId: plan.afterCardId ?? undefined,
-              newPosition: plan.newPosition,
+              newPosition: plan.newPosition ?? undefined,
             });
             return;
           }
@@ -667,7 +674,7 @@ export function useBoardDnd(opts: {
               listId: plan.listId,
               beforeListId: plan.beforeListId ?? undefined,
               afterListId: plan.afterListId ?? undefined,
-              newPosition: plan.newPosition,
+              newPosition: plan.newPosition ?? undefined,
             });
           }
         },
@@ -714,9 +721,9 @@ export function useBoardDnd(opts: {
             const willMove = resolveCardDropPlan(source.data, location.current.dropTargets[0]);
             args.onDraggingChange(
               false,
-              willMove ? { settleUntilCacheUpdate: true } : undefined,
+              willMove?.newPosition != null ? { settleUntilCacheUpdate: true } : undefined,
             );
-            if (!willMove) cardOverlay().hide();
+            if (!willMove || willMove.newPosition == null) cardOverlay().hide();
           },
         }),
       ];

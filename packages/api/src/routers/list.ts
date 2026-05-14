@@ -48,6 +48,8 @@ const listCols = {
   boardId: lists.boardId,
   title: lists.title,
   color: lists.color,
+  icon: lists.icon,
+  iconColor: lists.iconColor,
   position: lists.position,
   archivedAt: lists.archivedAt,
   createdAt: lists.createdAt,
@@ -149,7 +151,9 @@ export const listRouter = router({
 
     const wantsTitle = input.title !== undefined;
     const wantsColor = input.color !== undefined;
-    if (!wantsTitle && !wantsColor) {
+    const wantsIcon = input.icon !== undefined;
+    const wantsIconColor = input.iconColor !== undefined;
+    if (!wantsTitle && !wantsColor && !wantsIcon && !wantsIconColor) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
@@ -186,10 +190,18 @@ export const listRouter = router({
 
       const titleChanged = wantsTitle && input.title !== list.title;
       const colorChanged = wantsColor && (list.color ?? null) !== (input.color ?? null);
+      const nextIcon = wantsIcon ? input.icon ?? null : list.icon ?? null;
+      const nextIconColor =
+        nextIcon === null ? null : wantsIconColor ? input.iconColor ?? null : list.iconColor ?? null;
+      const iconChanged = wantsIcon && (list.icon ?? null) !== nextIcon;
+      const iconColorChanged =
+        (wantsIcon || wantsIconColor) && (list.iconColor ?? null) !== nextIconColor;
 
       const patch: Partial<typeof lists.$inferInsert> = {};
       if (titleChanged) patch.title = input.title;
       if (colorChanged) patch.color = input.color ?? null;
+      if (iconChanged) patch.icon = nextIcon;
+      if (iconColorChanged) patch.iconColor = nextIconColor;
 
       if (Object.keys(patch).length === 0) {
         return { ...list, changed: false as const };
@@ -224,6 +236,30 @@ export const listRouter = router({
         });
       }
 
+      if (iconChanged || iconColorChanged) {
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: updated.icon ? 'list.icon_changed' : 'list.icon_cleared',
+          payload: updated.icon
+            ? {
+                listId: updated.id,
+                oldIcon: list.icon ?? null,
+                newIcon: updated.icon,
+                oldIconColor: list.iconColor ?? null,
+                newIconColor: updated.iconColor ?? null,
+                clientMutationId: ctx.clientMutationId,
+              }
+            : {
+                listId: updated.id,
+                oldIcon: list.icon,
+                oldIconColor: list.iconColor,
+                clientMutationId: ctx.clientMutationId,
+              },
+        });
+      }
+
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
@@ -235,6 +271,8 @@ export const listRouter = router({
         fromTitle?: string;
         toTitle?: string;
         color?: string | null;
+        icon?: string | null;
+        iconColor?: string | null;
       } = { listId: updated.id };
       if (titleChanged) {
         realtimeData.fromTitle = list.title;
@@ -242,6 +280,12 @@ export const listRouter = router({
       }
       if (colorChanged) {
         realtimeData.color = updated.color ?? null;
+      }
+      if (iconChanged) {
+        realtimeData.icon = updated.icon ?? null;
+      }
+      if (iconColorChanged || (iconChanged && (updated.icon ?? null) === null)) {
+        realtimeData.iconColor = updated.iconColor ?? null;
       }
 
       realtimeEventId = await insertRealtimeEvent(tx, {

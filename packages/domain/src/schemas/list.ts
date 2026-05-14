@@ -1,9 +1,11 @@
 import { z } from 'zod';
-import { LIST_COLORS } from '../constants';
+import { LIST_COLORS, LIST_ICON_COLORS, LIST_ICONS } from '../constants';
 import { idSchema, withClientMutationId } from './common';
 
 export const listTitleSchema = z.string().trim().min(1).max(120);
 export const listColorSchema = z.enum(LIST_COLORS);
+export const listIconSchema = z.enum(LIST_ICONS);
+export const listIconColorSchema = z.enum(LIST_ICON_COLORS);
 
 export const createListInput = z.object({
   boardId: idSchema,
@@ -25,12 +27,21 @@ export const updateListInput = z
     listId: idSchema,
     title: listTitleSchema.optional(),
     color: listColorSchema.nullable().optional(),
+    icon: listIconSchema.nullable().optional(),
+    iconColor: listIconColorSchema.nullable().optional(),
     ...withClientMutationId,
   })
-  .refine((input) => input.title !== undefined || input.color !== undefined, {
+  .refine(
+    (input) =>
+      input.title !== undefined ||
+      input.color !== undefined ||
+      input.icon !== undefined ||
+      input.iconColor !== undefined,
+    {
     message: 'At least one list field must be provided',
     path: ['title'],
-  });
+    },
+  );
 
 export const moveListInput = z.object({
   /**

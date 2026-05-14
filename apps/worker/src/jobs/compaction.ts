@@ -23,7 +23,7 @@
 import { asc, eq, sql } from '@pusula/db';
 import { boards, cards, lists } from '@pusula/db';
 import type { Database } from '@pusula/db';
-import { positionsBetween } from '@pusula/domain';
+import { isValidPosition, positionsBetween, shouldCompact } from '@pusula/domain';
 
 /**
  * BullMQ job name for this queue. Duplicated in `apps/api/src/compaction-queue.ts`
@@ -54,6 +54,13 @@ interface RebalanceResult {
   changed: number;
 }
 
+function shouldRebalancePositions(rows: readonly { position: string }[]): boolean {
+  if (rows.length === 0) return false;
+  if (rows.length > 1) return true;
+  const position = rows[0]!.position;
+  return !isValidPosition(position) || shouldCompact([position]);
+}
+
 /** Re-balance the cards of one list onto short, evenly-spaced positions. */
 async function rebalanceListCards(tx: Tx, listId: string): Promise<RebalanceResult> {
   const rows = await tx
@@ -61,7 +68,7 @@ async function rebalanceListCards(tx: Tx, listId: string): Promise<RebalanceResu
     .from(cards)
     .where(eq(cards.listId, listId))
     .orderBy(asc(cards.position));
-  if (rows.length <= 1) return { count: 0, changed: 0 };
+  if (!shouldRebalancePositions(rows)) return { count: 0, changed: 0 };
 
   const newPositions = positionsBetween(null, null, rows.length);
   let changed = 0;
@@ -82,7 +89,7 @@ async function rebalanceBoardLists(tx: Tx, boardId: string): Promise<RebalanceRe
     .from(lists)
     .where(eq(lists.boardId, boardId))
     .orderBy(asc(lists.position));
-  if (rows.length <= 1) return { count: 0, changed: 0 };
+  if (!shouldRebalancePositions(rows)) return { count: 0, changed: 0 };
 
   const newPositions = positionsBetween(null, null, rows.length);
   let changed = 0;

@@ -48,6 +48,8 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 >
 > **Board activity feed (DEM-70):** board feed'i yeni event tipi üretmez; `activity_events.board_id = boardId` olan mevcut board/list/card/comment/checklist/label/member activity satırlarının birleşik, newest-first görünümüdür. Kart feed'i gibi ayrı query'dir (`board.activity.list`), board payload'ına gömülmez. Board `viewer+` feed'i okuyabilir; actor silinmişse UI "Bir kullanıcı" fallback'i gösterir. Opsiyonel tip filtresi yalnızca mevcut `ACTIVITY_EVENT_TYPES` değerleriyle sınırlıdır.
 
+> **Liste ikonu ve ikon rengi (DEM-109):** `list.update({ icon, iconColor })` ikon veya ikon renginde gerÃ§ek deÄŸiÅŸiklik varsa activity Ã¼retir. Ä°kon ekleme/deÄŸiÅŸtirme ve yalnÄ±z renk deÄŸiÅŸimi/sÄ±fÄ±rlama `list.icon_changed` Ã¼retir; payload `{ listId, oldIcon, newIcon, oldIconColor, newIconColor }`. Ä°kon kaldÄ±rma (`icon: null`) `list.icon_cleared` Ã¼retir; payload `{ listId, oldIcon, oldIconColor }` ve server `iconColor`'Ä± da `null` yapar. AynÄ± ikon/renk tekrar set/clear idempotent no-op'tur; activity ve version Ã¼retmez. Bu iki event tipi `ACTIVITY_EVENT_TYPES`'a **append** edilir ve `lists.icon`/`lists.icon_color` migration'Ä±yla aynÄ± PR'dadÄ±r. Bkz. [`01-urun-modeli.md`](01-urun-modeli.md) invariant 18.
+
 ## Kurallar
 
 - `actor_id` her zaman işlemi yapan kullanıcı; sistem kaynaklı event'lerde (örn. `card.due_overdue` scheduler'dan) actor sistem/null olabilir — payload'da kaynak belirtilir.

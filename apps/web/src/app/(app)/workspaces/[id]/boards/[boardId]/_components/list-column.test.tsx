@@ -35,6 +35,17 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
+      get: { queryFilter: () => ({}) },
+      members: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
+      labels: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
     },
     board: { get: { queryFilter: () => ({}) } },
   }),
@@ -52,6 +63,8 @@ const list: BoardList = {
   title: 'Yapılacak',
   position: 'a0',
   color: null,
+  icon: null,
+  iconColor: null,
   archivedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
@@ -116,7 +129,22 @@ describe('<ListColumn>', () => {
     await user.click(screen.getByRole('button', { name: columnCopy.more }));
     expect(await screen.findByRole('menuitem', { name: columnCopy.menuRename })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: strings.board.list.colorPicker.title })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: strings.board.list.iconPicker.title })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
+  });
+
+  it('renders a list icon with the selected icon colour', () => {
+    render(
+      <ListColumn
+        boardId="b1"
+        list={{ ...list, icon: 'star', iconColor: 'mavi' }}
+        cards={[]}
+        canEdit
+      />,
+    );
+
+    const icon = screen.getByTestId('list-icon-star');
+    expect(icon).toHaveClass('text-palet-mavi');
   });
 
   it('renders a coloured list with full-column palette classes', () => {

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -42,6 +42,18 @@ vi.mock('@/trpc/client', () => ({
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
+      update: { mutationOptions: (o: unknown) => o },
+      get: { queryFilter: () => ({}) },
+      members: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
+      labels: {
+        add: { mutationOptions: (o: unknown) => o },
+        remove: { mutationOptions: (o: unknown) => o },
+        list: { queryFilter: () => ({}) },
+      },
     },
     board: { get: { queryFilter: () => ({}) } },
   }),
@@ -74,6 +86,41 @@ const baseCard: BoardCard = {
 };
 
 const card = (over: Partial<BoardCard>): BoardCard => ({ ...baseCard, ...over });
+
+const lists = [
+  {
+    id: 'l1',
+    title: 'Yapılacak',
+    position: 'a0',
+    color: null,
+    icon: null,
+    iconColor: null,
+    archivedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  },
+  {
+    id: 'l2',
+    title: 'Devam Eden',
+    position: 'b0',
+    color: null,
+    icon: null,
+    iconColor: null,
+    archivedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  },
+];
+
+const labels = [
+  { id: 'label-urgent', name: 'Acil', color: 'red' },
+  { id: 'label-health', name: 'Sağlık', color: 'green' },
+];
+
+const boardMembers = [
+  { userId: 'u1', name: 'Ayşe Çelik' },
+  { userId: 'u2', name: 'Mehmet Yıldız' },
+];
 
 const makeDnd = (over: Partial<BoardDnd> = {}): BoardDnd => ({
   enabled: true,
@@ -130,11 +177,50 @@ describe('<CardItem>', () => {
     expect(screen.queryByRole('button', { name: /arşivle/i })).not.toBeInTheDocument();
   });
 
-  it('canEdit=true: quick archive opens a confirm dialog (and does not also open the card)', async () => {
+  it('canEdit=true: separate quick move/archive buttons are not rendered on the card', () => {
+    render(
+      <BoardDndProvider value={makeDnd()}>
+        <CardItem
+          boardId="b1"
+          card={baseCard}
+          canEdit
+          allLists={lists}
+          boardLabels={labels}
+          boardMembers={boardMembers}
+        />
+      </BoardDndProvider>,
+    );
+
+    expect(screen.queryByRole('button', { name: /taşı/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /kartı arşivle/i })).not.toBeInTheDocument();
+  });
+
+  it('canEdit=true: right-click opens the card context menu without opening the card', async () => {
     const user = userEvent.setup();
     h.routerPush.mockReset();
-    render(<CardItem boardId="b1" card={baseCard} canEdit />);
-    await user.click(screen.getByRole('button', { name: /kartı arşivle/i }));
+    render(
+      <BoardDndProvider value={makeDnd()}>
+        <CardItem
+          boardId="b1"
+          card={baseCard}
+          canEdit
+          allLists={lists}
+          boardLabels={labels}
+          boardMembers={boardMembers}
+        />
+      </BoardDndProvider>,
+    );
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Bir kart' }));
+
+    expect(await screen.findByRole('menuitem', { name: /kapak rengi/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /etiketler/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /üyeler/i })).toBeInTheDocument();
+    expect(screen.queryByText(/yetkililer/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /son tarih/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /taşı/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: /kartı arşivle/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(h.routerPush).not.toHaveBeenCalled();
   });

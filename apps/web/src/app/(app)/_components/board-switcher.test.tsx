@@ -6,6 +6,7 @@ import { strings } from '@/lib/strings';
 const h = vi.hoisted(() => ({
   push: vi.fn(),
   params: {} as { id?: string; boardId?: string },
+  workspaces: [] as Array<{ id: string }>,
   boards: [] as Array<{
     id: string;
     title: string;
@@ -42,9 +43,11 @@ vi.mock('@tanstack/react-query', () => ({
       data:
         options.enabled === false
           ? undefined
-          : key === 'board.get'
-            ? h.boardGet
-            : h.boards,
+          : key === 'workspace.list'
+            ? h.workspaces
+            : key === 'board.get'
+              ? h.boardGet
+              : h.boards,
       isPending: false,
       isError: false,
       isSuccess: options.enabled !== false,
@@ -55,6 +58,9 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
+    workspace: {
+      list: { queryOptions: () => ({ queryKey: ['workspace.list'] }) },
+    },
     board: {
       list: { queryOptions: (input: unknown) => ({ queryKey: ['board.list', input] }) },
       get: { queryOptions: (input: unknown) => ({ queryKey: ['board.get', input] }) },
@@ -76,6 +82,7 @@ describe('<BoardSwitcher>', () => {
     h.push.mockReset();
     h.params = {};
     h.boardGet = undefined;
+    h.workspaces = [{ id: 'w1' }];
     h.boards = [
       {
         id: 'b1',
