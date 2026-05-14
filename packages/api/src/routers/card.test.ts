@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
 import {
   activityEvents,
+  attachments,
   boardMembers,
   cardMembers,
   realtimeEvents,
@@ -553,6 +554,109 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(forCard('card.cover_changed')).toHaveLength(1);
     expect(forCard('card.cover_changed')[0]?.payload).toMatchObject({ coverColor: 'mavi' });
     expect(forCard('card.cover_cleared')).toHaveLength(1);
+  });
+
+  it('update: coverImageAttachmentId set, no-op, clear and same-card validation follow cover update semantics', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Cover image card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherCard = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Other cover image card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(card.coverImageAttachmentId).toBeNull();
+
+    const [cover] = await db()
+      .insert(attachments)
+      .values({
+        cardId: card.id,
+        boardId,
+        uploaderId: memberId,
+        storageKey: `boards/${boardId}/cards/${card.id}/cover.png`,
+        fileName: 'cover.png',
+        mimeType: 'image/png',
+        size: 2048,
+      })
+      .returning();
+    const [otherCover] = await db()
+      .insert(attachments)
+      .values({
+        cardId: otherCard.id,
+        boardId,
+        uploaderId: memberId,
+        storageKey: `boards/${boardId}/cards/${otherCard.id}/cover.png`,
+        fileName: 'other-cover.png',
+        mimeType: 'image/png',
+        size: 1024,
+      })
+      .returning();
+
+    await expect(
+      callerFor(guestId).card.update({
+        cardId: card.id,
+        coverImageAttachmentId: cover!.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      callerFor(memberId).card.update({
+        cardId: card.id,
+        coverImageAttachmentId: otherCover!.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    const vBeforeSet = await boardVersion(boardId);
+    const withCoverImage = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverImageAttachmentId: cover!.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(withCoverImage).toMatchObject({ coverImageAttachmentId: cover!.id, changed: true });
+    expect(await boardVersion(boardId)).toBe(vBeforeSet + 1);
+
+    const fetched = await callerFor(memberId).card.get({ cardId: card.id });
+    expect(fetched.card).toMatchObject({
+      coverImageAttachmentId: cover!.id,
+      coverImage: {
+        attachmentId: cover!.id,
+        fileName: 'cover.png',
+        mimeType: 'image/png',
+        size: 2048,
+      },
+    });
+
+    const vAfterSet = await boardVersion(boardId);
+    const noop = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverImageAttachmentId: cover!.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(noop).toMatchObject({ coverImageAttachmentId: cover!.id, changed: false });
+    expect(await boardVersion(boardId)).toBe(vAfterSet);
+
+    const cleared = await callerFor(memberId).card.update({
+      cardId: card.id,
+      coverImageAttachmentId: null,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(cleared).toMatchObject({ coverImageAttachmentId: null, changed: true });
+
+    const acts = await actsFor(boardId);
+    const forCard = (t: string) =>
+      acts.filter((a) => a.type === t && (a.payload as { cardId?: string }).cardId === card.id);
+    expect(forCard('card.cover_image_changed')).toHaveLength(1);
+    expect(forCard('card.cover_image_changed')[0]?.payload).toMatchObject({
+      coverImageAttachmentId: cover!.id,
+    });
+    expect(forCard('card.cover_image_cleared')).toHaveLength(1);
+    expect(forCard('card.cover_image_cleared')[0]?.payload).toMatchObject({
+      fromCoverImageAttachmentId: cover!.id,
+    });
   });
 
   // -------------------------------------------------------------- archived board guards (DEM-66/67)

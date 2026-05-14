@@ -13,6 +13,7 @@
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from '@pusula/db';
 import {
   activityEvents,
+  attachments,
   boardMembers,
   boards,
   cardLabels,
@@ -38,6 +39,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { toCoverImage } from '../lib/object-storage';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
@@ -264,6 +266,7 @@ export const boardRouter = router({
         completedAt: cards.completedAt,
         completedBy: cards.completedBy,
         coverColor: cards.coverColor,
+        coverImageAttachmentId: cards.coverImageAttachmentId,
         archivedAt: cards.archivedAt,
         createdAt: cards.createdAt,
         updatedAt: cards.updatedAt,
@@ -289,15 +292,25 @@ export const boardRouter = router({
       image: string | null;
       role: 'assignee' | 'watcher';
     };
+    type CoverAttachmentRow = {
+      id: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+    };
     const cardIds = boardCards.map((c) => c.id);
-    const [labelRows, checklistRows, commentRows, memberRows]: [
+    const coverAttachmentIds = boardCards
+      .map((c) => c.coverImageAttachmentId)
+      .filter((id): id is string => Boolean(id));
+    const [labelRows, checklistRows, commentRows, memberRows, coverRows]: [
       CardLabelRow[],
       ChecklistAggRow[],
       CommentAggRow[],
       CardMemberRow[],
+      CoverAttachmentRow[],
     ] =
       cardIds.length === 0
-        ? [[], [], [], []]
+        ? [[], [], [], [], []]
         : await Promise.all([
             ctx.db
               .select({
@@ -337,6 +350,17 @@ export const boardRouter = router({
               .innerJoin(users, eq(users.id, cardMembers.userId))
               .where(inArray(cardMembers.cardId, cardIds))
               .orderBy(asc(cardMembers.role), asc(users.name)),
+            coverAttachmentIds.length === 0
+              ? Promise.resolve([])
+              : ctx.db
+                  .select({
+                    id: attachments.id,
+                    fileName: attachments.fileName,
+                    mimeType: attachments.mimeType,
+                    size: attachments.size,
+                  })
+                  .from(attachments)
+                  .where(inArray(attachments.id, coverAttachmentIds)),
           ]);
 
     const labelsByCard = new Map<string, { labelId: string; name: string; color: string }[]>();
@@ -366,6 +390,8 @@ export const boardRouter = router({
       else membersByCard.set(row.cardId, [entry]);
     }
 
+    const coverImageByAttachmentId = new Map(coverRows.map((row) => [row.id, toCoverImage(row)] as const));
+
     return {
       board: { ...board, role: ctx.board.role },
       lists: boardLists,
@@ -378,6 +404,9 @@ export const boardRouter = router({
           checklistDone: checklist?.done ?? 0,
           commentCount: commentCountByCard.get(card.id) ?? 0,
           members: membersByCard.get(card.id) ?? [],
+          coverImage: card.coverImageAttachmentId
+            ? coverImageByAttachmentId.get(card.coverImageAttachmentId) ?? null
+            : null,
         };
       }),
     };

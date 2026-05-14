@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: { url: 'https://storage.test/card-cover.png' } }),
   useMutation: () => ({
     mutate: h.mutate,
     reset: vi.fn(),
@@ -29,6 +30,14 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
+    attachment: {
+      getDownloadUrl: {
+        queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
+          input,
+          ...(options ?? {}),
+        }),
+      },
+    },
     card: {
       archive: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
@@ -55,6 +64,8 @@ const baseCard: BoardCard = {
   updatedAt: new Date('2026-01-01'),
   completed: false,
   coverColor: null,
+  coverImageAttachmentId: null,
+  coverImage: null,
   labels: [],
   checklistTotal: 0,
   checklistDone: 0,
@@ -211,6 +222,29 @@ describe('<CardItem>', () => {
     const stripe = article.querySelector('.bg-palet-mavi');
     expect(stripe).not.toBeNull();
     expect(stripe).toHaveClass('h-3');
+  });
+
+  it('renders the cover image before the colour stripe when a cover image is set', () => {
+    render(
+      <CardItem
+        boardId="b1"
+        card={card({
+          coverColor: 'mavi',
+          coverImageAttachmentId: 'att1',
+          coverImage: {
+            attachmentId: 'att1',
+            fileName: 'cover.png',
+            mimeType: 'image/png',
+            size: 1234,
+          },
+        })}
+        canEdit={false}
+      />,
+    );
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const image = article.querySelector('img');
+    expect(image).toHaveAttribute('src', 'https://storage.test/card-cover.png');
+    expect(article.querySelector('.bg-palet-mavi')).toBeNull();
   });
 
   it('no cover stripe when the cover colour is unknown', () => {

@@ -97,6 +97,9 @@ export const ACTIVITY_EVENT_TYPES = [
   // Phase 6C (DEM-92) — mention parser emits one activity per valid user
   // mention in a comment. Appended to keep the Postgres enum append-only.
   'comment.mentioned',
+  // DEM-110 (Card cover photo). Appended to keep the Postgres enum append-only.
+  'card.cover_image_changed',
+  'card.cover_image_cleared',
 ] as const;
 
 /**
@@ -184,6 +187,13 @@ export const CARD_COVER_COLORS = [
   'mavi', 'indigo', 'mor', 'pembe', 'gri', 'siyah',
 ] as const;
 export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
+
+/** Allowed MIME types for card cover image uploads (DEM-110). */
+export const CARD_COVER_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type CardCoverImageMimeType = (typeof CARD_COVER_IMAGE_MIME_TYPES)[number];
+
+/** Maximum card cover image upload size: 5 MiB. */
+export const CARD_COVER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * Board background gradient presets (DEM-100). Stored as `gradient:<name>` in

@@ -38,6 +38,7 @@ import {
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
+import { CardCoverImage, type CoverImage } from './card-cover-image';
 import { CardMetaRow, type CardMember } from './card-meta-row';
 import type { BoardList } from './list-column';
 
@@ -58,6 +59,8 @@ export type BoardCard = {
   completed: boolean;
   /** Cover colour name, or `null` (`board.get` → `cards[].coverColor`). */
   coverColor: string | null;
+  coverImageAttachmentId?: string | null;
+  coverImage?: CoverImage | null;
   /** Labels attached to this card (`board.get` → `cards[].labels`). May be empty. */
   labels: BoardCardLabel[];
   /** Total checklist items across the card's checklists (`board.get`). */
@@ -268,12 +271,18 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       )}
     >
       <div className={cn('flex flex-col gap-1', dragging && 'invisible')}>
-      {coverColor && (
+      {card.coverImage ? (
+        <CardCoverImage
+          coverImage={card.coverImage}
+          alt={`${card.title} kapak`}
+          className="-mx-2 -mt-2 mb-1.5 h-24 rounded-t-md"
+        />
+      ) : coverColor ? (
         <div
           className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
           aria-hidden
         />
-      )}
+      ) : null}
 
       <div className={cn('flex items-start gap-1.5', canEdit && 'pr-14')}>
         <CardCompleteToggle
@@ -314,7 +323,7 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
           className={cn(
             'absolute right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-background p-0.5 shadow-[0_4px_14px_rgba(15,23,42,0.16)] ring-1 ring-foreground/10',
             'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-            coverColor ? 'top-5' : 'top-1.5',
+            card.coverImage ? 'top-[5.75rem]' : coverColor ? 'top-5' : 'top-1.5',
           )}
         >
           {moveTargets.length > 0 && (

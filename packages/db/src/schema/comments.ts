@@ -1,4 +1,4 @@
-import { bigint, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, index, pgTable, text, timestamp, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { boards } from './boards';
 import { cards } from './cards';
@@ -10,7 +10,7 @@ export const comments = pgTable(
     id: primaryId(),
     cardId: text()
       .notNull()
-      .references(() => cards.id, { onDelete: 'cascade' }),
+      .references((): AnyPgColumn => cards.id, { onDelete: 'cascade' }),
     authorId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -28,7 +28,7 @@ export const attachments = pgTable(
     id: primaryId(),
     cardId: text()
       .notNull()
-      .references(() => cards.id, { onDelete: 'cascade' }),
+      .references((): AnyPgColumn => cards.id, { onDelete: 'cascade' }),
     boardId: text()
       .notNull()
       .references(() => boards.id, { onDelete: 'cascade' }),

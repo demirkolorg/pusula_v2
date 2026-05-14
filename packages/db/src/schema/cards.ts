@@ -1,7 +1,16 @@
-import { boolean, index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  type AnyPgColumn,
+} from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { boards, labels } from './boards';
 import { lists } from './lists';
+import { attachments } from './comments';
 import { cardRoleEnum } from './enums';
 import { archivedAt, primaryId, timestamps } from './_common';
 
@@ -32,6 +41,8 @@ export const cards = pgTable(
      * `labels.color` — no DB CHECK; validated in the API/domain layer.
      */
     coverColor: text(),
+    /** Selected image attachment to use as the card cover (DEM-110). */
+    coverImageAttachmentId: text().references((): AnyPgColumn => attachments.id, { onDelete: 'set null' }),
     archivedAt: archivedAt(),
     ...timestamps,
   },
