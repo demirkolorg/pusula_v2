@@ -87,6 +87,9 @@ export const ACTIVITY_EVENT_TYPES = [
   'card.uncompleted',
   'card.cover_changed',
   'card.cover_cleared',
+  // DEM-98 (List colour). Appended to keep the Postgres enum append-only.
+  'list.color_changed',
+  'list.color_cleared',
 ] as const;
 
 /**
@@ -140,6 +143,25 @@ export const LABEL_COLORS = [
   'black',
 ] as const;
 export type LabelColor = (typeof LABEL_COLORS)[number];
+
+/**
+ * List colour palette. A list's `color`, when set, is one of these 10 palette
+ * names; `null` = no custom column colour. Stored verbatim in `lists.color`
+ * (plain `text` — validated here, not at the DB).
+ */
+export const LIST_COLORS = [
+  'yesil',
+  'sari',
+  'turuncu',
+  'kirmizi',
+  'mor',
+  'mavi',
+  'sky',
+  'lime',
+  'pembe',
+  'gri',
+] as const;
+export type ListColor = (typeof LIST_COLORS)[number];
 
 /**
  * Card cover colour palette — one of the 12 design-token palette names
