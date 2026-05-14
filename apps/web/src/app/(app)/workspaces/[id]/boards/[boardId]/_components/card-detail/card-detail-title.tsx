@@ -15,6 +15,7 @@ type CardDetailTitleProps = {
   onSave: (title: string) => void;
   pending?: boolean;
   error?: string | null;
+  focusEditToken?: number;
 };
 
 /**
@@ -30,6 +31,7 @@ export function CardDetailTitle({
   onSave,
   pending = false,
   error,
+  focusEditToken = 0,
 }: CardDetailTitleProps) {
   const inputId = useId();
   const copy = strings.card.detail;
@@ -44,6 +46,11 @@ export function CardDetailTitle({
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
+  useEffect(() => {
+    if (!canEdit || focusEditToken <= 0) return;
+    taRef.current?.focus();
+    taRef.current?.select();
+  }, [canEdit, focusEditToken]);
 
   const submit = () => {
     const parsed = cardTitleSchema.safeParse(value);

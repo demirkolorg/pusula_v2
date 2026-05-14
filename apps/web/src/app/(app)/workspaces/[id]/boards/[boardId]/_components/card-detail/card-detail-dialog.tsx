@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import {
   CARD_COVER_COLORS,
+  CARD_COVER_IMAGE_MAX_BYTES,
   CARD_COVER_IMAGE_MIME_TYPES,
   boardRoleAtLeast,
   type BoardRole,
@@ -31,9 +32,12 @@ import {
   useOptimisticBoardMutation,
   type CardDetailCache,
 } from '@/lib/board-cache';
+import { AppSpinner } from '@/components/app-spinner';
+import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import type { CoverImage } from '../card-cover-image';
+import { ShortcutHelpDialog } from '../shortcut-help-dialog';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
 import { CardDetailCoverColor } from './card-detail-cover-color';
 import { CardDetailDescription } from './card-detail-description';
@@ -42,7 +46,7 @@ import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
 import { CardModalHeader } from './card-modal-header';
-import { CardModalMetaChips } from './card-modal-meta-chips';
+import { CardModalMetaChips, type CardModalMetaMenu } from './card-modal-meta-chips';
 import { CardModalSidebar } from './card-modal-sidebar';
 
 const cmid = () => crypto.randomUUID();
@@ -94,6 +98,9 @@ export function CardDetailDialog({
   const queryClient = useQueryClient();
   const detailCopy = strings.card.detail;
   const [coverImageUploadError, setCoverImageUploadError] = useState<string | null>(null);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  const [titleFocusToken, setTitleFocusToken] = useState(0);
+  const [openMetaMenu, setOpenMetaMenu] = useState<CardModalMetaMenu>(null);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
   const queries = useQueries({
@@ -321,11 +328,72 @@ export function CardDetailDialog({
   const completePending = completeCard.isPending || uncompleteCard.isPending;
   const completeError = errOf(completeCard) || errOf(uncompleteCard);
 
+  useShortcutScope({
+    scope: 'card-modal',
+    enabled: Boolean(card),
+    bindings: [
+      {
+        id: 'card-help',
+        match: (event) => event.key === '?' && !event.ctrlOrMeta && !event.alt,
+        run: () => setShortcutHelpOpen(true),
+      },
+      {
+        id: 'card-edit-title',
+        match: (event) => event.key === 'e' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEdit) setTitleFocusToken((value) => value + 1);
+        },
+      },
+      {
+        id: 'card-toggle-complete',
+        match: (event) => event.key === 'c' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (!canEdit || completePending) return;
+          if (completed) uncompleteCard.mutate({ cardId });
+          else completeCard.mutate({ cardId });
+        },
+      },
+      {
+        id: 'card-due',
+        match: (event) => event.key === 'd' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEdit) setOpenMetaMenu('due');
+        },
+      },
+      {
+        id: 'card-members',
+        match: (event) => event.key === 'm' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEdit) setOpenMetaMenu('members');
+        },
+      },
+      {
+        id: 'card-labels',
+        match: (event) => event.key === 't' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (canEdit) setOpenMetaMenu('labels');
+        },
+      },
+      {
+        id: 'card-archive',
+        match: (event) => event.key === 'a' && !event.ctrlOrMeta && !event.alt,
+        run: () => {
+          if (!canArchive || archiveCard.isPending) return;
+          archiveCard.mutate({ cardId, archived: !archived });
+        },
+      },
+    ],
+  });
+
   const uploadCoverImage = async (file: File) => {
     setCoverImageUploadError(null);
     const mimeType = asCoverImageMimeType(file.type);
     if (!mimeType) {
       setCoverImageUploadError(detailCopy.modal.coverImageUploadFailed);
+      return;
+    }
+    if (file.size > CARD_COVER_IMAGE_MAX_BYTES) {
+      setCoverImageUploadError(detailCopy.modal.coverImageTooLarge);
       return;
     }
     try {
@@ -379,7 +447,7 @@ export function CardDetailDialog({
       <DialogContent
         className={cn(
           'flex h-[85vh] max-h-[85vh] w-[min(1200px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[70vw] sm:max-w-none',
-          coverColor && 'border-transparent',
+          coverColor && !card?.coverImage && 'border-transparent',
         )}
         showCloseButton={false}
       >
@@ -400,7 +468,9 @@ export function CardDetailDialog({
         ) : isPending || !card ? (
           <div className="space-y-2 p-6">
             <DialogTitle>{strings.common.loading}</DialogTitle>
-            <DialogDescription>{detailCopy.loading}</DialogDescription>
+            <DialogDescription asChild>
+              <AppSpinner label={detailCopy.loading} showLabel className="justify-start" />
+            </DialogDescription>
           </div>
         ) : (
           <>
@@ -412,6 +482,7 @@ export function CardDetailDialog({
             <CardModalHeader
               boardName={boardTitle}
               listName={listTitle}
+              coverImage={card.coverImage ?? null}
               coverColor={coverColor}
               archived={archived}
               canArchive={canArchive}
@@ -451,6 +522,7 @@ export function CardDetailDialog({
                         onSave={(title) => updateTitle.mutate({ cardId, title })}
                         pending={updateTitle.isPending}
                         error={errOf(updateTitle)}
+                        focusEditToken={titleFocusToken}
                       />
                     </div>
                   </div>
@@ -463,6 +535,8 @@ export function CardDetailDialog({
                     dueAt={card.dueAt}
                     coverColor={coverColor}
                     canEdit={canEdit}
+                    openMenu={openMetaMenu}
+                    onOpenMenuChange={setOpenMetaMenu}
                     membersContent={
                       <CardDetailMembers
                         members={cardMembers}
@@ -655,6 +729,11 @@ export function CardDetailDialog({
           </>
         )}
       </DialogContent>
+      <ShortcutHelpDialog
+        open={shortcutHelpOpen}
+        onOpenChange={setShortcutHelpOpen}
+        includeCardModal
+      />
     </Dialog>
   );
 }

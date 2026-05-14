@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { CalendarIcon, PaletteIcon, ShieldIcon, TagIcon } from 'lucide-react';
+import { CalendarIcon, ImageIcon, ShieldIcon, TagIcon } from 'lucide-react';
 import { type CardCoverColor } from '@pusula/domain';
 import {
   DropdownMenu,
@@ -40,19 +40,27 @@ type CardModalMetaChipsProps = {
   dueContent: ReactNode;
   labelsContent: ReactNode;
   coverContent: ReactNode;
+  openMenu?: CardModalMetaMenu;
+  onOpenMenuChange?: (menu: CardModalMetaMenu) => void;
 };
+
+export type CardModalMetaMenu = 'members' | 'due' | 'labels' | 'cover' | null;
 
 function MetaDropdown({
   trigger,
   children,
   className,
+  open,
+  onOpenChange,
 }: {
   trigger: ReactNode;
   children: ReactNode;
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -85,6 +93,8 @@ export function CardModalMetaChips({
   dueContent,
   labelsContent,
   coverContent,
+  openMenu,
+  onOpenMenuChange,
 }: CardModalMetaChipsProps) {
   const copy = strings.card.detail.modal;
   const state = dueAt != null ? dueState(dueAt) : 'normal';
@@ -94,6 +104,8 @@ export function CardModalMetaChips({
   return (
     <MetaRow variant="modal" className="-ml-2 gap-0.5">
       <MetaDropdown
+        open={openMenu === undefined ? undefined : openMenu === 'members'}
+        onOpenChange={(open) => onOpenMenuChange?.(open ? 'members' : null)}
         trigger={
           <MetaChip
             variant="modal"
@@ -110,6 +122,8 @@ export function CardModalMetaChips({
       </MetaDropdown>
 
       <MetaDropdown
+        open={openMenu === undefined ? undefined : openMenu === 'due'}
+        onOpenChange={(open) => onOpenMenuChange?.(open ? 'due' : null)}
         trigger={
           <MetaChip
             variant="modal"
@@ -143,6 +157,8 @@ export function CardModalMetaChips({
       </MetaDropdown>
 
       <MetaDropdown
+        open={openMenu === undefined ? undefined : openMenu === 'labels'}
+        onOpenChange={(open) => onOpenMenuChange?.(open ? 'labels' : null)}
         trigger={
           <MetaChip
             variant="modal"
@@ -160,11 +176,13 @@ export function CardModalMetaChips({
       </MetaDropdown>
 
       <MetaDropdown
+        open={openMenu === undefined ? undefined : openMenu === 'cover'}
+        onOpenChange={(open) => onOpenMenuChange?.(open ? 'cover' : null)}
         trigger={
           <MetaChip
             variant="modal"
             interactive
-            icon={<PaletteIcon className="size-3.5" aria-hidden />}
+            icon={<ImageIcon className="size-3.5" aria-hidden />}
             aria-label={copy.coverColor}
             className="data-[state=open]:bg-muted data-[state=open]:text-foreground"
           >

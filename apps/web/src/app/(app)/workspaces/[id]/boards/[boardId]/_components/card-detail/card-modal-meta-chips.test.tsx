@@ -24,11 +24,12 @@ function setup(overrides: Partial<Parameters<typeof CardModalMetaChips>[0]> = {}
 }
 
 describe('<CardModalMetaChips>', () => {
-  it('the cover-colour chip is interactive and opens its dropdown content', async () => {
+  it('the cover chip is labelled broadly and opens its dropdown content', async () => {
     const user = userEvent.setup();
     setup();
-    const coverChip = screen.getByRole('button', { name: m.coverColor });
+    const coverChip = screen.getByRole('button', { name: 'Kapak' });
     expect(coverChip).not.toBeDisabled();
+    expect(coverChip).toHaveTextContent('Kapak');
     expect(coverChip).toHaveAttribute('aria-expanded', 'false');
     await user.click(coverChip);
     expect(coverChip).toHaveAttribute('aria-expanded', 'true');
@@ -37,7 +38,7 @@ describe('<CardModalMetaChips>', () => {
 
   it('renders the cover swatch (no label text) when a cover colour is set', () => {
     setup({ coverColor: 'mavi' });
-    const coverChip = screen.getByRole('button', { name: m.coverColor });
+    const coverChip = screen.getByRole('button', { name: 'Kapak' });
     expect(coverChip.querySelector('[data-slot="label-swatch"]')).not.toBeNull();
   });
 
@@ -50,6 +51,16 @@ describe('<CardModalMetaChips>', () => {
     await waitFor(() => expect(screen.queryByText('Üye menüsü')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: m.labelsChip }));
     expect(screen.getByText('Etiket menüsü')).toBeInTheDocument();
+  });
+
+  it('opens a controlled menu key from props', () => {
+    setup({ openMenu: 'labels', onOpenMenuChange: () => undefined });
+
+    expect(screen.getByText('Etiket menüsü')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: m.labelsChip })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
   });
 
   it('hides the "add" chip for a read-only viewer', () => {

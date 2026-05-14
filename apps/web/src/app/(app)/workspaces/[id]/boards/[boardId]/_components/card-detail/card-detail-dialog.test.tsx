@@ -1,5 +1,8 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { CARD_COVER_IMAGE_MAX_BYTES } from '@pusula/domain';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { strings } from '@/lib/strings';
 
 // --- Hoisted state the mocks below read from -------------------------------
 const h = vi.hoisted(() => ({
@@ -16,18 +19,31 @@ const h = vi.hoisted(() => ({
     completedAt: null as Date | null,
     completedBy: null as string | null,
     coverColor: null as string | null,
+    coverImageAttachmentId: null as string | null,
+    coverImage: null as {
+      attachmentId: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+    } | null,
     archivedAt: null as Date | null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   },
   // Effective board role for the viewer (`board.members.list`).
   boardRole: 'member' as 'member' | 'viewer',
+  mutationMutateAsync: vi.fn(),
+  updateMutate: vi.fn(),
+  completeMutate: vi.fn(),
+  uncompleteMutate: vi.fn(),
+  archiveMutate: vi.fn(),
 }));
 
 // A resolved query result with `data`.
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, error: null });
 
 vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: { url: 'https://storage.test/modal-cover.png' } }),
   useQueries: ({ queries }: { queries: unknown[] }) => {
     // Order matches the dialog: card.get, card.members, card.labels, checklist.list,
     // comment.list, card.activity.list, board.members.list, label.list, board.get.
@@ -48,13 +64,27 @@ vi.mock('@tanstack/react-query', () => ({
     ];
     return results.slice(0, queries.length);
   },
-  useMutation: () => ({
-    mutate: vi.fn(),
-    reset: vi.fn(),
-    isPending: false,
-    isError: false,
-    error: null,
-  }),
+  useMutation: (options?: { procedure?: string }) => {
+    const mutate =
+      options?.procedure === 'card.complete'
+        ? h.completeMutate
+        : options?.procedure === 'card.uncomplete'
+          ? h.uncompleteMutate
+          : options?.procedure === 'card.archive'
+            ? h.archiveMutate
+            : options?.procedure === 'card.update'
+              ? h.updateMutate
+              : vi.fn();
+
+    return {
+      mutate,
+      mutateAsync: h.mutationMutateAsync,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    };
+  },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
@@ -66,7 +96,42 @@ const deepProxy: unknown = new Proxy(function () {} as object, {
   get: (_t, prop) => (prop === 'then' ? undefined : deepProxy),
   apply: () => deepProxy,
 });
-vi.mock('@/trpc/client', () => ({ useTRPC: () => deepProxy }));
+
+const namedMutationOptions = (procedure: string) => (options?: unknown) => ({
+  procedure,
+  options,
+});
+
+vi.mock('@/trpc/client', () => ({
+  useTRPC: () => ({
+    card: {
+      get: deepProxy,
+      update: { mutationOptions: namedMutationOptions('card.update') },
+      complete: { mutationOptions: namedMutationOptions('card.complete') },
+      uncomplete: { mutationOptions: namedMutationOptions('card.uncomplete') },
+      archive: { mutationOptions: namedMutationOptions('card.archive') },
+      members: { list: deepProxy, add: deepProxy, remove: deepProxy },
+      labels: { list: deepProxy, add: deepProxy, remove: deepProxy },
+      activity: { list: deepProxy },
+    },
+    board: { members: { list: deepProxy }, get: deepProxy },
+    label: { list: deepProxy, create: deepProxy },
+    checklist: {
+      list: deepProxy,
+      create: deepProxy,
+      update: deepProxy,
+      delete: deepProxy,
+      item: {
+        create: deepProxy,
+        toggle: deepProxy,
+        update: deepProxy,
+        delete: deepProxy,
+      },
+    },
+    comment: { list: deepProxy, create: deepProxy, update: deepProxy, delete: deepProxy },
+    attachment: { createUpload: deepProxy, getDownloadUrl: deepProxy },
+  }),
+}));
 
 import { CardDetailDialog } from './card-detail-dialog';
 
@@ -77,6 +142,19 @@ function renderDialog() {
 }
 
 describe('<CardDetailDialog>', () => {
+  beforeEach(() => {
+    h.mutationMutateAsync.mockReset();
+    h.updateMutate.mockReset();
+    h.completeMutate.mockReset();
+    h.uncompleteMutate.mockReset();
+    h.archiveMutate.mockReset();
+    h.boardRole = 'member';
+    h.card.completed = false;
+    h.card.archivedAt = null;
+    h.card.coverImageAttachmentId = null;
+    h.card.coverImage = null;
+  });
+
   it('the modal surface uses the v1 wide layout and a column shell', () => {
     renderDialog();
     const content = document.querySelector('[data-slot="dialog-content"]')!;
@@ -103,11 +181,94 @@ describe('<CardDetailDialog>', () => {
   });
 
   it('shows the cover-colour picker when its meta chip is opened', async () => {
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     renderDialog();
-    await user.click(screen.getByRole('button', { name: /Kapak rengi/ }));
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.coverColor }));
     // The picker swatch grid (12 buttons labelled "Kapak rengi: <name>").
     expect(screen.getAllByRole('button', { name: /Kapak rengi:/ }).length).toBe(12);
+  });
+
+  it('renders the card cover image in the modal header when present', () => {
+    h.card.coverImageAttachmentId = 'att1';
+    h.card.coverImage = {
+      attachmentId: 'att1',
+      fileName: 'kapak.png',
+      mimeType: 'image/png',
+      size: 1234,
+    };
+
+    renderDialog();
+
+    expect(screen.getByRole('img', { name: 'kapak.png' })).toHaveAttribute(
+      'src',
+      'https://storage.test/modal-cover.png',
+    );
+  });
+
+  it('rejects oversized cover images before requesting an upload URL', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.coverColor }));
+
+    const file = new File([new Uint8Array(CARD_COVER_IMAGE_MAX_BYTES + 1)], 'too-big.png', {
+      type: 'image/png',
+    });
+    await user.upload(screen.getByLabelText(strings.card.detail.modal.coverImageUpload), file);
+
+    expect(h.mutationMutateAsync).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Kapak fotoğrafı en fazla 5 MB olabilir.',
+    );
+  });
+
+  it('focuses title edit and opens meta menus from modal shortcuts', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.keyboard('e');
+    expect(screen.getByRole('textbox', { name: strings.card.detail.titleLabel })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await user.keyboard('d');
+    expect(
+      screen.getByRole('heading', { name: strings.card.detail.dueTitle }),
+    ).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await user.keyboard('m');
+    expect(screen.getByRole('heading', { name: strings.card.members.title })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await user.keyboard('t');
+    expect(screen.getByRole('heading', { name: strings.card.labels.title })).toBeInTheDocument();
+  });
+
+  it('runs complete and archive shortcuts when allowed', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.keyboard('c');
+    expect(h.completeMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ cardId: 'card1' }),
+      undefined,
+    );
+
+    await user.keyboard('a');
+    expect(h.archiveMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ cardId: 'card1', archived: true }),
+      undefined,
+    );
+  });
+
+  it('opens shortcut help from the card modal', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.keyboard('?');
+
+    expect(
+      screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(strings.shortcuts.groups.cardModal)).toBeInTheDocument();
   });
 });
