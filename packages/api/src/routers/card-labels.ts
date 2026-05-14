@@ -34,6 +34,7 @@ import {
   removeCardLabelInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
@@ -129,6 +130,8 @@ export const cardLabelsRouter = router({
         },
       });
 
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: ctx.card.id });
+
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
@@ -189,6 +192,8 @@ export const cardLabelsRouter = router({
         seq,
         data: { cardId: ctx.card.id, labelId: input.labelId },
       });
+
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: ctx.card.id });
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });

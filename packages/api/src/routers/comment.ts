@@ -49,6 +49,7 @@ import {
   insertRealtimeEvent,
   maybeEnqueueRealtimePublishes,
 } from '../lib/realtime-publish';
+import { deleteSearchDocument, upsertSearchDocument } from '../lib/search-indexer';
 import { router } from '../trpc';
 
 /** Columns of a full comment row returned to clients. */
@@ -210,6 +211,8 @@ export const commentRouter = router({
         );
       }
 
+      await upsertSearchDocument(tx, { entityType: 'comment', entityId: createdComment.id });
+
       return createdComment;
     });
     for (const eventId of notificationEventIds) maybeEnqueueNotificationPublish(ctx, eventId);
@@ -297,6 +300,8 @@ export const commentRouter = router({
         },
       });
 
+      await upsertSearchDocument(tx, { entityType: 'comment', entityId: updated.id });
+
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublishes(ctx, realtimeEventId ? [realtimeEventId] : []);
@@ -373,6 +378,8 @@ export const commentRouter = router({
         seq,
         data: { commentId: comment.id, deletedAt: updated.deletedAt?.toISOString() ?? null },
       });
+
+      await deleteSearchDocument(tx, { entityType: 'comment', entityId: updated.id });
 
       return { id: updated.id, deletedAt: updated.deletedAt, changed: true as const };
     });

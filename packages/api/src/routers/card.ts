@@ -84,6 +84,7 @@ import {
 import { toCoverImage } from '../lib/object-storage';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
+import { syncSearchDocumentsForCard, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { type Queryable, resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
@@ -273,6 +274,8 @@ export const cardRouter = router({
           position: created.position,
         },
       });
+
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: created.id });
 
       return created;
     });
@@ -557,6 +560,10 @@ export const cardRouter = router({
         data: { cardId: card.id, patch: realtimePatch },
       });
 
+      if (titleChanged || descriptionChanged) {
+        await upsertSearchDocument(tx, { entityType: 'card', entityId: card.id });
+      }
+
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
@@ -677,6 +684,8 @@ export const cardRouter = router({
         seq: bumped?.version ?? 0,
         data: { cardId: card.id, listId: card.listId, archived: input.archived },
       });
+
+      await syncSearchDocumentsForCard(tx, card.id);
 
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
@@ -1120,6 +1129,10 @@ export const cardRouter = router({
         },
       });
 
+      if (card.listId !== input.toListId) {
+        await syncSearchDocumentsForCard(tx, card.id);
+      }
+
       return { ...updated, changed: true as const };
     });
 
@@ -1350,6 +1363,8 @@ export const cardRouter = router({
         },
       });
 
+      await syncSearchDocumentsForCard(tx, card.id);
+
       return { ...updated, changed: true as const };
     });
 
@@ -1576,6 +1591,8 @@ export const cardRouter = router({
           copiedFromCardId: source.id,
         },
       });
+
+      await upsertSearchDocument(tx, { entityType: 'card', entityId: created.id });
 
       return created;
     });
