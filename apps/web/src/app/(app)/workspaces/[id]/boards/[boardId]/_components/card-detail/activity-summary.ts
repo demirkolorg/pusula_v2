@@ -57,6 +57,10 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return `${who} kartın kapak rengini değiştirdi`;
     case 'card.cover_cleared':
       return `${who} kartın kapak rengini kaldırdı`;
+    case 'card.cover_image_changed':
+      return `${who} kartın kapak fotoğrafını değiştirdi`;
+    case 'card.cover_image_cleared':
+      return `${who} kartın kapak fotoğrafını kaldırdı`;
     case 'card.member_added': {
       const role = str(p, 'role');
       return role === 'assignee'

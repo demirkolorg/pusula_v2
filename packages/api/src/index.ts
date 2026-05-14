@@ -10,6 +10,7 @@ export {
   type EnqueueNotificationPublish,
   type EnqueueRealtimePublish,
   type InsertRealtimeEventInput,
+  type ObjectStorage,
   type RealtimePayloadEnvelope,
   type RealtimeEmit,
 } from './context';

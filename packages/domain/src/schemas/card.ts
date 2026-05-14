@@ -23,6 +23,7 @@ export const updateCardInput = z.object({
   description: cardDescriptionSchema.optional(),
   dueAt: z.coerce.date().nullable().optional(),
   coverColor: cardCoverColorSchema.nullable().optional(),
+  coverImageAttachmentId: idSchema.nullable().optional(),
   ...withClientMutationId,
 });
 

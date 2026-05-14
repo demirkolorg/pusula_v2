@@ -5,6 +5,7 @@ import { getRealtimeEmit } from './app';
 import { auth } from './auth';
 import { enqueueCompaction } from './compaction-queue';
 import { enqueueNotificationPublish } from './notification-queue';
+import { objectStorage } from './object-storage';
 import { enqueueRealtimePublish } from './realtime-publish-queue';
 
 /** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
@@ -43,5 +44,6 @@ export async function buildTrpcContext(
     // Best-effort notification outbox enqueue (Faz 6A — DEM-90). Same sweeper
     // discipline — a Redis blip just delays delivery, doesn't drop it.
     enqueueNotificationPublish,
+    objectStorage,
   });
 }

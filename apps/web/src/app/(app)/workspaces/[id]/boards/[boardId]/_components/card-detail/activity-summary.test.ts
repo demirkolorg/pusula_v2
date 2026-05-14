@@ -52,6 +52,12 @@ describe('summarizeCardActivity', () => {
     expect(summarizeCardActivity({ ...base, type: 'card.cover_cleared' }, 'X')).toBe(
       'Ada kartın kapak rengini kaldırdı',
     );
+    expect(summarizeCardActivity({ ...base, type: 'card.cover_image_changed' }, 'X')).toBe(
+      'Ada kartın kapak fotoğrafını değiştirdi',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'card.cover_image_cleared' }, 'X')).toBe(
+      'Ada kartın kapak fotoğrafını kaldırdı',
+    );
   });
 
   it('comment.created / checklist.item_checked / checklist.item_unchecked → readable lines', () => {

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
 import {
   activityEvents,
+  attachments,
   boardMembers,
   cards,
   lists,
@@ -232,6 +233,53 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
           c.members.length === 0,
       ),
     ).toBe(true);
+  });
+
+  it('get: cards include cover image metadata for the selected attachment', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Cover Image Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Visual',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const card = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Visual card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const [cover] = await db()
+      .insert(attachments)
+      .values({
+        cardId: card.id,
+        boardId: board.id,
+        uploaderId: ownerId,
+        storageKey: `boards/${board.id}/cards/${card.id}/cover.webp`,
+        fileName: 'cover.webp',
+        mimeType: 'image/webp',
+        size: 1234,
+      })
+      .returning();
+    await db()
+      .update(cards)
+      .set({ coverImageAttachmentId: cover!.id })
+      .where(dbMod.eq(cards.id, card.id));
+
+    const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
+    const projected = shaped.cards.find((item) => item.id === card.id);
+    expect(projected).toMatchObject({
+      id: card.id,
+      coverImageAttachmentId: cover!.id,
+      coverImage: {
+        attachmentId: cover!.id,
+        fileName: 'cover.webp',
+        mimeType: 'image/webp',
+        size: 1234,
+      },
+    });
   });
 
   it('get: cards carry additive metadata — checklist progress, comment count, members (Phase 2.7B — DEM-63)', async () => {

@@ -1,5 +1,6 @@
 import { router } from './trpc';
 import { authRouter } from './routers/auth';
+import { attachmentRouter } from './routers/attachment';
 import { boardRouter } from './routers/board';
 import { cardRouter } from './routers/card';
 import { checklistRouter } from './routers/checklist';
@@ -14,6 +15,7 @@ import { workspaceRouter } from './routers/workspace';
 export const appRouter = router({
   health: healthRouter,
   auth: authRouter,
+  attachment: attachmentRouter,
   workspace: workspaceRouter,
   board: boardRouter,
   list: listRouter,

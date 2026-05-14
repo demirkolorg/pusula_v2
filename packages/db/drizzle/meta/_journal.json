@@ -99,6 +99,13 @@
       "when": 1778755871441,
       "tag": "0013_gorgeous_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778775338383,
+      "tag": "0014_keen_marten_broadcloak",
+      "breakpoints": true
     }
   ]
 }

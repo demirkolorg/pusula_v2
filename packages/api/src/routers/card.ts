@@ -48,6 +48,7 @@
 import { and, asc, desc, eq, inArray, sql } from '@pusula/db';
 import {
   activityEvents,
+  attachments,
   boardMembers,
   boards,
   cardLabels,
@@ -80,6 +81,7 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import { toCoverImage } from '../lib/object-storage';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole } from '../middleware/board';
@@ -102,6 +104,7 @@ const cardCols = {
   completedAt: cards.completedAt,
   completedBy: cards.completedBy,
   coverColor: cards.coverColor,
+  coverImageAttachmentId: cards.coverImageAttachmentId,
   archivedAt: cards.archivedAt,
   createdAt: cards.createdAt,
   updatedAt: cards.updatedAt,
@@ -294,7 +297,17 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
     }
 
-    return { card, relations: ctx.card.relations };
+    let coverImage: ReturnType<typeof toCoverImage> | null = null;
+    if (card.coverImageAttachmentId) {
+      const [coverAttachment] = await ctx.db
+        .select()
+        .from(attachments)
+        .where(eq(attachments.id, card.coverImageAttachmentId))
+        .limit(1);
+      coverImage = coverAttachment ? toCoverImage(coverAttachment) : null;
+    }
+
+    return { card: { ...card, coverImage }, relations: ctx.card.relations };
   }),
 
   /**
@@ -319,7 +332,8 @@ export const cardRouter = router({
     const wantsDescription = input.description !== undefined;
     const wantsDueAt = 'dueAt' in input; // `dueAt: null` is a real change → key presence, not value.
     const wantsCoverColor = 'coverColor' in input; // `coverColor: null` is a real change → key presence.
-    if (!wantsTitle && !wantsDescription && !wantsDueAt && !wantsCoverColor) {
+    const wantsCoverImage = 'coverImageAttachmentId' in input;
+    if (!wantsTitle && !wantsDescription && !wantsDueAt && !wantsCoverColor && !wantsCoverImage) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin.' });
     }
 
@@ -358,12 +372,34 @@ export const cardRouter = router({
         wantsDescription && (nextDescription ?? null) !== (card.description ?? null);
       const coverColorChanged =
         wantsCoverColor && (card.coverColor ?? null) !== (input.coverColor ?? null);
+      const coverImageChanged =
+        wantsCoverImage &&
+        (card.coverImageAttachmentId ?? null) !== (input.coverImageAttachmentId ?? null);
+
+      let nextCoverImage: ReturnType<typeof toCoverImage> | null = null;
+      if (wantsCoverImage && input.coverImageAttachmentId) {
+        const [coverAttachment] = await tx
+          .select()
+          .from(attachments)
+          .where(eq(attachments.id, input.coverImageAttachmentId))
+          .limit(1);
+        if (
+          !coverAttachment ||
+          coverAttachment.cardId !== card.id ||
+          coverAttachment.boardId !== card.boardId ||
+          !coverAttachment.mimeType.startsWith('image/')
+        ) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Kapak fotografi bu karta ait olmali.' });
+        }
+        nextCoverImage = toCoverImage(coverAttachment);
+      }
 
       const patch: Partial<typeof cards.$inferInsert> = {};
       if (titleChanged) patch.title = input.title;
       if (descriptionChanged) patch.description = nextDescription ?? null;
       if (dueAtChanged) patch.dueAt = input.dueAt ?? null;
       if (coverColorChanged) patch.coverColor = input.coverColor ?? null;
+      if (coverImageChanged) patch.coverImageAttachmentId = input.coverImageAttachmentId ?? null;
 
       if (Object.keys(patch).length === 0) {
         return { ...card, changed: false as const };
@@ -439,6 +475,26 @@ export const cardRouter = router({
             : { cardId: card.id, fromCoverColor: card.coverColor, clientMutationId: ctx.clientMutationId },
         });
       }
+      if (coverImageChanged) {
+        await tx.insert(activityEvents).values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: updated.coverImageAttachmentId ? 'card.cover_image_changed' : 'card.cover_image_cleared',
+          payload: updated.coverImageAttachmentId
+            ? {
+                cardId: card.id,
+                coverImageAttachmentId: updated.coverImageAttachmentId,
+                clientMutationId: ctx.clientMutationId,
+              }
+            : {
+                cardId: card.id,
+                fromCoverImageAttachmentId: card.coverImageAttachmentId,
+                clientMutationId: ctx.clientMutationId,
+              },
+        });
+      }
 
       const [bumped] = await tx
         .update(boards)
@@ -455,11 +511,17 @@ export const cardRouter = router({
         descriptionChanged?: true;
         dueAt?: Date | null;
         coverColor?: string | null;
+        coverImageAttachmentId?: string | null;
+        coverImage?: ReturnType<typeof toCoverImage> | null;
       } = {};
       if (titleChanged) realtimePatch.title = updated.title;
       if (descriptionChanged) realtimePatch.descriptionChanged = true;
       if (dueAtChanged) realtimePatch.dueAt = updated.dueAt ?? null;
       if (coverColorChanged) realtimePatch.coverColor = updated.coverColor ?? null;
+      if (coverImageChanged) {
+        realtimePatch.coverImageAttachmentId = updated.coverImageAttachmentId ?? null;
+        realtimePatch.coverImage = nextCoverImage;
+      }
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'card.updated',

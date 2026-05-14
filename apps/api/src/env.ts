@@ -14,6 +14,11 @@ const envSchema = z.object({
   APP_URL: z.string().min(1).default('http://localhost:3000'),
   API_URL: z.string().min(1).default('http://localhost:3001'),
   API_PORT: z.coerce.number().int().positive().default(3001),
+  S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: z.string().min(1).default('pusula'),
+  S3_ACCESS_KEY_ID: z.string().min(1).default('pusula'),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).default('pusula-secret'),
   // Transactional email (Resend) — used for the password-reset link (and later
   // signup verification). Optional: with no key, the auth flow still works and
   // the reset callback degrades to best-effort (logs the link instead of

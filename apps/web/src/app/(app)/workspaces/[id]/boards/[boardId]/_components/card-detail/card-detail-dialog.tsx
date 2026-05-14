@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import {
   CARD_COVER_COLORS,
+  CARD_COVER_IMAGE_MIME_TYPES,
   boardRoleAtLeast,
   type BoardRole,
   type CardCoverColor,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import type { CoverImage } from '../card-cover-image';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
 import { CardDetailCoverColor } from './card-detail-cover-color';
 import { CardDetailDescription } from './card-detail-description';
@@ -49,6 +51,12 @@ const cmid = () => crypto.randomUUID();
 function asCoverColor(value: string | null | undefined): CardCoverColor | null {
   return value != null && (CARD_COVER_COLORS as readonly string[]).includes(value)
     ? (value as CardCoverColor)
+    : null;
+}
+
+function asCoverImageMimeType(value: string) {
+  return (CARD_COVER_IMAGE_MIME_TYPES as readonly string[]).includes(value)
+    ? (value as (typeof CARD_COVER_IMAGE_MIME_TYPES)[number])
     : null;
 }
 
@@ -85,6 +93,8 @@ export function CardDetailDialog({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const detailCopy = strings.card.detail;
+  const [coverImageUploadError, setCoverImageUploadError] = useState<string | null>(null);
+  const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
   const queries = useQueries({
     queries: [
@@ -199,6 +209,32 @@ export function CardDetailDialog({
     onMutationError,
     onMutationSuccess: cardOnSuccess,
   });
+  const updateCoverImage = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.update.mutationOptions,
+    boardId,
+    cardId,
+    apply: (data, vars) =>
+      vars.coverImageAttachmentId === undefined
+        ? data
+        : applyCardPatch(data, vars.cardId, {
+            coverImageAttachmentId: vars.coverImageAttachmentId,
+            coverImage: pendingCoverImageRef.current,
+          } as Partial<(typeof data.cards)[number]>),
+    applyCardDetail: (data, vars) =>
+      vars.coverImageAttachmentId === undefined
+        ? data
+        : {
+            ...data,
+            card: {
+              ...data.card,
+              coverImageAttachmentId: vars.coverImageAttachmentId,
+              coverImage: pendingCoverImageRef.current,
+            },
+          },
+    onConflict,
+    onMutationError,
+    onMutationSuccess: cardOnSuccess,
+  });
   const completeCard = useOptimisticBoardMutation({
     mutationOptions: trpc.card.complete.mutationOptions,
     boardId,
@@ -237,6 +273,7 @@ export function CardDetailDialog({
   const addLabel = useMutation(trpc.card.labels.add.mutationOptions(onMutated));
   const removeLabel = useMutation(trpc.card.labels.remove.mutationOptions(onMutated));
   const createLabel = useMutation(trpc.label.create.mutationOptions(onMutated));
+  const createCoverUpload = useMutation(trpc.attachment.createUpload.mutationOptions());
   const createChecklist = useMutation(trpc.checklist.create.mutationOptions(onMutated));
   const renameChecklist = useMutation(trpc.checklist.update.mutationOptions(onMutated));
   const deleteChecklist = useMutation(trpc.checklist.delete.mutationOptions(onMutated));
@@ -283,6 +320,47 @@ export function CardDetailDialog({
   const completed = card?.completed ?? false;
   const completePending = completeCard.isPending || uncompleteCard.isPending;
   const completeError = errOf(completeCard) || errOf(uncompleteCard);
+
+  const uploadCoverImage = async (file: File) => {
+    setCoverImageUploadError(null);
+    const mimeType = asCoverImageMimeType(file.type);
+    if (!mimeType) {
+      setCoverImageUploadError(detailCopy.modal.coverImageUploadFailed);
+      return;
+    }
+    try {
+      const upload = await createCoverUpload.mutateAsync({
+        cardId,
+        fileName: file.name,
+        mimeType,
+        size: file.size,
+      });
+      const response = await fetch(upload.upload.url, {
+        method: 'PUT',
+        headers: upload.upload.headers,
+        body: file,
+      });
+      if (!response.ok) throw new Error(detailCopy.modal.coverImageUploadFailed);
+
+      pendingCoverImageRef.current = upload.attachment;
+      await updateCoverImage.mutateAsync({
+        cardId,
+        coverImageAttachmentId: upload.attachment.attachmentId,
+      });
+    } catch (err) {
+      setCoverImageUploadError(
+        err instanceof Error ? err.message : detailCopy.modal.coverImageUploadFailed,
+      );
+    } finally {
+      pendingCoverImageRef.current = null;
+    }
+  };
+
+  const clearCoverImage = () => {
+    setCoverImageUploadError(null);
+    pendingCoverImageRef.current = null;
+    updateCoverImage.mutate({ cardId, coverImageAttachmentId: null });
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (!next) onClose();
@@ -436,12 +514,21 @@ export function CardDetailDialog({
                     coverContent={
                       <CardDetailCoverColor
                         coverColor={coverColor}
+                        coverImage={card.coverImage ?? null}
                         canEdit={canEdit}
                         onSelect={(next) =>
                           updateCoverColor.mutate({ cardId, coverColor: next })
                         }
+                        onImageSelect={uploadCoverImage}
+                        onClearImage={clearCoverImage}
                         pending={updateCoverColor.isPending}
-                        error={errOf(updateCoverColor)}
+                        imagePending={createCoverUpload.isPending || updateCoverImage.isPending}
+                        error={
+                          coverImageUploadError ||
+                          errOf(createCoverUpload) ||
+                          errOf(updateCoverImage) ||
+                          errOf(updateCoverColor)
+                        }
                       />
                     }
                   />

@@ -143,6 +143,8 @@ function mapEventToNotificationType(
     case 'card.uncompleted':
     case 'card.archived':
     case 'card.moved':
+    case 'card.cover_image_changed':
+    case 'card.cover_image_cleared':
       return 'watched_activity';
     case 'checklist.item_checked':
       return 'checklist_item_completed';
@@ -209,6 +211,8 @@ async function collectRecipients(
     case 'card.uncompleted':
     case 'card.archived':
     case 'card.moved':
+    case 'card.cover_image_changed':
+    case 'card.cover_image_cleared':
     case 'checklist.item_checked':
       // The card's watcher pool — assignees + watchers. The actor is removed
       // below.

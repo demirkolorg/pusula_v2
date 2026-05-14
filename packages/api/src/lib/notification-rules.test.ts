@@ -171,6 +171,22 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
   });
 
+  it('card.cover_image_changed → watchers get watched_activity in_app rows', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-cover-image'),
+      type: 'card.cover_image_changed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, attachmentId: newId('att') },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'watched_activity')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
   it('mute_level=all on a board-scope preference → no rows for that user', async () => {
     await db().insert(notificationPreferences).values({
       userId: watcherId,

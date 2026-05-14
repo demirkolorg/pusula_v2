@@ -9,8 +9,11 @@ const m = strings.card.detail.modal;
 function setup(overrides: Partial<Parameters<typeof CardDetailCoverColor>[0]> = {}) {
   const props = {
     coverColor: null,
+    coverImage: null,
     canEdit: true,
     onSelect: vi.fn(),
+    onImageSelect: vi.fn(),
+    onClearImage: vi.fn(),
     pending: false,
     error: null as string | null,
     ...overrides,
@@ -70,5 +73,32 @@ describe('<CardDetailCoverColor>', () => {
   it('surfaces an inline error', () => {
     setup({ error: 'Geçersiz renk.' });
     expect(screen.getByRole('alert')).toHaveTextContent('Geçersiz renk.');
+  });
+
+  it('selecting an image file calls onImageSelect', async () => {
+    const user = userEvent.setup();
+    const props = setup();
+    const file = new File(['cover'], 'cover.png', { type: 'image/png' });
+
+    await user.upload(screen.getByLabelText(m.coverImageUpload), file);
+
+    expect(props.onImageSelect).toHaveBeenCalledWith(file);
+  });
+
+  it('shows the current cover image file and clears it', async () => {
+    const user = userEvent.setup();
+    const props = setup({
+      coverImage: {
+        attachmentId: 'att1',
+        fileName: 'cover.webp',
+        mimeType: 'image/webp',
+        size: 1234,
+      },
+    });
+
+    expect(screen.getByText('cover.webp')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: m.coverImageClear }));
+
+    expect(props.onClearImage).toHaveBeenCalledTimes(1);
   });
 });
