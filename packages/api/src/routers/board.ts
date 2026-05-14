@@ -190,6 +190,7 @@ export const boardRouter = router({
       .select({
         id: lists.id,
         title: lists.title,
+        color: lists.color,
         position: lists.position,
         archivedAt: lists.archivedAt,
         createdAt: lists.createdAt,

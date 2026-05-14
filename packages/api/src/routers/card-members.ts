@@ -43,6 +43,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { router } from '../trpc';
 
 export const cardMembersRouter = router({
@@ -81,7 +85,8 @@ export const cardMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Karta üye ekleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -130,22 +135,41 @@ export const cardMembersRouter = router({
         return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: false as const };
       }
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: ctx.card.boardId,
-        cardId: ctx.card.id,
-        actorId: ctx.session.user.id,
-        type: 'card.member_added',
-        payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
-      });
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.member_added',
+          payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
 
+      // Faz 6A (DEM-90) — fan out the notification outbox rows for this
+      // activity event inside the same tx (so a rollback also drops them).
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'card.member_added',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+      });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
+
       return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /**

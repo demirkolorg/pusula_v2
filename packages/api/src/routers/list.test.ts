@@ -117,6 +117,8 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
 
   const actsFor = (board: string) =>
     db().select().from(activityEvents).where(dbMod.eq(activityEvents.boardId, board));
+  const rtEventsFor = (board: string) =>
+    db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.boardId, board));
   const boardVersion = async (board: string) => {
     const [row] = await db()
       .select({ version: dbMod.boards.version })
@@ -251,6 +253,242 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
         clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('update color: viewer is FORBIDDEN; archived board and archived list reject writes', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Guarded Color List',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await expect(
+      callerFor(guestId).list.update({
+        boardId,
+        listId: list.id,
+        color: 'yesil',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const archivedBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Archived Color Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const archivedBoardList = await callerFor(ownerId).list.create({
+      boardId: archivedBoard.id,
+      title: 'Frozen Color List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).board.archive({
+      boardId: archivedBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.update({
+        boardId: archivedBoard.id,
+        listId: archivedBoardList.id,
+        color: 'sari',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    const archivedList = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Archived List Color',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.archive({
+      boardId,
+      listId: archivedList.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.update({
+        boardId,
+        listId: archivedList.id,
+        color: 'turuncu',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('update color: setting a colour persists DB state, writes activity + realtime, bumps version, and projects through board.get', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Colour Set List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const updated = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      color: 'yesil',
+      clientMutationId: cmid,
+    });
+
+    expect(updated).toMatchObject({ id: list.id, color: 'yesil', changed: true });
+    const [row] = await db()
+      .select({ color: dbMod.lists.color })
+      .from(dbMod.lists)
+      .where(dbMod.eq(dbMod.lists.id, list.id))
+      .limit(1);
+    expect(row?.color).toBe('yesil');
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    const colorActivity = (await actsFor(boardId)).find(
+      (a) => a.type === 'list.color_changed' && (a.payload as { listId?: string }).listId === list.id,
+    );
+    expect(colorActivity?.payload).toMatchObject({
+      listId: list.id,
+      oldColor: null,
+      newColor: 'yesil',
+      clientMutationId: cmid,
+    });
+
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: { listId: string; color: string | null } }).data).toMatchObject({
+      listId: list.id,
+      color: 'yesil',
+    });
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+
+    const board = await callerFor(ownerId).board.get({ boardId });
+    expect(board.lists.find((l) => l.id === list.id)?.color).toBe('yesil');
+  });
+
+  it('update color: clearing a colour writes list.color_cleared with oldColor and realtime color:null', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Colour Clear List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      color: 'mavi',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const cleared = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      color: null,
+      clientMutationId: cmid,
+    });
+
+    expect(cleared).toMatchObject({ id: list.id, color: null, changed: true });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+    const clearedActivity = (await actsFor(boardId)).find(
+      (a) => a.type === 'list.color_cleared' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+    );
+    expect(clearedActivity?.payload).toMatchObject({
+      listId: list.id,
+      oldColor: 'mavi',
+      clientMutationId: cmid,
+    });
+    expect(clearedActivity?.payload).not.toHaveProperty('newColor');
+
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: { color: string | null } }).data.color).toBeNull();
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
+  });
+
+  it('update color: setting the same colour is an idempotent no-op', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Colour Noop List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      color: 'gri',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const activityCount = (await actsFor(boardId)).filter(
+      (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
+    ).length;
+    const realtimeCount = (await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length;
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+
+    const noop = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      color: 'gri',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    expect(noop).toMatchObject({ id: list.id, color: 'gri', changed: false });
+    expect(await boardVersion(boardId)).toBe(v0);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
+      ).length,
+    ).toBe(activityCount);
+    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(realtimeCount);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('update color: explicit undefined does not clear an existing colour', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Undefined Colour List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).list.update({
+      boardId,
+      listId: list.id,
+      color: 'sari',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+    const colorActivityCount = (await actsFor(boardId)).filter(
+      (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
+    ).length;
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const cmid = crypto.randomUUID();
+
+    const renamed = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
+      boardId,
+      listId: list.id,
+      title: 'Renamed without touching colour',
+      color: undefined,
+      clientMutationId: cmid,
+    });
+
+    expect(renamed).toMatchObject({
+      id: list.id,
+      title: 'Renamed without touching colour',
+      color: 'sari',
+      changed: true,
+    });
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+    expect(
+      (await actsFor(boardId)).filter(
+        (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
+      ).length,
+    ).toBe(colorActivityCount);
+    const updatedEvents = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
+    );
+    expect(updatedEvents).toHaveLength(1);
+    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('color');
+    expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
   });
 
   // --------------------------------------------------------------- archive

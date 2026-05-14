@@ -58,6 +58,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import type { Queryable } from '../middleware/board-access';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { router } from '../trpc';
 
 /** True if `err` (or its cause) is a Postgres unique-constraint violation (SQLSTATE 23505). */
@@ -172,7 +176,8 @@ export const boardMembersRouter = router({
     }
     const email = input.email; // already trimmed + lowercased by `emailSchema`
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ id: boards.id, title: boards.title, archivedAt: boards.archivedAt })
         .from(boards)
@@ -247,13 +252,31 @@ export const boardMembersRouter = router({
           throw new TRPCError({ code: 'CONFLICT', message: 'Bu kişi zaten board üyesi.' });
         }
 
-        await tx.insert(activityEvents).values({
+        const addedPayload = { userId: existingUser.id, role: input.role };
+        const [addedActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.board.workspaceId,
+            boardId: ctx.board.id,
+            actorId: ctx.session.user.id,
+            type: 'board.member_added',
+            payload: addedPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!addedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Faz 6A (DEM-90) — fan out in-app + email notification to the
+        // newly added user. `board_invitation` is mute-bypass.
+        const addedDispatched = await dispatchNotificationsForActivity(tx, {
+          id: addedActivity.id,
+          type: 'board.member_added',
           workspaceId: ctx.board.workspaceId,
           boardId: ctx.board.id,
+          cardId: null,
           actorId: ctx.session.user.id,
-          type: 'board.member_added',
-          payload: { userId: existingUser.id, role: input.role },
+          payload: addedPayload,
         });
+        if (addedDispatched.inserted > 0) notificationEventId = addedActivity.id;
 
         await bumpVersion();
 
@@ -332,9 +355,15 @@ export const boardMembersRouter = router({
       });
 
       await bumpVersion();
+      // (b)-branch outbox row above (`channel: 'email'`) gets handed to the
+      // worker by the same `enqueueNotificationPublish` hook the (a)-branch
+      // uses — surface its event id so the producer below picks it up.
+      notificationEventId = activity.id;
 
       return { kind: 'invited' as const, email, role: input.role };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /**

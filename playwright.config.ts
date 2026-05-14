@@ -8,13 +8,18 @@ import { E2E_API_URL, E2E_DATABASE_URL, E2E_WEB_URL } from './e2e/fixtures/env';
  * (`docs/architecture/10-platform.md` §10.1).
  *
  * What it does:
- *  - `webServer` boots the API (`apps/api`) and the web app (`apps/web`) — the
- *    worker is NOT needed for drag-drop e2e (position compaction is async /
- *    best-effort), so it's skipped.
+ *  - `webServer` boots the API (`apps/api`), the web app (`apps/web`), and
+ *    `apps/worker`. The worker is what drains the `pusula-realtime-publish`
+ *    outbox queue and publishes envelopes onto the Redis pub/sub channel that
+ *    the API's Socket.IO bridge subscribes to (Faz 5 — DEM-84). Without it the
+ *    realtime two-user specs (Faz 5D — DEM-86) would block forever waiting for
+ *    fan-out; the drag-drop suite (Faz 3D — DEM-45) doesn't *need* it (position
+ *    compaction is best-effort), but the cost of running it is negligible.
  *  - The test database is the repo-root `docker-compose.yml` Postgres/Redis
  *    stack (`pnpm infra:up`); `globalSetup` runs `pnpm db:migrate` and a
  *    deterministic e2e seed (a known test user/password, one workspace, one
- *    board with 3 lists × cards at known positions, plus a `viewer` user).
+ *    board with 3 lists × cards at known positions, plus a `viewer` user, plus
+ *    the `alice` + `bob` realtime pair — DEM-86).
  *  - Drag is driven by Playwright `mouse.move` steps (Pragmatic DnD uses native
  *    drag events — see `e2e/helpers/dnd.ts`).
  *
@@ -110,6 +115,19 @@ export default defineConfig({
       stdout: 'pipe',
       stderr: 'pipe',
       env: webServerEnv,
+    },
+    {
+      // Worker (BullMQ). Required by the realtime two-user specs (Faz 5D —
+      // DEM-86) so the `pusula-realtime-publish` queue actually drains and the
+      // Socket.IO bridge fans envelopes out to the other browser context.
+      // No `url` to probe — Playwright spawns the process and treats it as
+      // alive once it doesn't exit. `tsx watch` already logs to stdout/stderr.
+      command: 'pnpm --filter @pusula/worker dev',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: baseServerEnv,
     },
   ],
 });

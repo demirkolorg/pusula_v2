@@ -15,7 +15,7 @@
  * envelope exactly once).
  *
  * The job is idempotent. The row is locked with `FOR UPDATE SKIP LOCKED`
- * (paranoia: BullMQ's `jobId = publish:{eventId}` already debounces re-enqueue
+ * (paranoia: BullMQ's `jobId = publish-{eventId}` already debounces re-enqueue
  * attempts) and `published_at IS NULL` guarantees that a re-run after a crash
  * (between publish and the UPDATE) skips a row that's already been delivered.
  * A failed run is retried by BullMQ (3 attempts, exponential backoff in
@@ -28,10 +28,11 @@
  * in `docs/architecture/05-board-mekanigi.md` §5.3.
  */
 import { Redis } from 'ioredis';
+import { z } from 'zod';
 import { and, eq, isNull, sql } from '@pusula/db';
 import { realtimeEvents } from '@pusula/db';
 import type { Database } from '@pusula/db';
-import type { RealtimeEventEnvelope } from '@pusula/domain';
+import { LIST_COLORS, type RealtimeEventEnvelope } from '@pusula/domain';
 
 /** Redis pub/sub channel the bridge in `apps/api/src/socket/` subscribes to. */
 export const REALTIME_PUBLISH_CHANNEL = 'pusula:realtime:envelope';
@@ -55,6 +56,15 @@ export interface RealtimePublishMessage {
 export interface RealtimePublisher {
   publish: (channel: string, message: string) => Promise<number> | number;
 }
+
+const listUpdatedPayloadSchema = z
+  .object({
+    listId: z.string().min(1),
+    fromTitle: z.string().optional(),
+    toTitle: z.string().optional(),
+    color: z.enum(LIST_COLORS).nullable().optional(),
+  })
+  .passthrough();
 
 /** What the worker pulls out of `realtime_events` for one job. */
 type RealtimeEventRow = {
@@ -150,9 +160,16 @@ function toEnvelope(row: RealtimeEventRow): RealtimeEventEnvelope {
     actorUserId: row.actorId ?? '',
     clientMutationId: row.clientMutationId ?? undefined,
     seq,
-    payload: payload.data ?? null,
+    payload: parseEventPayload(row.type, payload.data ?? null),
     createdAt: createdAt.toISOString(),
   };
+}
+
+function parseEventPayload(type: string, payload: unknown): unknown {
+  if (type === 'list.updated') {
+    return listUpdatedPayloadSchema.parse(payload);
+  }
+  return payload;
 }
 
 /**

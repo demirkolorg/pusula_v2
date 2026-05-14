@@ -11,6 +11,11 @@ export const lists = pgTable(
       .references(() => boards.id, { onDelete: 'cascade' }),
     title: text().notNull(),
     /**
+     * Optional Trello-style column colour. Values are validated at the domain/API
+     * layer against `@pusula/domain` `LIST_COLORS`; `null` = default column tint.
+     */
+    color: text(),
+    /**
      * LexoRank-like fractional position string (NOT an integer). Inserting
      * between two lists only mutates the moved row. See architecture doc §5.
      */

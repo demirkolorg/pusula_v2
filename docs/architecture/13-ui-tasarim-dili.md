@@ -18,7 +18,7 @@ related:
   - "[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]"
   - "[[docs/architecture/05-board-mekanigi|Board Mekaniği]]"
   - "[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 13 — UI Tasarım Dili
 
@@ -145,7 +145,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 <section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border bg-muted/30">
   <header class="flex shrink-0 items-center justify-between gap-1 p-2">
     <div> liste adı (text-sm font-semibold truncate) · kart sayısı (text-muted-foreground text-xs) </div>
-    <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / arşivle) </div>
+    <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / liste rengini değiştir / arşivle) </div>
   </header>
   <div class="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"> {kartlar} </div>
   <footer class="shrink-0 p-2"> AddCardForm | <Button variant=ghost size=sm class="w-full justify-start text-muted-foreground"> + Kart ekle </Button> </footer>
@@ -157,6 +157,13 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 - Drag (Faz 3 — placeholder spec): sürüklenen kolon `shadow-drag`, bırakılacak yer `w-72 h-32 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5`.
 - **Scroll & scrollbar ([DEM-88](https://linear.app/demirkol/issue/DEM-88) — 2026-05-13):** kolon `max-h-full` (parent strip yüksekliği kadar; içerik az ise içeriği kadar kompakt durur — `h-full` değil) + 3-segment (header `shrink-0` / cards area `flex min-h-0 overflow-y-auto pusula-scrollbar` / footer `shrink-0`); cards area `flex-1` taşımaz (boş kolonlar viewport-tall görünmesin). Strip `items-start` ile kolonlar top-aligned; strip kendisi `overflow-x-auto overflow-y-hidden` (yatay scroll yalnız). Custom scrollbar utility `.pusula-scrollbar` (`packages/ui/src/styles/theme.css` `@layer utilities` — 6px thin, transparent track, soft OKLCH thumb); token'lar `--scrollbar-thumb` + `--scrollbar-thumb-hover` (light + dark). Wired chain → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.4 "Layout & scroll davranışı".
 
+#### Renkli kolon (DEM-98)
+
+- **Model:** `lists.color` nullable. `null` eski görünümü korur: kolon container `bg-muted/30`, başlık/metin `text-foreground`. Renk seçilince tüm kolon yüzeyi solid `bg-palet-{ad}` olur; başlık ve kolon chrome metni `text-palet-{ad}-foreground`, ikincil metinler `text-current/70` kullanır. Kartlar içeride yine `bg-card` kalır; kart içeriği renklenmez.
+- **Picker:** liste header ⋮ menüsünde `PaletteIcon` + "Liste rengini değiştir" `DropdownMenuSub` tetikleyicisi. İçerik shadcn `Popover`/submenu içinde 2×5 grid (`grid-cols-5 gap-1.5`): 10 `LIST_COLORS` (`yesil/sari/turuncu/kirmizi/mor/mavi/sky/lime/pembe/gri`) swatch butonu `size-9 rounded-md bg-palet-{ad} border border-border/30 hover:ring-2 ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring`; seçili renkte `CheckIcon size-4 text-palet-{ad}-foreground`.
+- **Clear:** grid altında ghost `Button` (`w-full justify-center`) "Rengi kaldır"; mevcut renk `null` ise disabled. Tüm metinler `apps/web/src/lib/strings.ts` (`board.list.colorPicker.*`) üzerinden gelir; hardcode yok.
+- **Mutation:** swatch click `useOptimisticBoardListMutation(api.list.update)` ile `{ listId, color, clientMutationId }`; clear `{ listId, color: null, clientMutationId }`. Aynı renge tıklama UI tarafında no-op olabilir; backend de idempotent no-op'tur. Realtime `list.updated` `color` payload'ı ikinci tarayıcı cache'ine işler.
+
 ### Kart (`CardItem`)
 
 `<article class="bg-card rounded-md border p-2 text-sm shadow-card hover:border-foreground/30 hover:shadow-card-hover group/kart cursor-pointer">` — tıklayınca kart detay modalı (`?card=<id>`). İçerik sırası (yalnızca ilgili veri varsa render):
@@ -165,7 +172,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 2. **Etiket chip'leri** (varsa) — `flex flex-wrap gap-1 mb-1.5`; her chip `LabelChip` solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`; adı varsa ad, yoksa kısa renkli bar `h-2 w-8`). Kapak görseli yoksa ve etiket varsa chip'ler kartın görsel "rengini" verir (Trello hissi).
 3. **Başlık satırı** — `flex items-start gap-1.5`: solda `CardCompleteToggle` (kartta `opacity-0 group-hover/kart:opacity-100`, tamamlanmışsa hep görünür: `bg-success` tik), başlık `line-clamp-3 font-medium leading-snug` (tamamlanmış kart → `line-through text-muted-foreground`). _(Durum — güncel 2026-05-13: kart-seviyesi "tamamlandı" backend'i ([DEM-66](https://linear.app/demirkol/issue/DEM-66) — `cards.completed`/`completedAt`/`completedBy` + `card.complete`/`card.uncomplete`) ve kapak rengi backend'i ([DEM-67](https://linear.app/demirkol/issue/DEM-67) — `cards.coverColor` + `CARD_COVER_COLORS`) `checklist_items.completed`'tan **bağımsız** (bkz. [`03-backend.md`](03-backend.md) Faz 2.7, [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) invariant 15) — ve **DEM-74 (2.7C-2)'de UI'ye wire edildi**: `CardCompleteToggle` kartta+modalda → `card.complete`/`card.uncomplete`; kart kapak rengi şeridi (kapak görseli yoksa `coverColor` varsa) `-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md bg-palet-{ad}`; modal başlık çubuğu `coverColor` seçiliyse `bg-palet-{ad}` (§13.3); meta chip satırında kapak rengi picker (12-renk `--palet-*` → `card.update({coverColor})`). `CardCompleteToggle` bileşeni `packages/ui`'de; modaldaki checklist madde checkbox'larında da kullanılır.)_
 4. **Metadata satırı (`CardMetaRow`)** — `mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground`; sırayla, varsa: due chip (`CalendarIcon` + tarih; gecikmiş → `bg-destructive/12 text-destructive rounded-sm px-1 py-px font-medium` + "GECİKTİ" rozeti `bg-destructive text-destructive-foreground text-[9px] uppercase tracking-wide px-1`; 24–72 saat içinde → `--warning` nokta `size-1.5 rounded-full`) · açıklama-var (`AlignLeftIcon`, açıklama doluysa) · checklist progress (`CheckSquareIcon` + `tamamlanan/toplam`; tamsa `text-success`) · yorum sayısı (`MessageSquareIcon` + n) · üye avatarları (son ~3 `Avatar size-xs` `-space-x-1` üst üste + "+N"). _(Veri: `board.get` Faz 2.7B'de bu sayaçları additive döndürür — `checklistTotal`/`checklistDone`, `commentCount`, `members[]`; bkz. [`03-backend.md`](03-backend.md). **Ek sayısı `PaperclipIcon` chip'i bu fazda yok** — attachment/ek Faz 8.)_
-5. **Drag preview (`CardDragPreview`)** — sürükleme esnasında cursor'la birlikte gezen, kartın sadeleştirilmiş kopyası: `pointer-events-none rotate-[2deg] shadow-[0_14px_28px_rgba(15,23,42,0.18),0_4px_10px_rgba(15,23,42,0.12)]` + cover şerit + başlık + temel meta chip'leri (tooltip yok — detached React root). Pragmatic DnD `setCustomNativeDragPreview` ile bağlanır; sürüklenen kartın orijinali `opacity-0` (transition yok — anlık) ile gizlenir, yerine sadece drop-line placeholder kalır. (DEM-87; wiring → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.8.)
+5. **Drag preview (`CardDragPreview`)** — sürükleme esnasında cursor'la birlikte gezen, kartın sadeleştirilmiş kopyası: `rotate-2 shadow-md` opaque kart + cover şerit + başlık + temel meta chip'leri (tooltip yok — detached React root). **Body-portal pattern**: `position: fixed; pointer-events: none; z-index: 9999` body element'ına `createRoot` ile mount edilir, cursor takibi DOM `style.transform = translate(...)` ile imperative — HTML5 drag-image bitmap **kullanılmaz** (`disableNativeDragPreview` 1×1 transparent gif → browser preview görünmez), bu sayede alpha/soft-shadow/rotated-corner sızıntı bug'larından kaçınılır. Sürüklenen kartın orijinali "**rüya modu**"na geçer: outer `<article>` `border border-dashed border-primary/60 bg-primary/5` (aktif drop hedefi placeholder), iç wrapper `invisible` (boyut korunur, layout shift yok). Eski Pusula `dnd-kit DragOverlay` deneyiminin Pragmatic DnD'ye uyarlaması. (DEM-87; wiring → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.8.)
 
 ### Filter bar & loading
 
@@ -232,4 +239,89 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 **Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board-başına özelleştirilebilir zemin + favoriler/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
-**Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` genişletilir).
+**Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]) → **dark/light tema desteği** ([DEM-96](https://linear.app/demirkol/issue/DEM-96) — kapanış-sonrası #2: §13.7 "Tema modu" + `next-themes` wire + app-shell `ThemeToggle`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` / `strings.common.theme.*` genişletilir).
+
+## 13.7 Tema modu (light/dark)
+
+> Eksen: **tasarım / teknik**. Bu bölüm, [DEM-96](https://linear.app/demirkol/issue/DEM-96) (Faz 2.7 kapanış-sonrası follow-up #2) "önce belge" çıktısıdır: design token sistemi (§13.1) `:root` light + `.dark` setlerini zaten taşıyor; eksik olan **kullanıcı tarafı bağlantı** (provider + toggle + persistence + tüm ekran görsel pass). Uygulama DEM-96'da; **kod değişikliği bu belgede yok**.
+
+### 13.7.1 Kararlar (kullanıcı seçimi, 2026-05-14)
+
+- **Mod seti = `light` + `dark` ikili.** OS algılaması (`system`) **yok**. Default = `light` (Trello-vari palet light-first; eski Pusula projesi de light-first).
+- **Strateji = `next-themes`.** shadcn'in resmi tema entegrasyonu; SSR mismatch'i `suppressHydrationWarning` + provider script ile çözer; minimal kod; ekosistem standardı.
+- **Toggle = app-shell header sağ üst.** `Sun` (light aktifken) / `Moon` (dark aktifken) ikon swap, `Button variant=ghost size=icon`. İkili mod → DropdownMenu **gerekmez** (tıklayınca diğer moda flip).
+- **Persistence = `localStorage`** (next-themes default). `storageKey="pusula-theme"` (namespaced — diğer Pusula key'leriyle aynı disiplin). Cihaz başına ayrı tercih; server preference YOK (sonraki tur — `users` tablosuna kolon eklemek istenirse Faz 8 / `bosluk-tara` benzeri ayrı iş).
+- **Cookie modu YOK.** Kullanıcı seçimi: SSR'da ilk render her zaman `light` ile gelir; client mount sonrası localStorage'tan okunan tercih `<html class>` üzerinden uygulanır. Hydration flash riskini next-themes script'i (provider'ın eklediği inline `<script>`) küçültür; ilk render flash'ı kabul edilir (UX trade-off; `system` algılama olmadığı için daha az kritik).
+- **Auth route'larında toggle:** opsiyonel; ilk turda **dışarıda** (sign-in/sign-up basit kalır). Kullanıcı isterse sonraki tur eklenir.
+
+### 13.7.2 ThemeProvider entegrasyonu
+
+`apps/web/src/app/layout.tsx` (root layout):
+
+```tsx
+<html lang="tr" suppressHydrationWarning>
+  <body className="font-sans antialiased">
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      themes={["light", "dark"]}
+      storageKey="pusula-theme"
+    >
+      {children}
+    </ThemeProvider>
+  </body>
+</html>
+```
+
+`attribute="class"` → next-themes `<html class="dark">` veya class'sız (light) toggle eder; §13.1 `:root` light, `.dark` dark token cascade buna bağlıdır (zaten `@custom-variant dark (&:is(.dark *))` `theme.css`'te tanımlı).
+
+`enableSystem={false}` → OS preference dinlenmez; `defaultTheme="light"` ilk ziyarette uygulanır.
+
+### 13.7.3 `ThemeToggle` bileşeni
+
+`apps/web/src/components/theme-toggle.tsx` (yeni) — app-shell'de tutulur, `packages/ui`'a şu an çıkarılmaz (`apps/mobile` yok; mobile gelirse cross-platform ayrı tartışılır):
+
+- `useTheme()` ile mevcut tema; `mounted` state ile hidrasyon flash önleme (mount öncesi placeholder boyutunda `Button` render edilir — `aria-hidden`).
+- Tıklayınca `setTheme(theme === "dark" ? "light" : "dark")`.
+- İkon: light aktifken `Sun` (next moda geçmeyi vurgular: `Moon` da gösterilebilir; pattern = "hedef ikon" — Trello/Linear "açıklık seviyesi" hissi; final ikon kararı 2.7-dark uygulamasında ince-ayar).
+- Boyut: `variant="ghost"` `size="icon"`, `h-9 w-9` (header tipik aksiyon boyutu).
+- `aria-label` = `strings.common.theme.toggle` (örn. "Temayı değiştir").
+- `tooltip` (`packages/ui` shadcn `Tooltip`): mevcut tema + tıklayınca neye geçileceğini gösterir.
+
+### 13.7.4 App-shell yerleşimi
+
+`apps/web/src/components/app-shell.tsx` header düzeni (mevcut: sol → marka + workspace adı; sağ → kullanıcı menüsü / hesap linki). `ThemeToggle` **kullanıcı menüsünden önce / `NotificationBell` (Faz 6D — DEM-93) bittiğinde onunla aynı grupta** durur:
+
+```
+[ Marka / WS ]                                          [ ThemeToggle ] [ NotificationBell ] [ Account ]
+```
+
+Auth (`(auth)/layout.tsx`) toggle barındırmaz (ilk tur kararı).
+
+### 13.7.5 Dark mode görsel pass — checklist
+
+Tüm ekranlarda her ikisinde test:
+
+- **Auth**: sign-in, sign-up, forgot-password, reset-password — form input/label/error mesaj/link/button contrast.
+- **App-shell**: header bg + border + ThemeToggle/Bell/Account ikonları + kullanıcı menüsü + breadcrumb.
+- **Workspaces**: workspace listesi, kart hover, empty state, onboarding ekranı.
+- **Workspace settings**: rename/slug formu, üye listesi, davet et dialog'u, gönderilmiş davetler, tehlikeli bölge.
+- **Account**: profil form, parola form, hesap silme dialog'u.
+- **Board ekranı**: zemin (`bg-background`), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
+- **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler.
+- **Card detail modal**: header (kapak-renksiz `bg-background border-b` + kapak-renkli `bg-palet-{ad}`), sol kolon (sticky başlık + meta chip satırı + AÇIKLAMA Tiptap editör + KONTROL LİSTESİ + Progress bar), sağ panel (`bg-muted/40 backdrop-blur` — dark'ta backdrop-blur okunabilir kalmalı), Tabs strip, yorum composer, yorum kartı, aktivite satırı.
+- **Tiptap prose**: editör + read-only `RichTextContent` — `.dark` altında başlık/paragraf/bullet/link/inline-code/blockquote okunabilir (token-bazlı: `[&_h1]:text-foreground` vb. veya `prose-invert` alternatifi tartışılır; tercih: token-bazlı, palet tutarlı kalır).
+- **`--palet-*` etiket chip'leri**: solid (`bg-palet-{ad} text-palet-{ad}-foreground`) + soft (`bg-palet-{ad}/15 text-palet-{ad}`) — light + dark'ta WCAG **AA** kontrast (4.5:1 normal metin / 3:1 büyük metin); `-foreground` eşleri §13.1'de tanımlı — implementasyonda kontrol et.
+- **Kart kapak rengi**: kart şeridi (`bg-palet-{ad}` `h-3`) + modal başlık çubuğu (`bg-palet-{ad} text-palet-{ad}-foreground`) — kapak rengi seçilebilir 12 renk dark mode'da da WCAG AA.
+- **Focus halkası**: `--ring` light + dark'ta primary-türevli görünür (a11y zorunlu).
+- **Scrollbar**: `.pusula-scrollbar` light + dark thumb (`--scrollbar-thumb` / `--scrollbar-thumb-hover` token'ları zaten ikili tanımlı — kontrol et).
+
+### 13.7.6 Kapsam dışı
+
+- **OS `system` preference algılama** — kullanıcı kararı: ikili yeter. Eklenirse `enableSystem={true}` + `system` mode + `useTheme().resolvedTheme` ile gerçek tema okunur.
+- **Server-side preference** — `users.theme` kolonu, Better Auth profil entegrasyonu, çoklu cihaz tutarlılık. Sonraki tur (`bosluk-tara` / Faz 8 / kullanıcı isteği).
+- **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
+- **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
+- **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
+- **Board-başına özelleştirilebilir zemin** — §13.2'deki gibi ileri faz ([DEM-57](https://linear.app/demirkol/issue/DEM-57), Faz 8); tema modundan bağımsız.

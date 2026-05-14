@@ -66,6 +66,12 @@ Seeded by `e2e/fixtures/seed.ts` (fixed ids/credentials in `E2E`):
 | ------ | ------------------------ | ------------------- | -------------------------------------- |
 | user   | `e2e-user@pusula.test`   | `e2e-password-1234` | workspace `owner`, board `admin`       |
 | viewer | `e2e-viewer@pusula.test` | `e2e-password-1234` | workspace `guest`, board `viewer` (RO) |
+| alice  | `e2e-alice@pusula.test`  | `e2e-password-1234` | workspace `member`, board `member`     |
+| bob    | `e2e-bob@pusula.test`    | `e2e-password-1234` | workspace `member`, board `member`     |
+
+`alice` + `bob` are the two-user pair the realtime board sync specs (Faz 5D —
+[DEM-86](https://linear.app/demirkol/issue/DEM-86)) sign in side-by-side; either
+can edit the shared board and the other receives the realtime echo.
 
 Seeded data: one workspace (`e2e-workspace`), one board (`e2e-board`, "E2E Pano")
 with 3 lists ("Liste 1/2/3") — Liste 1 has cards A/B/C, Liste 2 has D/E, Liste 3

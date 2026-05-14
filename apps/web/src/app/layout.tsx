@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@pusula/ui';
 import { TRPCReactProvider } from '@/trpc/client';
+import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
 
 const inter = Inter({
@@ -20,8 +21,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="tr" className={inter.variable} suppressHydrationWarning>
       <body className="bg-background text-foreground min-h-svh font-sans antialiased">
-        <TRPCReactProvider>{children}</TRPCReactProvider>
-        <Toaster />
+        <ThemeProvider>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -13,8 +13,11 @@ import { strings } from '../../apps/web/src/lib/strings';
 import { boardPath } from './e2e-data';
 
 const LIST_DRAG_HANDLE_LABEL = strings.board.dnd.listDragHandleLabel;
-const DND_ERROR_TEXT = strings.board.dnd.error;
-const DND_CONFLICT_TEXT = strings.board.dnd.conflict;
+// The older `dnd.error` / `dnd.conflict` copy was consolidated into
+// `optimistic.error` / `conflict.refreshed` for the broader Faz 4 optimistic
+// UI rollout — drag-drop reuses them now (`apps/web/src/lib/strings.ts`).
+const DND_ERROR_TEXT = strings.board.optimistic.error;
+const DND_CONFLICT_TEXT = strings.board.conflict.refreshed;
 
 export class BoardPage {
   constructor(readonly page: Page) {}

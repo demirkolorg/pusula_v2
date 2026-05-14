@@ -23,7 +23,7 @@ export type CompactionScope =
   | { kind: 'board'; boardId: string };
 
 /**
- * Build the advisory-lock / BullMQ `jobId` key for a compaction scope.
+ * Build the advisory-lock key for a compaction scope.
  *
  * The shape (`compaction:list:<id>` / `compaction:board:<id>`) must stay
  * byte-identical to `compactionScopeKey` in `apps/worker/src/jobs/compaction.ts`

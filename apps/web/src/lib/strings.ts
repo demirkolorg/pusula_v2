@@ -102,6 +102,8 @@ export const strings = {
     signOut: 'Çıkış',
     signingOut: 'Çıkış yapılıyor…',
     accountSettings: 'Hesap ayarları',
+    themeToggleToLight: 'Açık temaya geç',
+    themeToggleToDark: 'Koyu temaya geç',
   },
   workspace: {
     listTitle: 'Workspace’lerin',
@@ -340,6 +342,24 @@ export const strings = {
       menuRename: 'Yeniden adlandır',
       menuArchive: 'Listeyi arşivle',
       menuRestore: 'Listeyi geri yükle',
+    },
+    list: {
+      colorPicker: {
+        title: 'Liste rengini değiştir',
+        clear: 'Rengi kaldır',
+        colors: {
+          kirmizi: 'Kırmızı',
+          turuncu: 'Turuncu',
+          sari: 'Sarı',
+          lime: 'Lime',
+          yesil: 'Yeşil',
+          sky: 'Gök Mavisi',
+          mavi: 'Mavi',
+          mor: 'Mor',
+          pembe: 'Pembe',
+          gri: 'Gri',
+        },
+      },
     },
     dnd: {
       // Drag handles + the keyboard/button alternative (card ⋮ "move", column ⋮ "move left/right").

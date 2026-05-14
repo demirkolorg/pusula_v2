@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArchiveIcon, MoreHorizontalIcon, MoveIcon } from 'lucide-react';
 import {
@@ -140,6 +140,25 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
   // --- Drag-and-drop wiring ------------------------------------------------
   const articleRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
+  // Latest card data, read by the drag preview at drag start (DEM-87) so the
+  // registrar effect doesn't depend on the full `card` object (which would
+  // re-register on every parent render).
+  const cardRef = useRef(card);
+  cardRef.current = card;
+
+  // For a real move, keep the source card in placeholder mode until the async
+  // optimistic cache write moves its props; invalid/no-op drops reset here.
+  const handleDraggingChange = useCallback(
+    (next: boolean, options?: { settleUntilCacheUpdate?: boolean }) => {
+      if (next) {
+        setDragging(true);
+        return;
+      }
+      if (options?.settleUntilCacheUpdate) return;
+      setDragging(false);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!dnd) return;
@@ -152,9 +171,16 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       position: card.position,
       // A card in an archived list can be dragged *out* but isn't a drop target.
       isDropTarget: canEdit,
-      onDraggingChange: setDragging,
+      onDraggingChange: handleDraggingChange,
+      getCard: () => cardRef.current,
     });
-  }, [dnd, card.id, card.listId, card.position, canEdit]);
+  }, [dnd, card.id, card.listId, card.position, canEdit, handleDraggingChange]);
+
+  // Clear `dragging` in the same pre-paint cycle as the cache-update render
+  // that repositioned this card.
+  useLayoutEffect(() => {
+    if (dragging) setDragging(false);
+  }, [card.position, card.listId]);
 
   const openCard = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -230,12 +256,18 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
       onKeyDown={handleKeyDown}
       data-dragging={dragging ? '' : undefined}
       className={cn(
-        'group group/kart relative flex cursor-pointer flex-col gap-1 rounded-md border bg-card p-2 text-sm shadow-sm outline-none',
-        'transition-[box-shadow,border-color,opacity] hover:border-foreground/30 hover:shadow-card-hover',
+        'relative cursor-pointer rounded-md p-2 text-sm outline-none',
+        'transition-[box-shadow,border-color]',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
-        dragging && 'opacity-0',
+        !dragging &&
+          'group group/kart border bg-card shadow-sm hover:border-foreground/30 hover:shadow-card-hover',
+        // DEM-87 "rüya modu": original card stays in place as a dashed
+        // primary placeholder while the body-portal preview floats with the
+        // cursor. Inner wrapper is `invisible` so the card keeps its size.
+        dragging && 'border border-dashed border-primary/60 bg-primary/5',
       )}
     >
+      <div className={cn('flex flex-col gap-1', dragging && 'invisible')}>
       {coverColor && (
         <div
           className={cn('-mx-2 -mt-2 mb-1.5 h-3 rounded-t-md', COVER_BAR[coverColor])}
@@ -391,6 +423,7 @@ export function CardItem({ boardId, card, canEdit, allLists = [] }: CardItemProp
           </Dialog>
         </div>
       )}
+      </div>
     </article>
   );
 }

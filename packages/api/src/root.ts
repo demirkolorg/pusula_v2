@@ -7,6 +7,8 @@ import { commentRouter } from './routers/comment';
 import { healthRouter } from './routers/health';
 import { labelRouter } from './routers/label';
 import { listRouter } from './routers/list';
+import { notificationsRouter } from './routers/notifications';
+import { pushRouter } from './routers/push';
 import { workspaceRouter } from './routers/workspace';
 
 export const appRouter = router({
@@ -19,6 +21,8 @@ export const appRouter = router({
   comment: commentRouter,
   checklist: checklistRouter,
   label: labelRouter,
+  notifications: notificationsRouter,
+  push: pushRouter,
 });
 
 export type AppRouter = typeof appRouter;

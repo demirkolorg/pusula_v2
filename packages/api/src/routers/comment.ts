@@ -39,6 +39,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { router } from '../trpc';
 
 /** Columns of a full comment row returned to clients. */
@@ -78,7 +82,8 @@ export const commentRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Yorum ekleme yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const created = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
         .from(boards)
@@ -91,28 +96,47 @@ export const commentRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: "Arşivli board'a yorum eklenemez." });
       }
 
-      const [created] = await tx
+      const [createdComment] = await tx
         .insert(comments)
         .values({ cardId: ctx.card.id, authorId: ctx.session.user.id, body: input.body })
         .returning(commentCols);
-      if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      if (!createdComment) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: ctx.card.boardId,
-        cardId: ctx.card.id,
-        actorId: ctx.session.user.id,
-        type: 'comment.created',
-        payload: { commentId: created.id, cardId: ctx.card.id },
-      });
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'comment.created',
+          payload: { commentId: createdComment.id, cardId: ctx.card.id },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, ctx.card.boardId));
 
-      return created;
+      // Faz 6A (DEM-90) — fan out notification outbox rows for card watchers
+      // (the actor is self-skipped by the rule engine).
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'comment.created',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        payload: { commentId: createdComment.id, cardId: ctx.card.id },
+      });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
+
+      return createdComment;
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return created;
   }),
 
   /**

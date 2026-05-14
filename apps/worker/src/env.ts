@@ -8,6 +8,18 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
+  /** Where to point email/push deep-links back at. Same value `apps/api` uses. */
+  APP_URL: z.string().min(1).default('http://localhost:3000'),
+  // Faz 6B (DEM-91) — transactional notification email (Resend, shared with the
+  // DEM-68 auth password-reset channel). Optional in dev/test: without a key the
+  // email processor logs the message and stamps the outbox as if it were sent,
+  // so worker boot doesn't require Resend creds locally.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).default('Pusula <no-reply@pusula.local>'),
+  // Faz 6B (DEM-91) — Expo Push enhanced security access token. Optional;
+  // production-only knob. Without it the SDK uses anonymous push (still works,
+  // just no rate-limit lift / signed sender).
+  EXPO_PUSH_ACCESS_TOKEN: z.string().min(1).optional(),
 });
 
 export const env = envSchema.parse(process.env);

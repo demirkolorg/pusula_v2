@@ -24,6 +24,19 @@ export const E2E = {
     email: 'e2e-viewer@pusula.test',
     password: 'e2e-password-1234',
   },
+  /** alice + bob: workspace `member` + board `member` (DEM-86 realtime pair). */
+  alice: {
+    id: 'e2e-alice',
+    name: 'Alice',
+    email: 'e2e-alice@pusula.test',
+    password: 'e2e-password-1234',
+  },
+  bob: {
+    id: 'e2e-bob',
+    name: 'Bob',
+    email: 'e2e-bob@pusula.test',
+    password: 'e2e-password-1234',
+  },
   /** List titles in `position` order. */
   listTitles: ['Liste 1', 'Liste 2', 'Liste 3'] as const,
   /** Card titles per list index (0-based), in `position` order. */

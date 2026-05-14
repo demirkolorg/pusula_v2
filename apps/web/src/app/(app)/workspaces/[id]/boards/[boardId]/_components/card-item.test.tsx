@@ -1,12 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Hoisted mocks so the factories below can reference them.
 const h = vi.hoisted(() => ({
   routerPush: vi.fn(),
   searchParams: new URLSearchParams(),
   mutate: vi.fn(),
+  registerCard: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -38,6 +39,8 @@ vi.mock('@/trpc/client', () => ({
 }));
 
 import { CardItem, type BoardCard } from './card-item';
+import { BoardDndProvider } from './board-dnd-context';
+import type { BoardDnd } from './use-board-dnd';
 
 const baseCard: BoardCard = {
   id: 'card1',
@@ -61,12 +64,27 @@ const baseCard: BoardCard = {
 
 const card = (over: Partial<BoardCard>): BoardCard => ({ ...baseCard, ...over });
 
+const makeDnd = (over: Partial<BoardDnd> = {}): BoardDnd => ({
+  enabled: true,
+  dragState: { kind: 'idle' },
+  cardPlaceholder: null,
+  listPlaceholder: null,
+  registerCard: h.registerCard,
+  registerListCardsArea: () => () => {},
+  registerColumn: () => () => {},
+  moveCardToListEnd: vi.fn(),
+  moveColumnByOne: vi.fn(),
+  ...over,
+});
+
 describe('<CardItem>', () => {
   // Pin "now" so the due-state thresholds (overdue / soon ≤ 72h) are deterministic.
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-05-12T12:00:00Z'));
     h.mutate.mockReset();
+    h.registerCard.mockReset();
+    h.registerCard.mockReturnValue(() => {});
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -199,6 +217,30 @@ describe('<CardItem>', () => {
     render(<CardItem boardId="b1" card={card({ coverColor: 'not-a-colour' })} canEdit={false} />);
     const article = screen.getByRole('button', { name: 'Bir kart' });
     expect(article.querySelector('[class*="bg-palet-"]')).toBeNull();
+  });
+
+  it('keeps the source card in placeholder mode after a settling drop until card props move', async () => {
+    render(
+      <BoardDndProvider value={makeDnd()}>
+        <CardItem boardId="b1" card={baseCard} canEdit />
+      </BoardDndProvider>,
+    );
+
+    const args = (h.registerCard as Mock).mock.calls[0]?.[0] as
+      | Parameters<BoardDnd['registerCard']>[0]
+      | undefined;
+    expect(args).toBeDefined();
+
+    act(() => args!.onDraggingChange(true));
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Bir kart' })).toHaveAttribute('data-dragging');
+    });
+
+    act(() => args!.onDraggingChange(false, { settleUntilCacheUpdate: true }));
+
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    expect(article).toHaveAttribute('data-dragging');
+    expect(article.firstElementChild).toHaveClass('invisible');
   });
 
   it('a completed card: title struck through; the complete toggle is visible and checked', () => {

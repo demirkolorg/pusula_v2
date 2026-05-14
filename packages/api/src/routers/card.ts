@@ -76,6 +76,10 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole } from '../middleware/board';
@@ -320,6 +324,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
       if (!card) {
@@ -392,16 +397,35 @@ export const cardRouter = router({
         });
       }
       if (dueAtChanged) {
-        await tx.insert(activityEvents).values({
+        const dueType = updated.dueAt ? 'card.due_set' : 'card.due_cleared';
+        const duePayload = updated.dueAt
+          ? { cardId: card.id, dueAt: updated.dueAt, clientMutationId: ctx.clientMutationId }
+          : { cardId: card.id, fromDueAt: card.dueAt, clientMutationId: ctx.clientMutationId };
+        const [activity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: card.boardId,
+            cardId: card.id,
+            actorId: ctx.session.user.id,
+            type: dueType,
+            payload: duePayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Faz 6A (DEM-90) — due-date changes notify the card's watcher pool
+        // (rule engine drops the actor + non-board-reachable users).
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: activity.id,
+          type: dueType,
           workspaceId: ctx.card.workspaceId,
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: updated.dueAt ? 'card.due_set' : 'card.due_cleared',
-          payload: updated.dueAt
-            ? { cardId: card.id, dueAt: updated.dueAt, clientMutationId: ctx.clientMutationId }
-            : { cardId: card.id, fromDueAt: card.dueAt, clientMutationId: ctx.clientMutationId },
+          payload: duePayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = activity.id;
       }
       if (coverColorChanged) {
         await tx.insert(activityEvents).values({
@@ -451,6 +475,7 @@ export const cardRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -467,6 +492,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
@@ -507,20 +533,38 @@ export const cardRouter = router({
         .returning({ id: cards.id, archivedAt: cards.archivedAt });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: card.boardId,
-        cardId: card.id,
-        actorId: ctx.session.user.id,
-        type: 'card.archived',
-        payload: { cardId: card.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
-      });
+      const archivePayload = { cardId: card.id, archived: input.archived, clientMutationId: ctx.clientMutationId };
+      const [archiveActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.archived',
+          payload: archivePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!archiveActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, card.boardId))
         .returning({ version: boards.version });
+
+      // Faz 6A (DEM-90) — notify the card's watcher pool that the card was
+      // archived/restored (actor skipped by the rule engine).
+      const archiveDispatched = await dispatchNotificationsForActivity(tx, {
+        id: archiveActivity.id,
+        type: 'card.archived',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        payload: archivePayload,
+      });
+      if (archiveDispatched.inserted > 0) notificationEventId = archiveActivity.id;
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'card.archived',
@@ -536,6 +580,7 @@ export const cardRouter = router({
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -552,6 +597,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
@@ -603,20 +649,37 @@ export const cardRouter = router({
         });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: card.boardId,
-        cardId: card.id,
-        actorId: ctx.session.user.id,
-        type: 'card.completed',
-        payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
-      });
+      const completePayload = { cardId: card.id, clientMutationId: ctx.clientMutationId };
+      const [completeActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.completed',
+          payload: completePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!completeActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, card.boardId))
         .returning({ version: boards.version });
+
+      // Faz 6A (DEM-90) — notify card watchers of the completion.
+      const completeDispatched = await dispatchNotificationsForActivity(tx, {
+        id: completeActivity.id,
+        type: 'card.completed',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        payload: completePayload,
+      });
+      if (completeDispatched.inserted > 0) notificationEventId = completeActivity.id;
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'card.completed',
@@ -636,6 +699,7 @@ export const cardRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -652,6 +716,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [card] = await tx
         .select({
@@ -702,20 +767,37 @@ export const cardRouter = router({
         });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: card.boardId,
-        cardId: card.id,
-        actorId: ctx.session.user.id,
-        type: 'card.uncompleted',
-        payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
-      });
+      const uncompletePayload = { cardId: card.id, clientMutationId: ctx.clientMutationId };
+      const [uncompleteActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.uncompleted',
+          payload: uncompletePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!uncompleteActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, card.boardId))
         .returning({ version: boards.version });
+
+      // Faz 6A (DEM-90) — notify card watchers of the uncompletion (watched_activity).
+      const uncompleteDispatched = await dispatchNotificationsForActivity(tx, {
+        id: uncompleteActivity.id,
+        type: 'card.uncompleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        actorId: ctx.session.user.id,
+        payload: uncompletePayload,
+      });
+      if (uncompleteDispatched.inserted > 0) notificationEventId = uncompleteActivity.id;
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'card.uncompleted',
@@ -731,6 +813,7 @@ export const cardRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -766,6 +849,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
       // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
@@ -874,27 +958,49 @@ export const cardRouter = router({
         .returning(cardCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: card.boardId,
+      const movePayload = {
         cardId: card.id,
-        actorId: ctx.session.user.id,
-        type: 'card.moved',
-        payload: {
+        fromListId: input.fromListId,
+        toListId: input.toListId,
+        fromPosition: card.position,
+        toPosition: updated.position,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [moveActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
           cardId: card.id,
-          fromListId: input.fromListId,
-          toListId: input.toListId,
-          fromPosition: card.position,
-          toPosition: updated.position,
-          clientMutationId: ctx.clientMutationId,
-        },
-      });
+          actorId: ctx.session.user.id,
+          type: 'card.moved',
+          payload: movePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!moveActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       const [bumped] = await tx
         .update(boards)
         .set({ version: sql`${boards.version} + 1` })
         .where(eq(boards.id, card.boardId))
         .returning({ version: boards.version });
+
+      // Faz 6A (DEM-90) — notify card watchers of the move. Within-list
+      // reorder would be noise, but a list change is meaningful → the rule
+      // engine already filters by event type, so safe to fire for every
+      // `card.moved`; the cooldown collapses bursts of board re-shuffles.
+      if (input.fromListId !== input.toListId) {
+        const moveDispatched = await dispatchNotificationsForActivity(tx, {
+          id: moveActivity.id,
+          type: 'card.moved',
+          workspaceId: ctx.card.workspaceId,
+          boardId: card.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          payload: movePayload,
+        });
+        if (moveDispatched.inserted > 0) notificationEventId = moveActivity.id;
+      }
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'card.moved',
@@ -923,6 +1029,7 @@ export const cardRouter = router({
       maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
     }
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
 
     return result;
   }),
@@ -969,6 +1076,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [toList] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -1069,24 +1177,42 @@ export const cardRouter = router({
         await tx.delete(cardLabels).where(eq(cardLabels.cardId, card.id));
       }
 
-      await tx.insert(activityEvents).values({
-        // The card now lives in the target board's workspace — record the activity
-        // there (its new home).
+      const moveToListPayload = {
+        cardId: card.id,
+        fromListId: card.listId,
+        toListId: input.toListId,
+        fromPosition: card.position,
+        toPosition: updated.position,
+        clientMutationId: ctx.clientMutationId,
+        ...(crossBoard ? { fromBoardId: card.boardId, toBoardId: toList.boardId } : {}),
+      };
+      const [moveToListActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          // The card now lives in the target board's workspace — record the activity
+          // there (its new home).
+          workspaceId: targetBoard.workspaceId,
+          boardId: toList.boardId,
+          cardId: card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.moved',
+          payload: moveToListPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!moveToListActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 6A (DEM-90) — notify card watchers of the move (target board's
+      // workspace context). `card.moved` is `watched_activity` notification.
+      const moveToListDispatched = await dispatchNotificationsForActivity(tx, {
+        id: moveToListActivity.id,
+        type: 'card.moved',
         workspaceId: targetBoard.workspaceId,
         boardId: toList.boardId,
         cardId: card.id,
         actorId: ctx.session.user.id,
-        type: 'card.moved',
-        payload: {
-          cardId: card.id,
-          fromListId: card.listId,
-          toListId: input.toListId,
-          fromPosition: card.position,
-          toPosition: updated.position,
-          clientMutationId: ctx.clientMutationId,
-          ...(crossBoard ? { fromBoardId: card.boardId, toBoardId: toList.boardId } : {}),
-        },
+        payload: moveToListPayload,
       });
+      if (moveToListDispatched.inserted > 0) notificationEventId = moveToListActivity.id;
 
       const [bumpedTarget] = await tx
         .update(boards)
@@ -1130,6 +1256,7 @@ export const cardRouter = router({
       maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
     }
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
 
     return result;
   }),

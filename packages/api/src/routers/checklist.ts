@@ -50,6 +50,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { router } from '../trpc';
 
 /** A Drizzle transaction handle for our schema, as passed to `db.transaction(cb)`. */
@@ -186,7 +190,8 @@ const itemRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -206,18 +211,43 @@ const itemRouter = router({
         .returning(itemCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.card.workspaceId,
-        boardId: ctx.card.boardId,
-        cardId: ctx.card.id,
-        actorId: ctx.session.user.id,
-        type: input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked',
-        payload: { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id },
-      });
+      const togglePayload = { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id };
+      const toggleType = input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked';
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: toggleType,
+          payload: togglePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       await bumpBoardVersion(tx, ctx.card.boardId);
+
+      // Faz 6A (DEM-90) — only `checked` produces a watcher notification (the
+      // domain rules map `checklist.item_checked` → `checklist_item_completed`;
+      // un-checking is silent — too low-signal to fan out).
+      if (input.completed) {
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: activity.id,
+          type: 'checklist.item_checked',
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          payload: togglePayload,
+        });
+        if (dispatched.inserted > 0) notificationEventId = activity.id;
+      }
+
       return { ...updated, changed: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /**

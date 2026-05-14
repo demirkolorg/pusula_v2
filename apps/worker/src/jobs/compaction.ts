@@ -41,7 +41,7 @@ export type CompactionScope =
 
 export type CompactionJobData = { scope: CompactionScope };
 
-/** Stable string key for the advisory lock + the BullMQ `jobId` (debounce). */
+/** Stable string key for the advisory lock. BullMQ job ids encode this shape without `:`. */
 export function compactionScopeKey(scope: CompactionScope): string {
   return scope.kind === 'list' ? `compaction:list:${scope.listId}` : `compaction:board:${scope.boardId}`;
 }

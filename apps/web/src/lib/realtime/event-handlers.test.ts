@@ -27,7 +27,13 @@ type FixCard = {
   title: string;
   completedAt: Date | null;
 };
-type FixList = { id: string; position: string; title: string; archivedAt: string | null };
+type FixList = {
+  id: string;
+  position: string;
+  title: string;
+  archivedAt: string | null;
+  color: string | null;
+};
 type FixBoard = { id: string; title: string; version: number; archivedAt: string | null };
 type FixCache = { board: FixBoard; lists: FixList[]; cards: FixCard[] };
 
@@ -37,8 +43,8 @@ const cardKey = (cardId: string) => ['card.get', { cardId }] as const;
 const fixture = (): FixCache => ({
   board: { id: 'b1', title: 'Pano', version: 7, archivedAt: null },
   lists: [
-    { id: 'L1', position: 'l0', title: 'Yapılacak', archivedAt: null },
-    { id: 'L2', position: 'l1', title: 'Bitti', archivedAt: null },
+    { id: 'L1', position: 'l0', title: 'Yapılacak', archivedAt: null, color: null },
+    { id: 'L2', position: 'l1', title: 'Bitti', archivedAt: null, color: null },
   ],
   cards: [
     { id: 'c1', listId: 'L1', position: 'a0', title: 'bir', completedAt: null },
@@ -169,6 +175,7 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
         position: 'l2',
         title: 'Yeni liste',
         archivedAt: null,
+        color: null,
       } satisfies FixList,
     }));
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
@@ -182,6 +189,28 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     }));
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.lists.find((l) => l.id === 'L1')!.title).toBe('YENİ İSİM');
+  });
+
+  it('list.updated with color field → patches the list colour', () => {
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.updated', {
+      listId: 'L1',
+      color: 'yesil',
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L1')!.color).toBe('yesil');
+  });
+
+  it('list.updated with color:null → clears the list colour', () => {
+    qc.setQueryData(boardKey('b1'), {
+      ...fixture(),
+      lists: fixture().lists.map((l) => (l.id === 'L1' ? { ...l, color: 'mor' } : l)),
+    });
+    dispatchRealtimeEvent(qc, { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) }, envelope('list.updated', {
+      listId: 'L1',
+      color: null,
+    }));
+    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    expect(next.lists.find((l) => l.id === 'L1')!.color).toBeNull();
   });
 
   it('list.archived → stamps archivedAt without removing the list', () => {

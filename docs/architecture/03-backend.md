@@ -12,7 +12,7 @@ type: "architecture"
 axis: "architecture"
 status: "active"
 parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 # 03 — Backend (Hono + tRPC + Worker)
 
@@ -88,11 +88,11 @@ zincirde yer alır (bkz. [`10-platform.md`](10-platform.md)).
 | --- | --- | --- | --- |
 | `board` | `list` | `workspaceProcedure` | Kullanıcının erişebildiği board'lar (workspace owner/admin tüm board'lar; guest yalnızca davetli) |
 | `board` | `create` | `workspaceProcedure` | workspace `member+`; oluşturan board `admin` üye olur; `activity_events` (`board.created`) |
-| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
+| `board` | `get` | `boardProcedure` | Board + listeleri + kartları (board ekranının ilk yükü); her liste `color` alanını taşır (`null` veya `LIST_COLORS` — DEM-98, kolon tam-yüzey rengi için additive). Her kart kendi etiketlerini taşır (`cards[].labels: { labelId, name, color }[]` — `card_labels ⋈ labels`, board genelinde tek sorgu; board ekranı etiket filtresi + kart rozetleri için, ek round-trip yok — Faz 2.5E). **Faz 2.7B (additive):** her kart ayrıca kart-rozeti metadata sayaçlarını taşır — `checklistTotal`/`checklistDone` (kartın `checklists ⋈ checklist_items` toplam/tamamlanan madde sayısı), `commentCount` (`comments` `deleted_at IS NULL`), `members: { userId, name, image, role }[]` (`card_members ⋈ users` — avatar yığını için ad+görsel; e-posta dönmez — privacy, DEM-51 deseni). Hepsi board genelinde toplu sorgular (GROUP BY card / IN(...) — N+1 yok); imza additive (mevcut alanlar değişmez). **Faz 2.7 (DEM-66/DEM-67 — additive):** her kart ayrıca `completed`, `completedAt`, `completedBy` (kart-seviyesi tamamlama — `checklist_items.completed`'tan ayrı; bkz. aşağıda "Faz 2.7 — kart tamamlama + kapak rengi") ve `coverColor` (`null` ya da `CARD_COVER_COLORS` paletinden bir ad — kart kapak şeridi/modal başlık rengi) taşır; bunlar `cards` kolonlarından doğrudan gelir (ek sorgu yok). Attachment sayacı / kapak **görseli** bu fazda **yok** (ek/attachment Faz 8). |
 | `board` | `update` | `boardProcedure` | board `admin`; başlık vb.; `activity_events` (`board.renamed`) |
 | `board` | `archive` | `boardProcedure` | board `admin`; `archived_at`; arşivli board salt-okunur; `activity_events` (`board.archived`) |
 | `list` | `create` | `boardProcedure` | board `member+`; board sonuna `position` (`@pusula/domain/position`); arşivli board'a liste eklenemez; `activity_events` (`list.created`); `boards.version` artar |
-| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma; arşivli board salt-okunur; `activity_events` (`list.renamed`); `boards.version` artar |
+| `list` | `update` | `boardProcedure` | board `member+`; yeniden adlandırma ve/veya `color` güncelleme (`null` ya da `LIST_COLORS`, DEM-98); arşivli board salt-okunur, renk için arşivli liste de reddedilir; başlık → `list.renamed`, renk set/change → `list.color_changed`, renk clear → `list.color_cleared`; gerçek değişiklikte `boards.version` artar, aynı başlık/renk no-op'tur |
 | `list` | `archive` | `boardProcedure` | board `member+`; `archived_at` (set/restore); arşivli liste aktif kart almaz (yeni kart eklenemez); `activity_events` (`list.archived`); `boards.version` artar |
 | `card` | `create` | `protectedProcedure` (listenin board'unu `resolveBoardAccess` ile çözer) | `createCardInput` yalnızca `listId` taşır → liste transaction içinde okunur, board ondan türetilir; board `member+`; liste sonuna `position`; kart `board_id` = listenin board'u (**kart ⊆ liste.board invariant'ı**); arşivli board/listeye eklenemez; `activity_events` (`card.created`); `boards.version` artar |
 | `card` | `get` | `cardProcedure` | board `viewer+`; kart detayı (Faz 2.7'den itibaren `completed`/`completedAt`/`completedBy`/`coverColor` dahil — additive) + kullanıcının kart ilişkileri (`card_members`) |
@@ -160,6 +160,17 @@ Faz 2.5 dışı (ileri faz): `attachment.*` (Faz 8 — MinIO), mention parsing +
 - **`card.get` / `board.get` projection**: her ikisinin `cards` projection'ına `completed`/`completedAt`/`completedBy`/`coverColor` eklenir — **additive** (mevcut alanlar/imza değişmez; mevcut testler kırılmaz). `board.get`'te bu alanlar `cards` kolonlarından doğrudan gelir (ek sorgu yok — Faz 2.7B'nin `checklistTotal`/`commentCount`/`members` toplu sorgularına dokunmaz).
 - **Transaction kapsamı**: Faz 2/2.5'teki gibi yalnızca `domain mutasyonu + activity_events insert + boards.version bump`; `realtime_events` / `notification_outbox` Faz 5/6'da devreye girer. `clientMutationId` ile idempotency (duplicate teslimat duplicate activity üretmez).
 
+### DEM-98 — liste rengi (`list.update({ color })`)
+
+> DEM-98, DEM-67 `card.update({ coverColor })` deseninin liste analoğudur: aynı `list.update` procedure'ı additive `color` alanı kabul eder, Zod `LIST_COLORS` ya da `null` doğrular, tx içinde domain mutasyonu + activity + realtime outbox + `boards.version` birlikte yazılır.
+
+- **Input:** `list.update({ listId, title?, color?, clientMutationId? })`; `title` veya `color` alanlarından en az biri bulunmalı. `color: null` gerçek bir clear isteğidir (key-presence), `undefined` renk alanına dokunmaz.
+- **Kapılar:** `boardProcedure` board erişimini çözer; board `member+` gerekir. Arşivli board tüm güncellemeleri reddeder; `color` değişikliği arşivli listede de reddedilir (`BAD_REQUEST`). Liste başka board'a aitse `BAD_REQUEST`.
+- **Transaction:** mevcut listeyi ve board arşiv durumunu tx içinde yeniden oku; title değiştiyse `lists.title`, color değiştiyse `lists.color` update edilir. Hiçbir alan gerçek değişmediyse `{ changed:false }` döner; `activity_events`, `realtime_events` ve version bump yazılmaz (duplicate `clientMutationId` doğal no-op).
+- **Activity:** title için mevcut `list.renamed`; renk için `list.color_changed` payload `{ listId, oldColor, newColor }`, clear için `list.color_cleared` payload `{ listId, oldColor }`. Tüm payload'lar `clientMutationId` taşır.
+- **Realtime:** gerçek değişiklikte `realtime_events` outbox'a `list.updated` yazılır; payload additive olarak `color` alanını taşır (title değişiminde mevcut `fromTitle`/`toTitle` korunur, renk değişiminde `color: newColor`). `seq` yeni `boards.version` değeridir.
+- **Projection:** `board.get` `lists[].color` döndürür; default `null` eski `bg-muted/30` davranışını korur.
+
 ### Faz 3 — `list.move` / `card.move` (drag-drop backend) ([DEM-42](https://linear.app/demirkol/issue/DEM-42))
 
 > Faz 3A = sürükle-bırak'ın backend tarafı: liste reorder + kart reorder/listeler-arası taşıma; pozisyon hesabı `@pusula/domain/position`, idempotent (`clientMutationId`), transaction'da yalnız `domain mutasyonu + activity_events + boards.version` (`realtime_events` / `notification_outbox` Faz 5/6). Drag-drop UI **Faz 3B** ([DEM-43](https://linear.app/demirkol/issue/DEM-43) — [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.1 + [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.8); position compaction worker **Faz 3C** ([DEM-44](https://linear.app/demirkol/issue/DEM-44)); cross-board `card.moveToList` + `card.copy` **Faz 3E** ([DEM-69](https://linear.app/demirkol/issue/DEM-69)). Sıralamanın iş anlamı + eşzamanlı taşıma semantiği: [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md); server akışı: [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.1. Procedure → rol haritası: [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Drag-drop / move procedure haritası — Faz 3).
@@ -218,6 +229,75 @@ Test (Faz 3A): domain birim (`positionBetween`/`positionsBetween` edge case'leri
 - **Kapsam dışı:** event yayını mutation gövdelerinden → Faz 5B (worker üzerinden); presence (`board.presence:join/leave`, imleç pozisyonu) → Faz 6/7; mobile (Expo Socket.IO client) → Faz 7.
 
 > **Wired (DEM-83, 2026-05-13):** modüller `apps/api/src/socket/` altında: `server.ts` (`createSocketServer` factory + WebSocket-only transport + opsiyonel Redis adapter mount), `auth.ts` (`SocketSessionResolver` injectable, Better Auth `getSession` handshake'i — başarısız/throw → uniform `Unauthorized`), `rooms.ts` (`board:join`/`board:leave` event handler'ları + auto `user:{userId}` join + ack callback), `emit.ts` (`createRealtimeEmit` → `RealtimeEmit { emitToBoard, emitToUser }`), `index.ts` (`setupSocketServer` production wiring — Better Auth + `@pusula/api` `resolveBoardAccess` + ayrı `ioredis` pub/sub pair; arşivli board → null → join reddi). `apps/api/src/index.ts` boot'unda `serve()` sonrası attach; `setRealtimeEmit` → `getRealtimeEmit` (apps/api/src/app.ts) → `buildTrpcContext` (apps/api/src/trpc.ts) → `ctx.realtime`. `RealtimeEventEnvelope` (`@pusula/domain/events`) doc §5.3 spec'ine hizalandı (`actorUserId`, `seq` — eski `actorId`/`sequence`/`boardVersion` kaldırıldı; alıcı yoktu). 12 Vitest (`apps/api/src/socket/socket.test.ts`): auth middleware, board:join/leave, auto user-room, emit izolasyonu. Faz 5B (mutation gövdelerinden outbox → worker → emit) ayrı tab.
+
+### Faz 6 — Notification & push procedure'leri ([DEM-29](https://linear.app/demirkol/issue/DEM-29))
+
+> Faz 6 = bildirim merkezi (in-app + email + push). Activity event → `notification_outbox` üretimi mutation gövdesinde, processor `apps/worker`'da fan-out (in-app insert + Faz 5 `emitToUser` + email Resend + push Expo); UI tüketimi tRPC procedure'leri üzerinden. Domain kuralları → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md); processor mekaniği → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Notification processor (Faz 6)"; tablo şemaları → [`04-veri-katmani.md`](04-veri-katmani.md) "Faz 6 (Bildirim) kapsamı"; UI → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.11.
+
+> **Wired — Faz 6A ([DEM-90](https://linear.app/demirkol/issue/DEM-90), 2026-05-13):** `notifications.list/markRead/markAllRead/unreadCount` (`packages/api/src/routers/notifications.ts`) canlı — cursor `(createdAt, id)` base64, single-statement `markRead` (`COALESCE` + `wasUnread` flag, race-free). Notification rule engine + outbox helper + 10 mutation gövdesi entegrasyonu için → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Notification processor (Faz 6)" wired notu. Commit `5df3bd5`.
+
+| Router | Procedure | Middleware | Not |
+| --- | --- | --- | --- |
+| `notifications` | `list` | `protectedProcedure` | Kullanıcının kendi notification'ları (`WHERE user_id = ctx.session.userId`); cursor pagination (`limit + cursor` veya `before` timestamp); opsiyonel filter `{ read?: boolean }` (unread-only / all). Sıralama: `created_at desc`. Response: `{ items: Notification[], nextCursor?: string }`. |
+| `notifications` | `unreadCount` | `protectedProcedure` | Kullanıcının okunmamış notification sayısı (`WHERE user_id = ctx.session.userId AND read_at IS NULL`). Bell badge için; realtime invalidate ile güncel kalır (5C `useUserRealtime`). Response: `{ count: number }`. |
+| `notifications` | `markRead` | `protectedProcedure` | Tek notification'ı okundu olarak işaretle (`SET read_at = NOW() WHERE id = ? AND user_id = ctx.session.userId AND read_at IS NULL`). Yetki: yalnız kendi notification'ı (`user_id` check); başkası → `NOT_FOUND` (info-leak önler). Idempotent: zaten okunmuşsa no-op (sessizce success). |
+| `notifications` | `markAllRead` | `protectedProcedure` | Kullanıcının tüm okunmamışlarını okundu (`SET read_at = NOW() WHERE user_id = ctx.session.userId AND read_at IS NULL`). Response: `{ marked: number }` (kaç satır güncellendi). Idempotent. |
+| `push` | `tokens.register` | `protectedProcedure` | Mobile client Expo push token kayıt eder. Input: `{ token (Expo format), platform ('ios'\|'android'\|'web'), deviceName? }`. `INSERT ... ON CONFLICT (token) DO UPDATE SET last_used_at = NOW(), revoked_at = NULL` (aynı token tekrar register → reactivate). Yetki: kendi userId; başka user'a token kayıt edilemez. Token format Zod validation (`ExponentPushToken[xxx...]` veya `ExpoPushToken[xxx...]` regex). |
+| `push` | `tokens.revoke` | `protectedProcedure` | Logout veya manuel revoke. Input: `{ token }`. `UPDATE push_tokens SET revoked_at = NOW() WHERE token = ? AND user_id = ctx.session.userId` (silmez — audit kalır). Idempotent: zaten revoked → no-op. |
+
+**Mutation gövdesi pattern (notification_outbox insert):**
+
+```txt
+protectedProcedure (session check)
+  → workspace/board/card access
+  → input validation
+  → Drizzle transaction:
+      - domain mutasyonu
+      - activity_events insert
+      - realtime_events insert (Faz 5B)
+      - notification-rules.ts(activityEvent) → recipients
+      - per-recipient × per-channel: notification_outbox insert (cooldown 60s check)
+  → sonuç
+  → (tx commit sonrası) void ctx.notifications.enqueue({ eventId })
+```
+
+**Notification-rules helper (`packages/api/src/lib/notification-rules.ts`):**
+
+- Pure function: `computeNotifications(activityEvent, ctx) → Array<{ recipientUserId, type, channels[], payload }>`.
+- Recipient hesabı: activity event tipine göre (atama → atanan; mention → mention edilen; yorum → watcher'lar; due → kart üyeleri; davet → davet edilen e-posta; vb. — tam liste `04-bildirim-kurallari.md`).
+- Channel hesabı: `notification_preferences` lookup (workspace > board > card hiyerarşisi; en dar override eder); default in-app + push opt-in + email opt-in.
+- Permission check: recipient board'a erişebiliyor mu (`resolveBoardAccess` veya recipient'in `board_members`/`workspace_members` kaydı kontrolü; silinmiş kullanıcı → skip).
+- Actor self-skip + role merge (assignee+watcher → tek satır) + mute-bypass (`mention`/`davet` her zaman geçer).
+
+**Cooldown 60s check (mutation gövdesinde):**
+
+```sql
+SELECT 1 FROM notification_outbox
+WHERE recipient_id = $1 AND type = $2
+  AND created_at > NOW() - INTERVAL '60 seconds'
+LIMIT 1
+```
+Varsa skip (silently); yoksa insert. İstisnalar: `comment.mentioned` + `*_invited` + `due_reminder_*` (her biri kendi dedupe'una sahip).
+
+**Mention parser (`packages/api/src/lib/mention-parser.ts` — Faz 6C):**
+
+- Input: `comment.body` Tiptap JSON (text node'larında `@username` formatı taranır; mention plugin node'u da desteklenir).
+- Regex: `/(?:^|\s)@([a-zA-Z0-9_-]+)/g` (boşluk veya başlangıç önekli — `email@x` skip).
+- Match edilen username'ler `users` tablosunda lookup (`WHERE LOWER(username) IN (...)`); kart'ın board'una erişimi olanlar filtre.
+- Her geçerli mention için `activity_events` `comment.mentioned` insert (payload: `{ commentId, mentionedUserId, mentionText }`).
+- Notification-rules `comment.mentioned` olayını görür → mention edilen kullanıcıya bildirim (mute-bypass; cooldown'a tabi değil).
+- Dedupe: aynı yorumda aynı user iki kez → tek mention (Set kullanımı).
+
+**Test (Faz 6A + 6B + 6C — özet; detay Faz 6E [DEM-94]):**
+
+- Notification kuralları: her activity tipi için doğru recipient + kanal mapping (mock activity → recipients array).
+- Cooldown 60s window: aynı user + type → tek outbox satırı.
+- Permission: recipient board'a erişemiyor → bildirim üretilmez.
+- Mention parser: `@user` match; `email@x` skip; aynı yorumda dup → tek; yetkisiz user → skip; bilinmeyen username → skip.
+- `notifications.list`/`markRead`/`markAllRead`/`unreadCount` integration testleri (mock seed + tRPC caller).
+- `push.tokens.register`/`revoke` integration (duplicate token → update; revoked → reactivate).
+
+> **Kapsam dışı:** notification tercih ekranı UI (default tercihlerle çalışır; UI sonraki tur), email digest (saatlik/günlük özet — Faz 8), slack/teams entegrasyonu, recurring task'lar.
 
 ## Worker (background job)
 

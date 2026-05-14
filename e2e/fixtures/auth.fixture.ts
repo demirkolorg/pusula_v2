@@ -18,7 +18,15 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { E2E } from './e2e-data';
 import { E2E_API_URL } from './env';
 
-async function signIn(page: Page, creds: { email: string; password: string }): Promise<void> {
+/**
+ * Sign `page` in via Better Auth's HTTP endpoint and verify the session cookie
+ * landed in the context's jar. Exported because the realtime fixture (Faz 5D —
+ * DEM-86) signs *two* peers into separate contexts and needs the same flow.
+ */
+export async function signIn(
+  page: Page,
+  creds: { email: string; password: string },
+): Promise<void> {
   const res = await page.request.post(`${E2E_API_URL}/api/auth/sign-in/email`, {
     data: { email: creds.email, password: creds.password },
     headers: { 'content-type': 'application/json' },
@@ -34,7 +42,7 @@ async function signIn(page: Page, creds: { email: string; password: string }): P
   const cookies = await page.context().cookies();
   expect(
     cookies.some((c) => c.name.includes('session_token')),
-    'expected a Better Auth session cookie after sign-in',
+    `expected a Better Auth session cookie after sign-in for ${creds.email}`,
   ).toBeTruthy();
 }
 

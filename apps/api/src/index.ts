@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { app, setRealtimeEmit } from './app';
 import { closeCompactionQueue } from './compaction-queue';
+import { closeNotificationQueue } from './notification-queue';
 import { closeRealtimePublishQueue } from './realtime-publish-queue';
 import { env } from './env';
 import {
@@ -40,6 +41,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         if (socketHandle) await socketHandle.close().catch(() => {});
         await closeCompactionQueue().catch(() => {});
         await closeRealtimePublishQueue().catch(() => {});
+        await closeNotificationQueue().catch(() => {});
         process.exit(0);
       })();
     });
