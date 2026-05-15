@@ -77,7 +77,6 @@ describe('createCardDragOverlayController', () => {
   it('copies board surface variables onto the card drag portal', () => {
     const source = document.createElement('article');
     source.style.setProperty('--board-card-bg', 'oklch(0.22 0.01 250)');
-    source.style.setProperty('--board-card-border', 'oklch(0.35 0.01 250)');
     source.getBoundingClientRect = () =>
       ({
         left: 10,
@@ -96,7 +95,6 @@ describe('createCardDragOverlayController', () => {
 
     const portal = document.body.firstElementChild as HTMLElement;
     expect(portal.style.getPropertyValue('--board-card-bg')).toBe('oklch(0.22 0.01 250)');
-    expect(portal.style.getPropertyValue('--board-card-border')).toBe('oklch(0.35 0.01 250)');
   });
 
   it('copies board surface variables onto the lifted list preview container', () => {
@@ -104,7 +102,6 @@ describe('createCardDragOverlayController', () => {
     source.style.setProperty('--board-list-bg', 'oklch(0.26 0.03 275)');
     source.style.setProperty('--board-list-border', 'oklch(0.38 0.02 275)');
     source.style.setProperty('--board-card-bg', 'oklch(0.22 0.01 250)');
-    source.style.setProperty('--board-card-border', 'oklch(0.35 0.01 250)');
     source.getBoundingClientRect = () =>
       ({
         left: 0,
@@ -124,6 +121,5 @@ describe('createCardDragOverlayController', () => {
     expect(container.style.getPropertyValue('--board-list-bg')).toBe('oklch(0.26 0.03 275)');
     expect(container.style.getPropertyValue('--board-list-border')).toBe('oklch(0.38 0.02 275)');
     expect(container.style.getPropertyValue('--board-card-bg')).toBe('oklch(0.22 0.01 250)');
-    expect(container.style.getPropertyValue('--board-card-border')).toBe('oklch(0.35 0.01 250)');
   });
 });

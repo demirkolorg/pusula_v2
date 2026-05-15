@@ -133,8 +133,6 @@ const BOARD_SURFACE_CSS_VARS = [
   '--board-list-add-bg-hover',
   '--board-list-archived-bg',
   '--board-card-bg',
-  '--board-card-border',
-  '--board-card-border-hover',
 ] as const;
 
 function copyBoardSurfaceVars(source: HTMLElement, target: HTMLElement) {

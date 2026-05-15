@@ -517,8 +517,6 @@
     --board-list-add-bg: color-mix(in srgb, var(--board-list-bg) 52%, transparent);
     --board-list-add-bg-hover: color-mix(in srgb, var(--board-list-bg) 70%, transparent);
     --board-list-archived-bg: color-mix(in srgb, var(--board-list-bg) 68%, transparent);
-    --board-card-border: color-mix(in srgb, var(--board-card-bg) 82%, var(--foreground) 18%);
-    --board-card-border-hover: color-mix(in srgb, var(--board-card-bg) 64%, var(--foreground) 36%);
     background-color: var(--board-surface-bg);
     background-image: var(--board-surface-image);
   }

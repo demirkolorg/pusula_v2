@@ -57,7 +57,7 @@ export function CardDragPreview({ card, width }: CardDragPreviewProps) {
     <div
       style={{ width }}
       className={cn(
-        'pointer-events-none flex flex-col gap-1 rounded-md border border-[color:var(--board-card-border)] bg-[color:var(--board-card-bg)] p-2 text-sm',
+        'pointer-events-none flex flex-col gap-1 rounded-md bg-[color:var(--board-card-bg)] p-2 text-sm',
         'rotate-2 shadow-md',
       )}
     >

@@ -74,13 +74,13 @@ export function roomName(kind: RealtimeRoomKind, id: string): string {
 export interface CardCompletedPayload {
   cardId: string;
   completedAt: string;
-  completedBy: string | null;
+  completedBy?: string | null;
 }
 
 export const cardCompletedPayloadSchema = z.object({
   cardId: z.string().min(1),
   completedAt: z.string(),
-  completedBy: z.string().nullable(),
+  completedBy: z.string().nullable().optional(),
 });
 
 export interface CardUncompletedPayload {

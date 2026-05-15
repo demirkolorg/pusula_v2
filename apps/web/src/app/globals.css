@@ -89,8 +89,6 @@
     --board-list-add-bg-hover: color-mix(in srgb, var(--trello-list-bg) 70%, transparent);
     --board-list-archived-bg: color-mix(in srgb, var(--trello-list-bg) 68%, transparent);
     --board-card-bg: var(--trello-card-bg);
-    --board-card-border: color-mix(in srgb, var(--trello-card-bg) 82%, var(--foreground) 18%);
-    --board-card-border-hover: color-mix(in srgb, var(--trello-card-bg) 64%, var(--foreground) 36%);
   }
 
   section:has(> [data-list-accent]) > [data-list-accent] {
