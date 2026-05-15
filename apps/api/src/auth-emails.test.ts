@@ -80,6 +80,28 @@ describe('resetPasswordEmailHtml', () => {
     expect(html).not.toContain('callbackURL=%2Freset-password"&'); // sanity: no raw unescaped break
   });
 
+  it('renders the branded transactional layout (preheader, brand band, CTA, fallback URL, footer)', () => {
+    const html = resetPasswordEmailHtml(RESET_URL);
+    expect(html).toMatch(/<!doctype html>/i);
+    // Preheader: hidden inbox preview snippet
+    expect(html).toMatch(/display:none;[^"]*overflow:hidden/);
+    expect(html).toMatch(/parolanı sıfırlamak/i);
+    // Brand band uses the email-safe primary token hex
+    expect(html).toContain('#5b5bd6');
+    expect(html).toMatch(/>Pusula</);
+    // Heading + intro
+    expect(html).toContain('Parolanı sıfırla');
+    // Bulletproof CTA button uses bgcolor + inline-block padding
+    expect(html).toMatch(/bgcolor="#5b5bd6"/);
+    expect(html).toMatch(/display:inline-block;[^"]*padding:12px 24px/);
+    // Fallback URL is rendered inside the code box too
+    expect(html.match(/http:\/\/localhost:3000\/reset-password/g)?.length ?? 0).toBeGreaterThanOrEqual(
+      2,
+    );
+    // Footer line with year + tagline
+    expect(html).toMatch(new RegExp(`© ${new Date().getFullYear()} Pusula`));
+  });
+
   it('escapes angle brackets / quotes in the URL', () => {
     const html = resetPasswordEmailHtml('http://x/"><script>alert(1)</script>');
     expect(html).not.toContain('<script>');
@@ -92,7 +114,7 @@ describe('verificationEmailText', () => {
     const text = verificationEmailText(VERIFY_URL);
     expect(text).toContain(VERIFY_URL);
     expect(text).toMatch(/1 saat/);
-    expect(text).toMatch(/sen olusturmadiysan|sen yapmadiysan|sen yapmadıysan/i);
+    expect(text).toMatch(/sen oluşturmadıysan|sen yapmadıysan/i);
   });
 });
 
@@ -102,8 +124,20 @@ describe('verificationEmailHtml', () => {
     expect(html).toContain(
       'href="http://localhost:3001/api/auth/verify-email?token=tok_verify&amp;callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fverify-email"',
     );
-    expect(html).toContain('E-postami dogrula');
+    expect(html).toContain('E-postamı doğrula');
     expect(html).not.toContain('token=tok_verify&callbackURL=');
+  });
+
+  it('renders the branded transactional layout for verification too', () => {
+    const html = verificationEmailHtml(VERIFY_URL);
+    expect(html).toMatch(/<!doctype html>/i);
+    expect(html).toMatch(/display:none;[^"]*overflow:hidden/);
+    expect(html).toMatch(/e-postanı doğrula|hesabını etkinleştirmek/i);
+    expect(html).toContain('#5b5bd6');
+    expect(html).toContain('E-posta adresini doğrula');
+    expect(html).toMatch(/bgcolor="#5b5bd6"/);
+    expect(html.match(/verify-email/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(html).toMatch(new RegExp(`© ${new Date().getFullYear()} Pusula`));
   });
 });
 
@@ -229,7 +263,7 @@ describe('sendVerificationEmail - with RESEND_API_KEY', () => {
     expect(sendMock).toHaveBeenCalledTimes(1);
     const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(arg.to).toBe('aria@test.com');
-    expect(arg.subject).toMatch(/E-posta dogrulama/);
+    expect(arg.subject).toMatch(/E-posta doğrulama/);
     expect(String(arg.html)).toContain('verify-email');
     expect(String(arg.text)).toContain(VERIFY_URL);
   });

@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-12
+updated: 2026-05-15
 ---
 
 # 07 — Auth (Kimlik Doğrulama)
@@ -67,6 +67,7 @@ Kullanıcı parolasını unutursa **e-posta ile şifre sıfırlama bağlantısı
 - **API (`apps/api/src/auth.ts`):** Better Auth `emailAndPassword.sendResetPassword({ user, url, token }, request)` callback'i → **Resend** transactional e-postası gönderir (kısa HTML + plain-text gövde: sıfırlama linki + geçerlilik notu; gönderen = `EMAIL_FROM` env). `RESEND_API_KEY` / `EMAIL_FROM` `apps/api/src/env.ts` Zod şemasına eklenir; `RESEND_API_KEY` yoksa callback **best-effort** — uyarı loglanır, exception fırlatılmaz (signup bootstrap hook'undaki disiplinle aynı). Sıfırlama linki token'ı query'de taşıdığından **yalnızca dev'de** (`NODE_ENV !== 'production'`) log'a yazılır; prod'da `RESEND_API_KEY` unutulursa yalnızca "e-posta gönderilemedi" loglanır (token **log'a düşmez**). Dev ortamında (`NODE_ENV !== 'production'`) `EMAIL_DEV_OVERRIDE` env'i set ise tüm transactional auth e-postaları gerçek alıcı yerine bu adrese gönderilir (gerçek alıcıyı içeren bir uyarı loglanır); prod'da bu override **yok sayılır** — `EMAIL_FROM=onboarding@resend.dev` (Resend test göndereni, yalnız hesap sahibine teslim eder) ile farklı adresli kullanıcı testini kolaylaştırır (v1'deki `MAIL_DEV_ALICI_OVERRIDE` deseni). `resend` npm paketi `apps/api` deps'e eklenir. Şemalar `@pusula/domain` (`forgotPasswordInput` = `{ email }`, `resetPasswordInput` = `{ token, newPassword }` — `passwordSchema` yeniden kullanılır).
 - **Bu auth e-postası bildirim outbox'undan AYRIDIR:** parola sıfırlama (ve ileride signup doğrulama) **request-path**'te Better Auth tarafından Resend ile gönderilir; Faz 6'daki `notification_outbox` + worker akışı **bildirim** e-postaları içindir, transactional auth e-postaları onun parçası değildir. Karar kaydı → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) (2026-05-12).
 - **Token:** Better Auth tek-kullanımlık, süreli token üretir (`verifications` tablosu); link `${APP_URL}/reset-password?token=…`. Token üretimi/süresi/iptali Better Auth varsayılanlarına bırakılır.
+- **E-posta şablonu (ortak — `renderTransactionalEmail` helper'ı, `apps/api/src/auth-emails.ts`):** Şifre sıfırlama ve signup doğrulama e-postaları aynı email-safe (tablo bazlı, inline style, no flex/grid, `oklch` yerine email-safe hex `#5b5bd6`) layout'u paylaşır. Düzen: gizli preheader (inbox snippet) → indigo marka bandı (Pusula wordmark) → 600px beyaz kart (heading + intro) → bulletproof CTA butonu (table + bgcolor + inline-block, Outlook fallback'lı) → fallback URL kod kutusu (uzun token'ı `word-break:break-all` ile sarar) → süre + ignore notları → yıl + tagline footer. Konular diakritikli (`Pusula — Şifre sıfırlama` / `Pusula — E-posta doğrulama`). Dark mode override **yok** — Gmail/Outlook dark rendering'i client-bazlı tahmin edilemez; light tutarlı kalır. Marka rengi `--primary` token'ının email-safe hex eşdeğeri (`#5b5bd6`).
 
 ## Signup e-posta doğrulama (Faz 8 — [DEM-72](https://linear.app/demirkol/issue/DEM-72))
 

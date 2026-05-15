@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-14
+updated: 2026-05-15
 ---
 
 # 03 — Backend (Hono + tRPC + Worker)
@@ -46,6 +46,16 @@ procedure-level auth & permission · TanStack Query entegrasyonu.
 - `protectedProcedure` (in `@pusula/api`) non-null session garantiler; üzerine workspace → board → card/list permission kontrollerini katmanla.
 - **Hono RPC ile tRPC aynı anda ana API sözleşmesi yapılmaz.** Source of truth tek: tRPC.
 - **Kullanıcının kendi hesabını yönetmesi** (ad/avatar, parola değiştir, hesap silme) tRPC'de **değildir** — doğrudan Better Auth uçlarına gider (`/api/auth/*`); bkz. [`07-auth.md`](07-auth.md) (Profil & hesap yönetimi). Hesap silme `beforeDelete` hook'u, kullanıcı bir workspace `owner`'ıysa silmeyi engeller (domain kuralı `@pusula/domain` `canDeleteOwnAccount`).
+
+### `auth` router (oturum + post-auth landing)
+
+İnce yüzey: tRPC tarafında session okuma + post-auth redirect yardımcısı. Asıl sign-in/up/out Better Auth HTTP route'larında (`/api/auth/*`); router işin yalnızca tRPC consumer'ları için ihtiyaç duyduğu kısmını verir.
+
+| Router | Procedure             | Middleware            | Not                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth` | `me`                  | `publicProcedure`     | Mevcut session user'ı; oturum yoksa `null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `auth` | `requireMe`           | `protectedProcedure`  | `me`'nin garantili olanı — anonim çağrı `UNAUTHORIZED`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `auth` | `defaultLandingRoute` | `protectedProcedure`  | Post-auth redirect hedefi (DEM-126 — 2026-05-15). Input yok. Çıkış `{ workspaceId: string; boardId: string } \| null`. Çözücü: (1) kullanıcının üye olduğu **en eski arşivlenmemiş workspace** (`workspaces.createdAt ASC`, `LIMIT 1`); (2) o workspace içinde **en eski arşivlenmemiş pano** — `board.list` semantiği: workspace `guest` ise yalnız explicit `board_members` rowu olan panolar, aksi halde tüm panolar (inherited erişim); (3) workspace veya pano yoksa `null`. Frontend (`RedirectIfAuthenticated`) `?redirect=` yoksa bu sonucu kullanır, `null`/hata → `/`. |
 
 ### Bir mutation procedure'ün iskeleti
 

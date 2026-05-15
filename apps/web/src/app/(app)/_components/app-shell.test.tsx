@@ -186,6 +186,7 @@ describe('<AppShell>', () => {
     h.boardGetData = undefined;
     h.searchQuery = h.makeSearchQuery();
     h.sendVerificationEmail.mockReset();
+    window.localStorage.clear();
   });
 
   it('renders brand and switchers on the left, then bell, theme, font size, and avatar on the right', async () => {
@@ -257,6 +258,56 @@ describe('<AppShell>', () => {
       }),
     );
     expect(await screen.findByText(strings.auth.verifyEmail.sent)).toBeInTheDocument();
+  });
+
+  it('disables the resend button for 60s after a successful send and persists the cooldown', async () => {
+    const user = userEvent.setup();
+    h.sendVerificationEmail.mockResolvedValue({ error: null });
+
+    const { unmount } = render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified={false}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole('button', { name: strings.auth.verifyEmail.resend }));
+
+    const cooldownPattern = /Tekrar gonder \(\d+sn\)/;
+    const cooldownButton = await screen.findByRole('button', { name: cooldownPattern });
+    expect(cooldownButton).toBeDisabled();
+    expect(window.localStorage.getItem('pusula:email-verify-cooldown:aria@example.com')).not.toBe(
+      null,
+    );
+
+    unmount();
+
+    render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified={false}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    expect(screen.getByRole('button', { name: cooldownPattern })).toBeDisabled();
+    expect(h.sendVerificationEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start a cooldown when the resend fails', async () => {
+    const user = userEvent.setup();
+    h.sendVerificationEmail.mockResolvedValue({ error: { message: 'Failed' } });
+
+    render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified={false}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole('button', { name: strings.auth.verifyEmail.resend }));
+
+    expect(await screen.findByText(strings.auth.verifyEmail.error)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.auth.verifyEmail.resend }),
+    ).not.toBeDisabled();
+    expect(window.localStorage.getItem('pusula:email-verify-cooldown:aria@example.com')).toBe(null);
   });
 
   it('opens global search with Ctrl+K, debounces query calls, and follows result targetUrl', () => {

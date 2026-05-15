@@ -24,6 +24,12 @@ import { env } from './env';
  *  - The email body is a small, self-contained HTML + plain-text template with
  *    Turkish copy. Hard-coded strings are fine here — this is a server-side
  *    email template, not a UI component (the web app uses `strings.auth.*`).
+ *  - Layout: `renderTransactionalEmail` builds an email-safe HTML document
+ *    (table-based, inline styles, no flex/grid, no oklch — Outlook-friendly).
+ *    Both verification and reset templates share this layout for visual
+ *    consistency and reduced spam classification (proper structure + preheader
+ *    + branded header + bulletproof CTA button reduces spam-filter false
+ *    positives).
  *  - Dev-only recipient override: in non-production, when `EMAIL_DEV_OVERRIDE`
  *    is set, the email is sent to that address instead of the real recipient (so
  *    a developer can test reset with an arbitrary account even though the Resend
@@ -67,7 +73,145 @@ export function resolveRecipient(to: string): string {
 }
 
 const RESET_SUBJECT = 'Pusula — Şifre sıfırlama';
-const VERIFY_SUBJECT = 'Pusula - E-posta dogrulama';
+const VERIFY_SUBJECT = 'Pusula — E-posta doğrulama';
+
+/** Brand color — email-safe hex of the `--primary` token (`oklch(0.56 0.17 275)`). */
+const BRAND_INDIGO = '#5b5bd6';
+const BRAND_INDIGO_DARK = '#4a4ab8';
+const PAGE_BG = '#f4f4f7';
+const CARD_BG = '#ffffff';
+const TEXT_PRIMARY = '#111827';
+const TEXT_BODY = '#374151';
+const TEXT_MUTED = '#6b7280';
+const BORDER_SUBTLE = '#e5e7eb';
+const CODE_BG = '#f3f4f6';
+
+type RenderEmailParams = {
+  /** Inbox snippet preview (hidden in body). */
+  preheader: string;
+  /** Email document `<title>`; falls back to subject. */
+  title: string;
+  /** Card-level heading shown above the intro. */
+  heading: string;
+  /** Lead paragraph(s) under the heading — each entry becomes its own `<p>`. */
+  intro: string[];
+  /** Primary action — bulletproof button. */
+  cta: { label: string; url: string };
+  /** Short text shown alongside the fallback URL (e.g. "Buton çalışmazsa…"). */
+  fallbackLabel: string;
+  /** Smaller muted notes after the CTA — each entry becomes its own `<p>`. */
+  notes: string[];
+  /** Outer footer line under the card (small, muted). */
+  footer: string;
+};
+
+/**
+ * Render a branded transactional email document (HTML, table-based, inline
+ * styles only — Gmail/Outlook/Apple Mail safe). The shared layout reduces spam
+ * classification compared to a raw `<p>` + `<a>` body. Light only (no
+ * `prefers-color-scheme` overrides — Gmail rewrites those anyway and the
+ * resulting render is inconsistent across clients).
+ */
+export function renderTransactionalEmail(params: RenderEmailParams): string {
+  const { preheader, title, heading, intro, cta, fallbackLabel, notes, footer } = params;
+  const safeCtaUrl = escapeHtml(cta.url);
+  const safeCtaLabel = escapeHtml(cta.label);
+  const introHtml = intro
+    .map(
+      (line) =>
+        `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:${TEXT_BODY};">${escapeHtml(
+          line,
+        )}</p>`,
+    )
+    .join('');
+  const notesHtml = notes
+    .map(
+      (line) =>
+        `<p style="margin:0 0 6px;font-size:13px;line-height:1.55;color:${TEXT_MUTED};">${escapeHtml(
+          line,
+        )}</p>`,
+    )
+    .join('');
+
+  return [
+    '<!doctype html>',
+    '<html lang="tr">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<meta name="x-apple-disable-message-reformatting">',
+    '<meta name="color-scheme" content="light">',
+    '<meta name="supported-color-schemes" content="light">',
+    `<title>${escapeHtml(title)}</title>`,
+    '</head>',
+    `<body style="margin:0;padding:0;background:${PAGE_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${TEXT_PRIMARY};-webkit-font-smoothing:antialiased;">`,
+    `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;">${escapeHtml(
+      preheader,
+    )}</div>`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${PAGE_BG};">`,
+    '<tr><td align="center" style="padding:32px 16px;">',
+    `<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:${CARD_BG};border-radius:12px;overflow:hidden;border:1px solid ${BORDER_SUBTLE};">`,
+    // Brand header band
+    '<tr>',
+    `<td align="left" style="background:${BRAND_INDIGO};padding:22px 32px;">`,
+    `<span style="display:inline-block;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:0.4px;line-height:1;">Pusula</span>`,
+    '</td>',
+    '</tr>',
+    // Body: heading + intro
+    '<tr>',
+    '<td style="padding:32px 32px 4px;">',
+    `<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:${TEXT_PRIMARY};font-weight:600;">${escapeHtml(
+      heading,
+    )}</h1>`,
+    introHtml,
+    '</td>',
+    '</tr>',
+    // CTA: bulletproof button (table + bgcolor + inline style)
+    '<tr>',
+    '<td align="left" style="padding:6px 32px 20px;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0">',
+    '<tr>',
+    `<td bgcolor="${BRAND_INDIGO}" style="border-radius:8px;mso-padding-alt:0;">`,
+    `<a href="${safeCtaUrl}" target="_blank" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;line-height:1.2;border:1px solid ${BRAND_INDIGO_DARK};">${safeCtaLabel}</a>`,
+    '</td>',
+    '</tr>',
+    '</table>',
+    '</td>',
+    '</tr>',
+    // Fallback URL block
+    '<tr>',
+    '<td style="padding:0 32px 18px;">',
+    `<p style="margin:0 0 8px;font-size:13px;color:${TEXT_MUTED};line-height:1.5;">${escapeHtml(
+      fallbackLabel,
+    )}</p>`,
+    `<div style="margin:0;padding:10px 12px;background:${CODE_BG};border:1px solid ${BORDER_SUBTLE};border-radius:6px;font-family:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;font-size:12px;color:${TEXT_BODY};word-break:break-all;line-height:1.45;">`,
+    `<a href="${safeCtaUrl}" target="_blank" style="color:${TEXT_BODY};text-decoration:none;">${safeCtaUrl}</a>`,
+    '</div>',
+    '</td>',
+    '</tr>',
+    // Notes (expiry + ignore)
+    '<tr>',
+    '<td style="padding:0 32px 28px;">',
+    notesHtml,
+    '</td>',
+    '</tr>',
+    '</table>',
+    // Outer footer
+    `<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">`,
+    '<tr>',
+    `<td align="center" style="padding:14px 16px 0;">`,
+    `<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5;">${escapeHtml(footer)}</p>`,
+    '</td>',
+    '</tr>',
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</body>',
+    '</html>',
+  ].join('');
+}
+
+const FOOTER_LINE = `© ${new Date().getFullYear()} Pusula · Çalışma akışın için zarif görev panoları`;
 
 /** Plain-text body for the password-reset email. */
 export function resetPasswordEmailText(url: string): string {
@@ -84,26 +228,24 @@ export function resetPasswordEmailText(url: string): string {
   ].join('\n');
 }
 
-/** Minimal HTML body for the password-reset email (no color tokens, sade). */
+/** Branded HTML body for the password-reset email. */
 export function resetPasswordEmailHtml(url: string): string {
-  // `url` comes from Better Auth (a same-origin link it just built), but escape
-  // it anyway before interpolating into HTML attributes/text — defense in depth.
-  const safeUrl = escapeHtml(url);
-  return [
-    '<!doctype html>',
-    '<html lang="tr">',
-    '<body style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #1f2937;">',
-    '<p>Merhaba,</p>',
-    '<p>Pusula hesabının parolasını sıfırlamak için aşağıdaki bağlantıya tıkla:</p>',
-    `<p><a href="${safeUrl}">Parolamı sıfırla</a></p>`,
-    '<p>Buton çalışmazsa şu bağlantıyı tarayıcına kopyala:</p>',
-    `<p>${safeUrl}</p>`,
-    '<p>Bu bağlantı kısa süre (yaklaşık 1 saat) geçerlidir.</p>',
-    '<p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; parolan değişmez.</p>',
-    '<p>Pusula</p>',
-    '</body>',
-    '</html>',
-  ].join('\n');
+  return renderTransactionalEmail({
+    preheader: 'Pusula parolanı sıfırlamak için aşağıdaki butona tıkla. Bağlantı 1 saat geçerlidir.',
+    title: RESET_SUBJECT,
+    heading: 'Parolanı sıfırla',
+    intro: [
+      'Merhaba, Pusula hesabının parolasını sıfırlama isteği aldık.',
+      'Aşağıdaki butona tıklayarak yeni parolanı belirleyebilirsin.',
+    ],
+    cta: { label: 'Parolamı sıfırla', url },
+    fallbackLabel: 'Buton çalışmazsa bu bağlantıyı tarayıcına kopyala:',
+    notes: [
+      'Bu bağlantı yaklaşık 1 saat geçerlidir; sonra yenisini istemen gerekir.',
+      'Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin — parolan değişmez.',
+    ],
+    footer: FOOTER_LINE,
+  });
 }
 
 /** Plain-text body for the signup email-verification email. */
@@ -111,34 +253,34 @@ export function verificationEmailText(url: string): string {
   return [
     'Merhaba,',
     '',
-    'Pusula hesabinin e-posta adresini dogrulamak icin asagidaki baglantiyi ac:',
+    'Pusula hesabının e-posta adresini doğrulamak için aşağıdaki bağlantıyı aç:',
     url,
     '',
-    'Bu baglanti kisa sure (yaklasik 1 saat) gecerlidir.',
-    'Bu hesabi sen olusturmadiysan bu e-postayi yok sayabilirsin.',
+    'Bu bağlantı kısa süre (yaklaşık 1 saat) geçerlidir.',
+    'Bu hesabı sen oluşturmadıysan bu e-postayı yok sayabilirsin.',
     '',
     'Pusula',
   ].join('\n');
 }
 
-/** Minimal HTML body for the signup email-verification email. */
+/** Branded HTML body for the signup email-verification email. */
 export function verificationEmailHtml(url: string): string {
-  const safeUrl = escapeHtml(url);
-  return [
-    '<!doctype html>',
-    '<html lang="tr">',
-    '<body style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #1f2937;">',
-    '<p>Merhaba,</p>',
-    '<p>Pusula hesabinin e-posta adresini dogrulamak icin asagidaki baglantiya tikla:</p>',
-    `<p><a href="${safeUrl}">E-postami dogrula</a></p>`,
-    '<p>Buton calismazsa su baglantiyi tarayicina kopyala:</p>',
-    `<p>${safeUrl}</p>`,
-    '<p>Bu baglanti kisa sure (yaklasik 1 saat) gecerlidir.</p>',
-    '<p>Bu hesabi sen olusturmadiysan bu e-postayi yok sayabilirsin.</p>',
-    '<p>Pusula</p>',
-    '</body>',
-    '</html>',
-  ].join('\n');
+  return renderTransactionalEmail({
+    preheader: 'Pusula hesabını etkinleştirmek için e-postanı doğrula. Bağlantı 1 saat geçerlidir.',
+    title: VERIFY_SUBJECT,
+    heading: 'E-posta adresini doğrula',
+    intro: [
+      'Pusula’ya hoş geldin! Hesabını güvende tutmak için e-posta adresinin sana ait olduğunu doğrulamamız gerekiyor.',
+      'Aşağıdaki butona tıklayarak doğrulamayı tamamlayabilirsin.',
+    ],
+    cta: { label: 'E-postamı doğrula', url },
+    fallbackLabel: 'Buton çalışmazsa bu bağlantıyı tarayıcına kopyala:',
+    notes: [
+      'Bu bağlantı yaklaşık 1 saat geçerlidir; sonra yenisini istemen gerekir.',
+      'Bu hesabı sen oluşturmadıysan bu e-postayı yok sayabilirsin.',
+    ],
+    footer: FOOTER_LINE,
+  });
 }
 
 /**
@@ -198,11 +340,11 @@ export async function sendVerificationEmail(params: { to: string; url: string })
   if (!resend) {
     if (env.NODE_ENV === 'production') {
       console.warn(
-        '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.',
+        '[auth] RESEND_API_KEY tanımlı değil — e-posta doğrulama e-postası gönderilemedi.',
       );
     } else {
       console.warn(
-        '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilmiyor. Dogrulama baglantisi (yalnizca dev):',
+        '[auth] RESEND_API_KEY tanımlı değil — e-posta doğrulama e-postası gönderilmiyor. Doğrulama bağlantısı (yalnızca dev):',
         url,
       );
     }
@@ -218,10 +360,10 @@ export async function sendVerificationEmail(params: { to: string; url: string })
       text: verificationEmailText(url),
     });
     if (error) {
-      console.error('[auth] e-posta dogrulama e-postasi gonderilemedi:', error);
+      console.error('[auth] e-posta doğrulama e-postası gönderilemedi:', error);
     }
   } catch (error) {
-    console.error('[auth] e-posta dogrulama e-postasi gonderilirken beklenmeyen hata:', error);
+    console.error('[auth] e-posta doğrulama e-postası gönderilirken beklenmeyen hata:', error);
   }
 }
 
