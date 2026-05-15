@@ -22,12 +22,66 @@ updated: 2026-05-15
 
 ---
 
-## 9.1 Attachment (MinIO / S3 uyumlu)
+## 9.1 Attachment (MinIO / S3 uyumlu) — Faz 11 (kart eki)
 
-- Object storage: self-hosted **MinIO**, **S3 uyumlu SDK** üzerinden — uygulama kodu MinIO'ya özel API'lere bağlanmaz (ileride R2/S3/başka S3 uyumlu sağlayıcıya geçiş ucuz kalsın).
-- DB'de yalnızca metadata: `attachments(id, card_id, uploader_id, storage_key, file_name, mime_type, size, created_at)`.
-- Akış: API permission + dosya metadata doğrular → API presigned upload URL üretir → client doğrudan MinIO'ya yükler → API attachment metadata'sını persist eder → gerekirse worker thumbnail/preview veya virüs taraması yapar.
-- MIME/type/size kontrolü ve kim yükleyebilir = iş kuralı → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md).
+- **Object storage:** self-hosted **MinIO**, **S3 uyumlu SDK** (`@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`) üzerinden — uygulama kodu MinIO'ya özel API'lere bağlanmaz; ileride R2/S3/başka S3 uyumlu sağlayıcıya geçiş ucuz kalır. Bucket = `pusula` (default; `S3_BUCKET` env override).
+- **DB metadata:** `attachments(id, card_id, board_id, uploader_id, storage_key, file_name, mime_type, size, description?, committed_at?, created_at, updated_at)`; tablo şeması, kolonlar, index'ler ve genel attachment yoluna geçiş için migration sözleşmesi → [`04-veri-katmani.md`](04-veri-katmani.md) "Faz 11 (Kart Eki)".
+- **Storage key:** `boards/{boardId}/cards/{cardId}/{uuid}-{safe-fileName}` (tahmin edilemez UUID + sanitize edilmiş dosya adı; mevcut DEM-110 paterni korunur).
+- **İş kuralları** (MIME allowlist, boyut limiti, kim yükleyebilir/silebilir, açıklama, önizleme) → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md). Procedure haritası → [`03-backend.md`](03-backend.md) "Faz 11 — Attachment". Activity/realtime/notification yan etkileri → [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.3 + [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) "Pusula attachment cleanup queue" + [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md).
+
+### Two-phase commit upload akışı (Faz 11A — karar 2026-05-15)
+
+Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upload → commit**: orphan riski sıfır, activity/realtime/notification yazımı atomic.
+
+```txt
+1. Client → API: `attachment.initiate({ cardId, fileName, mimeType, size, description? })`
+   - Permission: board admin veya member; arşivli board reject; MIME allowlist + size ≤ 50 MiB validasyon
+   - `attachments` INSERT (`committed_at = NULL`)  ← draft row
+   - Presigned PUT URL üret (TTL 10 dk)
+   - Response: `{ attachmentId, upload: { url, headers }, expiresAt }`
+2. Client → MinIO: PUT `<presigned URL>` (binary body, Content-Type header)
+   - Network/CORS/size limit hatalarında client `attachment.commit` çağırmaz
+3. Client → API: `attachment.commit({ attachmentId, clientMutationId })`
+   - Permission + draft satır lookup (`committed_at IS NULL AND uploader_id = session.user.id`)
+   - (opsiyonel) HEAD request to MinIO — gerçekten yüklendi mi doğrula
+   - Tek transaction:
+       UPDATE attachments SET committed_at = NOW(), updated_at = NOW() WHERE id = ?
+       INSERT activity_events.attachment.added (payload: { attachmentId, fileName, mimeType, sizeBytes, hasDescription })
+       INSERT realtime_events (Faz 5B outbox: type='attachment.added', board scope)
+       INSERT notification_outbox  ← watcher fan-out (Faz 6 notification-rules.ts)
+       UPDATE boards SET version = version + 1 WHERE id = ?
+   - tx COMMIT → `void enqueueRealtimePublish` + `void enqueueNotificationPublish` (Faz 5B/6A simetri)
+   - Response: `{ attachment }` (full row)
+```
+
+**Orphan cleanup:** `pusula-attachment-cleanup` BullMQ kuyruğu (bkz. [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md)) `committed_at IS NULL AND created_at < NOW() - INTERVAL '1 hour'` satırlarını süpürür (worker önce MinIO `DeleteObject`, sonra DB DELETE — idempotent).
+
+**Geriye uyum (DEM-110 single-shot):** mevcut `attachment.createUpload` mutation'ı **kaldırılır** (Faz 11A migration sırasında tüm satırlara `committed_at = created_at` atanır → eski cover-image yolundaki kayıtlar otomatik commit edilmiş sayılır); cover picker UI Faz 11D'de `attachment.list` filtreli image'lara döner. `getDownloadUrl` korunur.
+
+### Liste / güncelleme / silme
+
+- **`attachment.list({ cardId })`** — board'a erişen herkes (admin/member/viewer); `committed_at IS NOT NULL` filtre; `committed_at DESC` sırada. Response her satır için `{ id, fileName, mimeType, size, kind: 'image'|'pdf'|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean }`. Cover-image picker bu listeyi `mimeType LIKE 'image/%'` ile filtreler.
+- **`attachment.update({ attachmentId, description, clientMutationId })`** — yalnız `description` alanı düzenlenir (dosya adı/MIME/size **immutable**; yeni yükleme = yeni initiate). Yetki: uploader **veya** board admin. Activity üretmez (düşük gürültü; UI inline edit'i şıracaktır); `realtime_events.attachment.updated` Faz 11.1'e ertelenebilir veya aynı tx'te yazılır (V1: yazılmaz — açıklama değişimi düşük sinyal; client mutation `attachment.list` invalidate ederse yeterli).
+- **`attachment.delete({ attachmentId, clientMutationId })`** — yetki: uploader **veya** board admin (viewer reject). Single transaction: `attachments` DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1` + (`cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir — kartın kapak şeridi kaybolur). Post-commit `void enqueueAttachmentCleanup({ storageKey })` worker MinIO `DeleteObject`. Soft-delete YOK.
+- **`attachment.getDownloadUrl({ attachmentId })`** — mevcut DEM-110 procedure korunur; board'a erişen herkes (viewer dahil); presigned GET TTL 10 dk.
+
+### Önizleme (V1 önerisi)
+
+- **Resim** (`image/*`): lightbox dialog (`@pusula/ui` `Dialog` + içinde `<img>`) + zoom/keyboard nav; `mimeType === 'image/gif'` için autoplay korunur.
+- **PDF** (`application/pdf`): tarayıcı yerleşik viewer — `<iframe src={presignedGetUrl} sandbox="allow-same-origin">` (TTL 10 dk; iframe load fail olursa "İndir" butonu fallback).
+- **Office** (docx/xlsx/pptx): önizleme **yok**; tile'da "İndir" butonu birincil aksiyon. PDF.js / Office Online viewer V1 dışı (kullanıcı kararı 2026-05-15).
+- Misafir (Faz 9 paylaşım linki SSR): attachment listesi `forbidden:guest` flag'iyle gizlenir; misafir bir attachment ID'sini tahmin etse bile `attachment.list` `cardProcedure` üzerinde olduğu için 401/403 döner.
+
+### Worker / temizlik
+
+- **`pusula-attachment-cleanup`** — BullMQ kuyruğu; iki tetik:
+  1. **Delete tetiği:** `attachment.delete` tx COMMIT sonrası best-effort `enqueueAttachmentCleanup({ storageKey })` (Redis hatası response'u düşürmez; sweeper yedek).
+  2. **Orphan sweep:** 1 saatte bir repeatable job; `committed_at IS NULL AND created_at < NOW() - INTERVAL '1 hour'` satırları toplar; her birine MinIO `DeleteObject` + DB DELETE (idempotent; başarısız job BullMQ retry/backoff + dead-letter).
+- **Thumbnail / EXIF temizleme / antivirus** — V1 dışı; her biri sonraki bir tur (Faz 11.1 / Faz 8 sertleştirme / ayrı CVE-driven iş). Yapısal hazır: worker job yeni queue ile eklenir, request-path'e değmez.
+
+### Env değişkenleri (mevcut + Faz 11)
+
+`S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — `apps/api/src/env.ts`'te local dev için MinIO default'larıyla zaten tanımlı. Faz 11 yeni env eklemez; bucket policy + CORS (web origin'inden direct PUT için) `compose.prod.yml` / Dokploy attach edilirken kontrol edilir.
 
 ---
 

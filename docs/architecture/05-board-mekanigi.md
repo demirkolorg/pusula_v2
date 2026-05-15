@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-14
+updated: 2026-05-15
 ---
 
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
@@ -239,6 +239,10 @@ type RealtimeEventEnvelope<TPayload = unknown> = {
 ```
 
 Event tipleri (Faz 5 kapsamı): `card.moved` · `card.created` · `card.updated` · `card.archived` · `card.completed` · `card.uncompleted` · `card.movedToList` (cross-board: hem kaynak hem hedef board room'una) · `card.copied` · `list.moved` · `list.created` · `list.updated` · `list.archived` · `board.created` (workspace room — sonraki faz) · `board.updated` · `board.archived`.
+
+Faz 6C ile genişletilen tipler: `comment.created`/`updated`/`deleted`/`mentioned` · `checklist.created`/`item_added`/`item_checked`/`item_unchecked` · `card.label_added`/`label_removed` · `card.member_added`/`member_removed` · `board.label_*`/`board.member_*`/`board.invitation_*` (bkz. yukarıdaki Faz 6C wired notu).
+
+Faz 11 (kart eki) ile eklenen tipler: `attachment.added` (payload `{ attachmentId, fileName, mimeType, sizeBytes, hasDescription }`) · `attachment.removed` (payload `{ attachmentId, fileName, mimeType, sizeBytes }`). Board scope; `attachment.commit` / `attachment.delete` mutation transaction'ı içinde `realtime_events` outbox satırı INSERT edilir, worker `pusula-realtime-publish` üzerinden ilgili `board:{boardId}` room'una yayar; web `useBoardRealtime` handler `attachment.list` cache'ini invalidate eder (board kart yüzündeki paperclip+sayı chip'i + modal "Ekler N" sekme rozeti tetiklenen `attachment.list` refetch'iyle güncellenir). `boards.version + 1` `commit` ve `delete`'te artar. Detay → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1, [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md).
 
 `list.updated` envelope'ı DEM-98 ile additive `color` payload alanı taşır: `{ listId, color }` (`color` yeni değer, `null` = rengi kaldır). DEM-109 ile aynı envelope additive `icon` ve `iconColor` alanlarını da taşıyabilir; `icon: null` her zaman `iconColor: null` ile gelir, `iconColor: null` tek başına ikon rengini varsayılan/metin rengine döndürür. Rename akışındaki mevcut `fromTitle`/`toTitle` alanları korunur. Client handler bu alanları `updateListInCache` / board-cache primitive'lerine iletir.
 

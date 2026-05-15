@@ -254,7 +254,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 - **Sticky header** (`px-4 py-2.5 bg-muted/40 backdrop-blur sticky top-0 z-10`): sekme strip `Tabs` — `inline-flex rounded-md border bg-card p-[3px]`; **Yorumlar N** · **Aktivite N** · **Ekler N** · **Tümü N** (aktif `bg-muted text-foreground`, pasif `text-muted-foreground hover:text-foreground`).
 - **Yorum composer** (her zaman üstte): `flex items-start gap-2` — `Avatar size-sm` + `border rounded-md bg-card`: içte `RichTextEditor` mini (Placeholder "Yorum yaz, @ ile etiketle…"; @mention → Faz 6) + alt toolbar `border-t px-1.5 py-1 flex items-center justify-between`: sol **B I** + `PaperclipIcon` (`size-6` ghost), sağ "Gönder" (`h-6 px-2.5 text-[11.5px]` + `SendIcon`; boşken disabled).
-- **Liste (sekmeye göre):** Yorumlar = yorum kartları (`Avatar size-sm` + ad + zaman + içerik render + edit/sil hover; silinmiş → "silindi" italic placeholder; düzenlenmişse "(düzenlendi)"). Aktivite = `flex gap-2 text-xs` (actor `Avatar size-xs` + ad + Türkçe özet + zaman + `InfoIcon`). Ekler = ek listesi (ileri faz; boş). Tümü = yorum + aktivite birleşik kronolojik.
+- **Liste (sekmeye göre):** Yorumlar = yorum kartları (`Avatar size-sm` + ad + zaman + içerik render + edit/sil hover; silinmiş → "silindi" italic placeholder; düzenlenmişse "(düzenlendi)"). Aktivite = `flex gap-2 text-xs` (actor `Avatar size-xs` + ad + Türkçe özet + zaman + `InfoIcon`). **Ekler** = §13.10'daki `Dropzone` + `AttachmentTile` listesi (Faz 11D'de gerçek implementasyon; faz öncesi disabled placeholder). Tümü = yorum + aktivite + ek birleşik kronolojik.
 - **Boş durum:** `EmptyState` (`MessageSquareIcon`/`ActivityIcon` `size-8 text-muted-foreground/60` + "Henüz yorum yok." / "Henüz aktivite yok." `text-sm text-muted-foreground py-6 text-center`).
 
 **Mobil (`md:` altında):** tek kolon — sağ panel alta düşer, sekme strip yatay kalır; modal full-width Dialog (üst başlık çubuğu sticky). (Mobil app = Faz 7, ayrı.)
@@ -603,3 +603,87 @@ shell: {
 - **Search input** app-shell'de (global arama) — Faz 6.5, [DEM-56](https://linear.app/demirkol/issue/DEM-56).
 - **`apps/mobile` tema/switcher** — `apps/mobile` yok zaten; gelirse Expo bağlamında ayrı tartışılır.
 - **Server-side recent/pinned workspace/board** — Faz 8 (cookie veya `users.recent_boards` jsonb kolonu — ayrı iş).
+
+## 13.10 Kart eki — "Ekler" sekmesi (Faz 11)
+
+Kart detay modalı sağ paneldeki `Tabs` "Ekler N" sekmesinin gerçek içeriği. §13.3'te placeholder olarak tanımlı (`PaperclipIcon` disabled, Faz 2.7C-2/DEM-74); Faz 11D bu sekmeye gerçek attachment yönetimini bağlar. Implementasyon rehberi → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.13; iş kuralları → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md); akış → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1.
+
+### 13.10.1 `Dropzone` (yeni `@pusula/ui` bileşeni)
+
+Dosya yükleme alanı; drag-drop + click-to-pick + keyboard activate. Native `<input type="file" hidden>` + custom drop event handler'ları.
+
+- **Layout:** `flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/30 p-6 text-center` (idle); `border-primary/60 bg-primary/5` (drag-over); `cursor-not-allowed opacity-50` (disabled — viewer).
+- **İçerik (idle):** `UploadCloudIcon size-8 text-muted-foreground` + `text-sm font-medium` "Dosya bırak veya seç" + `text-xs text-muted-foreground` "Resim, PDF, Word/Excel/PowerPoint — en fazla 50 MB". Accept attribute `ATTACHMENT_MIME_TYPES` join `,`.
+- **İçerik (drag-over):** `Plus size-8 text-primary` + `text-sm font-medium text-primary` "Bırak yüklesin".
+- **İçerik (uploading):** `Loader2Icon animate-spin` + `text-sm` "Yükleniyor… N%" + `Progress` bar (alt 4px, `bg-primary` fill).
+- **A11y:** `role="button"` + `aria-label="Dosya yükle"` + `tabIndex={0}` + `onKeyDown` Enter/Space → input.click(). Disabled state `aria-disabled={true}` + `Tooltip` "Yalnızca okuyabilirsiniz".
+- **Props:** `{ accept: string, maxBytes: number, disabled?: boolean, uploading?: boolean, progress?: number, onFile: (file: File) => void }`.
+
+### 13.10.2 Açıklama input
+
+Dropzone altında (dosya seçilmişse görünür) opsiyonel açıklama alanı.
+
+- **Layout:** `flex flex-col gap-1.5`.
+- `Label` `text-xs` "Açıklama (opsiyonel)".
+- `Textarea` (`@pusula/ui`) `rows={2}` `placeholder="Bu dosya nedir? Ne için yüklüyorsun?"` `maxLength={500}` `className="text-sm"`.
+- Alt sağ: `text-[10px] text-muted-foreground` sayaç `{used}/500`; 450'yi geçince `text-warning`, 500'de `text-destructive` + button disabled.
+- Tek-tip plain text — Tiptap rich text **yok** (yalnız alt-yazı/caption); link otomatik dönüşmez.
+
+### 13.10.3 `AttachmentTile` (yeni `@pusula/ui` bileşeni)
+
+Liste satırı — `flex items-start gap-2.5 rounded-md border bg-card p-2 hover:bg-muted/40 group transition-colors`.
+
+- **Sol — Thumbnail/ikon (56×56, `rounded-md`, `shrink-0`, `overflow-hidden`):**
+  - `kind === 'image'` → `<img>` `object-cover h-full w-full` (presigned GET URL lazy load; loading="lazy"; alt={fileName}; fail → fallback `ImageIcon`).
+  - `kind === 'pdf'` → `<div class="bg-destructive/10 flex items-center justify-center h-full"><FileTextIcon class="size-7 text-destructive" /></div>`.
+  - `kind === 'office'` → mimeType'a göre renk: docx `bg-blue-500/10 text-blue-500`, xlsx `bg-emerald-500/10 text-emerald-500`, pptx `bg-orange-500/10 text-orange-500`; ikon `FileTextIcon`.
+- **Orta — Metadata (`flex-1 min-w-0 flex flex-col gap-0.5`):**
+  - Satır 1: `font-medium text-sm truncate` dosya adı + (eğer `isCover`) `LabelChip` "Kapak" (`@pusula/ui` `LabelChip` re-use, `accent` variant).
+  - Satır 2: `text-[11.5px] text-muted-foreground flex items-center gap-1.5` boyut (formatBytes) · `•` · uploader name · `•` · görece tarih ("3 saat önce").
+  - Satır 3 (`description` varsa): `text-xs text-muted-foreground italic line-clamp-2` açıklama.
+- **Sağ — Aksiyonlar (`flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity`):**
+  - `Button variant=ghost size=icon` `EyeIcon` (Önizle/Aç — image+pdf için) — `Tooltip` "Önizle".
+  - `Button variant=ghost size=icon` `DownloadIcon` (İndir; tüm kind'lar) — `Tooltip` "İndir".
+  - `DropdownMenu` trigger `MoreHorizontalIcon` → menü:
+    - "Açıklamayı düzenle" (uploader veya admin; Edit3Icon)
+    - "Kapak yap" / "Kapağı kaldır" (image kind + admin/member+; ImageIcon)
+    - separator
+    - "Sil" (`destructive` variant; uploader veya admin; Trash2Icon)
+- **Inline edit moduna geçince:** sağdaki aksiyonlar gizlenir; orta blok `Textarea` + sağ alt "Kaydet"/"İptal" iki butonu (`Button size=xs`).
+
+### 13.10.4 `AttachmentPreviewDialog` (yeni `@pusula/ui` bileşeni)
+
+Tile'daki "Önizle" tıklanınca açılan dialog (`@pusula/ui` `Dialog` extend, max-w-5xl).
+
+- **Layout:** `DialogContent` `max-w-5xl h-[85vh] flex flex-col`; üst `DialogHeader` (dosya adı + indir + kapat); orta `flex-1 overflow-auto bg-muted/30 flex items-center justify-center`.
+- **Image (`kind === 'image'`):** `<img>` `max-h-full max-w-full object-contain transition-transform` + sağ üst zoom kontrolleri (`+`/`-`/`Reset` `Button size=icon ghost`); zoom state `[100, 150, 200]` % step.
+- **PDF (`kind === 'pdf'`):** `<iframe src={presignedGetUrl} sandbox="allow-same-origin" className="h-full w-full border-0" title={fileName}>`. URL lazy `attachment.getDownloadUrl` ile alınır; dialog kapanınca state temizlenir (URL token expire olur).
+- **Office:** Dialog'a girilmez; "İndir" doğrudan tetiklenir.
+- **A11y:** `role="dialog"` + `aria-label={fileName}`; `Escape` kapatır (mevcut `Dialog` davranışı).
+
+### 13.10.5 Empty state
+
+`@pusula/ui` `EmptyState` (mevcut): `PaperclipIcon` + "Henüz ek yok." + `text-xs text-muted-foreground` "Resim, PDF veya Office dosyası ekleyebilirsin." Viewer için CTA yok; admin/member için "Dosya seç" link-button (dropzone'u focus eder).
+
+### 13.10.6 Realtime + optimistic UX disiplini
+
+- `useBoardRealtime` `attachment.added`/`removed` event'i geldiğinde `attachment.list({ cardId })` invalidate → ek anında listede belirir/kaybolur.
+- Yükleme sırasında optimistic ekleme yok (network indeterministik) — bunun yerine ufak inline "Yükleniyor…" satırı dropzone'un altında, başarılı olunca gerçek tile commit response'undan eklenir.
+- Silme optimistic: tile hemen kaybolur, fail olursa rollback + toast.
+- Açıklama edit optimistic: Textarea kapanır, fail olursa eski değere döner.
+
+### 13.10.7 Tema (light/dark)
+
+- Tile kart yüzeyi: `bg-card` light + dark; hover `bg-muted/40`; "Kapak" rozeti `LabelChip accent` light+dark §13.7.5 paleti.
+- Thumbnail container backgrounds (`bg-destructive/10`, `bg-blue-500/10`, …) light+dark okunabilir kalır (Tailwind built-in semantik renkleri zaten her iki temada tutarlı).
+- Önizleme dialog'unun image background'u `bg-muted/30` — dark'ta `bg-muted/20` daha az parlak, image kenarları görünür.
+
+### 13.10.8 Kapsam dışı (Faz 11)
+
+- **Drag-drop kart üstüne dosya bırakma** (Trello davranışı) — yalnız "Ekler" sekmesindeki dropzone V1; sonraki tur (Faz 11.1 — kart üstü dropzone hover overlay).
+- **Çoklu eşzamanlı upload** — V1'de tek dosya / tek upload; çoklu seçim "Faz 11.1".
+- **Image thumbnail server-side generation** — V1'de orijinal görsel `<img loading="lazy">` ile servis edilir; 256×256 webp thumbnail worker job'u Faz 8 sertleştirme.
+- **EXIF temizleme** — image privacy V1 dışı; mevcut görseller olduğu gibi.
+- **Antivirus tarama** — ClamAV worker job'u Faz 8 sertleştirme.
+- **Office Online viewer** — gizlilik (public erişim gerektirir); V1 dışı.
+- **Misafir attachment görüntüleme** — Faz 9 paylaşım linki SSR'da `forbidden:guest` flag; misafir attachment **görmez**.

@@ -176,6 +176,18 @@ Yaklaşan/geçmiş due tarihler için periyodik bildirim üretimi.
 - **Cron sıklığı:** 5dk — daha sık scheduler load'u artırır, daha seyrek precision düşer (1h reminder 5dk gecikmeli gidebilir, kabul edilebilir).
 - **Faz kapsamı:** Faz 6A. Recurring task'lar (tekrarlayan kartlar) sonraki tur.
 
+## Attachment cleanup queue (Faz 11 — kart eki)
+
+Two-phase attachment akışının (initiate → upload → commit) **delete tetiği** ve **orphan sweep** kuyruğu. Detay akış → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1; iş kuralları → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md); procedure'ler → [`03-backend.md`](03-backend.md) "Faz 11 — Attachment".
+
+- **Queue:** `pusula-attachment-cleanup` (BullMQ, `apps/worker` — `QUEUE.attachmentCleanup`); `pusula-notifications` / `pusula-realtime-publish` / `pusula-compaction` yanında. Ad ayracı `-` (Redis anahtar ayıracı `:` reddi disiplini).
+- **Tetik 1 — Delete:** `attachment.delete` mutation tx COMMIT sonrası `void enqueueAttachmentCleanup({ attachmentId, storageKey })` (best-effort; Redis hatası response'u düşürmez — sweeper yedek). Job MinIO `DeleteObject({ Bucket, Key: storageKey })` çağırır; başarılıysa job tamamlandı. Idempotent: object zaten yoksa (`NoSuchKey`) success sayılır. Hata → BullMQ retry/backoff (3 attempt, exponential); dead-letter sweeper devralır.
+- **Tetik 2 — Orphan sweep:** `pusula-attachment-cleanup-sweeper` (60dk repeatable cron — Faz 5B/6A sweeper pattern simetri ama daha seyrek; 1 saatlik draft window). Sorgu: `SELECT id, storage_key FROM attachments WHERE committed_at IS NULL AND created_at < NOW() - INTERVAL '1 hour'`. Her satır için: önce `DeleteObject` (idempotent), sonra DB `DELETE FROM attachments WHERE id = ? AND committed_at IS NULL`. Sıralı: önce storage sonra DB — DB silme başarısız olursa job retry'da yeniden dener (object zaten silinmiştir, `NoSuchKey` yutulur).
+- **Job payload:** `{ attachmentId: string, storageKey: string }` (delete tetiği) ya da `{ orphanSweep: true }` (sweeper).
+- **Activity / realtime:** Delete tx içinde zaten yazıldı (`activity_events.attachment.removed` + `realtime_events`); cleanup job sadece **fiziksel** silme yapar. Orphan sweep `activity_events` yazmaz (draft'lar kullanıcıya görünmedi).
+- **Retention:** Yok — cleanup başarılı olunca satır + obje silinir; başarısız `failed` job BullMQ failed list'inde 7 gün durur (operasyonel debug).
+- **Faz kapsamı:** Faz 11C ([DEM-faz11C](https://linear.app/demirkol/issue/)). Bağımlılık: Faz 11A (DB migration `committed_at` kolonu eklenmiş olmalı). Thumbnail/EXIF temizleme/AV tarama V1 dışı — bu queue'ya değil, ayrı kuyruklara (Faz 11.1 / Faz 8 sertleştirme).
+
 ## Worker job'ları (özet — güncel)
 
-notification outbox tüketme · notification-email (Resend) · notification-push (Expo) · realtime-publish (Faz 5B) · realtime-publish-sweeper (Faz 5B) · notification-publish-sweeper (Faz 6A) · due-date scheduler (Faz 6A) · failed job retry · dead-letter job kaydı · position compaction (Faz 3C). Queue: BullMQ + Redis. Bkz. [`10-platform.md`](10-platform.md).
+notification outbox tüketme · notification-email (Resend) · notification-push (Expo) · realtime-publish (Faz 5B) · realtime-publish-sweeper (Faz 5B) · notification-publish-sweeper (Faz 6A) · due-date scheduler (Faz 6A) · **attachment-cleanup (Faz 11) · attachment-cleanup-sweeper (Faz 11)** · failed job retry · dead-letter job kaydı · position compaction (Faz 3C). Queue: BullMQ + Redis. Bkz. [`10-platform.md`](10-platform.md).

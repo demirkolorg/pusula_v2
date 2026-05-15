@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-13
+updated: 2026-05-15
 ---
 
 # 04 — Bildirim Kuralları
@@ -50,6 +50,7 @@ updated: 2026-05-13
 | `due_reminder_1d`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (Faz 6A, 5dk cron — 24 saat içinde)                           |
 | `due_reminder_1h`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (1 saat içinde)                                               |
 | `due_overdue`                                  | Kart üyeleri                              | in-app + push + email (opt-in)                 | Due-date scheduler (geçmiş; bir kez)                                             |
+| `attachment.added`                             | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push                       | Faz 11; actor hariç; cooldown 60s; `attachment.removed` bildirim üretmez (düşük sinyal; activity feed'de görünür) |
 
 ## Genel kurallar
 

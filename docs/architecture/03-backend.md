@@ -408,6 +408,32 @@ domain mutation tx
 
 > **Kapsam dışı:** Meilisearch/OpenSearch, attachment OCR/full-text extraction, mobil arama UI, fuzzy typo tolerance, ağır facet/filter API'si.
 
+### Faz 11 — Attachment procedure'leri (kart eki) ([DEM-faz11](https://linear.app/demirkol/issue/) — beklenen epic)
+
+Faz 0 DEM-110 cover-image-only `attachment.{createUpload, getDownloadUrl}` yolu **genel attachment**'a genişletilir (resim/PDF/Office); two-phase upload akışı (initiate → upload → commit) ve list/update/delete eklenir. Şema/akış → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1; iş kuralları → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md); cleanup worker → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md); watcher notif → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md). `cardProcedure` üstünde:
+
+| Procedure | Rol | Akış |
+| --- | --- | --- |
+| `attachment.initiate({ cardId, fileName, mimeType, size, description? })` | board admin/member; arşivli board reject | MIME allowlist (`ATTACHMENT_MIME_TYPES`) + size ≤ `ATTACHMENT_MAX_BYTES` (50 MiB) + `description` ≤ 500 char doğrulama → `attachments` INSERT (`committed_at = NULL`, draft) → presigned PUT URL (TTL 10 dk; `objectStorage.createPresignedPutUrl`) → response `{ attachmentId, upload: { url, headers }, expiresAt }`. Activity/realtime/notification **yazılmaz** (draft). |
+| `attachment.commit({ attachmentId, clientMutationId })` | uploader (`uploader_id === session.user.id`) + draft (`committed_at IS NULL`) | Tek transaction: `committed_at = NOW()`; `activity_events.attachment.added` (`payload: { attachmentId, fileName, mimeType, sizeBytes, hasDescription }`); `realtime_events` outbox (Faz 5B simetri; `type: 'attachment.added'`, board scope); `notification_outbox` (Faz 6 `notification-rules.ts` kart watcher fan-out); `boards.version + 1`. tx COMMIT → `void enqueueRealtimePublish` + `void enqueueNotificationPublish`. Idempotent: `committed_at IS NOT NULL` ise no-op + response mevcut satır. |
+| `attachment.list({ cardId })` | viewer+ (board access) | `committed_at IS NOT NULL` filtreli; `committed_at DESC` sıralı; her satır için `{ id, fileName, mimeType, size, kind: 'image'\|'pdf'\|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean }` (isCover = `cards.coverImageAttachmentId === id`). |
+| `attachment.update({ attachmentId, description, clientMutationId })` | uploader **veya** board admin | Yalnız `description` alanı (`text` nullable, ≤500 char); dosya adı/MIME/size **immutable**. Activity yazılmaz (düşük gürültü); cache invalidate web tarafında. |
+| `attachment.delete({ attachmentId, clientMutationId })` | uploader **veya** board admin; viewer reject | Tek transaction: `attachments` DELETE + `activity_events.attachment.removed` (`payload: { attachmentId, fileName, mimeType, sizeBytes }`) + `realtime_events` outbox (`type: 'attachment.removed'`) + `boards.version + 1`. `cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir → kapak şeridi kaybolur. tx COMMIT → `void enqueueRealtimePublish` + `void enqueueAttachmentCleanup({ storageKey })` (best-effort; Redis hatası response'u düşürmez, sweeper yedek). |
+| `attachment.getDownloadUrl({ attachmentId })` | viewer+ (board access) | Mevcut DEM-110 procedure korunur; presigned GET URL (TTL 10 dk; `objectStorage.createPresignedGetUrl`). |
+
+**Idempotency + clientMutationId:** `commit`/`update`/`delete` collaborative mutation'lardır → `clientMutationId` UUID v4 zorunlu (Faz 4A pattern; `protectedProcedure` middleware otomatik enforce eder). Faz 5 short-window dedupe ileri faza ertelenebilir; `commit`'in idempotent davranışı (`committed_at IS NOT NULL` no-op) request-path duplicate'lerine yeter.
+
+**Cover-image (DEM-110) entegrasyonu:** Mevcut `card.update({ coverImageAttachmentId })` mutation'ı korunur; `cardProcedure` üstünde uploader/picker UI `attachment.list` filtreli `mimeType LIKE 'image/%' AND size <= 5 MiB` (V2: `CARD_COVER_IMAGE_MAX_BYTES`) listesinden seçim yapar. Eski `attachment.createUpload` mutation'ı **kaldırılır** (Faz 11A migration tüm satırlara `committed_at = created_at` atar; eski single-shot path'ı çağıran kod yoktur — yalnız DEM-110 cover picker UI çağrılıyordu, o da yeni `initiate`+`commit`'e göç eder).
+
+**Test (Faz 11E):**
+
+- Permission matrix: viewer create reject, member create OK; uploader/admin delete OK, başkası reject; viewer/non-member list reject.
+- MIME allowlist: izinli 8 tip OK, SVG/zip reject `BAD_REQUEST`.
+- Size limit: 50 MiB + 1 byte reject.
+- Two-phase: initiate sonrası commit'siz orphan 1 saat sonra worker tarafından temizlenir (worker test).
+- Idempotency: aynı `commit({ attachmentId })` iki kez çağrı → tek activity event.
+- Storage key: tahmin edilemez (UUID4 prefix + sanitize fileName).
+
 ## Worker (background job)
 
 `apps/worker` ayrı uygulama (API ile aynı image, farklı command olabilir; ama ayrı process):
@@ -415,4 +441,5 @@ notification processor, outbox processor, due-date scheduler, digest email job, 
 position compaction jobs. Queue: BullMQ + Redis.
 
 API request içinde **yapılmaz**: push gönderimi, email gönderimi, ağır activity aggregation,
-digest üretimi, uzun süren attachment processing.
+digest üretimi, uzun süren attachment processing, MinIO `DeleteObject` (attachment cleanup
+worker üzerinden — bkz. [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) Faz 11 kuyruğu).
