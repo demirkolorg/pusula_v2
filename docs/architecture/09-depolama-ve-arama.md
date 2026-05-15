@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-14
+updated: 2026-05-15
 ---
 
 # 09 — Depolama ve Arama
