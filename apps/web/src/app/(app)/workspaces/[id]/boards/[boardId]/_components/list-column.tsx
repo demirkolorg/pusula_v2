@@ -147,8 +147,8 @@ function asListColor(color: string | null): ListColor | null {
 
 /**
  * Fixed-width board column for a single list: a header (drag handle + title +
- * card count + a "⋮" menu — rename / archive / restore, and — when there's a
- * neighbour that way — "move left / right"), the cards (each draggable), and
+ * a "⋮" menu — rename / archive / restore, and — when there's a neighbour that
+ * way — "move left / right"), the cards (each draggable), and
  * (when editable) an add-card form. Within the board's drag-and-drop context
  * (Phase 3B — DEM-43) the column is draggable by its header handle and is both
  * a column-shaped drop target (left/right edge → reorder) and — via its cards
@@ -351,7 +351,7 @@ export function ListColumn({
     <section
       ref={columnRef}
       className={cn(
-        'relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
+        'group/list relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
         collapsed ? 'h-52 w-10 overflow-hidden' : 'w-72',
         listArchived && 'border-dashed',
         listArchived
@@ -393,9 +393,6 @@ export function ListColumn({
             )}
             <span className="min-h-0 flex-1 truncate text-[15px] font-semibold [writing-mode:vertical-rl]">
               {list.title}
-            </span>
-            <span className="text-muted-foreground shrink-0 text-[11px] leading-none [writing-mode:vertical-rl]">
-              {cards.length} {columnCopy.cardCount}
             </span>
           </div>
         </header>
@@ -481,9 +478,6 @@ export function ListColumn({
                 ) : (
                   <h2 className="truncate text-[15px] font-semibold">{list.title}</h2>
                 )}
-                <span className="text-muted-foreground shrink-0 text-xs">
-                  {cards.length} {columnCopy.cardCount}
-                </span>
               </div>
               {renderCollapseToggle()}
               {canEdit && (
@@ -627,7 +621,7 @@ export function ListColumn({
               size="sm"
               onClick={() => setAddingCard(true)}
               className={cn(
-                'text-muted-foreground h-8 w-full justify-start hover:bg-[color:var(--board-list-bg-hover)] hover:text-card-foreground',
+                'text-muted-foreground pointer-events-none h-8 w-full justify-start opacity-0 hover:bg-[color:var(--board-list-bg-hover)] hover:text-card-foreground group-hover/list:pointer-events-auto group-hover/list:opacity-100 group-focus-within/list:pointer-events-auto group-focus-within/list:opacity-100',
               )}
             >
               <PlusIcon className="size-4" />

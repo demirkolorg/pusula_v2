@@ -40,6 +40,8 @@ type ArchivedItemsDropdownProps = {
   canEdit: boolean;
   showArchivedLists: boolean;
   onToggleArchivedLists: () => void;
+  showArchivedCards: boolean;
+  onToggleArchivedCards: () => void;
   archivedListCount: number;
 };
 
@@ -56,6 +58,8 @@ export function ArchivedItemsDropdown({
   canEdit,
   showArchivedLists,
   onToggleArchivedLists,
+  showArchivedCards,
+  onToggleArchivedCards,
   archivedListCount,
 }: ArchivedItemsDropdownProps) {
   const trpc = useTRPC();
@@ -171,6 +175,18 @@ export function ArchivedItemsDropdown({
             {archivedListCount > 0 && (
               <Badge variant="secondary" className="ml-auto" aria-hidden>
                 {archivedListCount} {copy.archivedListCount}
+              </Badge>
+            )}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={showArchivedCards}
+            onCheckedChange={() => onToggleArchivedCards()}
+            onSelect={(event) => event.preventDefault()}
+          >
+            <span className="min-w-0 flex-1 truncate">{copy.showArchivedCards}</span>
+            {archivedCards.length > 0 && (
+              <Badge variant="secondary" className="ml-auto" aria-hidden>
+                {archivedCards.length} {copy.archivedCardCount}
               </Badge>
             )}
           </DropdownMenuCheckboxItem>

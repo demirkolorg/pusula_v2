@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGridIcon } from 'lucide-react';
+import type { RouterOutputs } from '@pusula/api';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
@@ -20,10 +21,14 @@ type BoardColumnsProps = {
   lists: BoardList[];
   /** Active cards, already sorted by `position` (each carries its `labels`). */
   cards: BoardCard[];
+  /** Archived cards, fetched separately from `card.listArchived`. */
+  archivedCards?: RouterOutputs['card']['listArchived'];
   /** Label ids selected in the board top-bar filter menu. */
   selectedLabelIds: ReadonlySet<string>;
   /** Whether archived lists are visible in the board strip. */
   showArchivedLists: boolean;
+  /** Whether archived cards are visible inside currently visible lists. */
+  showArchivedCards?: boolean;
   /** Board label palette used by each card context menu. */
   boardLabels?: BoardCardLabelOption[];
   /** Board members used by each card context menu. */
@@ -49,6 +54,20 @@ function ListDropPlaceholderMarker({
   );
 }
 
+function archivedCardToBoardCard(
+  card: RouterOutputs['card']['listArchived'][number],
+): BoardCard {
+  return {
+    ...card,
+    labels: [],
+    checklistTotal: 0,
+    checklistDone: 0,
+    commentCount: 0,
+    members: [],
+    coverImage: null,
+  };
+}
+
 /**
  * Horizontal column layout for a board: one fixed-width column per list (in
  * `position` order), each with its cards grouped by `listId` (the server already
@@ -64,8 +83,10 @@ export function BoardColumns({
   board,
   lists,
   cards,
+  archivedCards = [],
   selectedLabelIds,
   showArchivedLists,
+  showArchivedCards = false,
   boardLabels = [],
   boardMembers = [],
   openFirstCardComposerToken = 0,
@@ -79,9 +100,16 @@ export function BoardColumns({
     [lists, showArchivedLists],
   );
   const firstActiveListId = visibleLists.find((list) => list.archivedAt == null)?.id ?? null;
+  const normalizedArchivedCards = useMemo(
+    () => (showArchivedCards ? archivedCards.map(archivedCardToBoardCard) : []),
+    [archivedCards, showArchivedCards],
+  );
 
   const cardsByList = useMemo(() => {
-    const filtered = filterCardsByLabels(cards, selectedLabelIds);
+    const filtered = [
+      ...filterCardsByLabels(cards, selectedLabelIds),
+      ...filterCardsByLabels(normalizedArchivedCards, selectedLabelIds),
+    ].sort((a, b) => a.position.localeCompare(b.position));
     const map = new Map<string, BoardCard[]>();
     for (const card of filtered) {
       const bucket = map.get(card.listId);
@@ -89,7 +117,7 @@ export function BoardColumns({
       else map.set(card.listId, [card]);
     }
     return map;
-  }, [cards, selectedLabelIds]);
+  }, [cards, normalizedArchivedCards, selectedLabelIds]);
 
   // --- Drag-and-drop (Phase 3B — DEM-43) -----------------------------------
   // Enabled only when the viewer may edit and the board is active; the hook

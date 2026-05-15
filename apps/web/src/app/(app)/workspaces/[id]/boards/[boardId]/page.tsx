@@ -114,10 +114,17 @@ export default function BoardDetailPage({
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
   const [showArchivedLists, setShowArchivedLists] = useState(false);
+  const [showArchivedCards, setShowArchivedCards] = useState(false);
   const [boardSearchOpen, setBoardSearchOpen] = useState(false);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [openFirstCardComposerToken, setOpenFirstCardComposerToken] = useState(0);
   const [openAddListComposerToken, setOpenAddListComposerToken] = useState(0);
+  const archivedCards = useQuery(
+    trpc.card.listArchived.queryOptions(
+      { boardId },
+      { enabled: hasBoardAccess && showArchivedCards },
+    ),
+  );
   const boardCardsForFilters = board.data?.cards ?? [];
   const boardListsForFilters = board.data?.lists ?? [];
 
@@ -259,6 +266,8 @@ export default function BoardDetailPage({
           canEdit: canEditBoardContent,
           showArchivedLists,
           onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
+          showArchivedCards,
+          onToggleArchivedCards: () => setShowArchivedCards((value) => !value),
           archivedListCount,
         }}
       />
@@ -279,8 +288,10 @@ export default function BoardDetailPage({
           board={{ role: b.role, archivedAt: b.archivedAt }}
           lists={lists}
           cards={cards}
+          archivedCards={showArchivedCards ? (archivedCards.data ?? []) : []}
           selectedLabelIds={liveSelectedLabelIds}
           showArchivedLists={showArchivedLists}
+          showArchivedCards={showArchivedCards}
           boardLabels={labelList.data ?? boardLabels}
           boardMembers={(boardMembers.data ?? []).map((member) => ({
             userId: member.userId,

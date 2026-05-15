@@ -53,6 +53,8 @@ type BoardTopBarProps = {
     canEdit: boolean;
     showArchivedLists: boolean;
     onToggleArchivedLists: () => void;
+    showArchivedCards: boolean;
+    onToggleArchivedCards: () => void;
     archivedListCount: number;
   };
 };

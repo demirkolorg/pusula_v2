@@ -131,6 +131,21 @@ describe('<ListColumn>', () => {
     expect(screen.getByRole('button', { name: 'Bir' }).parentElement).toHaveClass('pt-1');
   });
 
+  it('keeps the add-card button hidden until the list is hovered or focused', () => {
+    render(<ListColumn boardId="b1" list={list} cards={[]} canEdit />);
+
+    const column = screen.getByRole('region', { name: list.title });
+    const addCardButton = screen.getByRole('button', { name: strings.board.card.addCard });
+
+    expect(column).toHaveClass('group/list');
+    expect(addCardButton).toHaveClass('opacity-0');
+    expect(addCardButton).toHaveClass('pointer-events-none');
+    expect(addCardButton).toHaveClass('group-hover/list:opacity-100');
+    expect(addCardButton).toHaveClass('group-hover/list:pointer-events-auto');
+    expect(addCardButton).toHaveClass('group-focus-within/list:opacity-100');
+    expect(addCardButton).toHaveClass('group-focus-within/list:pointer-events-auto');
+  });
+
   it('viewer (canEdit=false): no "⋮" menu, no add-card form', () => {
     render(<ListColumn boardId="b1" list={list} cards={[]} canEdit={false} />);
     expect(screen.queryByRole('button', { name: columnCopy.more })).not.toBeInTheDocument();
