@@ -26,10 +26,7 @@ void setupSocketServer(server as unknown as AttachableHttpServer)
   .catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
     markApiStartupFailed(message);
-    console.error(
-      '[api] failed to attach socket.io:',
-      message,
-    );
+    console.error('[api] failed to attach socket.io:', message);
   });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

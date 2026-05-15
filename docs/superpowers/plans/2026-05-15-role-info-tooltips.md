@@ -30,7 +30,9 @@ import { InfoTooltipButton } from './info-tooltip-button';
 describe('<InfoTooltipButton>', () => {
   it('exposes an accessible info button and reveals the tooltip on focus', async () => {
     const user = userEvent.setup();
-    render(<InfoTooltipButton label="Rol bilgisi" content="Workspace rolu genel erisimi belirler." />);
+    render(
+      <InfoTooltipButton label="Rol bilgisi" content="Workspace rolu genel erisimi belirler." />,
+    );
 
     const button = screen.getByRole('button', { name: 'Rol bilgisi' });
     expect(button).toBeInTheDocument();
@@ -112,9 +114,7 @@ Expected: pass.
 In `apps/web/src/app/(app)/workspaces/[id]/page.test.tsx`, add an assertion in the existing successful render test:
 
 ```tsx
-expect(
-  screen.getByRole('button', { name: strings.members.roleInfoLabel }),
-).toBeInTheDocument();
+expect(screen.getByRole('button', { name: strings.members.roleInfoLabel })).toBeInTheDocument();
 ```
 
 - [ ] **Step 2: Run the test and verify RED**
@@ -225,17 +225,23 @@ function renderDropdown(activeTab: 'members' | 'invitations' | 'accessRequests')
 describe('<BoardSettingsDropdown>', () => {
   it('shows the board member role info button on the members tab', () => {
     renderDropdown('members');
-    expect(screen.getByRole('button', { name: strings.board.settings.membersInfoLabel })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.board.settings.membersInfoLabel }),
+    ).toBeInTheDocument();
   });
 
   it('shows the board invitation info button on the invitations tab', () => {
     renderDropdown('invitations');
-    expect(screen.getByRole('button', { name: strings.board.settings.invitationsInfoLabel })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.board.settings.invitationsInfoLabel }),
+    ).toBeInTheDocument();
   });
 
   it('shows the board access request info button on the access requests tab', () => {
     renderDropdown('accessRequests');
-    expect(screen.getByRole('button', { name: strings.board.settings.accessRequestsInfoLabel })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.board.settings.accessRequestsInfoLabel }),
+    ).toBeInTheDocument();
   });
 });
 ```
@@ -271,7 +277,13 @@ In `board-settings-dropdown.tsx`, import `InfoTooltipButton`, extend `SettingsPa
 ```tsx
 import { InfoTooltipButton } from '@/components/info-tooltip-button';
 
-function SettingsPanel({ icon, title, description, info, children }: {
+function SettingsPanel({
+  icon,
+  title,
+  description,
+  info,
+  children,
+}: {
   icon: ReactNode;
   title: string;
   description: string;

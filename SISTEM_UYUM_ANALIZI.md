@@ -1,18 +1,19 @@
 ---
-title: "Sistem Uyum Analizi"
-description: "Pusula v2 kod tabanının mimari kararlar, kullanılan araçlar ve proje kurallarıyla uyum denetimi."
+title: 'Sistem Uyum Analizi'
+description: 'Pusula v2 kod tabanının mimari kararlar, kullanılan araçlar ve proje kurallarıyla uyum denetimi.'
 aliases:
-  - "Sistem Uyum Analizi"
-  - "Mimari Uyum Denetimi"
+  - 'Sistem Uyum Analizi'
+  - 'Mimari Uyum Denetimi'
 tags:
-  - "pusula"
-  - "analysis/system"
-type: "analysis"
-axis: "root"
-status: "active"
-parent: "[[README|Pusula]]"
+  - 'pusula'
+  - 'analysis/system'
+type: 'analysis'
+axis: 'root'
+status: 'active'
+parent: '[[README|Pusula]]'
 updated: 2026-05-15
 ---
+
 # Sistem Uyum Analizi
 
 ## Kapsam

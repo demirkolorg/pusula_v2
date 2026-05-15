@@ -6,7 +6,9 @@ import { InfoTooltipButton } from './info-tooltip-button';
 describe('<InfoTooltipButton>', () => {
   it('exposes an accessible info button and reveals the tooltip on focus', async () => {
     const user = userEvent.setup();
-    render(<InfoTooltipButton label="Rol bilgisi" content="Workspace rolu genel erisimi belirler." />);
+    render(
+      <InfoTooltipButton label="Rol bilgisi" content="Workspace rolu genel erisimi belirler." />,
+    );
 
     const button = screen.getByRole('button', { name: 'Rol bilgisi' });
     expect(button).toBeInTheDocument();

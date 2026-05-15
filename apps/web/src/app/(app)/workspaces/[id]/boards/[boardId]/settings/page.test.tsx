@@ -144,9 +144,7 @@ describe('<BoardSettingsPage>', () => {
     );
     expect(screen.getByTestId('rename-board-form')).toHaveTextContent('Pano adı: Roadmap');
     expect(screen.getByTestId('board-icon-picker')).toHaveTextContent('rocket:true:true');
-    expect(screen.getByTestId('board-background-picker')).toHaveTextContent(
-      'solid:mavi:true:true',
-    );
+    expect(screen.getByTestId('board-background-picker')).toHaveTextContent('solid:mavi:true:true');
     expect(screen.getByTestId('archive-board-dialog')).toHaveTextContent('archive-board');
   });
 });

@@ -1,18 +1,19 @@
 ---
-title: "Trello Board Gradients Design"
-description: "Add Trello-matched board background gradient presets with light and dark theme handling."
+title: 'Trello Board Gradients Design'
+description: 'Add Trello-matched board background gradient presets with light and dark theme handling.'
 aliases:
-  - "Trello Board Gradients"
-  - "Trello Pano Gradientleri"
+  - 'Trello Board Gradients'
+  - 'Trello Pano Gradientleri'
 tags:
-  - "pusula"
-  - "architecture/ui"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/13-ui-tasarim-dili|UI Tasarim Dili]]"
+  - 'pusula'
+  - 'architecture/ui'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/13-ui-tasarim-dili|UI Tasarim Dili]]'
 updated: 2026-05-15
 ---
+
 # Trello Board Gradients Design
 
 ## Context
@@ -44,24 +45,24 @@ linear-gradient(145deg, TOP 2%, BOTTOM 100%)
 
 The light-mode presets are:
 
-| Stored value | Label | Top | Bottom | Base |
-| --- | --- | --- | --- | --- |
-| `gradient:trello-bubble` | Trello Acik mavi | `#E9F2FE` | `#CFE1FD` | `#DCEAFE` |
-| `gradient:trello-snow` | Trello Mavi | `#0C66E4` | `#37B4C3` | `#228CD5` |
-| `gradient:trello-ocean` | Trello Koyu mavi | `#0C66E4` | `#09326C` | `#0B50AF` |
-| `gradient:trello-crystal` | Trello Koyu mor | `#09326C` | `#CD519D` | `#674284` |
-| `gradient:trello-rainbow` | Trello Mor | `#6E5DC6` | `#E774BB` | `#A869C1` |
-| `gradient:trello-peach` | Trello Turuncu | `#E34935` | `#FAA53D` | `#EF763A` |
-| `gradient:trello-flower` | Trello Pembe | `#E774BB` | `#F87462` | `#F488A6` |
-| `gradient:trello-earth` | Trello Yesil | `#1F845A` | `#60C6D2` | `#3FA495` |
-| `gradient:trello-alien` | Trello Gri | `#505F79` | `#172B4D` | `#374866` |
-| `gradient:trello-volcano` | Trello Kirmizi | `#43290F` | `#AE2A19` | `#762A14` |
+| Stored value              | Label            | Top       | Bottom    | Base      |
+| ------------------------- | ---------------- | --------- | --------- | --------- |
+| `gradient:trello-bubble`  | Trello Acik mavi | `#E9F2FE` | `#CFE1FD` | `#DCEAFE` |
+| `gradient:trello-snow`    | Trello Mavi      | `#0C66E4` | `#37B4C3` | `#228CD5` |
+| `gradient:trello-ocean`   | Trello Koyu mavi | `#0C66E4` | `#09326C` | `#0B50AF` |
+| `gradient:trello-crystal` | Trello Koyu mor  | `#09326C` | `#CD519D` | `#674284` |
+| `gradient:trello-rainbow` | Trello Mor       | `#6E5DC6` | `#E774BB` | `#A869C1` |
+| `gradient:trello-peach`   | Trello Turuncu   | `#E34935` | `#FAA53D` | `#EF763A` |
+| `gradient:trello-flower`  | Trello Pembe     | `#E774BB` | `#F87462` | `#F488A6` |
+| `gradient:trello-earth`   | Trello Yesil     | `#1F845A` | `#60C6D2` | `#3FA495` |
+| `gradient:trello-alien`   | Trello Gri       | `#505F79` | `#172B4D` | `#374866` |
+| `gradient:trello-volcano` | Trello Kirmizi   | `#43290F` | `#AE2A19` | `#762A14` |
 
 Trello exposes a separate dark SVG only for `gradient-bubble`. Pusula will use that exact dark value for `trello-bubble`:
 
-| Stored value | Dark top | Dark bottom | Dark base |
-| --- | --- | --- | --- |
-| `gradient:trello-bubble` | `#1C2B42` | `#123263` | `#172F53` |
+| Stored value             | Dark top  | Dark bottom | Dark base |
+| ------------------------ | --------- | ----------- | --------- |
+| `gradient:trello-bubble` | `#1C2B42` | `#123263`   | `#172F53` |
 
 For the other Trello gradients, dark mode will keep the same Trello stops. This preserves the "birebir Trello" requirement instead of inventing darker variants.
 

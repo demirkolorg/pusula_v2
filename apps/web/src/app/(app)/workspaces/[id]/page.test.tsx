@@ -76,15 +76,7 @@ vi.mock('./_components/sent-invitations', () => ({
 }));
 
 vi.mock('./_components/workspace-settings', () => ({
-  WorkspaceSettings: ({
-    name,
-    slug,
-    icon,
-  }: {
-    name: string;
-    slug: string;
-    icon: string;
-  }) => (
+  WorkspaceSettings: ({ name, slug, icon }: { name: string; slug: string; icon: string }) => (
     <div data-testid="workspace-settings">
       {name}:{slug}:{icon}
     </div>
@@ -145,12 +137,18 @@ describe('<WorkspaceManagePage>', () => {
     expect(
       await screen.findByRole('heading', { name: strings.workspace.manage.settingsTitle }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Workspace kimliği, panoları, üyeleri ve işlemlerini yönetin.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Workspace kimliği, panoları, üyeleri ve işlemlerini yönetin.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Genel' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: strings.board.listSectionTitle })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: strings.board.listSectionTitle }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: strings.members.sectionTitle })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Workspace rol bilgisi' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: strings.invitations.sentTitle })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: strings.invitations.sentTitle }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Workspace işlemleri' })).toBeInTheDocument();
     expect(screen.getByTestId('workspace-settings')).toHaveTextContent('Acme:acme:briefcase');
     expect(screen.getByTestId('board-list-section')).toHaveTextContent('true');

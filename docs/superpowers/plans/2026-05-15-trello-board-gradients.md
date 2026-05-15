@@ -26,6 +26,7 @@
 ### Task 1: Domain Schema Acceptance
 
 **Files:**
+
 - Test: `packages/domain/src/schemas/board.test.ts`
 - Modify: `packages/domain/src/constants.ts`
 
@@ -79,6 +80,7 @@ Expected: PASS.
 ### Task 2: UI Class Contract
 
 **Files:**
+
 - Test: `apps/web/src/lib/board-background-class.test.ts`
 - Modify: `packages/ui/src/board-background.ts`
 
@@ -132,6 +134,7 @@ Expected: PASS.
 ### Task 3: Picker Behavior
 
 **Files:**
+
 - Test: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-settings/background-picker.test.tsx`
 - Modify: `apps/web/src/lib/strings.ts`
 - Depends on: `packages/ui/src/board-background.ts`
@@ -187,6 +190,7 @@ Expected: PASS.
 ### Task 4: CSS Tokens And Utilities
 
 **Files:**
+
 - Modify: `packages/ui/src/styles/theme.css`
 
 - [ ] **Step 1: Add Trello light gradient variables**
@@ -194,16 +198,16 @@ Expected: PASS.
 Add this block near the existing `--bg-gradient-*` root variables:
 
 ```css
-  --bg-gradient-trello-bubble: linear-gradient(145deg, #e9f2fe 2%, #cfe1fd 100%);
-  --bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
-  --bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
-  --bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
-  --bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
-  --bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
-  --bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
-  --bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
-  --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
-  --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
+--bg-gradient-trello-bubble: linear-gradient(145deg, #e9f2fe 2%, #cfe1fd 100%);
+--bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
+--bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
+--bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
+--bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
+--bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
+--bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
+--bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
+--bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
+--bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
 ```
 
 - [ ] **Step 2: Add Trello dark gradient variables**
@@ -211,16 +215,16 @@ Add this block near the existing `--bg-gradient-*` root variables:
 Add this block near the existing `.dark --bg-gradient-*` variables:
 
 ```css
-  --bg-gradient-trello-bubble: linear-gradient(145deg, #1c2b42 2%, #123263 100%);
-  --bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
-  --bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
-  --bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
-  --bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
-  --bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
-  --bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
-  --bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
-  --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
-  --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
+--bg-gradient-trello-bubble: linear-gradient(145deg, #1c2b42 2%, #123263 100%);
+--bg-gradient-trello-snow: linear-gradient(145deg, #0c66e4 2%, #37b4c3 100%);
+--bg-gradient-trello-ocean: linear-gradient(145deg, #0c66e4 2%, #09326c 100%);
+--bg-gradient-trello-crystal: linear-gradient(145deg, #09326c 2%, #cd519d 100%);
+--bg-gradient-trello-rainbow: linear-gradient(145deg, #6e5dc6 2%, #e774bb 100%);
+--bg-gradient-trello-peach: linear-gradient(145deg, #e34935 2%, #faa53d 100%);
+--bg-gradient-trello-flower: linear-gradient(145deg, #e774bb 2%, #f87462 100%);
+--bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
+--bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
+--bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
 ```
 
 - [ ] **Step 3: Add board background classes**
@@ -228,49 +232,49 @@ Add this block near the existing `.dark --bg-gradient-*` variables:
 Add these classes near the existing `.board-bg-gradient-*` classes:
 
 ```css
-  .board-bg-gradient-trello-bubble {
-    --board-base: #dceafe;
-    --board-surface-image: var(--bg-gradient-trello-bubble);
-  }
-  .board-bg-gradient-trello-snow {
-    --board-base: #228cd5;
-    --board-surface-image: var(--bg-gradient-trello-snow);
-  }
-  .board-bg-gradient-trello-ocean {
-    --board-base: #0b50af;
-    --board-surface-image: var(--bg-gradient-trello-ocean);
-  }
-  .board-bg-gradient-trello-crystal {
-    --board-base: #674284;
-    --board-surface-image: var(--bg-gradient-trello-crystal);
-  }
-  .board-bg-gradient-trello-rainbow {
-    --board-base: #a869c1;
-    --board-surface-image: var(--bg-gradient-trello-rainbow);
-  }
-  .board-bg-gradient-trello-peach {
-    --board-base: #ef763a;
-    --board-surface-image: var(--bg-gradient-trello-peach);
-  }
-  .board-bg-gradient-trello-flower {
-    --board-base: #f488a6;
-    --board-surface-image: var(--bg-gradient-trello-flower);
-  }
-  .board-bg-gradient-trello-earth {
-    --board-base: #3fa495;
-    --board-surface-image: var(--bg-gradient-trello-earth);
-  }
-  .board-bg-gradient-trello-alien {
-    --board-base: #374866;
-    --board-surface-image: var(--bg-gradient-trello-alien);
-  }
-  .board-bg-gradient-trello-volcano {
-    --board-base: #762a14;
-    --board-surface-image: var(--bg-gradient-trello-volcano);
-  }
-  .dark .board-bg-gradient-trello-bubble {
-    --board-base: #172f53;
-  }
+.board-bg-gradient-trello-bubble {
+  --board-base: #dceafe;
+  --board-surface-image: var(--bg-gradient-trello-bubble);
+}
+.board-bg-gradient-trello-snow {
+  --board-base: #228cd5;
+  --board-surface-image: var(--bg-gradient-trello-snow);
+}
+.board-bg-gradient-trello-ocean {
+  --board-base: #0b50af;
+  --board-surface-image: var(--bg-gradient-trello-ocean);
+}
+.board-bg-gradient-trello-crystal {
+  --board-base: #674284;
+  --board-surface-image: var(--bg-gradient-trello-crystal);
+}
+.board-bg-gradient-trello-rainbow {
+  --board-base: #a869c1;
+  --board-surface-image: var(--bg-gradient-trello-rainbow);
+}
+.board-bg-gradient-trello-peach {
+  --board-base: #ef763a;
+  --board-surface-image: var(--bg-gradient-trello-peach);
+}
+.board-bg-gradient-trello-flower {
+  --board-base: #f488a6;
+  --board-surface-image: var(--bg-gradient-trello-flower);
+}
+.board-bg-gradient-trello-earth {
+  --board-base: #3fa495;
+  --board-surface-image: var(--bg-gradient-trello-earth);
+}
+.board-bg-gradient-trello-alien {
+  --board-base: #374866;
+  --board-surface-image: var(--bg-gradient-trello-alien);
+}
+.board-bg-gradient-trello-volcano {
+  --board-base: #762a14;
+  --board-surface-image: var(--bg-gradient-trello-volcano);
+}
+.dark .board-bg-gradient-trello-bubble {
+  --board-base: #172f53;
+}
 ```
 
 - [ ] **Step 4: Add standalone preview utilities**
@@ -278,46 +282,46 @@ Add these classes near the existing `.board-bg-gradient-*` classes:
 Add these classes near the existing `.bg-gradient-*` classes:
 
 ```css
-  .bg-gradient-trello-bubble {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-bubble);
-  }
-  .bg-gradient-trello-snow {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-snow);
-  }
-  .bg-gradient-trello-ocean {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-ocean);
-  }
-  .bg-gradient-trello-crystal {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-crystal);
-  }
-  .bg-gradient-trello-rainbow {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-rainbow);
-  }
-  .bg-gradient-trello-peach {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-peach);
-  }
-  .bg-gradient-trello-flower {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-flower);
-  }
-  .bg-gradient-trello-earth {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-earth);
-  }
-  .bg-gradient-trello-alien {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-alien);
-  }
-  .bg-gradient-trello-volcano {
-    background-color: var(--background);
-    background-image: var(--bg-gradient-trello-volcano);
-  }
+.bg-gradient-trello-bubble {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-bubble);
+}
+.bg-gradient-trello-snow {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-snow);
+}
+.bg-gradient-trello-ocean {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-ocean);
+}
+.bg-gradient-trello-crystal {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-crystal);
+}
+.bg-gradient-trello-rainbow {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-rainbow);
+}
+.bg-gradient-trello-peach {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-peach);
+}
+.bg-gradient-trello-flower {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-flower);
+}
+.bg-gradient-trello-earth {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-earth);
+}
+.bg-gradient-trello-alien {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-alien);
+}
+.bg-gradient-trello-volcano {
+  background-color: var(--background);
+  background-image: var(--bg-gradient-trello-volcano);
+}
 ```
 
 - [ ] **Step 5: Run UI typecheck**
@@ -335,6 +339,7 @@ Expected: PASS.
 ### Task 5: Final Verification
 
 **Files:**
+
 - Verify all changed files.
 
 - [ ] **Step 1: Run targeted tests**

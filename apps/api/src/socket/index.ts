@@ -92,10 +92,7 @@ export async function setupSocketServer(httpServer: AttachableHttpServer): Promi
     realtimeBridge = await attachRealtimeBridge(handle.io, bridgeClient);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      '[api:realtime-bridge] failed to attach:',
-      message,
-    );
+    console.error('[api:realtime-bridge] failed to attach:', message);
     await bridgeClient?.quit().catch(() => {});
     await handle.close().catch(() => {});
     throw new Error(`realtime bridge failed to attach: ${message}`);

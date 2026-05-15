@@ -3,7 +3,14 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArchiveIcon, ArrowLeftIcon, LayoutDashboardIcon, MailIcon, Trash2Icon, UsersIcon } from 'lucide-react';
+import {
+  ArchiveIcon,
+  ArrowLeftIcon,
+  LayoutDashboardIcon,
+  MailIcon,
+  Trash2Icon,
+  UsersIcon,
+} from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,

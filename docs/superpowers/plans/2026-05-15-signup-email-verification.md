@@ -45,6 +45,7 @@
 ### Task 1: Transactional Verification Email Helper
 
 **Files:**
+
 - Modify: `apps/api/src/auth-emails.ts`
 - Test: `apps/api/src/auth-emails.test.ts`
 
@@ -60,7 +61,8 @@ Add these imports to the dynamic import destructuring in `apps/api/src/auth-emai
 Add this test block near the existing reset email builder tests:
 
 ```ts
-const VERIFY_URL = 'http://localhost:3001/api/auth/verify-email?token=tok_verify&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fverify-email';
+const VERIFY_URL =
+  'http://localhost:3001/api/auth/verify-email?token=tok_verify&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fverify-email';
 
 describe('verificationEmailText', () => {
   it('includes the verification URL and Turkish expiry copy', () => {
@@ -223,16 +225,15 @@ Add this below `sendResetPasswordEmail` in `apps/api/src/auth-emails.ts`:
  * Never throws, so Better Auth signup and resend endpoints are not broken by a
  * transient email provider failure.
  */
-export async function sendVerificationEmail(params: {
-  to: string;
-  url: string;
-}): Promise<void> {
+export async function sendVerificationEmail(params: { to: string; url: string }): Promise<void> {
   const { to, url } = params;
   const resend = getResend();
 
   if (!resend) {
     if (env.NODE_ENV === 'production') {
-      console.warn('[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.');
+      console.warn(
+        '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.',
+      );
     } else {
       console.warn(
         '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilmiyor. Dogrulama baglantisi (yalnizca dev):',
@@ -274,6 +275,7 @@ Expected: PASS.
 ### Task 2: Better Auth Verification Wiring And Sign-Up Callback
 
 **Files:**
+
 - Modify: `apps/api/src/auth.ts`
 - Modify: `apps/web/src/app/(auth)/sign-up/page.tsx`
 - Test: `apps/web/src/app/(auth)/sign-up/page.test.tsx`
@@ -414,6 +416,7 @@ Expected: PASS.
 ### Task 3: Unverified Email Banner With Resend
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/_components/email-verification-banner.tsx`
 - Modify: `apps/web/src/app/(app)/_components/app-shell.tsx`
 - Modify: `apps/web/src/app/(app)/_components/app-shell.test.tsx`
@@ -542,7 +545,9 @@ export function AppShell({ userName, userEmail, emailVerified, children }: AppSh
 Render the banner immediately after `</header>`:
 
 ```tsx
-      {!emailVerified && <EmailVerificationBanner email={userEmail} />}
+{
+  !emailVerified && <EmailVerificationBanner email={userEmail} />;
+}
 ```
 
 - [x] **Step 4: Pass the session flag from AppLayout**
@@ -550,15 +555,15 @@ Render the banner immediately after `</header>`:
 In `apps/web/src/app/(app)/layout.tsx`, change the `AppShell` call:
 
 ```tsx
-  return (
-    <AppShell
-      userName={session.user.name || session.user.email}
-      userEmail={session.user.email}
-      emailVerified={session.user.emailVerified}
-    >
-      {children}
-    </AppShell>
-  );
+return (
+  <AppShell
+    userName={session.user.name || session.user.email}
+    userEmail={session.user.email}
+    emailVerified={session.user.emailVerified}
+  >
+    {children}
+  </AppShell>
+);
 ```
 
 - [x] **Step 5: Write banner tests in AppShell**
@@ -637,6 +642,7 @@ Expected: PASS.
 ### Task 4: Public Verify Email Callback Page
 
 **Files:**
+
 - Create: `apps/web/src/app/verify-email/page.tsx`
 - Test: `apps/web/src/app/verify-email/page.test.tsx`
 - Modify: `apps/web/next.config.ts`
@@ -886,6 +892,7 @@ Expected: PASS.
 ### Task 5: Architecture And Process Docs
 
 **Files:**
+
 - Modify: `docs/architecture/07-auth.md`
 - Modify: `docs/architecture/08-web-ve-mobil.md`
 - Modify: `docs/architecture/02-teknoloji-kararlari.md`
@@ -901,7 +908,7 @@ In `docs/architecture/07-auth.md`, replace the future DEM-72 note with:
 
 - **Politika:** yumuşak doğrulama. `emailAndPassword.requireEmailVerification = false`; kullanıcı signup sonrası otomatik oturum alır ve onboarding kesilmez. Doğrulanmamış oturumlar `(app)` kabuğunda kalıcı "E-postanı doğrula" banner'ı görür.
 - **API:** Better Auth `emailVerification` aktiftir: `sendOnSignUp: true`, `expiresIn: 3600`, `autoSignInAfterVerification: true`, `sendVerificationEmail({ user, url })` -> `apps/api/src/auth-emails.ts` `sendVerificationEmail` -> Resend. Auth e-postaları request-path'te kalır ve notification outbox/worker'a girmez.
-- **Web:** Signup `authClient.signUp.email({ ..., callbackURL: \`${window.location.origin}/verify-email\` })` gönderir. Banner tekrar gönderim için `authClient.sendVerificationEmail({ email, callbackURL })` çağırır. `/verify-email` route'u `(auth)` dışında public callback ekranıdır; Better Auth API redirect'i başarılıysa başarı, `?error=` varsa geçersiz/süresi dolmuş bağlantı durumu gösterir. Direct `/verify-email?token=` linkleri API verify endpoint'ine yönlendirilir.
+- **Web:** Signup `authClient.signUp.email({ ..., callbackURL: \`${window.location.origin}/verify-email\` })`gönderir. Banner tekrar gönderim için`authClient.sendVerificationEmail({ email, callbackURL })`çağırır.`/verify-email`route'u`(auth)`dışında public callback ekranıdır; Better Auth API redirect'i başarılıysa başarı,`?error=`varsa geçersiz/süresi dolmuş bağlantı durumu gösterir. Direct`/verify-email?token=` linkleri API verify endpoint'ine yönlendirilir.
 - **Güvenlik:** Verification link token'ı query'dedir; production log'larına düşmez. `/verify-email`, `/reset-password`, `/forgot-password` route'ları `Referrer-Policy: no-referrer` ile servis edilir.
 ```
 
@@ -910,7 +917,7 @@ In `docs/architecture/07-auth.md`, replace the future DEM-72 note with:
 In `docs/architecture/08-web-ve-mobil.md` auth route section, add:
 
 ```md
-- **Signup e-posta doğrulama (Faz 8 — [DEM-72](https://linear.app/demirkol/issue/DEM-72)):** yumuşak politika; signup sonrası kullanıcı içeri alınır, fakat `(app)` shell `session.user.emailVerified === false` ise doğrulama banner'ı gösterir. Banner resend butonu `authClient.sendVerificationEmail({ email, callbackURL: \`${window.location.origin}/verify-email\` })` çağırır. `/verify-email` `(auth)` route group dışında public callback ekranıdır; başarılı redirect'te başarı, `?error=` ile geçersiz/süresi dolmuş bağlantı durumu gösterir.
+- **Signup e-posta doğrulama (Faz 8 — [DEM-72](https://linear.app/demirkol/issue/DEM-72)):** yumuşak politika; signup sonrası kullanıcı içeri alınır, fakat `(app)` shell `session.user.emailVerified === false` ise doğrulama banner'ı gösterir. Banner resend butonu `authClient.sendVerificationEmail({ email, callbackURL: \`${window.location.origin}/verify-email\` })`çağırır.`/verify-email` `(auth)`route group dışında public callback ekranıdır; başarılı redirect'te başarı,`?error=` ile geçersiz/süresi dolmuş bağlantı durumu gösterir.
 ```
 
 - [x] **Step 3: Add a technology decision**
@@ -952,6 +959,7 @@ Expected: only DEM-72 documentation updates.
 ### Task 6: Final Verification
 
 **Files:**
+
 - Verify all changed files.
 
 - [x] **Step 1: Run focused tests**
@@ -999,4 +1007,3 @@ git diff -- apps/api/src/auth.ts apps/api/src/auth-emails.ts apps/api/src/auth-e
 ```
 
 Expected: diff is scoped to DEM-72 verification, docs, and tests.
-

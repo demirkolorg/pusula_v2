@@ -296,7 +296,8 @@ export const strings = {
       archiveTitle: 'Arşiv durumu',
       deleteTitle: 'Kalıcı silme',
       readonlyNote: 'Bu ayarları değiştirmek için workspace yöneticisi olmanız gerekir.',
-      ownerOnlyNote: 'Arşivleme ve kalıcı silme işlemleri yalnızca workspace sahibi tarafından yapılabilir.',
+      ownerOnlyNote:
+        'Arşivleme ve kalıcı silme işlemleri yalnızca workspace sahibi tarafından yapılabilir.',
       nameLabel: 'Workspace adı',
       nameDescription: 'Workspace switcher ve başlıklarda görünen ad.',
       namePlaceholder: 'Örn. Pazarlama Ekibi',
@@ -915,8 +916,7 @@ export const strings = {
     members: {
       title: 'Üyeler',
       infoLabel: 'Kart üyesi bilgisi',
-      info:
-        'Sorumlu ve İzleyen kart ilişkileridir, erişim yetkisi vermez. Karta eklenen kişi panoyu zaten görebiliyor olmalıdır.',
+      info: 'Sorumlu ve İzleyen kart ilişkileridir, erişim yetkisi vermez. Karta eklenen kişi panoyu zaten görebiliyor olmalıdır.',
       empty: 'Bu kartta üye yok.',
       addAction: 'Üye ekle',
       memberLabel: 'Üye',

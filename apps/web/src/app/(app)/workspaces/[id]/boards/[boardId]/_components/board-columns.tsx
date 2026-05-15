@@ -54,9 +54,7 @@ function ListDropPlaceholderMarker({
   );
 }
 
-function archivedCardToBoardCard(
-  card: RouterOutputs['card']['listArchived'][number],
-): BoardCard {
+function archivedCardToBoardCard(card: RouterOutputs['card']['listArchived'][number]): BoardCard {
   return {
     ...card,
     labels: [],

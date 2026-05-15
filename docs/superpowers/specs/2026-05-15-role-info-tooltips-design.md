@@ -1,7 +1,7 @@
 ---
-title: "Role Info Tooltips Design"
-description: "Workspace, board ve kart uyeligi mantigini baglamsal info ikonlariyla aciklama tasarimi."
-status: "draft"
+title: 'Role Info Tooltips Design'
+description: 'Workspace, board ve kart uyeligi mantigini baglamsal info ikonlariyla aciklama tasarimi.'
+status: 'draft'
 date: 2026-05-15
 ---
 

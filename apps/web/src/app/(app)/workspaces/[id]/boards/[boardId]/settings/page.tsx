@@ -87,11 +87,7 @@ export default function BoardSettingsPage({
   const archived = b.archivedAt != null;
   const canManage = b.role === 'admin';
   const boardActive = !archived;
-  const disabledNote = !canManage
-    ? copy.readonlyNote
-    : archived
-      ? copy.archivedNote
-      : null;
+  const disabledNote = !canManage ? copy.readonlyNote : archived ? copy.archivedNote : null;
 
   return (
     <div className="space-y-6">

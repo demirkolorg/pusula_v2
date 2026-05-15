@@ -1,18 +1,19 @@
 ---
-title: "Kart Yansitma Mimarisi v2"
-description: "Pusula v2 mevcut yetkilendirme, board, arama, realtime ve bildirim mimarisine uyumlu kart yansitma tasarimi."
+title: 'Kart Yansitma Mimarisi v2'
+description: 'Pusula v2 mevcut yetkilendirme, board, arama, realtime ve bildirim mimarisine uyumlu kart yansitma tasarimi.'
 aliases:
-  - "Kart Yansitma v2"
-  - "Mirror Card v2"
+  - 'Kart Yansitma v2'
+  - 'Mirror Card v2'
 tags:
-  - "pusula"
-  - "analysis/card-mirror"
-type: "analysis"
-axis: "root"
-status: "draft"
-parent: "[[README|Pusula]]"
+  - 'pusula'
+  - 'analysis/card-mirror'
+type: 'analysis'
+axis: 'root'
+status: 'draft'
+parent: '[[README|Pusula]]'
 updated: 2026-05-15
 ---
+
 # Kart Yansitma Mimarisi v2
 
 ## 1. Karar Ozeti

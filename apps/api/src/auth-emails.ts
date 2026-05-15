@@ -191,16 +191,15 @@ export async function sendResetPasswordEmail(params: { to: string; url: string }
  * Never throws, so Better Auth signup and resend endpoints are not broken by a
  * transient email provider failure.
  */
-export async function sendVerificationEmail(params: {
-  to: string;
-  url: string;
-}): Promise<void> {
+export async function sendVerificationEmail(params: { to: string; url: string }): Promise<void> {
   const { to, url } = params;
   const resend = getResend();
 
   if (!resend) {
     if (env.NODE_ENV === 'production') {
-      console.warn('[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.');
+      console.warn(
+        '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.',
+      );
     } else {
       console.warn(
         '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilmiyor. Dogrulama baglantisi (yalnizca dev):',

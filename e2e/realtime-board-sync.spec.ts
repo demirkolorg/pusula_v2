@@ -69,9 +69,7 @@ const SYNC_TIMEOUT_MS = 10_000;
  */
 async function waitForSocketJoin(page: Page): Promise<void> {
   await expect(
-    page.locator(
-      `[data-realtime-board-id="${E2E.boardId}"][data-realtime-board-joined="true"]`,
-    ),
+    page.locator(`[data-realtime-board-id="${E2E.boardId}"][data-realtime-board-joined="true"]`),
   ).toBeAttached({ timeout: SYNC_TIMEOUT_MS });
 }
 

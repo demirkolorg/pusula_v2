@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  app,
-  markApiStartupFailed,
-  markApiStartupReady,
-  resetApiReadinessForTests,
-} from './app';
+import { app, markApiStartupFailed, markApiStartupReady, resetApiReadinessForTests } from './app';
 
 describe('/health readiness', () => {
   afterEach(() => {

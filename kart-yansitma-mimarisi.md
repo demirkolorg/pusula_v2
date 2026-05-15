@@ -58,12 +58,12 @@ Fakat zamanla sistem aşağıdaki problemleri üretir.
 
 Örnek:
 
-| Seviye | Yetki |
-|---|---|
-| Workspace | Var |
-| Pano | Yok |
-| Liste | Var |
-| Kart | Var |
+| Seviye    | Yetki |
+| --------- | ----- |
+| Workspace | Var   |
+| Pano      | Yok   |
+| Liste     | Var   |
+| Kart      | Var   |
 
 Bu durumda sistemin cevaplaması gereken sorular oluşur:
 
@@ -385,10 +385,10 @@ card_mirrors
 Örnek:
 
 | cardId | boardId |
-|---|---|
-| 123 | A |
-| 123 | B |
-| 123 | C |
+| ------ | ------- |
+| 123    | A       |
+| 123    | B       |
+| 123    | C       |
 
 Burada:
 
@@ -461,15 +461,15 @@ Kart Yansıtma kullanılır.
 
 # 13. Özet
 
-| Özellik | Kart Yetkilendirme | Kart Yansıtma |
-|---|---|---|
-| Teknik Karmaşıklık | Yüksek | Düşük |
-| UX Karmaşıklığı | Yüksek | Düşük |
-| Gizlilik | Var | Var |
-| Bakım Kolaylığı | Zor | Kolay |
-| Ölçeklenebilirlik | Riskli | Güçlü |
-| Öğrenilebilirlik | Zor | Kolay |
-| Sistem Tutarlılığı | Düşük | Yüksek |
+| Özellik            | Kart Yetkilendirme | Kart Yansıtma |
+| ------------------ | ------------------ | ------------- |
+| Teknik Karmaşıklık | Yüksek             | Düşük         |
+| UX Karmaşıklığı    | Yüksek             | Düşük         |
+| Gizlilik           | Var                | Var           |
+| Bakım Kolaylığı    | Zor                | Kolay         |
+| Ölçeklenebilirlik  | Riskli             | Güçlü         |
+| Öğrenilebilirlik   | Zor                | Kolay         |
+| Sistem Tutarlılığı | Düşük              | Yüksek        |
 
 ---
 
