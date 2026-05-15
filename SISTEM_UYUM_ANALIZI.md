@@ -408,3 +408,52 @@ updated: 2026-05-15
 - En geniş kalite problemi, Prettier format kapısının repo genelinde kırık olmasıdır.
 - En net kural ihlali, auth marka panelindeki hardcoded UI metinleridir.
 - En önemli mimari sınır riski, web paketinin `@pusula/db` bağımlılığını build yüzeyinde taşımasıdır.
+
+## Re-validation 2026-05-15 (kapanış notu)
+
+- Tarih: 2026-05-15 (analizden sonra aynı gün re-validation).
+- Yöntem: Her bulgunun ilgili dosya/satırı tek tek okundu; mevcut HEAD durumu raporla karşılaştırıldı.
+- Sonuç: Bulguların büyük çoğunluğu paralel olarak ilerleyen [`05-is-kayit-defteri.md`](docs/process/05-is-kayit-defteri.md) `QA-2026-05-15-001` ([DEM-123](https://linear.app/demirkol/issue/DEM-123)) kapsamında zaten kapatılmıştı.
+
+### Bulgu-bulgu durum
+
+- P1 — Format drift
+  - Durum: ✅ Kapandı.
+  - Aksiyon: `pnpm format` mekanik commit'i atıldı (`chore: prettier format pass`); `pnpm format:check` yeşil. Gerçek diff 8 dosyaydı (raporun 395 sayısı CRLF/LF uyarısı veren dosya sayısıydı — gerçek prettier diff'i değil).
+- P1 — Realtime reconnect e2e fail (`e2e/realtime-board-sync.spec.ts:235`)
+  - Durum: ⚠ Bu re-validation koşusunda e2e ayrıca koşulmadı; ancak ilgili kodda raporun önerdiği düzeltmeler **zaten** uygulanmış görünüyor:
+    - [use-board-realtime.ts:185-198](apps/web/src/lib/realtime/use-board-realtime.ts#L185-L198) browser `online`/`offline` event listener'ı taşıyor; banner state'i yalnız Socket.IO disconnect'e bağlı değil.
+    - [realtime-board-sync.spec.ts:70-74](e2e/realtime-board-sync.spec.ts#L70-L74) `waitForSocketJoin` artık fixed `2_000ms` yerine `data-realtime-board-joined="true"` DOM attribute'ünü bekliyor.
+  - Önerilen takip: E2E altyapısı ayağa kalktığında `pnpm test:e2e --grep "reconnect resync"` ile yeniden doğrula. Hâlâ fail ise hipotez `Playwright setOffline(true)` ↔ Chromium `offline` event timing'i (banner timeout 10s yetersiz olabilir).
+- P2 — Auth brand panel hardcoded copy
+  - Durum: ✅ Kapandı. [auth-brand-panel.tsx](<apps/web/src/app/(auth)/_components/auth-brand-panel.tsx>) tüm kullanıcı metinlerini `strings.auth.brandPanel` üzerinden alıyor (eyebrow / headline / description / advantages / summary / footer).
+- P2 — `apps/web` → `@pusula/db` katman gevşekliği
+  - Durum: ✅ Kapandı. [apps/web/package.json](apps/web/package.json) bağımlılıklarında `@pusula/db` yok; [next.config.ts:6](apps/web/next.config.ts#L6) `transpilePackages` yalnızca `@pusula/ui`, `@pusula/domain`, `@pusula/api` taşıyor.
+- P2 — Socket.IO + Redis bridge cold-start race
+  - Durum: ✅ Kapandı. [apps/api/src/index.ts:19-30](apps/api/src/index.ts#L19-L30) `setupSocketServer(...)` promise'i sonrası `markApiStartupReady()`/`markApiStartupFailed()` çağrılıyor; raporun önerdiği "Socket.IO + Redis adapter hazır olmadan ready işareti verme" disiplini uygulanmış.
+- P2 — Realtime event handler tip güvenliği
+  - Durum: ✅ Kapandı (yumuşak gevşeklik kalktı). `apps/web/src/lib/realtime/event-handlers.ts` içinde `as unknown` cast'i kalmadı. (Discriminated Zod realtime envelope şemaları kapsamı bu raporun dışında bir takip işi olarak değerlendirilebilir.)
+- P2 — `seed-kaymakamlik.ts`
+  - Durum: ✅ Kapandı. `packages/db/src/` artık yalnızca `seed.ts` ve `seed-safety.test.ts` taşıyor; kaymakamlık demo seed dosyası tamamen kaldırılmış.
+- P3 — `npx` referansı ([auth.ts:7-8](packages/db/src/schema/auth.ts#L7))
+  - Durum: ✅ Kapandı. Yorum `pnpm dlx @better-auth/cli generate` olarak güncellenmiş.
+- P3 — Notification outbox fallback (`'sent'` ile silent loss)
+  - Durum: ✅ Kapandı. [notification-publish.ts:217-264](apps/worker/src/jobs/notification-publish.ts#L217-L264) enqueuer yokken/hata aldığında `markChannelHandoffUnavailable(...)` çağırıp `'skipped'` dönüyor; `processedAt` artık `in_app` başarı dalında stamp ediliyor.
+- P3 — Raw SQL cast ([notification-publish-sweeper.ts:71-73](apps/worker/src/jobs/notification-publish-sweeper.ts#L71-L73))
+  - Durum: ✅ Kapandı. `(rows as unknown as ...).rows` cast'i yerine `extractRawSqlRows<NotificationOutboxEventIdRow>(...)` helper'ı kullanılıyor (`apps/worker/src/jobs/raw-sql-rows.ts` izolasyonu).
+- P3 — Kullanılmayan `cn` import ([card-meta-row.tsx](<apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-meta-row.tsx>))
+  - Durum: ✅ Kapandı. Dosya artık `cn` import etmiyor; lint warning yok.
+- P3 — `pg` deprecation warning
+  - Durum: ⏳ Bu re-validation kapsamında `node --trace-deprecation` ile izole edilmedi. Mevcut `pnpm.cmd test` çıktısında uyarının halen yer alıp almadığı ayrı bir adımda doğrulanmalı.
+
+### Re-validation sırasında ortaya çıkan yan bulgular
+
+- `apps/api-server` typecheck'i şu anda fail oluyor: [bootstrap.ts:14-15](apps/api/src/bootstrap.ts#L14-L15) `@pusula/domain`'den `ONBOARDING_LIST_TITLES` ve `ONBOARDING_WELCOME_CARDS` import ediyor; bu adlar `@pusula/domain` içinde mevcut ([constants.ts:137-144](packages/domain/src/constants.ts#L137-L144)), yani import isimleri eşleşiyor — fakat `tsc` "no exported member" diyor. Hipotez: paralel açık WIP'lerden birinin yarım kalmış reexport düzenlemesi; bu rapor kapsamı dışında, ayrı bir issue olarak kovalanmalı.
+- `@pusula/web` test koşusunda `redirect-if-authenticated.test.tsx` modülü "Cannot find module" hatası veriyor; ilgili komponent ([redirect-if-authenticated.tsx](<apps/web/src/app/(auth)/_components/redirect-if-authenticated.tsx>)) mevcut ama test dosyası filesystem'de yok. Hipotez: aktif `DEM-126` (default landing route) WIP'inin yarım kalmış izi — bu rapor kapsamı dışında.
+- `packages/api/src/routers/auth.test.ts:8` kullanılmayan `beforeAll` import warning'i — yine `DEM-126` WIP'inin parçası, dokunulmadı.
+
+### Sonuç
+
+- Raporun açtığı ana itirazlar (format gate, hardcoded copy, DB katman sızıntısı, Socket.IO race, payload tip gevşekliği, demo seed, npx, notification silent loss, raw SQL cast, unused import) **bu re-validation tarihinde geçerli değildir**.
+- Bu re-validation turunda atılan tek yeni commit: `chore: prettier format pass` (P1 format drift kapatma).
+- Kalan açık takip: P1 e2e reconnect senaryosunun gerçek koşuda doğrulanması ve `pg` deprecation kaynağının trace edilmesi — ikisi de [DEM-123](https://linear.app/demirkol/issue/DEM-123) `In Progress` kapsamında ya da bir alt issue olarak takip edilebilir.
