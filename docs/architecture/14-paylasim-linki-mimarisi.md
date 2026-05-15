@@ -74,7 +74,12 @@ comments
   share_link_id    uuid fk → share_links.id (set null)  -- nullable
 ```
 
-Invariant: `author_id IS NOT NULL XOR share_link_id IS NOT NULL` (DB check constraint). Bir yorum ya kullanıcı ya da misafir tarafından yazılır.
+Invariant (iki katman):
+
+- **DB check constraint** (kayıt güvencesi): `NOT (author_id IS NOT NULL AND share_link_id IS NOT NULL)` — yani **en fazla biri set**; ikisi birden set olamaz. `(NULL, NULL)` durumu DB'de tolere edilir: `users.id` `set null` davranışıyla bağlı bir yorumun yazarı hesabını silerse `author_id` `NULL`'a güncellenir (`share_link_id` zaten NULL kalır) — bu UPDATE constraint'i kırmamalı.
+- **Application-level Zod** (yeni satır güvencesi): yeni `INSERT`'lerde `author_id` veya `share_link_id`'den **tam biri** doldurulur — `packages/api` (9B) ve `apps/api` (9C) yazıcıları bunu garantiler. UI'da silinmiş yazar `(NULL, NULL)` "Silinmiş kullanıcı" olarak resolve edilir, yeni satır olarak üretilemez.
+
+Düzeltme kararı: Faz 9A (kullanıcı onayı 2026-05-15) — başlangıçta önerilen tam XOR `users` `set null` davranışıyla çelişiyordu (UPDATE crash riski); constraint "at most one + Zod XOR" formuna alındı.
 
 ### `activity_events` üzerine genişleme
 
@@ -87,7 +92,9 @@ activity_events
   share_link_id   uuid fk → share_links.id (set null)  -- nullable
 ```
 
-UI'da `actor_id IS NULL AND share_link_id IS NOT NULL` ise satır "**Misafir** ..." olarak resolve edilir. Bu mevcut [`05-aktivite-kurallari.md`](../domain/05-aktivite-kurallari.md) taksonomisine yeni event tipi eklemez.
+UI'da `actor_id IS NULL AND share_link_id IS NOT NULL` ise satır "**Misafir** ..." olarak resolve edilir; `(NULL, NULL)` durumu (yazar hesabı silinmiş) "Silinmiş kullanıcı" olarak gösterilir. Bu mevcut [`05-aktivite-kurallari.md`](../domain/05-aktivite-kurallari.md) taksonomisine yeni event tipi eklemez.
+
+Aynı "at most one + Zod XOR" disiplini `activity_events` için de geçerli (yukarıdaki `comments` paragrafıyla simetrik): DB check `NOT (actor_id IS NOT NULL AND share_link_id IS NOT NULL)`; yeni `INSERT` Zod'da tam biri set.
 
 ## tRPC API yüzeyi
 

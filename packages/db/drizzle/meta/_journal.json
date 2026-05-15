@@ -134,6 +134,20 @@
       "when": 1778789000000,
       "tag": "0018_entity_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1778840387582,
+      "tag": "0019_lean_leopardon",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1778840469888,
+      "tag": "0020_aromatic_killmonger",
+      "breakpoints": true
     }
   ]
 }

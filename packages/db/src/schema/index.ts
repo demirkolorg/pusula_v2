@@ -4,6 +4,7 @@ export * from './workspaces';
 export * from './boards';
 export * from './lists';
 export * from './cards';
+export * from './share-links';
 export * from './comments';
 export * from './activity';
 export * from './notifications';

@@ -1,9 +1,19 @@
 import { sql } from 'drizzle-orm';
-import { bigserial, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  bigserial,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { workspaces } from './workspaces';
 import { boards } from './boards';
 import { cards } from './cards';
+import { shareLinks } from './share-links';
 import { activityEventTypeEnum, outboxStatusEnum } from './enums';
 import { primaryId } from './_common';
 
@@ -18,6 +28,15 @@ export const activityEvents = pgTable(
     boardId: text().references(() => boards.id, { onDelete: 'cascade' }),
     cardId: text().references(() => cards.id, { onDelete: 'cascade' }),
     actorId: text().references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * Faz 9A (DEM-127) — misafir kaynaklı event'lerin (`comment.created`'de
+     * `author_id IS NULL AND share_link_id IS NOT NULL`) hangi paylaşım
+     * linkinden geldiğini takip eder. Set iken `actor_id` NULL'dır. Link
+     * silinirse `set null` (geçmiş kayıt korunur). DB invariant: at most one
+     * (`actor_id` ve `share_link_id` ikisi birden NOT NULL olamaz). Yeni
+     * `INSERT`'lerde Zod tam birini garantiler.
+     */
+    shareLinkId: text().references(() => shareLinks.id, { onDelete: 'set null' }),
     type: activityEventTypeEnum().notNull(),
     payload: jsonb().notNull().default({}),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -26,6 +45,10 @@ export const activityEvents = pgTable(
     index('activity_events_board_created_idx').on(t.boardId, t.createdAt),
     index('activity_events_workspace_created_idx').on(t.workspaceId, t.createdAt),
     index('activity_events_card_created_idx').on(t.cardId, t.createdAt),
+    check(
+      'activity_events_actor_or_share_link_chk',
+      sql`NOT (${t.actorId} IS NOT NULL AND ${t.shareLinkId} IS NOT NULL)`,
+    ),
   ],
 );
 
