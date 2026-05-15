@@ -411,4 +411,31 @@ describe('useBoardRealtime — connection status', () => {
     });
     expect(result.current.connected).toBe(true);
   });
+
+  it('closes and reconnects the socket on browser offline/online events', async () => {
+    const qc = newQueryClient();
+    qc.setQueryData(boardKey('b1'), fixture());
+
+    const { result } = renderHook(() => useBoardRealtime('b1'), { wrapper: wrap(qc) });
+    const initialJoinCount = fakeSocket.emitted.filter((e) => e.event === 'board:join').length;
+
+    expect(result.current.connected).toBe(true);
+    expect(fakeSocket.connected).toBe(true);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('offline'));
+    });
+
+    expect(fakeSocket.connected).toBe(false);
+    expect(result.current.connected).toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    expect(result.current.connected).toBe(true);
+    expect(fakeSocket.emitted.filter((e) => e.event === 'board:join')).toHaveLength(
+      initialJoinCount + 1,
+    );
+  });
 });
