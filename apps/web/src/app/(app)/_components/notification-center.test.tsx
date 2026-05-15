@@ -256,7 +256,11 @@ describe('<NotificationCenter>', () => {
 
     renderCenter();
 
-    expect(await screen.findByTestId('notification-counter')).toHaveTextContent(
+    // Wait for the list to finish loading before reading the counter — until
+    // then the empty-state copy is shown.
+    await screen.findByTestId('notification-row-n1');
+
+    expect(screen.getByTestId('notification-counter')).toHaveTextContent(
       strings.notifications.allCaughtUp,
     );
   });

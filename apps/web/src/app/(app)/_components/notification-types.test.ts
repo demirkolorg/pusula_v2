@@ -6,7 +6,7 @@ function row(id: string, createdAt: Date | string): NotificationRow {
     id,
     recipientId: 'user_1',
     actorId: 'actor_1',
-    type: 'card.member_added',
+    type: 'card_assigned',
     workspaceId: 'ws1',
     boardId: 'b1',
     cardId: 'c1',
