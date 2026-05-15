@@ -23,10 +23,10 @@
  * matching `user:{userId}` room — same idea as the realtime bridge, just a
  * different channel.
  *
- * For Faz 6A the 6B email/push channel queues are *not* yet consumed; the
- * outbox row is still stamped `delivered` (so the in-app side completes) and
- * the email/push enqueue is best-effort — if 6B isn't wired yet, the row sits
- * `pending`-but-untouched on the email/push queues until that lands.
+ * Email/push rows are only marked sent by their dedicated channel processors.
+ * If the channel enqueuer is missing or temporarily unavailable, this fan-out
+ * job leaves the outbox row retryable (`processed_at IS NULL`) and records the
+ * handoff problem in `last_error`.
  */
 import { Redis } from 'ioredis';
 import { and, asc, eq, isNull, notificationOutbox, notifications, sql } from '@pusula/db';
@@ -218,6 +218,7 @@ async function dispatchOutboxRow(
     if (enqueuers.enqueueEmail) {
       try {
         await enqueuers.enqueueEmail(row.id);
+        await clearChannelHandoffError(tx, row.id);
         // The Faz 6B email processor (`notification-email.ts`) stamps
         // `processed_at` after sending — we must not stamp here, otherwise
         // its `processed_at IS NULL` filter would make the row look
@@ -228,16 +229,21 @@ async function dispatchOutboxRow(
           `[worker:notifications] email enqueue failed (outbox=${row.id}):`,
           err instanceof Error ? err.message : String(err),
         );
+        await markChannelHandoffUnavailable(
+          tx,
+          row.id,
+          `email enqueue failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return 'skipped';
       }
     }
-    // Faz 6B not yet wired (dev box / migration window). Fall through to the
-    // stamp below so the sweeper doesn't keep re-picking the row; the email
-    // is lost, but only on a host that never had a 6B consumer running.
+    await markChannelHandoffUnavailable(tx, row.id, 'email enqueuer is not wired');
+    return 'skipped';
   } else if (row.channel === 'push') {
     if (enqueuers.enqueuePush) {
       try {
         await enqueuers.enqueuePush(row.id);
+        await clearChannelHandoffError(tx, row.id);
         // Same hand-off discipline as the email branch — the 6B push
         // processor stamps the row.
         return 'enqueued';
@@ -246,17 +252,21 @@ async function dispatchOutboxRow(
           `[worker:notifications] push enqueue failed (outbox=${row.id}):`,
           err instanceof Error ? err.message : String(err),
         );
+        await markChannelHandoffUnavailable(
+          tx,
+          row.id,
+          `push enqueue failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return 'skipped';
       }
     }
-    // 6B not wired — fall through like the email branch.
+    await markChannelHandoffUnavailable(tx, row.id, 'push enqueuer is not wired');
+    return 'skipped';
   }
 
   // Stamp `processed_at` on success (one-shot — idempotent re-runs see this
-  // and skip via the `IS NULL` filter above). Only reached when:
-  //   - row.channel === 'in_app' (the `in_app` block above falls through), or
-  //   - row.channel === 'email' / 'push' but the matching enqueuer is unwired
-  //     (Faz 6B not yet deployed on this host).
+  // and skip via the `IS NULL` filter above). Only reached for `in_app`;
+  // email and push rows are stamped by their dedicated channel processors.
   await tx
     .update(notificationOutbox)
     .set({
@@ -266,6 +276,34 @@ async function dispatchOutboxRow(
     })
     .where(eq(notificationOutbox.id, row.id));
   return 'delivered';
+}
+
+async function markChannelHandoffUnavailable(
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  outboxId: string,
+  reason: string,
+): Promise<void> {
+  await tx
+    .update(notificationOutbox)
+    .set({
+      status: 'pending',
+      lastError: reason,
+      attempts: sql`${notificationOutbox.attempts} + 1`,
+    })
+    .where(eq(notificationOutbox.id, outboxId));
+}
+
+async function clearChannelHandoffError(
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  outboxId: string,
+): Promise<void> {
+  await tx
+    .update(notificationOutbox)
+    .set({
+      status: 'pending',
+      lastError: null,
+    })
+    .where(eq(notificationOutbox.id, outboxId));
 }
 
 /** Default Redis publisher (production wiring). */

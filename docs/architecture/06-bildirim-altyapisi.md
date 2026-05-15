@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-14
+updated: 2026-05-15
 ---
 
 # 06 — Bildirim Altyapısı (Outbox + Worker)
@@ -111,11 +111,11 @@ Activity event'lerinden bildirim üretimi + worker processor + kanal fan-out. **
   1. `notification_outbox` satırını oku (`SELECT ... WHERE id = $1 AND processed_at IS NULL FOR UPDATE SKIP LOCKED`).
   2. Yoksa → return.
   3. Channel'a göre fan-out:
-     - `in_app` → `notifications` tablosuna INSERT (`user_id`, `type`, `payload`, `read_at=NULL`) + Faz 5 `emitToUser(userId, { type: 'notification.created', payload })` (badge realtime push).
-     - `email` → `pusula-notifications-email` kuyruğuna ileri (6B processor — Resend send).
-     - `push` → `pusula-notifications-push` kuyruğuna ileri (6B processor — Expo Push API).
-  4. `notification_outbox.processed_at = NOW()` damgalanır + `status='delivered'`.
-  5. Hata → `attempts+1` + BullMQ retry (3 attempt, exponential); 3 fail → `status='failed'` + dead-letter.
+     - `in_app` → `notifications` tablosuna INSERT (`user_id`, `type`, `payload`, `read_at=NULL`) + Faz 5 `emitToUser(userId, { type: 'notification.created', payload })` (badge realtime push) → `processed_at = NOW()` + `status='sent'`.
+     - `email` → `pusula-notifications-email` kuyruğuna ileri (6B processor — Resend send). 6A processor **damgalamaz**; satır `processed_at IS NULL` kalır ve email processor gerçek gönderim/skip sonrası `status='sent'` damgalar.
+     - `push` → `pusula-notifications-push` kuyruğuna ileri (6B processor — Expo Push API). 6A processor **damgalamaz**; satır `processed_at IS NULL` kalır ve push processor gerçek gönderim/no-op sonrası `status='sent'` damgalar.
+  4. Email/push enqueuer eksik veya geçici olarak hatalıysa satır başarılı sayılmaz: `processed_at` boş, `status='pending'`, `last_error` dolu ve `attempts+1` kalır; 60 s sweeper doğru wiring geldikten sonra yeniden enqueue eder.
+  5. In-app hatası → BullMQ retry (queue default attempt/backoff); nonsensical `in_app` satırları (recipient yok) `status='dead'` ile kapatılır.
 - **Periyodik sweeper (`pusula-notifications-sweeper`):** `processed_at IS NULL AND created_at < NOW() - INTERVAL '30 seconds'` satırları yeniden enqueue eder (60s aralıklı cron — Faz 5B sweeper pattern'iyle simetrik).
 - **Retention:** `processed_at IS NOT NULL AND created_at < NOW() - INTERVAL '30 days'` satırları periyodik cleanup (sonraki tur / Faz 8).
 - **Faz kapsamı:** Faz 6A ([DEM-90](https://linear.app/demirkol/issue/DEM-90)) `notification-rules.ts` + mutation gövdelerinde `notification_outbox` insert + worker processor + sweeper + `notifications.*` procedure'leri + due-date scheduler. Faz 6B ([DEM-91](https://linear.app/demirkol/issue/DEM-91)) email + push kanal processor'ları. Faz 6C ([DEM-92](https://linear.app/demirkol/issue/DEM-92)) mention parser + comment/checklist realtime. Faz 6D ([DEM-93](https://linear.app/demirkol/issue/DEM-93)) web notification center UI.

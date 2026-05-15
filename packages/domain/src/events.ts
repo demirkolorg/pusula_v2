@@ -51,7 +51,59 @@ export const realtimeEventEnvelopeSchema = z.object({
   createdAt: z.string(),
 });
 
+/**
+ * Ack reply for `board:join` and `board:leave` Socket.IO events. Shared by
+ * `apps/api/src/socket/rooms.ts` (server) and `apps/web/src/lib/realtime/`
+ * (client) so neither side duplicates the error enum. Faz 5 review fix (5A.3).
+ */
+export type BoardRoomAck = { ok: true } | { ok: false; error: 'Forbidden' | 'BadRequest' };
+
 /** Builds a Socket.IO room name, e.g. `board:abc123`. */
 export function roomName(kind: RealtimeRoomKind, id: string): string {
   return `${kind}:${id}`;
+}
+
+/**
+ * Realtime event payload shapes shared between the server producer
+ * (`packages/api/src/routers/*` + `insertRealtimeEvent`) and the client
+ * dispatcher (`apps/web/src/lib/realtime/event-handlers.ts`). Listed only for
+ * events whose payload shape is tightly inferred client-side and where a
+ * silent drift between producer and consumer would corrupt the cache.
+ * Faz 5 review fix (5C.1).
+ */
+export interface CardCompletedPayload {
+  cardId: string;
+  completedAt: string;
+  completedBy: string | null;
+}
+
+export const cardCompletedPayloadSchema = z.object({
+  cardId: z.string().min(1),
+  completedAt: z.string(),
+  completedBy: z.string().nullable(),
+});
+
+export interface CardUncompletedPayload {
+  cardId: string;
+}
+
+export const cardUncompletedPayloadSchema = z.object({
+  cardId: z.string().min(1),
+});
+
+export const realtimeEventPayloadSchemas = {
+  'card.completed': cardCompletedPayloadSchema,
+  'card.uncompleted': cardUncompletedPayloadSchema,
+} satisfies Record<string, z.ZodType<unknown>>;
+
+export type RealtimeEventPayloadType = keyof typeof realtimeEventPayloadSchemas;
+
+export function hasRealtimeEventPayloadSchema(type: string): type is RealtimeEventPayloadType {
+  return Object.prototype.hasOwnProperty.call(realtimeEventPayloadSchemas, type);
+}
+
+export function parseRealtimeEventPayload(type: string, payload: unknown): unknown | undefined {
+  if (!hasRealtimeEventPayloadSchema(type)) return payload;
+  const result = realtimeEventPayloadSchemas[type].safeParse(payload);
+  return result.success ? result.data : undefined;
 }

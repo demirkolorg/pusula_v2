@@ -220,7 +220,7 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     qc.setQueryData(boardKey('b1'), fixture());
     qc.setQueryData(boardKey('b2'), { ...fixture(), board: { ...fixture().board, id: 'b2' } });
 
-    const { rerender } = renderHook(
+    const { rerender, unmount } = renderHook(
       ({ boardId }: { boardId: string }) => useBoardRealtime(boardId),
       {
         wrapper: wrap(qc),
@@ -238,6 +238,13 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     expect(fakeSocket.emitted).toContainEqual({ event: 'board:join', args: [{ boardId: 'b2' }] });
     // Only one realtime listener is registered (the new board's) — the old one detached.
     expect(fakeSocket.listeners.get('realtime:event')?.size).toBe(1);
+
+    // Faz 5 review fix (5D Ö5): unmount sonrası **b2** room'undan da çıkılır.
+    // Aksi halde rerender'la geçilen board'tan leave olmaz, sticky room üyeliği
+    // server tarafında birikir.
+    unmount();
+    expect(fakeSocket.emitted).toContainEqual({ event: 'board:leave', args: [{ boardId: 'b2' }] });
+    expect(fakeSocket.listeners.get('realtime:event')?.size ?? 0).toBe(0);
   });
 
   it('unmount BEFORE the socket connects: skips board:leave (no prior join)', () => {

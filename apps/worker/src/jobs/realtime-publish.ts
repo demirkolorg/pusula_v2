@@ -175,15 +175,21 @@ function parseEventPayload(type: string, payload: unknown): unknown {
  * cross-board move carry `fromBoardId` in their payload and need to reach the
  * source board's room too (so a viewer there sees the card *leave*).
  *
- * Contract: `payload.data.fromBoardId` is the documented cross-board fan-out
- * marker — any event type that wants to be delivered to both a source and a
- * target board opts in by putting it in the payload. Currently only
- * `card.movedToList` uses it; `card.copy` deliberately doesn't (the source
- * card is unchanged, so the source board has nothing new to render).
+ * Faz 5 review fix (5B.5): cross-board fan-out is gated on an explicit allowlist
+ * (`CROSS_BOARD_EVENT_TYPES`) rather than a "any event with `fromBoardId` opts
+ * in" convention. Future event types may incidentally carry `fromBoardId` in
+ * their payload with different semantics (e.g. metadata, not a fan-out hint);
+ * defensive coding here keeps that from triggering unintended cross-board
+ * delivery. Adding a new cross-board event type requires touching this set —
+ * an intentional speed bump.
  */
+const CROSS_BOARD_EVENT_TYPES = new Set<string>(['card.movedToList']);
+
 function roomsFor(row: RealtimeEventRow): RealtimePublishMessage['rooms'] {
   const rooms: RealtimePublishMessage['rooms'] = [];
   if (row.boardId) rooms.push({ kind: 'board', id: row.boardId });
+
+  if (!CROSS_BOARD_EVENT_TYPES.has(row.type)) return rooms;
 
   const payloadData = ((row.payload ?? {}) as { data?: unknown }).data;
   if (payloadData && typeof payloadData === 'object' && 'fromBoardId' in payloadData) {

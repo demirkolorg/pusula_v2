@@ -127,7 +127,7 @@ describe('<ListColumn>', () => {
       />,
     );
     expect(screen.getByRole('heading', { name: 'Yapılacak' })).toHaveClass('text-[15px]');
-    expect(screen.getByText(`2 ${columnCopy.cardCount}`)).toBeInTheDocument();
+    expect(screen.queryByText(`2 ${columnCopy.cardCount}`)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bir' }).parentElement).toHaveClass('pt-1');
   });
 

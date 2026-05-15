@@ -16,7 +16,7 @@
  * (the real implementation in `@pusula/api` reads the DB).
  */
 import type { Server, Socket } from 'socket.io';
-import { roomName } from '@pusula/domain';
+import { roomName, type BoardRoomAck } from '@pusula/domain';
 
 /** Pluggable board-access resolver — defaults to `@pusula/api`'s `resolveBoardAccess` in production. */
 export type BoardAccessResolver = (
@@ -48,7 +48,7 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
   // Auto-join the personal room — Faz 6 notification delivery target.
   void socket.join(roomName('user', userId));
 
-  socket.on('board:join', async (payload: BoardJoinPayload, ack?: (res: AckResult) => void) => {
+  socket.on('board:join', async (payload: BoardJoinPayload, ack?: (res: BoardRoomAck) => void) => {
     const boardId = typeof payload?.boardId === 'string' ? payload.boardId : '';
     if (!boardId) {
       respond(ack, { ok: false, error: 'BadRequest' });
@@ -72,7 +72,7 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
     }
   });
 
-  socket.on('board:leave', async (payload: BoardJoinPayload, ack?: (res: AckResult) => void) => {
+  socket.on('board:leave', async (payload: BoardJoinPayload, ack?: (res: BoardRoomAck) => void) => {
     const boardId = typeof payload?.boardId === 'string' ? payload.boardId : '';
     if (!boardId) {
       respond(ack, { ok: false, error: 'BadRequest' });
@@ -94,8 +94,6 @@ export function attachConnectionHandler(io: Server, resolveBoardAccess: BoardAcc
   });
 }
 
-type AckResult = { ok: true } | { ok: false; error: 'Forbidden' | 'BadRequest' };
-
-function respond(ack: ((res: AckResult) => void) | undefined, result: AckResult): void {
+function respond(ack: ((res: BoardRoomAck) => void) | undefined, result: BoardRoomAck): void {
   if (typeof ack === 'function') ack(result);
 }

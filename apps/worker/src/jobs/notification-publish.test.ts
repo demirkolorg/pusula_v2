@@ -296,11 +296,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
-  it('email channel with NO enqueuer wired (pre-6B host): falls through to stamp', async () => {
-    // Mirrors the case of a Faz 6B-less worker host (dev box / migration
-    // window). The processor stamps the row 'sent' so the sweeper doesn't
-    // keep re-picking it; the email body is lost, but that's only on a host
-    // that never had a 6B consumer running.
+  it('email channel with NO enqueuer wired: row stays pending so the sweeper can retry', async () => {
     const [outbox] = await db()
       .insert(notificationOutbox)
       .values({
@@ -320,14 +316,62 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
       {},
       { eventId: activityId },
     );
-    expect(result.processed).toBe(1);
+    expect(result.processed).toBe(0);
+    expect(result.skipped).toBe(1);
 
     const [stamped] = await db()
-      .select({ processedAt: notificationOutbox.processedAt, status: notificationOutbox.status })
+      .select({
+        processedAt: notificationOutbox.processedAt,
+        status: notificationOutbox.status,
+        attempts: notificationOutbox.attempts,
+        lastError: notificationOutbox.lastError,
+      })
       .from(notificationOutbox)
       .where(dbMod.eq(notificationOutbox.id, outboxId));
-    expect(stamped?.processedAt).not.toBeNull();
-    expect(stamped?.status).toBe('sent');
+    expect(stamped?.processedAt).toBeNull();
+    expect(stamped?.status).toBe('pending');
+    expect(stamped?.attempts).toBe(1);
+    expect(stamped?.lastError).toBe('email enqueuer is not wired');
+
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+  });
+
+  it('push channel with NO enqueuer wired: row stays pending so the sweeper can retry', async () => {
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'push',
+        recipientId,
+        type: 'card_assigned',
+        payload: {},
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+
+    const publisher = capturingPublisher();
+    const result = await processNotificationPublishJob(
+      db(),
+      publisher,
+      {},
+      { eventId: activityId },
+    );
+    expect(result.processed).toBe(0);
+    expect(result.skipped).toBe(1);
+
+    const [stamped] = await db()
+      .select({
+        processedAt: notificationOutbox.processedAt,
+        status: notificationOutbox.status,
+        attempts: notificationOutbox.attempts,
+        lastError: notificationOutbox.lastError,
+      })
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.id, outboxId));
+    expect(stamped?.processedAt).toBeNull();
+    expect(stamped?.status).toBe('pending');
+    expect(stamped?.attempts).toBe(1);
+    expect(stamped?.lastError).toBe('push enqueuer is not wired');
 
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });

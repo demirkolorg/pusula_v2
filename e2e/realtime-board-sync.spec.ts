@@ -87,7 +87,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     // Settle both sockets before alice mutates — otherwise bob can miss the
     // first envelope if his `board:join` ack hasn't landed yet.
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
@@ -134,7 +139,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect.poll(() => bobBoard.columnTitles()).toEqual(['Liste 1', 'Liste 2', 'Liste 3']);
@@ -166,7 +176,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect.poll(() => bobBoard.cardTitlesIn('Liste 3')).toEqual(['Kart F', 'Kart G']);
@@ -199,7 +214,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
@@ -230,7 +250,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
@@ -276,7 +301,12 @@ test.describe('realtime board sync', () => {
     const aliceBoard = new BoardPage(alicePeer.page);
     const bobBoard = new BoardPage(bobPeer.page);
 
-    await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
+    // Faz 5 review fix (5D U2): Next dev tek thread olduğu için iki page'in
+    // `goto`'sunu paralel başlatmak ilk-render sırasını öngörülemez kılıyordu
+    // (alice'in `useBoardRealtime` mount'u bob'unkinden ±100ms erken/geç
+    // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
+    await aliceBoard.goto();
+    await bobBoard.goto();
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
@@ -313,9 +343,16 @@ test.describe('realtime board sync', () => {
 
     // Final assertion: Kart A appears exactly once on alice's board (no
     // double-apply from echo).
-    const allCardLabelsForAlice = await alicePeer.page
-      .locator('article[aria-label="Kart A"]')
-      .count();
-    expect(allCardLabelsForAlice).toBe(1);
+    //
+    // Faz 5 review fix (5D U5): Tek-seferlik `count()` snapshot'ı yerine
+    // `expect.poll` ile bekleniyor — DEM-87 drag preview overlay'i Pragmatic
+    // DnD `onDrop` senkron path'inde temizleniyor; hızlı CI'da drop sonrası
+    // anlık `count()` overlay clone'unu da yakalayıp `count=2` false-positive
+    // verebiliyordu. Poll, overlay temizlenene kadar bekler.
+    await expect
+      .poll(() => alicePeer.page.locator('article[aria-label="Kart A"]').count(), {
+        timeout: SYNC_TIMEOUT_MS,
+      })
+      .toBe(1);
   });
 });

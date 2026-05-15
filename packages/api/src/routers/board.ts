@@ -169,6 +169,13 @@ export const boardRouter = router({
    * Create a board in the workspace. Workspace `member+` only (a `guest` cannot
    * create boards). The creator becomes a board `admin` member. Writes a
    * `board.created` activity event in the same transaction.
+   *
+   * Faz 5B (DEM-84) — intentionally NOT in scope: `board.create` has no realtime
+   * outbox write because the board didn't exist a millisecond ago and no client
+   * is subscribed to its `board:{newBoardId}` room yet. Workspace-level "board
+   * listesi güncellendi" sync would need a `workspace:{id}` room — planned for
+   * Faz 6+. See `docs/architecture/06-bildirim-altyapisi.md` "Realtime event
+   * yayın katmanı" mutation kapsamı listesi.
    */
   create: workspaceProcedure.input(createBoardInput).mutation(async ({ ctx, input }) => {
     if (ctx.workspace.role === 'guest') {
