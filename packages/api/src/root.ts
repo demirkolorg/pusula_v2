@@ -11,6 +11,7 @@ import { listRouter } from './routers/list';
 import { notificationsRouter } from './routers/notifications';
 import { pushRouter } from './routers/push';
 import { searchRouter } from './routers/search';
+import { shareRouter } from './routers/share';
 import { workspaceRouter } from './routers/workspace';
 
 export const appRouter = router({
@@ -27,6 +28,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   push: pushRouter,
   search: searchRouter,
+  share: shareRouter,
 });
 
 export type AppRouter = typeof appRouter;
