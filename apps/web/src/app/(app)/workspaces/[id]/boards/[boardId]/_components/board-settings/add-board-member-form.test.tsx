@@ -42,7 +42,9 @@ describe('<AddBoardMemberForm>', () => {
     await user.click(screen.getByRole('option', { name: 'İzleyici' }));
     await user.type(screen.getByLabelText(copy.addEmailLabel), 'v@example.com');
     await user.click(screen.getByRole('button', { name: copy.addSubmit }));
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ email: 'v@example.com', role: 'viewer' }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ email: 'v@example.com', role: 'viewer' }),
+    );
   });
 
   it('shows an inline server error (e.g. CONFLICT) and disables submit while pending', () => {
@@ -52,7 +54,14 @@ describe('<AddBoardMemberForm>', () => {
   });
 
   it('shows a success notice when provided', () => {
-    render(<AddBoardMemberForm onSubmit={vi.fn()} notice="aria@example.com e-posta adresine davet gönderildi." />);
-    expect(screen.getByText('aria@example.com e-posta adresine davet gönderildi.')).toBeInTheDocument();
+    render(
+      <AddBoardMemberForm
+        onSubmit={vi.fn()}
+        notice="aria@example.com e-posta adresine davet gönderildi."
+      />,
+    );
+    expect(
+      screen.getByText('aria@example.com e-posta adresine davet gönderildi.'),
+    ).toBeInTheDocument();
   });
 });

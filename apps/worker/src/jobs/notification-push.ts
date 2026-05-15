@@ -171,12 +171,7 @@ export async function processNotificationPushJob(
     const tokens = await tx
       .select({ token: pushTokens.token })
       .from(pushTokens)
-      .where(
-        and(
-          eq(pushTokens.userId, row.recipientId),
-          isNull(pushTokens.revokedAt),
-        ),
-      );
+      .where(and(eq(pushTokens.userId, row.recipientId), isNull(pushTokens.revokedAt)));
 
     if (tokens.length === 0) {
       // The common case in Faz 6: apps/mobile (Faz 7) isn't wired yet, so
@@ -230,12 +225,7 @@ export async function processNotificationPushJob(
       await tx
         .update(pushTokens)
         .set({ revokedAt: new Date() })
-        .where(
-          and(
-            inArray(pushTokens.token, deadTokens),
-            isNull(pushTokens.revokedAt),
-          ),
-        );
+        .where(and(inArray(pushTokens.token, deadTokens), isNull(pushTokens.revokedAt)));
     }
 
     // Touch last_used_at on every token we actually sent to (or tried) —

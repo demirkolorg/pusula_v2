@@ -159,7 +159,12 @@ export const boardMembersRouter = router({
       })),
       ...inheritedAdmins
         .filter((r) => !explicitIds.has(r.userId))
-        .map((r) => ({ userId: r.userId, role: 'admin' as const, name: r.name, inherited: true as const })),
+        .map((r) => ({
+          userId: r.userId,
+          role: 'admin' as const,
+          name: r.name,
+          inherited: true as const,
+        })),
     ];
   }),
 
@@ -209,7 +214,9 @@ export const boardMembersRouter = router({
         const [alreadyBoardMember] = await tx
           .select({ userId: boardMembers.userId })
           .from(boardMembers)
-          .where(and(eq(boardMembers.boardId, ctx.board.id), eq(boardMembers.userId, existingUser.id)))
+          .where(
+            and(eq(boardMembers.boardId, ctx.board.id), eq(boardMembers.userId, existingUser.id)),
+          )
           .limit(1);
         if (alreadyBoardMember) {
           throw new TRPCError({ code: 'CONFLICT', message: 'Bu kişi zaten board üyesi.' });
@@ -294,7 +301,12 @@ export const boardMembersRouter = router({
           data: {
             userId: existingUser.id,
             role: input.role,
-            member: { userId: existingUser.id, role: input.role, name: existingUser.name, inherited: false },
+            member: {
+              userId: existingUser.id,
+              role: input.role,
+              name: existingUser.name,
+              inherited: false,
+            },
           },
         });
 
@@ -318,7 +330,10 @@ export const boardMembersRouter = router({
         )
         .limit(1);
       if (pendingInvite) {
-        throw new TRPCError({ code: 'CONFLICT', message: 'Bu e-postaya zaten bir davet gönderilmiş.' });
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Bu e-postaya zaten bir davet gönderilmiş.',
+        });
       }
 
       const token = newInvitationToken();
@@ -434,14 +449,22 @@ export const boardMembersRouter = router({
       if (!member) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Bu kişi açık board üyesi değil; workspace yöneticisinin board rolü değiştirilemez.',
+          message:
+            'Bu kişi açık board üyesi değil; workspace yöneticisinin board rolü değiştirilemez.',
         });
       }
       if (member.role === input.role) {
         return { userId: input.userId, role: input.role, changed: false as const };
       }
-      if (member.role === 'admin' && input.role !== 'admin' && (await explicitAdminCount(tx, ctx.board.id)) <= 1) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Son board admini rolden düşürülemez.' });
+      if (
+        member.role === 'admin' &&
+        input.role !== 'admin' &&
+        (await explicitAdminCount(tx, ctx.board.id)) <= 1
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Son board admini rolden düşürülemez.',
+        });
       }
 
       await tx

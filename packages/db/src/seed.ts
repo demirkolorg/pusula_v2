@@ -30,7 +30,12 @@ async function main() {
     const ownerId = 'demo-user';
     await db
       .insert(users)
-      .values({ id: ownerId, name: 'Demo Kullanıcı', email: 'demo@pusula.local', emailVerified: true })
+      .values({
+        id: ownerId,
+        name: 'Demo Kullanıcı',
+        email: 'demo@pusula.local',
+        emailVerified: true,
+      })
       .onConflictDoNothing();
 
     const [workspace] = await db

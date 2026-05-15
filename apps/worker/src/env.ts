@@ -2,7 +2,11 @@ import { resolve } from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 
-loadDotenv({ path: resolve(import.meta.dirname, '../../..', '.env'), override: false, quiet: true });
+loadDotenv({
+  path: resolve(import.meta.dirname, '../../..', '.env'),
+  override: false,
+  quiet: true,
+});
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

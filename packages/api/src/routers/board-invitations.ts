@@ -66,7 +66,9 @@ export const boardInvitationsRouter = router({
       })
       .from(boardInvitations)
       .leftJoin(users, eq(boardInvitations.invitedById, users.id))
-      .where(and(eq(boardInvitations.boardId, ctx.board.id), eq(boardInvitations.status, 'pending')))
+      .where(
+        and(eq(boardInvitations.boardId, ctx.board.id), eq(boardInvitations.status, 'pending')),
+      )
       .orderBy(asc(boardInvitations.createdAt));
   }),
 
@@ -92,7 +94,10 @@ export const boardInvitationsRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
       }
       if (invitation.status !== 'pending') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Yalnızca bekleyen davetler iptal edilebilir.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Yalnızca bekleyen davetler iptal edilebilir.',
+        });
       }
 
       await tx
@@ -212,7 +217,10 @@ export const boardInvitationsRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
       }
       if (invitation.email.toLowerCase() !== userEmail) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu davet başka bir e-postaya gönderildi.' });
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Bu davet başka bir e-postaya gönderildi.',
+        });
       }
 
       const [board] = await tx
@@ -224,7 +232,10 @@ export const boardInvitationsRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
       if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board için davet kabul edilemez.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Arşivli board için davet kabul edilemez.',
+        });
       }
 
       const [workspace] = await tx
@@ -236,14 +247,22 @@ export const boardInvitationsRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace bulunamadı.' });
       }
       if (workspace.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli workspace için davet kabul edilemez.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Arşivli workspace için davet kabul edilemez.',
+        });
       }
 
       // Lazily make the caller a workspace `guest` if they aren't a member yet.
       const [wsMember] = await tx
         .select({ userId: workspaceMembers.userId })
         .from(workspaceMembers)
-        .where(and(eq(workspaceMembers.workspaceId, board.workspaceId), eq(workspaceMembers.userId, userId)))
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, board.workspaceId),
+            eq(workspaceMembers.userId, userId),
+          ),
+        )
         .limit(1);
       if (!wsMember) {
         const insertedWs = await tx
@@ -301,58 +320,63 @@ export const boardInvitationsRouter = router({
   }),
 
   /** Decline a board invitation by token. Email must match. No activity is written. */
-  decline: protectedProcedure.input(declineBoardInvitationInput).mutation(async ({ ctx, input }) => {
-    const userEmail = ctx.session.user.email.trim().toLowerCase();
+  decline: protectedProcedure
+    .input(declineBoardInvitationInput)
+    .mutation(async ({ ctx, input }) => {
+      const userEmail = ctx.session.user.email.trim().toLowerCase();
 
-    let realtimeEventId: string | undefined;
-    const result = await ctx.db.transaction(async (tx) => {
-      const [invitation] = await tx
-        .select({
-          id: boardInvitations.id,
-          boardId: boardInvitations.boardId,
-          email: boardInvitations.email,
-          status: boardInvitations.status,
-        })
-        .from(boardInvitations)
-        .where(eq(boardInvitations.token, input.token))
-        .limit(1);
-      if (!invitation) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
-      }
-      if (invitation.email.toLowerCase() !== userEmail) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu davet başka bir e-postaya gönderildi.' });
-      }
-      if (invitation.status !== 'pending') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
-      }
-      const [board] = await tx
-        .select({ workspaceId: boards.workspaceId })
-        .from(boards)
-        .where(eq(boards.id, invitation.boardId))
-        .limit(1);
-      if (!board) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
-      }
+      let realtimeEventId: string | undefined;
+      const result = await ctx.db.transaction(async (tx) => {
+        const [invitation] = await tx
+          .select({
+            id: boardInvitations.id,
+            boardId: boardInvitations.boardId,
+            email: boardInvitations.email,
+            status: boardInvitations.status,
+          })
+          .from(boardInvitations)
+          .where(eq(boardInvitations.token, input.token))
+          .limit(1);
+        if (!invitation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+        }
+        if (invitation.email.toLowerCase() !== userEmail) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Bu davet başka bir e-postaya gönderildi.',
+          });
+        }
+        if (invitation.status !== 'pending') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
+        }
+        const [board] = await tx
+          .select({ workspaceId: boards.workspaceId })
+          .from(boards)
+          .where(eq(boards.id, invitation.boardId))
+          .limit(1);
+        if (!board) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+        }
 
-      await tx
-        .update(boardInvitations)
-        .set({ status: 'declined' })
-        .where(eq(boardInvitations.id, invitation.id));
+        await tx
+          .update(boardInvitations)
+          .set({ status: 'declined' })
+          .where(eq(boardInvitations.id, invitation.id));
 
-      const seq = await bumpBoardVersionForRealtime(tx, invitation.boardId);
-      realtimeEventId = await insertRealtimeEvent(tx, {
-        type: 'board.invitation_declined',
-        workspaceId: board.workspaceId,
-        boardId: invitation.boardId,
-        actorId: ctx.session.user.id,
-        clientMutationId: ctx.clientMutationId,
-        seq,
-        data: { invitationId: invitation.id },
+        const seq = await bumpBoardVersionForRealtime(tx, invitation.boardId);
+        realtimeEventId = await insertRealtimeEvent(tx, {
+          type: 'board.invitation_declined',
+          workspaceId: board.workspaceId,
+          boardId: invitation.boardId,
+          actorId: ctx.session.user.id,
+          clientMutationId: ctx.clientMutationId,
+          seq,
+          data: { invitationId: invitation.id },
+        });
+
+        return { id: invitation.id, status: 'declined' as const };
       });
-
-      return { id: invitation.id, status: 'declined' as const };
-    });
-    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
-    return result;
-  }),
+      maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+      return result;
+    }),
 });

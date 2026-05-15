@@ -42,7 +42,8 @@ const {
   sendResetPasswordEmail,
 } = await import('./auth-emails');
 
-const RESET_URL = 'http://localhost:3000/reset-password?token=tok_abc&callbackURL=%2Freset-password';
+const RESET_URL =
+  'http://localhost:3000/reset-password?token=tok_abc&callbackURL=%2Freset-password';
 
 afterEach(() => {
   sendMock.mockReset();
@@ -67,7 +68,9 @@ describe('resetPasswordEmailHtml', () => {
   it('renders an anchor to the reset URL and escapes it', () => {
     const html = resetPasswordEmailHtml(RESET_URL);
     // `&` in the query string must be HTML-escaped inside the href.
-    expect(html).toContain('href="http://localhost:3000/reset-password?token=tok_abc&amp;callbackURL=%2Freset-password"');
+    expect(html).toContain(
+      'href="http://localhost:3000/reset-password?token=tok_abc&amp;callbackURL=%2Freset-password"',
+    );
     expect(html).toContain('Parolamı sıfırla');
     expect(html).not.toContain('callbackURL=%2Freset-password"&'); // sanity: no raw unescaped break
   });
@@ -85,7 +88,9 @@ describe('sendResetPasswordEmail — no RESEND_API_KEY (best-effort)', () => {
     __resetResendClientForTests();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL })).resolves.toBeUndefined();
+    await expect(
+      sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL }),
+    ).resolves.toBeUndefined();
 
     expect(sendMock).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('RESEND_API_KEY'), RESET_URL);
@@ -96,7 +101,9 @@ describe('sendResetPasswordEmail — no RESEND_API_KEY (best-effort)', () => {
     __resetResendClientForTests();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL })).resolves.toBeUndefined();
+    await expect(
+      sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL }),
+    ).resolves.toBeUndefined();
 
     expect(sendMock).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(1);
@@ -134,7 +141,9 @@ describe('sendResetPasswordEmail — with RESEND_API_KEY', () => {
     sendMock.mockResolvedValue({ data: null, error: { name: 'rate_limit', message: 'slow down' } });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await expect(sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL })).resolves.toBeUndefined();
+    await expect(
+      sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL }),
+    ).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
   });
 
@@ -144,7 +153,9 @@ describe('sendResetPasswordEmail — with RESEND_API_KEY', () => {
     sendMock.mockRejectedValue(new Error('network down'));
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await expect(sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL })).resolves.toBeUndefined();
+    await expect(
+      sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL }),
+    ).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
   });
 });

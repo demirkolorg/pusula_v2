@@ -2,22 +2,23 @@
 title: "12 — Üretim Deploy Runbook'u"
 description: "Dokploy 'Docker Compose' servis tipiyle Pusula v2'yi üretime alma: VDS temizliği, ilk deploy, migration, smoke test, erişimi açma, sürekli deploy, rollback, yedekleme."
 aliases:
-  - "Deployment Runbook"
-  - "Üretim Deploy Adımları"
-  - "VDS Deploy"
+  - 'Deployment Runbook'
+  - 'Üretim Deploy Adımları'
+  - 'VDS Deploy'
 tags:
-  - "pusula"
-  - "architecture/deployment"
-  - "runbook"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/deployment'
+  - 'runbook'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
-  - "[[docs/architecture/10-platform|10 — Platform]]"
-  - "[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]"
+  - '[[docs/architecture/10-platform|10 — Platform]]'
+  - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
 updated: 2026-05-12
 ---
+
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
 
 > Eksen: **tasarım / teknik**. Deployment **kararı** ve mimari özet → [`10-platform.md`](10-platform.md) §10.3
@@ -128,14 +129,14 @@ CMD ["node", "apps/web/server.js"]
 name: pusula
 
 services:
-  migrate:                    # tek seferlik — şema migration'ları
+  migrate: # tek seferlik — şema migration'ları
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    command: ["pnpm", "db:migrate"]
+    command: ['pnpm', 'db:migrate']
     environment:
       DATABASE_URL: ${DATABASE_URL}
     depends_on:
       postgres: { condition: service_healthy }
-    restart: "no"
+    restart: 'no'
 
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
@@ -161,15 +162,15 @@ services:
       redis: { condition: service_healthy }
     # Traefik (Dokploy) — domain'i ya bu label'larla ya da Dokploy UI "Domains" sekmesinden ver:
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.pusula-api.rule=Host(`api.${ROOT_DOMAIN}`)"
-      - "traefik.http.routers.pusula-api.entrypoints=websecure"
-      - "traefik.http.routers.pusula-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.pusula-api.loadbalancer.server.port=3001"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.pusula-api.rule=Host(`api.${ROOT_DOMAIN}`)'
+      - 'traefik.http.routers.pusula-api.entrypoints=websecure'
+      - 'traefik.http.routers.pusula-api.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.pusula-api.loadbalancer.server.port=3001'
 
   worker:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    command: ["node", "apps/worker/dist/index.js"]
+    command: ['node', 'apps/worker/dist/index.js']
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -191,18 +192,18 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}   # = https://api.${ROOT_DOMAIN}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL} # = https://api.${ROOT_DOMAIN}
     environment:
       NODE_ENV: production
       PORT: 3000
     depends_on:
       api: { condition: service_started }
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.pusula-web.rule=Host(`app.${ROOT_DOMAIN}`)"
-      - "traefik.http.routers.pusula-web.entrypoints=websecure"
-      - "traefik.http.routers.pusula-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.pusula-web.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.pusula-web.rule=Host(`app.${ROOT_DOMAIN}`)'
+      - 'traefik.http.routers.pusula-web.entrypoints=websecure'
+      - 'traefik.http.routers.pusula-web.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.pusula-web.loadbalancer.server.port=3000'
 
   postgres:
     image: postgres:17-alpine
@@ -214,7 +215,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -222,25 +223,25 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 20
 
   minio:
     image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
+    command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -306,24 +307,24 @@ Migration request-path'te değil (CLAUDE.md §2): `migrate` servisi deploy sıra
 
 Dokploy compose servisinin **Environment** sekmesinde tüm anahtarları gir. Kaynak: [`10-platform.md`](10-platform.md) §10.4 + `env.example`. Üretim değerleri:
 
-| Anahtar | Üretim değeri |
-| --- | --- |
-| `ROOT_DOMAIN` | ana domain (ör. `pusula.example.com`) — Traefik label'ları bunu kullanır |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | güçlü, dev'den farklı; `pusula` / `<rastgele>` / `pusula` |
-| `DATABASE_URL` | `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}` (internal host `postgres`) |
-| `REDIS_URL` | `redis://redis:6379` (internal host `redis`) |
-| `AUTH_SECRET` | `openssl rand -base64 32` ile üret; **kaydet** (rotate edersen tüm session'lar düşer) |
-| `APP_URL` | `https://app.${ROOT_DOMAIN}` |
-| `API_URL` | `https://api.${ROOT_DOMAIN}` |
-| `NEXT_PUBLIC_API_URL` | `https://api.${ROOT_DOMAIN}` — **build arg** (web image'ına inline edilir) |
-| `S3_ENDPOINT` | `http://minio:9000` (app'ler internal kullanır) |
-| `S3_REGION` | `us-east-1` (MinIO için fark etmez) |
-| `S3_BUCKET` | `pusula` |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | MinIO root kimliği — güçlü, dev `minioadmin`'den farklı |
-| `RESEND_API_KEY` | Resend prod API key |
-| `EMAIL_FROM` | `Pusula <no-reply@${ROOT_DOMAIN}>` (gönderen domain Resend'de doğrulanmış olmalı) |
-| `SENTRY_DSN` | Sentry prod DSN (opsiyonel) |
-| `MEILISEARCH_URL` / `MEILISEARCH_API_KEY` | ileri faz — şimdilik boş |
+| Anahtar                                               | Üretim değeri                                                                                                |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ROOT_DOMAIN`                                         | ana domain (ör. `pusula.example.com`) — Traefik label'ları bunu kullanır                                     |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | güçlü, dev'den farklı; `pusula` / `<rastgele>` / `pusula`                                                    |
+| `DATABASE_URL`                                        | `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}` (internal host `postgres`) |
+| `REDIS_URL`                                           | `redis://redis:6379` (internal host `redis`)                                                                 |
+| `AUTH_SECRET`                                         | `openssl rand -base64 32` ile üret; **kaydet** (rotate edersen tüm session'lar düşer)                        |
+| `APP_URL`                                             | `https://app.${ROOT_DOMAIN}`                                                                                 |
+| `API_URL`                                             | `https://api.${ROOT_DOMAIN}`                                                                                 |
+| `NEXT_PUBLIC_API_URL`                                 | `https://api.${ROOT_DOMAIN}` — **build arg** (web image'ına inline edilir)                                   |
+| `S3_ENDPOINT`                                         | `http://minio:9000` (app'ler internal kullanır)                                                              |
+| `S3_REGION`                                           | `us-east-1` (MinIO için fark etmez)                                                                          |
+| `S3_BUCKET`                                           | `pusula`                                                                                                     |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`           | MinIO root kimliği — güçlü, dev `minioadmin`'den farklı                                                      |
+| `RESEND_API_KEY`                                      | Resend prod API key                                                                                          |
+| `EMAIL_FROM`                                          | `Pusula <no-reply@${ROOT_DOMAIN}>` (gönderen domain Resend'de doğrulanmış olmalı)                            |
+| `SENTRY_DSN`                                          | Sentry prod DSN (opsiyonel)                                                                                  |
+| `MEILISEARCH_URL` / `MEILISEARCH_API_KEY`             | ileri faz — şimdilik boş                                                                                     |
 
 Kurallar: secret'lar yalnızca server/worker tarafında; `NEXT_PUBLIC_` prefix'i **bilerek client'a açılan**
 değerlerde. `.env` dosyaları git'e girmez — bu değerler Dokploy'da yaşar (ve bir parola yöneticisinde yedeklenir).
@@ -419,17 +420,17 @@ Hepsi yeşilse → Aşama 6.
 
 ## 12.13 Sorun giderme (uğraştırmamak için)
 
-| Belirti | Bak / yap |
-| --- | --- |
-| Dokploy'da "her servisi tek tek tanımlamam mı lazım?" hissi | Hayır — **Compose servis tipi** kullan; `compose.prod.yml` tek üniteyi yönetir. Bu runbook bunun içindir. |
-| TLS sertifikası gelmiyor | DNS A kaydı VDS IP'sine bakıyor mu? DNS yayıldı mı? `certresolver` adı Dokploy Traefik ile aynı mı? DNS oturunca redeploy. |
-| Web açılıyor ama API çağrıları başarısız | `NEXT_PUBLIC_API_URL` build arg'ı doğru mu (build zamanı inline)? Yanlışsa web image'ını yeniden build et. CORS: `apps/api` `APP_URL`'i origin olarak okuyor mu? |
-| `migrate` servisi fail | `DATABASE_URL` (`@postgres:5432`, prod parola) doğru mu? Postgres `healthy` mı? Log: hangi migration patladı? |
-| api/worker "ECONNREFUSED redis" | `REDIS_URL=redis://redis:6379` (internal host adı), `redis` `healthy` mı? `depends_on` koşulu var mı? |
-| Build çok yavaş | `output: 'standalone'` açık mı (web)? `turbo prune --docker` kullanılıyor mu (gereksiz workspace'ler image'a girmesin)? Dokploy build cache açık mı? |
-| Build logunu nereden görürüm | Dokploy panel → compose servisi → Deployments → ilgili deploy → Logs. Runtime log: aynı yerde container logları. |
-| Container ayakta ama 502 | Traefik label'daki `loadbalancer.server.port` container'ın gerçekte dinlediği port mu (web 3000, api 3001)? |
-| Disk doldu | `docker image prune -a` (kullanılmayan eski build'ler), eski yedek dump'larını rotate et. |
+| Belirti                                                     | Bak / yap                                                                                                                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dokploy'da "her servisi tek tek tanımlamam mı lazım?" hissi | Hayır — **Compose servis tipi** kullan; `compose.prod.yml` tek üniteyi yönetir. Bu runbook bunun içindir.                                                        |
+| TLS sertifikası gelmiyor                                    | DNS A kaydı VDS IP'sine bakıyor mu? DNS yayıldı mı? `certresolver` adı Dokploy Traefik ile aynı mı? DNS oturunca redeploy.                                       |
+| Web açılıyor ama API çağrıları başarısız                    | `NEXT_PUBLIC_API_URL` build arg'ı doğru mu (build zamanı inline)? Yanlışsa web image'ını yeniden build et. CORS: `apps/api` `APP_URL`'i origin olarak okuyor mu? |
+| `migrate` servisi fail                                      | `DATABASE_URL` (`@postgres:5432`, prod parola) doğru mu? Postgres `healthy` mı? Log: hangi migration patladı?                                                    |
+| api/worker "ECONNREFUSED redis"                             | `REDIS_URL=redis://redis:6379` (internal host adı), `redis` `healthy` mı? `depends_on` koşulu var mı?                                                            |
+| Build çok yavaş                                             | `output: 'standalone'` açık mı (web)? `turbo prune --docker` kullanılıyor mu (gereksiz workspace'ler image'a girmesin)? Dokploy build cache açık mı?             |
+| Build logunu nereden görürüm                                | Dokploy panel → compose servisi → Deployments → ilgili deploy → Logs. Runtime log: aynı yerde container logları.                                                 |
+| Container ayakta ama 502                                    | Traefik label'daki `loadbalancer.server.port` container'ın gerçekte dinlediği port mu (web 3000, api 3001)?                                                      |
+| Disk doldu                                                  | `docker image prune -a` (kullanılmayan eski build'ler), eski yedek dump'larını rotate et.                                                                        |
 
 ---
 

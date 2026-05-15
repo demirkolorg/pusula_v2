@@ -120,7 +120,8 @@ function WorkspaceInvitationRow({ invitation }: { invitation: WorkspaceMineInvit
   const busy = acceptInvitation.isPending || declineInvitation.isPending;
   const errorMessage =
     (acceptInvitation.isError && (acceptInvitation.error.message || strings.common.unknownError)) ||
-    (declineInvitation.isError && (declineInvitation.error.message || strings.common.unknownError)) ||
+    (declineInvitation.isError &&
+      (declineInvitation.error.message || strings.common.unknownError)) ||
     null;
 
   return (
@@ -145,7 +146,10 @@ function WorkspaceInvitationRow({ invitation }: { invitation: WorkspaceMineInvit
           size="sm"
           disabled={busy}
           onClick={() =>
-            acceptInvitation.mutate({ token: invitation.token, clientMutationId: crypto.randomUUID() })
+            acceptInvitation.mutate({
+              token: invitation.token,
+              clientMutationId: crypto.randomUUID(),
+            })
           }
         >
           {acceptInvitation.isPending ? copy.accepting : copy.accept}
@@ -155,7 +159,10 @@ function WorkspaceInvitationRow({ invitation }: { invitation: WorkspaceMineInvit
           variant="outline"
           disabled={busy}
           onClick={() =>
-            declineInvitation.mutate({ token: invitation.token, clientMutationId: crypto.randomUUID() })
+            declineInvitation.mutate({
+              token: invitation.token,
+              clientMutationId: crypto.randomUUID(),
+            })
           }
         >
           {declineInvitation.isPending ? copy.declining : copy.decline}
@@ -193,7 +200,8 @@ function BoardInvitationRow({ invitation }: { invitation: BoardMineInvitation })
   const busy = acceptInvitation.isPending || declineInvitation.isPending;
   const errorMessage =
     (acceptInvitation.isError && (acceptInvitation.error.message || strings.common.unknownError)) ||
-    (declineInvitation.isError && (declineInvitation.error.message || strings.common.unknownError)) ||
+    (declineInvitation.isError &&
+      (declineInvitation.error.message || strings.common.unknownError)) ||
     null;
 
   return (
@@ -218,7 +226,10 @@ function BoardInvitationRow({ invitation }: { invitation: BoardMineInvitation })
           size="sm"
           disabled={busy}
           onClick={() =>
-            acceptInvitation.mutate({ token: invitation.token, clientMutationId: crypto.randomUUID() })
+            acceptInvitation.mutate({
+              token: invitation.token,
+              clientMutationId: crypto.randomUUID(),
+            })
           }
         >
           {acceptInvitation.isPending ? copy.accepting : copy.accept}
@@ -228,7 +239,10 @@ function BoardInvitationRow({ invitation }: { invitation: BoardMineInvitation })
           variant="outline"
           disabled={busy}
           onClick={() =>
-            declineInvitation.mutate({ token: invitation.token, clientMutationId: crypto.randomUUID() })
+            declineInvitation.mutate({
+              token: invitation.token,
+              clientMutationId: crypto.randomUUID(),
+            })
           }
         >
           {declineInvitation.isPending ? copy.declining : copy.decline}

@@ -141,11 +141,20 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     // explicit rows: ownerId (creator → admin), boardAdminId (admin), boardViewerId (viewer)
     const owner = rows.find((r) => r.userId === ownerId);
     expect(owner).toMatchObject({ role: 'admin', inherited: false });
-    expect(rows.find((r) => r.userId === boardAdminId)).toMatchObject({ role: 'admin', inherited: false });
-    expect(rows.find((r) => r.userId === boardViewerId)).toMatchObject({ role: 'viewer', inherited: false });
+    expect(rows.find((r) => r.userId === boardAdminId)).toMatchObject({
+      role: 'admin',
+      inherited: false,
+    });
+    expect(rows.find((r) => r.userId === boardViewerId)).toMatchObject({
+      role: 'viewer',
+      inherited: false,
+    });
 
     // wsAdminId is a workspace `admin` with no explicit board row → inherited admin
-    expect(rows.find((r) => r.userId === wsAdminId)).toMatchObject({ role: 'admin', inherited: true });
+    expect(rows.find((r) => r.userId === wsAdminId)).toMatchObject({
+      role: 'admin',
+      inherited: true,
+    });
 
     // a plain workspace member that has no explicit board row does NOT appear in `list`
     expect(rows.some((r) => r.userId === memberId)).toBe(false);
@@ -171,7 +180,12 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const [row] = await db()
       .select()
       .from(boardMembers)
-      .where(dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, targetUserId)))
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, boardId),
+          dbMod.eq(boardMembers.userId, targetUserId),
+        ),
+      )
       .limit(1);
     expect(row).toMatchObject({ role: 'member' });
 
@@ -222,7 +236,12 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     const [bmRow] = await db()
       .select()
       .from(boardMembers)
-      .where(dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, accountNoWsId)))
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, boardId),
+          dbMod.eq(boardMembers.userId, accountNoWsId),
+        ),
+      )
       .limit(1);
     expect(bmRow).toMatchObject({ role: 'viewer' });
 
@@ -230,7 +249,8 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     expect(
       wsActs.some(
         (a) =>
-          a.type === 'workspace.member_added' && (a.payload as { userId?: string }).userId === accountNoWsId,
+          a.type === 'workspace.member_added' &&
+          (a.payload as { userId?: string }).userId === accountNoWsId,
       ),
     ).toBe(true);
     const acts = await actsFor(boardId);
@@ -261,7 +281,10 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       .select()
       .from(boardInvitations)
       .where(
-        dbMod.and(dbMod.eq(boardInvitations.boardId, boardId), dbMod.eq(boardInvitations.email, inviteEmail)),
+        dbMod.and(
+          dbMod.eq(boardInvitations.boardId, boardId),
+          dbMod.eq(boardInvitations.email, inviteEmail),
+        ),
       )
       .limit(1);
     expect(inv).toMatchObject({ status: 'pending', role: 'member' });
@@ -269,10 +292,16 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
 
     const acts = await actsFor(boardId);
     const invAct = acts.find(
-      (a) => a.type === 'board.member_invited' && (a.payload as { email?: string }).email === inviteEmail,
+      (a) =>
+        a.type === 'board.member_invited' &&
+        (a.payload as { email?: string }).email === inviteEmail,
     );
     expect(invAct).toBeDefined();
-    expect(invAct!.payload).toMatchObject({ invitationId: inv!.id, email: inviteEmail, role: 'member' });
+    expect(invAct!.payload).toMatchObject({
+      invitationId: inv!.id,
+      email: inviteEmail,
+      role: 'member',
+    });
 
     const outbox = await db()
       .select()
@@ -320,7 +349,10 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       title: 'Archived For Add',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: archBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
       callerFor(ownerId).board.members.add({
         boardId: archBoard.id,
@@ -448,20 +480,31 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     expect(
       acts.some(
         (a) =>
-          a.type === 'board.member_removed' && (a.payload as { userId?: string }).userId === targetUserId,
+          a.type === 'board.member_removed' &&
+          (a.payload as { userId?: string }).userId === targetUserId,
       ),
     ).toBe(true);
     // gone from board_members
     const remaining = await db()
       .select()
       .from(boardMembers)
-      .where(dbMod.and(dbMod.eq(boardMembers.boardId, board.id), dbMod.eq(boardMembers.userId, targetUserId)));
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, board.id),
+          dbMod.eq(boardMembers.userId, targetUserId),
+        ),
+      );
     expect(remaining).toHaveLength(0);
     // but the card membership survives
     const cardRows = await db()
       .select()
       .from(cardMembers)
-      .where(dbMod.and(dbMod.eq(cardMembers.cardId, card.id), dbMod.eq(cardMembers.userId, targetUserId)));
+      .where(
+        dbMod.and(
+          dbMod.eq(cardMembers.cardId, card.id),
+          dbMod.eq(cardMembers.userId, targetUserId),
+        ),
+      );
     expect(cardRows).toHaveLength(1);
 
     // a board member may remove *themselves* (leave the board) even if not an admin

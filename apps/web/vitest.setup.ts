@@ -101,7 +101,11 @@ if (typeof Range !== 'undefined') {
   }
   if (!Range.prototype.getClientRects) {
     Range.prototype.getClientRects = () =>
-      ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+      ({
+        length: 0,
+        item: () => null,
+        [Symbol.iterator]: function* () {},
+      }) as unknown as DOMRectList;
   }
 }
 

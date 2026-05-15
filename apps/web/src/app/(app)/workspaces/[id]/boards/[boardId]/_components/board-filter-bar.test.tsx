@@ -13,9 +13,7 @@ const labels: BoardFilterLabel[] = [
   { id: 'l2', name: 'Beklemede', color: 'blue' },
 ];
 
-function renderMenu(
-  props: Partial<ComponentProps<typeof BoardFilterMenuContent>> = {},
-) {
+function renderMenu(props: Partial<ComponentProps<typeof BoardFilterMenuContent>> = {}) {
   const defaults: ComponentProps<typeof BoardFilterMenuContent> = {
     labels,
     selectedLabelIds: new Set(),

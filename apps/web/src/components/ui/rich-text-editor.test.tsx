@@ -36,7 +36,10 @@ describe('parseRichTextValue', () => {
   });
 
   it('keeps a valid Tiptap document JSON string as-is', () => {
-    const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] };
+    const doc = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }],
+    };
     expect(parseRichTextValue(JSON.stringify(doc))).toEqual(doc);
   });
 

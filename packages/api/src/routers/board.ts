@@ -398,7 +398,9 @@ export const boardRouter = router({
       else membersByCard.set(row.cardId, [entry]);
     }
 
-    const coverImageByAttachmentId = new Map(coverRows.map((row) => [row.id, toCoverImage(row)] as const));
+    const coverImageByAttachmentId = new Map(
+      coverRows.map((row) => [row.id, toCoverImage(row)] as const),
+    );
 
     return {
       board: { ...board, role: ctx.board.role },
@@ -413,7 +415,7 @@ export const boardRouter = router({
           commentCount: commentCountByCard.get(card.id) ?? 0,
           members: membersByCard.get(card.id) ?? [],
           coverImage: card.coverImageAttachmentId
-            ? coverImageByAttachmentId.get(card.coverImageAttachmentId) ?? null
+            ? (coverImageByAttachmentId.get(card.coverImageAttachmentId) ?? null)
             : null,
         };
       }),
@@ -449,7 +451,10 @@ export const boardRouter = router({
             cursor
               ? or(
                   lt(activityEvents.createdAt, cursor.createdAt),
-                  and(eq(activityEvents.createdAt, cursor.createdAt), lt(activityEvents.id, cursor.id)),
+                  and(
+                    eq(activityEvents.createdAt, cursor.createdAt),
+                    lt(activityEvents.id, cursor.id),
+                  ),
                 )
               : undefined,
           ),
@@ -543,7 +548,11 @@ export const boardRouter = router({
           boardId: ctx.board.id,
           actorId: ctx.session.user.id,
           type: 'board.renamed',
-          payload: { fromTitle: current.title, toTitle: nextTitle, clientMutationId: ctx.clientMutationId },
+          payload: {
+            fromTitle: current.title,
+            toTitle: nextTitle,
+            clientMutationId: ctx.clientMutationId,
+          },
         });
       }
 
@@ -557,7 +566,11 @@ export const boardRouter = router({
           payload:
             nextBackground === null
               ? { from: current.background, clientMutationId: ctx.clientMutationId }
-              : { from: current.background, to: nextBackground, clientMutationId: ctx.clientMutationId },
+              : {
+                  from: current.background,
+                  to: nextBackground,
+                  clientMutationId: ctx.clientMutationId,
+                },
         });
       }
       if (iconChanged) {
@@ -567,7 +580,11 @@ export const boardRouter = router({
           boardId: ctx.board.id,
           actorId: ctx.session.user.id,
           type: 'board.updated',
-          payload: { fromIcon: current.icon, toIcon: nextIcon, clientMutationId: ctx.clientMutationId },
+          payload: {
+            fromIcon: current.icon,
+            toIcon: nextIcon,
+            clientMutationId: ctx.clientMutationId,
+          },
         });
       }
 

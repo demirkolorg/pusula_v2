@@ -22,7 +22,13 @@ type CardDetailDueDateProps = {
  * `yyyy-mm-dd` value contract while allowing both manual typing and calendar
  * selection. A no-op save just closes the editor.
  */
-export function CardDetailDueDate({ dueAt, canEdit, onSave, pending = false, error }: CardDetailDueDateProps) {
+export function CardDetailDueDate({
+  dueAt,
+  canEdit,
+  onSave,
+  pending = false,
+  error,
+}: CardDetailDueDateProps) {
   const fieldId = useId();
   const copy = strings.card.detail;
   const currentInput = toDateInputValue(dueAt);

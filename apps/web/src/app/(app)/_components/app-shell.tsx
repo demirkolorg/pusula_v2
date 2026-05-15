@@ -88,11 +88,7 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
                 'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               )}
             >
-              <BrandLogo
-                variant="plain"
-                markClassName="size-5"
-                textClassName="hidden sm:inline"
-              />
+              <BrandLogo variant="plain" markClassName="size-5" textClassName="hidden sm:inline" />
             </Link>
             <Separator orientation="vertical" className="h-5" />
             <WorkspaceSwitcher />

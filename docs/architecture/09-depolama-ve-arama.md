@@ -1,19 +1,20 @@
 ---
-title: "09 — Depolama ve Arama"
-description: "MinIO/S3 attachment akışı ve arama mimarisi."
+title: '09 — Depolama ve Arama'
+description: 'MinIO/S3 attachment akışı ve arama mimarisi.'
 aliases:
-  - "Depolama ve Arama"
-  - "Storage Search"
+  - 'Depolama ve Arama'
+  - 'Storage Search'
 tags:
-  - "pusula"
-  - "architecture/storage"
-  - "architecture/search"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/storage'
+  - 'architecture/search'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-14
 ---
+
 # 09 — Depolama ve Arama
 
 > Eksen: **tasarım / teknik**. Attachment **iş kuralları** (MIME/boyut limiti, kim yükleyebilir)

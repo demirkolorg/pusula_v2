@@ -182,7 +182,11 @@ function listFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Lis
   } as unknown as ListCache;
 }
 
-function setBoard(qc: QueryClient, filters: RealtimeFilters, mutate: (data: BoardCache) => BoardCache): void {
+function setBoard(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  mutate: (data: BoardCache) => BoardCache,
+): void {
   qc.setQueriesData<BoardCache>(filters.board, (data) => (data == null ? data : mutate(data)));
 }
 
@@ -267,31 +271,52 @@ function bumpCardNumber(
   });
 }
 
-function addBoardCardLabel(qc: QueryClient, filters: RealtimeFilters, cardId: string, label: CardLabelRow): void {
+function addBoardCardLabel(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  cardId: string,
+  label: CardLabelRow,
+): void {
   patchBoardCard(qc, filters, cardId, (card) => {
     const labels = applyCardLabelAdd(card.labels ?? [], label) as CardLabelRow[];
     return labels === card.labels ? card : { ...card, labels };
   });
 }
 
-function removeBoardCardLabel(qc: QueryClient, filters: RealtimeFilters, cardId: string, labelId: string): void {
+function removeBoardCardLabel(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  cardId: string,
+  labelId: string,
+): void {
   patchBoardCard(qc, filters, cardId, (card) => {
     const labels = applyCardLabelRemove(card.labels ?? [], labelId) as CardLabelRow[];
     return labels === card.labels ? card : { ...card, labels };
   });
 }
 
-function patchBoardCardLabels(qc: QueryClient, filters: RealtimeFilters, labelId: string, patch: Partial<CardLabelRow>): void {
+function patchBoardCardLabels(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  labelId: string,
+  patch: Partial<CardLabelRow>,
+): void {
   patchAllBoardCards(qc, filters, (card) => {
     if (!card.labels?.some((label) => label.labelId === labelId)) return card;
     return {
       ...card,
-      labels: card.labels.map((label) => (label.labelId === labelId ? { ...label, ...patch } : label)),
+      labels: card.labels.map((label) =>
+        label.labelId === labelId ? { ...label, ...patch } : label,
+      ),
     };
   });
 }
 
-function invalidateCardLabelQueriesForBoardLabel(qc: QueryClient, filters: RealtimeFilters, labelId: string): void {
+function invalidateCardLabelQueriesForBoardLabel(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  labelId: string,
+): void {
   if (!filters.cardLabels) return;
   const entries = qc.getQueriesData<readonly LabelIdRow[]>({ queryKey: ['card.labels.list'] });
   for (const [queryKey, labels] of entries) {
@@ -335,7 +360,12 @@ function cardMemberFromPayload(member: unknown): CardMemberRow | undefined {
   };
 }
 
-function addBoardCardMember(qc: QueryClient, filters: RealtimeFilters, cardId: string, member: CardMemberRow): void {
+function addBoardCardMember(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  cardId: string,
+  member: CardMemberRow,
+): void {
   patchBoardCard(qc, filters, cardId, (card) => {
     const members = applyCardMemberAdd(card.members ?? [], member) as CardMemberRow[];
     return members === card.members ? card : { ...card, members };
@@ -373,7 +403,9 @@ export function dispatchRealtimeEvent(
       const toListId = stringField(payload, 'toListId');
       const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
       if (!cardId || !toListId || !position) return;
-      setBoard(qc, filters, (data) => applyCardMove(data, { cardId, toListId, newPosition: position }));
+      setBoard(qc, filters, (data) =>
+        applyCardMove(data, { cardId, toListId, newPosition: position }),
+      );
       return;
     }
     case 'card.created': {
@@ -486,7 +518,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { commentId, patch } = payload as { commentId: string; patch?: Partial<IdRow> };
       if (!cardId || !commentId) return;
-      setList<IdRow>(qc, filters.comments?.(cardId), (data) => applyCommentPatch(data, commentId, patch ?? {}));
+      setList<IdRow>(qc, filters.comments?.(cardId), (data) =>
+        applyCommentPatch(data, commentId, patch ?? {}),
+      );
       return;
     }
     case 'comment.deleted': {
@@ -506,12 +540,17 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const checklist = payload.checklist as ChecklistRow | undefined;
       if (!cardId || !checklist) return;
-      setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) => applyChecklistAdd(data, checklist));
+      setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) =>
+        applyChecklistAdd(data, checklist),
+      );
       return;
     }
     case 'checklist.updated': {
       const cardId = cardIdFrom(envelope, payload);
-      const { checklistId, patch } = payload as { checklistId: string; patch?: Partial<ChecklistRow> };
+      const { checklistId, patch } = payload as {
+        checklistId: string;
+        patch?: Partial<ChecklistRow>;
+      };
       if (!cardId || !checklistId) return;
       setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) =>
         applyChecklistPatch(data, checklistId, patch ?? {}),
@@ -522,7 +561,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { checklistId } = payload as { checklistId: string };
       if (!cardId || !checklistId) return;
-      setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) => applyChecklistRemove(data, checklistId));
+      setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) =>
+        applyChecklistRemove(data, checklistId),
+      );
       invalidate(qc, filters.board);
       return;
     }
@@ -581,7 +622,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const label = payload.label as LabelIdRow | undefined;
       if (!cardId || !label) return;
-      setList<LabelIdRow>(qc, filters.cardLabels?.(cardId), (data) => applyCardLabelAdd(data, label));
+      setList<LabelIdRow>(qc, filters.cardLabels?.(cardId), (data) =>
+        applyCardLabelAdd(data, label),
+      );
       const boardLabel = cardLabelFromPayload(label);
       if (boardLabel) addBoardCardLabel(qc, filters, cardId, boardLabel);
       return;
@@ -590,7 +633,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { labelId } = payload as { labelId: string };
       if (!cardId || !labelId) return;
-      setList<LabelIdRow>(qc, filters.cardLabels?.(cardId), (data) => applyCardLabelRemove(data, labelId));
+      setList<LabelIdRow>(qc, filters.cardLabels?.(cardId), (data) =>
+        applyCardLabelRemove(data, labelId),
+      );
       removeBoardCardLabel(qc, filters, cardId, labelId);
       return;
     }
@@ -598,7 +643,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const member = payload.member as UserIdRow | undefined;
       if (!cardId || !member) return;
-      setList<UserIdRow>(qc, filters.cardMembers?.(cardId), (data) => applyCardMemberAdd(data, member));
+      setList<UserIdRow>(qc, filters.cardMembers?.(cardId), (data) =>
+        applyCardMemberAdd(data, member),
+      );
       const boardMember = cardMemberFromPayload(member);
       if (boardMember) addBoardCardMember(qc, filters, cardId, boardMember);
       return;
@@ -607,7 +654,9 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { userId, role } = payload as { userId: string; role?: unknown };
       if (!cardId || !userId) return;
-      setList<UserIdRow>(qc, filters.cardMembers?.(cardId), (data) => applyCardMemberRemove(data, userId, role));
+      setList<UserIdRow>(qc, filters.cardMembers?.(cardId), (data) =>
+        applyCardMemberRemove(data, userId, role),
+      );
       removeBoardCardMember(qc, filters, cardId, userId, role);
       return;
     }
@@ -640,7 +689,9 @@ export function dispatchRealtimeEvent(
       const boardId = boardIdFrom(envelope, payload);
       const { labelId } = payload as { labelId: string };
       if (!boardId || !labelId) return;
-      setList<IdRow>(qc, filters.boardLabels?.(boardId), (data) => applyBoardLabelRemove(data, labelId));
+      setList<IdRow>(qc, filters.boardLabels?.(boardId), (data) =>
+        applyBoardLabelRemove(data, labelId),
+      );
       patchAllBoardCards(qc, filters, (card) => {
         const labels = applyCardLabelRemove(card.labels ?? [], labelId) as CardLabelRow[];
         return labels === card.labels ? card : { ...card, labels };

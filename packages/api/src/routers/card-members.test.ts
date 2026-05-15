@@ -157,7 +157,12 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       role: 'watcher',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(selfWatch).toMatchObject({ cardId, userId: guestViewerId, role: 'watcher', changed: true });
+    expect(selfWatch).toMatchObject({
+      cardId,
+      userId: guestViewerId,
+      role: 'watcher',
+      changed: true,
+    });
 
     // a viewer cannot make themselves an assignee (only watcher self-add is allowed)
     await expect(
@@ -203,7 +208,11 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         (a.payload as { role?: string }).role === 'assignee',
     );
     expect(addedActs).toHaveLength(1);
-    expect(addedActs[0]?.payload).toMatchObject({ cardId, userId: guestViewerId, role: 'assignee' });
+    expect(addedActs[0]?.payload).toMatchObject({
+      cardId,
+      userId: guestViewerId,
+      role: 'assignee',
+    });
     expect(addedActs[0]?.cardId).toBe(cardId);
   });
 
@@ -289,7 +298,12 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       role: 'watcher',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(removed).toMatchObject({ cardId, userId: guestViewerId, role: 'watcher', changed: true });
+    expect(removed).toMatchObject({
+      cardId,
+      userId: guestViewerId,
+      role: 'watcher',
+      changed: true,
+    });
 
     // a viewer cannot remove someone else
     await callerFor(memberId).card.members.add({
@@ -310,7 +324,7 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
 
   // ------------------------------------------------------------------ list
 
-  it('list: returns the card\'s members joined with the display name only (no e-mail); a board viewer may read it', async () => {
+  it("list: returns the card's members joined with the display name only (no e-mail); a board viewer may read it", async () => {
     // ensure a known set: owner=assignee (from an earlier test) + owner=watcher (just added)
     const rows = await callerFor(guestViewerId).card.members.list({ cardId });
     const ownerAssignee = rows.find((r) => r.userId === ownerId && r.role === 'assignee');
@@ -340,7 +354,10 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       title: 'Card on other',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: otherBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
       callerFor(ownerId).card.members.add({
         cardId: cardOnOther.id,

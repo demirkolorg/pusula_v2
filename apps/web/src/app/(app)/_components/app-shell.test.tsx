@@ -299,7 +299,11 @@ describe('<AppShell>', () => {
       });
 
       expect(input).toHaveAttribute('type', 'text');
-      expect(screen.getByTestId('search-results')).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+      expect(screen.getByTestId('search-results')).toHaveClass(
+        'min-h-0',
+        'flex-1',
+        'overflow-y-auto',
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -327,10 +331,16 @@ describe('<AppShell>', () => {
 
       fireEvent.keyDown(input, { key: 'ArrowDown' });
       expect(input).toHaveFocus();
-      expect(screen.getByRole('button', { name: /Ikinci kart/ })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('button', { name: /Ikinci kart/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
 
       fireEvent.keyDown(input, { key: 'ArrowUp' });
-      expect(screen.getByRole('button', { name: /Birinci kart/ })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('button', { name: /Birinci kart/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
 
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(h.push).toHaveBeenCalledWith('/workspaces/w1/boards/b1?card=c1');

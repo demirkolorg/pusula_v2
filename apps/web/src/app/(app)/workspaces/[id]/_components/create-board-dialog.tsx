@@ -20,10 +20,7 @@ import {
   toast,
 } from '@pusula/ui';
 import { EntityIconPicker } from '@/components/entity-icon';
-import {
-  getMutationErrorMessage,
-  useOptimisticBoardListMutation,
-} from '@/lib/board-cache';
+import { getMutationErrorMessage, useOptimisticBoardListMutation } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 

@@ -78,22 +78,50 @@ describe('planCardMove', () => {
     // Removing `b`, siblings are [a, c]; dropping above `c` lands between a and c
     // — which is exactly where `b` already sits → no move.
     expect(
-      planCardMove({ cardId: 'b', fromListId: 'A', toListId: 'A', targetCardId: 'c', edge: 'top', cardsByListId }),
+      planCardMove({
+        cardId: 'b',
+        fromListId: 'A',
+        toListId: 'A',
+        targetCardId: 'c',
+        edge: 'top',
+        cardsByListId,
+      }),
     ).toBeNull();
   });
 
   it('no-op: drop `b` below `a` ⇒ same gap', () => {
     expect(
-      planCardMove({ cardId: 'b', fromListId: 'A', toListId: 'A', targetCardId: 'a', edge: 'bottom', cardsByListId }),
+      planCardMove({
+        cardId: 'b',
+        fromListId: 'A',
+        toListId: 'A',
+        targetCardId: 'a',
+        edge: 'bottom',
+        cardsByListId,
+      }),
     ).toBeNull();
   });
 
   it('no-op: dropped onto itself', () => {
     expect(
-      planCardMove({ cardId: 'b', fromListId: 'A', toListId: 'A', targetCardId: 'b', edge: 'top', cardsByListId }),
+      planCardMove({
+        cardId: 'b',
+        fromListId: 'A',
+        toListId: 'A',
+        targetCardId: 'b',
+        edge: 'top',
+        cardsByListId,
+      }),
     ).toBeNull();
     expect(
-      planCardMove({ cardId: 'b', fromListId: 'A', toListId: 'A', targetCardId: 'b', edge: 'bottom', cardsByListId }),
+      planCardMove({
+        cardId: 'b',
+        fromListId: 'A',
+        toListId: 'A',
+        targetCardId: 'b',
+        edge: 'bottom',
+        cardsByListId,
+      }),
     ).toBeNull();
   });
 
@@ -146,7 +174,14 @@ describe('planCardMove', () => {
 
   it('no-op: the last card dropped on the end of its own list', () => {
     expect(
-      planCardMove({ cardId: 'c', fromListId: 'A', toListId: 'A', targetCardId: null, edge: 'bottom', cardsByListId }),
+      planCardMove({
+        cardId: 'c',
+        fromListId: 'A',
+        toListId: 'A',
+        targetCardId: null,
+        edge: 'bottom',
+        cardsByListId,
+      }),
     ).toBeNull();
   });
 
@@ -186,7 +221,12 @@ describe('planCardMoveToListEnd', () => {
   });
 
   it('appends to a non-empty target list (after its last card)', () => {
-    const plan = planCardMoveToListEnd({ cardId: 'a', fromListId: 'A', toListId: 'B', cardsByListId });
+    const plan = planCardMoveToListEnd({
+      cardId: 'a',
+      fromListId: 'A',
+      toListId: 'B',
+      cardsByListId,
+    });
     expect(plan).not.toBeNull();
     expect(plan!.toListId).toBe('B');
     expect(plan!.beforeCardId).toBe('x');
@@ -195,18 +235,30 @@ describe('planCardMoveToListEnd', () => {
   });
 
   it('appends to an empty target list (head position)', () => {
-    const plan = planCardMoveToListEnd({ cardId: 'a', fromListId: 'A', toListId: 'C', cardsByListId });
+    const plan = planCardMoveToListEnd({
+      cardId: 'a',
+      fromListId: 'A',
+      toListId: 'C',
+      cardsByListId,
+    });
     expect(plan).not.toBeNull();
     expect(plan!.beforeCardId).toBeNull();
     expect(plan!.afterCardId).toBeNull();
   });
 
   it('no-op when the card is already last in its own list', () => {
-    expect(planCardMoveToListEnd({ cardId: 'b', fromListId: 'A', toListId: 'A', cardsByListId })).toBeNull();
+    expect(
+      planCardMoveToListEnd({ cardId: 'b', fromListId: 'A', toListId: 'A', cardsByListId }),
+    ).toBeNull();
   });
 
   it('same-list "to end" for a non-last card moves it to the end', () => {
-    const plan = planCardMoveToListEnd({ cardId: 'a', fromListId: 'A', toListId: 'A', cardsByListId });
+    const plan = planCardMoveToListEnd({
+      cardId: 'a',
+      fromListId: 'A',
+      toListId: 'A',
+      cardsByListId,
+    });
     expect(plan).not.toBeNull();
     expect(plan!.beforeCardId).toBe('b'); // after removing `a`, the only sibling is `b`
     expect(plan!.afterCardId).toBeNull();

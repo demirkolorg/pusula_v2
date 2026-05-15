@@ -1,37 +1,38 @@
 ---
-title: "Pusula Belgeleri"
-description: "Pusula dokümantasyon kasasının ana harita notu."
+title: 'Pusula Belgeleri'
+description: 'Pusula dokümantasyon kasasının ana harita notu.'
 aliases:
-  - "Belgeler MOC"
-  - "Dokümantasyon Ana Sayfa"
+  - 'Belgeler MOC'
+  - 'Dokümantasyon Ana Sayfa'
 tags:
-  - "pusula"
-  - "docs/moc"
-  - "obsidian/vault"
-type: "moc"
-axis: "docs"
-status: "active"
+  - 'pusula'
+  - 'docs/moc'
+  - 'obsidian/vault'
+type: 'moc'
+axis: 'docs'
+status: 'active'
 related:
-  - "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
-  - "[[docs/domain/README|İş / Domain Kuralları]]"
-  - "[[docs/process/README|Süreç]]"
-  - "[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]"
-  - "[[docs/kontrol-odasi/README|Kontrol Odası]]"
+  - '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
+  - '[[docs/domain/README|İş / Domain Kuralları]]'
+  - '[[docs/process/README|Süreç]]'
+  - '[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]'
+  - '[[docs/kontrol-odasi/README|Kontrol Odası]]'
 updated: 2026-05-12
 ---
+
 # Pusula Belgeleri
 
 Pusula'nın "source of truth" belgeleri **üç eksende** ayrılmıştır. Tasarım kararları,
 iş kuralları ve süreç **aynı dosyada karıştırılmaz** — bu ayrım belgeyi yönetilebilir
 tutar ve "neyi nerede ararım?" sorusunu netleştirir.
 
-| Eksen | "Sorduğu soru" | Klasör | İçerik |
-| --- | --- | --- | --- |
-| **Tasarım / teknik** | _Nasıl inşa ediyoruz?_ | [`architecture/`](architecture/) | Stack, monorepo yapısı, pattern'ler (optimistic UI, outbox, transaction), altyapı, transport, deployment, observability, test |
-| **İş / domain** | _Ürün ne yapıyor, kim ne yapabilir?_ | [`domain/`](domain/) | Domain modeli, invariant'lar, yetkilendirme kuralları, bildirim/sıralama/aktivite/arama/ek kuralları |
-| **Süreç** | _Nasıl çalışıyoruz?_ | [`process/`](process/) | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı |
+| Eksen                | "Sorduğu soru"                       | Klasör                           | İçerik                                                                                                                        |
+| -------------------- | ------------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Tasarım / teknik** | _Nasıl inşa ediyoruz?_               | [`architecture/`](architecture/) | Stack, monorepo yapısı, pattern'ler (optimistic UI, outbox, transaction), altyapı, transport, deployment, observability, test |
+| **İş / domain**      | _Ürün ne yapıyor, kim ne yapabilir?_ | [`domain/`](domain/)             | Domain modeli, invariant'lar, yetkilendirme kuralları, bildirim/sıralama/aktivite/arama/ek kuralları                          |
+| **Süreç**            | _Nasıl çalışıyoruz?_                 | [`process/`](process/)           | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı                       |
 
-> Bu üç eksen *içerik* eksenidir. Ayrıca [`kontrol-odasi/`](kontrol-odasi/) operasyonel/meta bir klasördür: "kontrol odası" tab'ının görevi + komutları ([`kontrol-odasi/README.md`](kontrol-odasi/README.md)) — içerik ekseni değildir, kurallar yine architecture / domain / process'e yazılır.
+> Bu üç eksen _içerik_ eksenidir. Ayrıca [`kontrol-odasi/`](kontrol-odasi/) operasyonel/meta bir klasördür: "kontrol odası" tab'ının görevi + komutları ([`kontrol-odasi/README.md`](kontrol-odasi/README.md)) — içerik ekseni değildir, kurallar yine architecture / domain / process'e yazılır.
 
 ## Obsidian'da başlangıç
 

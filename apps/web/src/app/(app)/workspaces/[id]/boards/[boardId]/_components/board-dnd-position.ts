@@ -48,7 +48,9 @@ export type ListMovePlan = {
 
 /** Cards sorted ascending by `position` (a stable copy). */
 function byPosition<T extends HasPosition>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
+  return [...items].sort((a, b) =>
+    a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
+  );
 }
 
 /**
@@ -116,7 +118,8 @@ export function planCardMove(args: {
     const currentIndex = ordered.findIndex((c) => c.id === cardId);
     if (currentIndex !== -1) {
       const currentBefore = currentIndex > 0 ? ordered[currentIndex - 1] : undefined;
-      const currentAfter = currentIndex < ordered.length - 1 ? ordered[currentIndex + 1] : undefined;
+      const currentAfter =
+        currentIndex < ordered.length - 1 ? ordered[currentIndex + 1] : undefined;
       if (
         (before?.id ?? '∅') === (currentBefore?.id ?? '∅') &&
         (after?.id ?? '∅') === (currentAfter?.id ?? '∅')
@@ -163,7 +166,10 @@ export function planListMove(args: {
   if (currentIndex !== -1) {
     const currentBefore = currentIndex > 0 ? ordered[currentIndex - 1] : undefined;
     const currentAfter = currentIndex < ordered.length - 1 ? ordered[currentIndex + 1] : undefined;
-    if ((before?.id ?? '∅') === (currentBefore?.id ?? '∅') && (after?.id ?? '∅') === (currentAfter?.id ?? '∅')) {
+    if (
+      (before?.id ?? '∅') === (currentBefore?.id ?? '∅') &&
+      (after?.id ?? '∅') === (currentAfter?.id ?? '∅')
+    ) {
       return null;
     }
   }

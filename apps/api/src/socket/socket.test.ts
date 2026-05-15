@@ -24,10 +24,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { roomName } from '@pusula/domain';
-import {
-  createSocketServer,
-  type SocketServerHandle,
-} from './server';
+import { createSocketServer, type SocketServerHandle } from './server';
 import { REALTIME_EVENT_CHANNEL } from './emit';
 import type { SocketSessionResolver } from './auth';
 import type { BoardAccessResolver } from './rooms';
@@ -222,17 +219,13 @@ describe('Socket.IO server — Faz 5A (DEM-83)', () => {
       await waitForConnect(client);
 
       await emitWithAck(client, 'board:join', { boardId: 'board_leavable' });
-      let sockets = await h.socketHandle.io
-        .in(roomName('board', 'board_leavable'))
-        .fetchSockets();
+      let sockets = await h.socketHandle.io.in(roomName('board', 'board_leavable')).fetchSockets();
       expect(sockets).toHaveLength(1);
 
       const leaveAck = await emitWithAck(client, 'board:leave', { boardId: 'board_leavable' });
       expect(leaveAck).toEqual({ ok: true });
 
-      sockets = await h.socketHandle.io
-        .in(roomName('board', 'board_leavable'))
-        .fetchSockets();
+      sockets = await h.socketHandle.io.in(roomName('board', 'board_leavable')).fetchSockets();
       expect(sockets).toHaveLength(0);
 
       client.disconnect();
@@ -248,9 +241,7 @@ describe('Socket.IO server — Faz 5A (DEM-83)', () => {
       // Give the server a tick to run the connection handler.
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const sockets = await h.socketHandle.io
-        .in(roomName('user', 'user_aria'))
-        .fetchSockets();
+      const sockets = await h.socketHandle.io.in(roomName('user', 'user_aria')).fetchSockets();
       expect(sockets).toHaveLength(1);
 
       client.disconnect();
@@ -301,7 +292,7 @@ describe('Socket.IO server — Faz 5A (DEM-83)', () => {
       h.resolveSession.mockResolvedValueOnce({ userId: 'user_dmitri' });
       h.resolveBoardAccess
         .mockResolvedValueOnce({ role: 'member' }) // aria joins
-        .mockResolvedValueOnce(null);              // dmitri rejected
+        .mockResolvedValueOnce(null); // dmitri rejected
 
       const aria = connect(h.port);
       await waitForConnect(aria);

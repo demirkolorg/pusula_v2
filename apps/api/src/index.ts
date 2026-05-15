@@ -4,11 +4,7 @@ import { closeCompactionQueue } from './compaction-queue';
 import { closeNotificationQueue } from './notification-queue';
 import { closeRealtimePublishQueue } from './realtime-publish-queue';
 import { env } from './env';
-import {
-  setupSocketServer,
-  type AttachableHttpServer,
-  type SocketServerHandle,
-} from './socket';
+import { setupSocketServer, type AttachableHttpServer, type SocketServerHandle } from './socket';
 
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, (info) => {
   console.warn(`[api] listening on http://localhost:${info.port}  (NODE_ENV=${env.NODE_ENV})`);

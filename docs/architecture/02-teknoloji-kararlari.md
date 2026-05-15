@@ -1,19 +1,20 @@
 ---
-title: "02 — Teknoloji Kararları"
-description: "Sabit teknoloji kararları, ADR-lite kayıtları ve açık karar noktaları."
+title: '02 — Teknoloji Kararları'
+description: 'Sabit teknoloji kararları, ADR-lite kayıtları ve açık karar noktaları.'
 aliases:
-  - "Teknoloji Kararları"
-  - "ADR Lite"
+  - 'Teknoloji Kararları'
+  - 'ADR Lite'
 tags:
-  - "pusula"
-  - "architecture/decisions"
-  - "adr"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/decisions'
+  - 'adr'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-14
 ---
+
 # 02 — Teknoloji Kararları
 
 > Eksen: **tasarım / teknik**. Bu dosya **kararların kaydıdır** — yerleşik kabul edilir;
@@ -21,34 +22,34 @@ updated: 2026-05-14
 
 ## Sabit kararlar
 
-| Konu | Karar |
-| --- | --- |
-| Paket yöneticisi | **pnpm** (yalnızca; npm/yarn/bun/npx yok) |
-| Monorepo | pnpm workspaces + Turborepo |
-| Web | Next.js App Router |
-| Backend HTTP | Hono |
-| API sözleşmesi | tRPC (tek ana sözleşme; Hono RPC ile paralel API yok) |
-| Client cache | TanStack Query |
-| Mobil | Expo + Expo Router |
-| Database | PostgreSQL |
-| ORM | Drizzle (`casing: 'snake_case'`) |
-| Queue | BullMQ + Redis |
-| Realtime | Socket.IO + Redis adapter; DB/outbox source of truth |
-| Push | Expo Notifications |
-| Drag-drop | Atlassian Pragmatic Drag and Drop (yalnızca web) |
-| Auth | Better Auth |
-| Web UI sistemi | shadcn/ui (yalnızca); başka web component library yok |
-| İkonlar | lucide-react |
-| Styling | Tailwind CSS v4 |
-| Deployment | Self-hosted Dokploy — **"Docker Compose" servis tipi** (repo'daki `compose.prod.yml` tek ünite; Traefik + Let's Encrypt + git-push-to-deploy + build logu Dokploy'da; servisleri tek tek "Application" olarak tanımlama yok). Runbook → [`12-deployment-runbook.md`](12-deployment-runbook.md) |
-| Object storage | Self-hosted MinIO (S3 uyumlu SDK üzerinden) |
-| Email | Resend |
-| Search | MVP: PostgreSQL full-text search; ileri aşama: Meilisearch |
-| Observability | Sentry + OpenTelemetry + structured logs |
-| Test | Vitest, Playwright, React Testing Library |
-| Billing/subscription | Yok |
-| TypeScript | strict mode |
-| Node | `>=22` |
+| Konu                 | Karar                                                                                                                                                                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paket yöneticisi     | **pnpm** (yalnızca; npm/yarn/bun/npx yok)                                                                                                                                                                                                                                                      |
+| Monorepo             | pnpm workspaces + Turborepo                                                                                                                                                                                                                                                                    |
+| Web                  | Next.js App Router                                                                                                                                                                                                                                                                             |
+| Backend HTTP         | Hono                                                                                                                                                                                                                                                                                           |
+| API sözleşmesi       | tRPC (tek ana sözleşme; Hono RPC ile paralel API yok)                                                                                                                                                                                                                                          |
+| Client cache         | TanStack Query                                                                                                                                                                                                                                                                                 |
+| Mobil                | Expo + Expo Router                                                                                                                                                                                                                                                                             |
+| Database             | PostgreSQL                                                                                                                                                                                                                                                                                     |
+| ORM                  | Drizzle (`casing: 'snake_case'`)                                                                                                                                                                                                                                                               |
+| Queue                | BullMQ + Redis                                                                                                                                                                                                                                                                                 |
+| Realtime             | Socket.IO + Redis adapter; DB/outbox source of truth                                                                                                                                                                                                                                           |
+| Push                 | Expo Notifications                                                                                                                                                                                                                                                                             |
+| Drag-drop            | Atlassian Pragmatic Drag and Drop (yalnızca web)                                                                                                                                                                                                                                               |
+| Auth                 | Better Auth                                                                                                                                                                                                                                                                                    |
+| Web UI sistemi       | shadcn/ui (yalnızca); başka web component library yok                                                                                                                                                                                                                                          |
+| İkonlar              | lucide-react                                                                                                                                                                                                                                                                                   |
+| Styling              | Tailwind CSS v4                                                                                                                                                                                                                                                                                |
+| Deployment           | Self-hosted Dokploy — **"Docker Compose" servis tipi** (repo'daki `compose.prod.yml` tek ünite; Traefik + Let's Encrypt + git-push-to-deploy + build logu Dokploy'da; servisleri tek tek "Application" olarak tanımlama yok). Runbook → [`12-deployment-runbook.md`](12-deployment-runbook.md) |
+| Object storage       | Self-hosted MinIO (S3 uyumlu SDK üzerinden)                                                                                                                                                                                                                                                    |
+| Email                | Resend                                                                                                                                                                                                                                                                                         |
+| Search               | MVP: PostgreSQL full-text search; ileri aşama: Meilisearch                                                                                                                                                                                                                                     |
+| Observability        | Sentry + OpenTelemetry + structured logs                                                                                                                                                                                                                                                       |
+| Test                 | Vitest, Playwright, React Testing Library                                                                                                                                                                                                                                                      |
+| Billing/subscription | Yok                                                                                                                                                                                                                                                                                            |
+| TypeScript           | strict mode                                                                                                                                                                                                                                                                                    |
+| Node                 | `>=22`                                                                                                                                                                                                                                                                                         |
 
 ## Karar kaydı (ADR-lite)
 

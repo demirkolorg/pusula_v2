@@ -33,44 +33,49 @@ function safeStorageFileName(fileName: string): string {
 }
 
 export const attachmentRouter = router({
-  createUpload: cardProcedure.input(createAttachmentUploadInput).mutation(async ({ ctx, input }) => {
-    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Dosya yukleme yetkiniz yok.' });
-    }
-    if (ctx.card.boardArchivedAt) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arsivli board icin dosya yuklenemez.' });
-    }
+  createUpload: cardProcedure
+    .input(createAttachmentUploadInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Dosya yukleme yetkiniz yok.' });
+      }
+      if (ctx.card.boardArchivedAt) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Arsivli board icin dosya yuklenemez.',
+        });
+      }
 
-    const objectStorage = requireObjectStorage(ctx);
-    const storageKey = `boards/${ctx.card.boardId}/cards/${ctx.card.id}/${crypto.randomUUID()}-${safeStorageFileName(
-      input.fileName,
-    )}`;
+      const objectStorage = requireObjectStorage(ctx);
+      const storageKey = `boards/${ctx.card.boardId}/cards/${ctx.card.id}/${crypto.randomUUID()}-${safeStorageFileName(
+        input.fileName,
+      )}`;
 
-    const [attachment] = await ctx.db
-      .insert(attachments)
-      .values({
-        cardId: ctx.card.id,
-        boardId: ctx.card.boardId,
-        uploaderId: ctx.session.user.id,
-        storageKey,
-        fileName: input.fileName,
-        mimeType: input.mimeType,
-        size: input.size,
-      })
-      .returning();
-    if (!attachment) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      const [attachment] = await ctx.db
+        .insert(attachments)
+        .values({
+          cardId: ctx.card.id,
+          boardId: ctx.card.boardId,
+          uploaderId: ctx.session.user.id,
+          storageKey,
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          size: input.size,
+        })
+        .returning();
+      if (!attachment) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-    const upload = await objectStorage.createPresignedPutUrl({
-      key: storageKey,
-      contentType: input.mimeType,
-      contentLength: input.size,
-    });
+      const upload = await objectStorage.createPresignedPutUrl({
+        key: storageKey,
+        contentType: input.mimeType,
+        contentLength: input.size,
+      });
 
-    return {
-      attachment: toCoverImage(attachment),
-      upload,
-    };
-  }),
+      return {
+        attachment: toCoverImage(attachment),
+        upload,
+      };
+    }),
 
   getDownloadUrl: protectedProcedure
     .input(getAttachmentDownloadUrlInput)

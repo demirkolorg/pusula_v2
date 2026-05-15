@@ -2,6 +2,7 @@
 description: Kontrol odası — Faz N "önce belge" adımı + alt issue'ları Todo'ya alma + defter satırları
 argument-hint: <faz numarası, örn. 2>
 ---
+
 Bu bir **kontrol odası** tab işidir (bkz. `docs/kontrol-odasi/README.md` — bu tab kod yazmaz; yalnızca `docs/` + Linear + analiz). Bu konuşma bir kod yazma tab'ıysa, "bu kontrol odası işi, doğru tab'ta mıyız?" diye sor; teyit alınca devam et.
 
 Görev: **Faz $1 geliştirmesini başlat** — "önce belge" + Linear + defter (`$ARGUMENTS` boşsa hangi faz olduğunu sor).

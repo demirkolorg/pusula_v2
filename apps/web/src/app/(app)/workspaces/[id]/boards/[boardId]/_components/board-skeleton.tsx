@@ -13,7 +13,10 @@ function SkeletonCard({ widthClass }: { widthClass: string }) {
 /** Placeholder column: a faded header bar + a few card rows. */
 function SkeletonColumn({ cardWidths }: { cardWidths: readonly string[] }) {
   return (
-    <div className="bg-muted/40 flex w-72 shrink-0 flex-col gap-2 rounded-lg border p-2" aria-hidden>
+    <div
+      className="bg-muted/40 flex w-72 shrink-0 flex-col gap-2 rounded-lg border p-2"
+      aria-hidden
+    >
       <div className="bg-muted h-6 w-32 animate-pulse rounded-sm motion-reduce:animate-none" />
       <div className="flex flex-col gap-2">
         {cardWidths.map((w, i) => (

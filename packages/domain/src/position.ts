@@ -22,11 +22,7 @@ export function positionBetween(before: string | null, after: string | null): st
 }
 
 /** `n` evenly spaced position strings between `before` and `after` (inclusive ends as `null`). */
-export function positionsBetween(
-  before: string | null,
-  after: string | null,
-  n: number,
-): string[] {
+export function positionsBetween(before: string | null, after: string | null, n: number): string[] {
   return generateNKeysBetween(before ?? null, after ?? null, n);
 }
 

@@ -20,9 +20,7 @@ function MetaRow({ variant = 'card', className, ...props }: MetaRowProps) {
       data-slot="meta-row"
       className={cn(
         'flex flex-wrap items-center',
-        variant === 'card'
-          ? 'gap-x-2 gap-y-1 text-[10px] text-muted-foreground'
-          : 'gap-1',
+        variant === 'card' ? 'gap-x-2 gap-y-1 text-[10px] text-muted-foreground' : 'gap-1',
         className,
       )}
       {...props}

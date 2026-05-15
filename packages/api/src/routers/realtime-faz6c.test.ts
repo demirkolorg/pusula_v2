@@ -39,7 +39,10 @@ const createdUserIds = [ownerId, memberId, bobId, cardMemberId, directBoardMembe
 
 const session = (id: string) => ({ user: { id, email: `${id}@example.test`, name: id } });
 
-function callerFor(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish = vi.fn<EnqueueRealtimePublish>()) {
+function callerFor(
+  userId: string,
+  enqueueRealtimePublish: EnqueueRealtimePublish = vi.fn<EnqueueRealtimePublish>(),
+) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
   return create(createContext({ session: session(userId), db: probe.db, enqueueRealtimePublish }));
@@ -105,7 +108,10 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
   });
 
   const rtByMutation = async (clientMutationId: string) =>
-    db().select().from(realtimeEvents).where(dbMod.eq(realtimeEvents.clientMutationId, clientMutationId));
+    db()
+      .select()
+      .from(realtimeEvents)
+      .where(dbMod.eq(realtimeEvents.clientMutationId, clientMutationId));
 
   const mentionActivitiesFor = (commentId: string) =>
     db()
@@ -129,7 +135,10 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
     });
 
     const createEvents = await rtByMutation(createCmid);
-    expect(createEvents.map((event) => event.type).sort()).toEqual(['comment.created', 'comment.mentioned']);
+    expect(createEvents.map((event) => event.type).sort()).toEqual([
+      'comment.created',
+      'comment.mentioned',
+    ]);
     const createdData = dataOf<{ commentId: string; mentionedUserIds: string[] }>(
       createEvents.find((event) => event.type === 'comment.created')!,
     );
@@ -144,7 +153,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       body: 'edited comment',
       clientMutationId: updateCmid,
     });
-    expect((await rtByMutation(updateCmid)).map((event) => event.type)).toEqual(['comment.updated']);
+    expect((await rtByMutation(updateCmid)).map((event) => event.type)).toEqual([
+      'comment.updated',
+    ]);
 
     const deleteCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).comment.delete({
@@ -152,7 +163,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       commentId: created.id,
       clientMutationId: deleteCmid,
     });
-    expect((await rtByMutation(deleteCmid)).map((event) => event.type)).toEqual(['comment.deleted']);
+    expect((await rtByMutation(deleteCmid)).map((event) => event.type)).toEqual([
+      'comment.deleted',
+    ]);
   });
 
   it('checklist and checklist.item mutations write realtime events', async () => {
@@ -162,7 +175,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       title: 'Tasks',
       clientMutationId: createChecklistCmid,
     });
-    expect((await rtByMutation(createChecklistCmid)).map((event) => event.type)).toEqual(['checklist.created']);
+    expect((await rtByMutation(createChecklistCmid)).map((event) => event.type)).toEqual([
+      'checklist.created',
+    ]);
 
     const updateChecklistCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).checklist.update({
@@ -171,7 +186,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       title: 'Renamed tasks',
       clientMutationId: updateChecklistCmid,
     });
-    expect((await rtByMutation(updateChecklistCmid)).map((event) => event.type)).toEqual(['checklist.updated']);
+    expect((await rtByMutation(updateChecklistCmid)).map((event) => event.type)).toEqual([
+      'checklist.updated',
+    ]);
 
     const addItemCmid = crypto.randomUUID();
     const item = await callerFor(memberId, enqueue).checklist.item.create({
@@ -180,7 +197,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       content: 'first item',
       clientMutationId: addItemCmid,
     });
-    expect((await rtByMutation(addItemCmid)).map((event) => event.type)).toEqual(['checklist.item_added']);
+    expect((await rtByMutation(addItemCmid)).map((event) => event.type)).toEqual([
+      'checklist.item_added',
+    ]);
 
     const updateItemCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).checklist.item.update({
@@ -190,7 +209,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       content: 'edited item',
       clientMutationId: updateItemCmid,
     });
-    expect((await rtByMutation(updateItemCmid)).map((event) => event.type)).toEqual(['checklist.item_updated']);
+    expect((await rtByMutation(updateItemCmid)).map((event) => event.type)).toEqual([
+      'checklist.item_updated',
+    ]);
 
     const toggleItemCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).checklist.item.toggle({
@@ -200,7 +221,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       completed: true,
       clientMutationId: toggleItemCmid,
     });
-    expect((await rtByMutation(toggleItemCmid)).map((event) => event.type)).toEqual(['checklist.item_toggled']);
+    expect((await rtByMutation(toggleItemCmid)).map((event) => event.type)).toEqual([
+      'checklist.item_toggled',
+    ]);
 
     const deleteItemCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).checklist.item.delete({
@@ -209,7 +232,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       itemId: item.id,
       clientMutationId: deleteItemCmid,
     });
-    expect((await rtByMutation(deleteItemCmid)).map((event) => event.type)).toEqual(['checklist.item_deleted']);
+    expect((await rtByMutation(deleteItemCmid)).map((event) => event.type)).toEqual([
+      'checklist.item_deleted',
+    ]);
 
     const deleteChecklistCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).checklist.delete({
@@ -217,7 +242,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       checklistId: checklist.id,
       clientMutationId: deleteChecklistCmid,
     });
-    expect((await rtByMutation(deleteChecklistCmid)).map((event) => event.type)).toEqual(['checklist.deleted']);
+    expect((await rtByMutation(deleteChecklistCmid)).map((event) => event.type)).toEqual([
+      'checklist.deleted',
+    ]);
   });
 
   it('board labels and card label links write realtime events', async () => {
@@ -228,7 +255,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       name: `Bug ${createLabelCmid.slice(0, 8)}`,
       clientMutationId: createLabelCmid,
     });
-    expect((await rtByMutation(createLabelCmid)).map((event) => event.type)).toEqual(['board.label_created']);
+    expect((await rtByMutation(createLabelCmid)).map((event) => event.type)).toEqual([
+      'board.label_created',
+    ]);
 
     const addCardLabelCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).card.labels.add({
@@ -236,7 +265,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       labelId: label.id,
       clientMutationId: addCardLabelCmid,
     });
-    expect((await rtByMutation(addCardLabelCmid)).map((event) => event.type)).toEqual(['card.label_added']);
+    expect((await rtByMutation(addCardLabelCmid)).map((event) => event.type)).toEqual([
+      'card.label_added',
+    ]);
 
     const removeCardLabelCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).card.labels.remove({
@@ -244,7 +275,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       labelId: label.id,
       clientMutationId: removeCardLabelCmid,
     });
-    expect((await rtByMutation(removeCardLabelCmid)).map((event) => event.type)).toEqual(['card.label_removed']);
+    expect((await rtByMutation(removeCardLabelCmid)).map((event) => event.type)).toEqual([
+      'card.label_removed',
+    ]);
 
     const updateLabelCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).label.update({
@@ -254,7 +287,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       name: `Support ${updateLabelCmid.slice(0, 8)}`,
       clientMutationId: updateLabelCmid,
     });
-    expect((await rtByMutation(updateLabelCmid)).map((event) => event.type)).toEqual(['board.label_updated']);
+    expect((await rtByMutation(updateLabelCmid)).map((event) => event.type)).toEqual([
+      'board.label_updated',
+    ]);
 
     const deleteLabelCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).label.delete({
@@ -262,7 +297,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       labelId: label.id,
       clientMutationId: deleteLabelCmid,
     });
-    expect((await rtByMutation(deleteLabelCmid)).map((event) => event.type)).toEqual(['board.label_deleted']);
+    expect((await rtByMutation(deleteLabelCmid)).map((event) => event.type)).toEqual([
+      'board.label_deleted',
+    ]);
   });
 
   it('card member and board member mutations write realtime events', async () => {
@@ -273,7 +310,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'assignee',
       clientMutationId: addCardMemberCmid,
     });
-    expect((await rtByMutation(addCardMemberCmid)).map((event) => event.type)).toEqual(['card.member_added']);
+    expect((await rtByMutation(addCardMemberCmid)).map((event) => event.type)).toEqual([
+      'card.member_added',
+    ]);
 
     const removeCardMemberCmid = crypto.randomUUID();
     await callerFor(memberId, enqueue).card.members.remove({
@@ -282,7 +321,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'assignee',
       clientMutationId: removeCardMemberCmid,
     });
-    expect((await rtByMutation(removeCardMemberCmid)).map((event) => event.type)).toEqual(['card.member_removed']);
+    expect((await rtByMutation(removeCardMemberCmid)).map((event) => event.type)).toEqual([
+      'card.member_removed',
+    ]);
 
     const addBoardMemberCmid = crypto.randomUUID();
     await callerFor(ownerId, enqueue).board.members.add({
@@ -291,7 +332,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'member',
       clientMutationId: addBoardMemberCmid,
     });
-    expect((await rtByMutation(addBoardMemberCmid)).map((event) => event.type)).toEqual(['board.member_added']);
+    expect((await rtByMutation(addBoardMemberCmid)).map((event) => event.type)).toEqual([
+      'board.member_added',
+    ]);
 
     const roleCmid = crypto.randomUUID();
     await callerFor(ownerId, enqueue).board.members.updateRole({
@@ -300,7 +343,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'viewer',
       clientMutationId: roleCmid,
     });
-    expect((await rtByMutation(roleCmid)).map((event) => event.type)).toEqual(['board.member_role_changed']);
+    expect((await rtByMutation(roleCmid)).map((event) => event.type)).toEqual([
+      'board.member_role_changed',
+    ]);
 
     const removeBoardMemberCmid = crypto.randomUUID();
     await callerFor(ownerId, enqueue).board.members.remove({
@@ -308,7 +353,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       userId: directBoardMemberId,
       clientMutationId: removeBoardMemberCmid,
     });
-    expect((await rtByMutation(removeBoardMemberCmid)).map((event) => event.type)).toEqual(['board.member_removed']);
+    expect((await rtByMutation(removeBoardMemberCmid)).map((event) => event.type)).toEqual([
+      'board.member_removed',
+    ]);
   });
 
   it('board invitation lifecycle writes realtime events', async () => {
@@ -319,7 +366,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'viewer',
       clientMutationId: inviteCmid,
     });
-    expect((await rtByMutation(inviteCmid)).map((event) => event.type)).toEqual(['board.member_invited']);
+    expect((await rtByMutation(inviteCmid)).map((event) => event.type)).toEqual([
+      'board.member_invited',
+    ]);
 
     const revokeInvite = await db()
       .select({ id: boardInvitations.id })
@@ -332,7 +381,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       invitationId: revokeInvite.id,
       clientMutationId: revokeCmid,
     });
-    expect((await rtByMutation(revokeCmid)).map((event) => event.type)).toEqual(['board.invitation_revoked']);
+    expect((await rtByMutation(revokeCmid)).map((event) => event.type)).toEqual([
+      'board.invitation_revoked',
+    ]);
 
     const acceptUserId = newId('u-rt6c-accept');
     createdUserIds.push(acceptUserId);
@@ -351,7 +402,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       token: acceptInvitation.token,
       clientMutationId: acceptCmid,
     });
-    expect((await rtByMutation(acceptCmid)).map((event) => event.type)).toEqual(['board.invitation_accepted']);
+    expect((await rtByMutation(acceptCmid)).map((event) => event.type)).toEqual([
+      'board.invitation_accepted',
+    ]);
 
     const declineUserId = newId('u-rt6c-decline');
     createdUserIds.push(declineUserId);
@@ -362,7 +415,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       role: 'viewer',
       clientMutationId: crypto.randomUUID(),
     });
-    await db().insert(users).values({ id: declineUserId, name: declineUserId, email: declineEmail });
+    await db()
+      .insert(users)
+      .values({ id: declineUserId, name: declineUserId, email: declineEmail });
     const [declineInvitation] = await callerFor(declineUserId).board.invitations.mine();
     if (!declineInvitation) throw new Error('decline invitation fixture was not created');
     const declineCmid = crypto.randomUUID();
@@ -370,7 +425,9 @@ describe.runIf(dbAvailable)('Faz 6C realtime outbox (integration)', () => {
       token: declineInvitation.token,
       clientMutationId: declineCmid,
     });
-    expect((await rtByMutation(declineCmid)).map((event) => event.type)).toEqual(['board.invitation_declined']);
+    expect((await rtByMutation(declineCmid)).map((event) => event.type)).toEqual([
+      'board.invitation_declined',
+    ]);
   });
 });
 

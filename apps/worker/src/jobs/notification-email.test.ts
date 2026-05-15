@@ -18,11 +18,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import {
-  notificationOutbox,
-  notificationPreferences,
-  users,
-} from '@pusula/db';
+import { notificationOutbox, notificationPreferences, users } from '@pusula/db';
 import {
   createResendMailer,
   processNotificationEmailJob,
@@ -221,9 +217,10 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
       payload: {},
     });
     const mailer = capturingMailer();
-    expect(
-      await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId }),
-    ).toEqual({ kind: 'skipped', reason: 'missing' });
+    expect(await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId })).toEqual({
+      kind: 'skipped',
+      reason: 'missing',
+    });
     expect(mailer.calls).toHaveLength(0);
   });
 

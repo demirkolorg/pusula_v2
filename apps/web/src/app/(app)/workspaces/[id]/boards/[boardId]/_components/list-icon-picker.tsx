@@ -1,12 +1,7 @@
 'use client';
 
 import { CheckIcon, XIcon } from 'lucide-react';
-import {
-  LIST_ICON_COLORS,
-  LIST_ICONS,
-  type ListIcon,
-  type ListIconColor,
-} from '@pusula/domain';
+import { LIST_ICON_COLORS, LIST_ICONS, type ListIcon, type ListIconColor } from '@pusula/domain';
 import { Button, cn, toast } from '@pusula/ui';
 import {
   applyListPatch,
@@ -114,10 +109,7 @@ export function ListIconPicker({ boardId, listId, value, color }: ListIconPicker
               )}
             >
               {selected && (
-                <CheckIcon
-                  className={cn('size-4', LIST_ICON_CHECK_FG[nextColor])}
-                  aria-hidden
-                />
+                <CheckIcon className={cn('size-4', LIST_ICON_CHECK_FG[nextColor])} aria-hidden />
               )}
             </button>
           );

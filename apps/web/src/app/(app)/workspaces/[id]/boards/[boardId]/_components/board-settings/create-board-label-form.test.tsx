@@ -26,7 +26,13 @@ describe('<CreateBoardLabelForm>', () => {
   });
 
   it('surfaces an inline conflict error and disables submit while pending', () => {
-    render(<CreateBoardLabelForm onSubmit={vi.fn()} pending error="Bu renk + ad ile etiket zaten var." />);
+    render(
+      <CreateBoardLabelForm
+        onSubmit={vi.fn()}
+        pending
+        error="Bu renk + ad ile etiket zaten var."
+      />,
+    );
     expect(screen.getByRole('alert')).toHaveTextContent('Bu renk + ad ile etiket zaten var.');
     expect(screen.getByRole('button', { name: copy.labelAdding })).toBeDisabled();
   });

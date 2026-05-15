@@ -121,13 +121,21 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
   it('create: a workspace guest cannot create a board (FORBIDDEN)', async () => {
     await expect(
-      callerFor(guestId).board.create({ workspaceId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).board.create({
+        workspaceId,
+        title: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('create: an outsider (no workspace membership) is FORBIDDEN at the workspace middleware', async () => {
     await expect(
-      callerFor(outsiderId).board.create({ workspaceId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(outsiderId).board.create({
+        workspaceId,
+        title: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -141,7 +149,9 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
     // Give the guest an explicit membership on the owner's board.
-    await db().insert(boardMembers).values({ boardId: ownerBoard.id, userId: guestId, role: 'viewer' });
+    await db()
+      .insert(boardMembers)
+      .values({ boardId: ownerBoard.id, userId: guestId, role: 'viewer' });
 
     const ownerList = await callerFor(ownerId).board.list({ workspaceId });
     // owner sees at least the two boards created so far
@@ -163,9 +173,11 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
   // ------------------------------------------------------------------- get
 
   it('get: an unknown boardId is NOT_FOUND', async () => {
-    await expect(callerFor(ownerId).board.get({ boardId: 'does-not-exist' })).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    });
+    await expect(callerFor(ownerId).board.get({ boardId: 'does-not-exist' })).rejects.toMatchObject(
+      {
+        code: 'NOT_FOUND',
+      },
+    );
   });
 
   it('get: a non-member of the board is FORBIDDEN', async () => {
@@ -210,7 +222,13 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       .insert(lists)
       .values([
         { id: listActiveId, boardId: board.id, title: 'To Do', position: posA! },
-        { id: listArchivedId, boardId: board.id, title: 'Old', position: posB!, archivedAt: new Date() },
+        {
+          id: listArchivedId,
+          boardId: board.id,
+          title: 'Old',
+          position: posB!,
+          archivedAt: new Date(),
+        },
       ]);
     const [cardPos0, cardPos1] = positionsBetween(null, null, 2);
     await db()
@@ -474,7 +492,11 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
     // a board viewer cannot rename
     await expect(
-      callerFor(guestId).board.update({ boardId: board.id, title: 'Hax', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).board.update({
+        boardId: board.id,
+        title: 'Hax',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // empty input → BAD_REQUEST
@@ -488,7 +510,12 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       title: 'New Title',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(updated).toMatchObject({ id: board.id, title: 'New Title', role: 'admin', changed: true });
+    expect(updated).toMatchObject({
+      id: board.id,
+      title: 'New Title',
+      role: 'admin',
+      changed: true,
+    });
     expect(updated.version).toBe(board.version + 1);
 
     const acts = await actsFor(board.id);
@@ -613,7 +640,9 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       title: 'Owner Board Background',
       clientMutationId: crypto.randomUUID(),
     });
-    await db().insert(boardMembers).values({ boardId: ownerBoard.id, userId: guestId, role: 'viewer' });
+    await db()
+      .insert(boardMembers)
+      .values({ boardId: ownerBoard.id, userId: guestId, role: 'viewer' });
 
     await expect(
       callerFor(memberId).board.update({
@@ -640,7 +669,11 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       background: 'solid:mavi',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(inherited).toMatchObject({ id: memberBoard.id, background: 'solid:mavi', changed: true });
+    expect(inherited).toMatchObject({
+      id: memberBoard.id,
+      background: 'solid:mavi',
+      changed: true,
+    });
   });
 
   it('update: invalid background format is BAD_REQUEST', async () => {
@@ -671,7 +704,10 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
     // a board viewer cannot archive
     await expect(
-      callerFor(guestId).board.archive({ boardId: board.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).board.archive({
+        boardId: board.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // admin archives
@@ -683,12 +719,19 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(archived.archivedAt).toBeInstanceOf(Date);
 
     // archiving again is a no-op
-    const noop = await callerFor(ownerId).board.archive({ boardId: board.id, clientMutationId: crypto.randomUUID() });
+    const noop = await callerFor(ownerId).board.archive({
+      boardId: board.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     expect(noop).toMatchObject({ id: board.id, changed: false });
 
     // an archived board is read-only — update rejected
     await expect(
-      callerFor(ownerId).board.update({ boardId: board.id, title: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).board.update({
+        boardId: board.id,
+        title: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // restore it
@@ -711,7 +754,10 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     const archivedActs = acts.filter((a) => a.type === 'board.archived');
     // exactly two: archive + restore (no-op did not write one)
     expect(archivedActs).toHaveLength(2);
-    expect(archivedActs.map((a) => (a.payload as { archived?: boolean }).archived).sort()).toEqual([false, true]);
+    expect(archivedActs.map((a) => (a.payload as { archived?: boolean }).archived).sort()).toEqual([
+      false,
+      true,
+    ]);
   });
 
   it('activity.list: a board viewer reads newest-first events with cursor pagination and actor names', async () => {
@@ -755,7 +801,11 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
 
     const page1 = await callerFor(guestId).board.activity.list({ boardId: board.id, limit: 2 });
     expect(page1.items.map((event) => event.type)).toEqual(['card.created', 'list.created']);
-    expect(page1.items[0]).toMatchObject({ id: inserted[2]!.id, actorId: ownerId, actorName: ownerId });
+    expect(page1.items[0]).toMatchObject({
+      id: inserted[2]!.id,
+      actorId: ownerId,
+      actorName: ownerId,
+    });
     expect(page1.nextCursor).not.toBeNull();
 
     const page2 = await callerFor(guestId).board.activity.list({
@@ -823,7 +873,9 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    await expect(callerFor(guestId).board.activity.list({ boardId: board.id })).rejects.toMatchObject({
+    await expect(
+      callerFor(guestId).board.activity.list({ boardId: board.id }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
@@ -858,9 +910,7 @@ describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)'
 
   function realtimeCaller(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish) {
     const create = createCallerFactory(appRouter);
-    return create(
-      createContext({ session: session(userId), db: db(), enqueueRealtimePublish }),
-    );
+    return create(createContext({ session: session(userId), db: db(), enqueueRealtimePublish }));
   }
 
   const rtEventsFor = (boardId: string) =>
@@ -887,7 +937,11 @@ describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)'
     const updated = rt.filter((e) => e.type === 'board.updated');
     expect(updated).toHaveLength(1);
     expect(updated[0]!.clientMutationId).toBe(cmid);
-    const data = (updated[0]!.payload as { data: { patch: { title?: string }; fromTitle: string; toTitle: string } }).data;
+    const data = (
+      updated[0]!.payload as {
+        data: { patch: { title?: string }; fromTitle: string; toTitle: string };
+      }
+    ).data;
     expect(data).toEqual({
       boardId: board.id,
       patch: { title: 'New Title' },

@@ -15,9 +15,7 @@ describe('SectionHeader', () => {
   });
 
   it('renders the leading icon', () => {
-    render(
-      <SectionHeader icon={<span data-testid="icon" />}>Kontrol Listesi</SectionHeader>,
-    );
+    render(<SectionHeader icon={<span data-testid="icon" />}>Kontrol Listesi</SectionHeader>);
     expect(screen.getByTestId('icon')).toBeInTheDocument();
   });
 });

@@ -53,11 +53,7 @@ const realtimePublishQueue = new Queue(QUEUE_NAME, {
  */
 export const enqueueRealtimePublish: EnqueueRealtimePublish = async ({ eventId }) => {
   try {
-    await realtimePublishQueue.add(
-      JOB_NAME,
-      { eventId },
-      { jobId: realtimePublishJobId(eventId) },
-    );
+    await realtimePublishQueue.add(JOB_NAME, { eventId }, { jobId: realtimePublishJobId(eventId) });
   } catch (err) {
     console.warn(
       `[api] realtime-publish enqueue failed (eventId=${eventId}):`,

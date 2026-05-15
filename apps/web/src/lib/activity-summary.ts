@@ -8,7 +8,9 @@ function text(payload: ActivityPayload, key: string): string | undefined {
 }
 
 function cardTitle(payload: ActivityPayload): string {
-  return text(payload, 'cardTitle') ?? text(payload, 'title') ?? strings.notifications.fallbackCardTitle;
+  return (
+    text(payload, 'cardTitle') ?? text(payload, 'title') ?? strings.notifications.fallbackCardTitle
+  );
 }
 
 function boardName(payload: ActivityPayload): string {
@@ -47,7 +49,9 @@ export function activitySummary(type: string, payload: unknown): string {
       return copy.boardMemberInvited(boardName(p));
     case 'workspace_invitation':
     case 'workspace.member_invited':
-      return copy.workspaceMemberInvited(text(p, 'workspaceName') ?? strings.notifications.fallbackWorkspaceName);
+      return copy.workspaceMemberInvited(
+        text(p, 'workspaceName') ?? strings.notifications.fallbackWorkspaceName,
+      );
     case 'watched_activity':
       switch (text(p, 'activityType')) {
         case 'card.archived':

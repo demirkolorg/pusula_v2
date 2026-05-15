@@ -17,8 +17,6 @@ describe('<OnboardingEmptyState>', () => {
     expect(screen.getByText(strings.onboarding.title)).toBeInTheDocument();
     expect(screen.getByText(strings.onboarding.intro)).toBeInTheDocument();
     expect(screen.getByText(strings.onboarding.hint)).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: strings.onboarding.createCta }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: strings.onboarding.createCta })).toBeInTheDocument();
   });
 });

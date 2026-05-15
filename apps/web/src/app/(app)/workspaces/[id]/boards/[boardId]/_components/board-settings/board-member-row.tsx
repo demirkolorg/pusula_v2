@@ -100,9 +100,7 @@ export function BoardMemberRow({
           <span className="truncate font-medium">{displayName}</span>
           {isSelf && <Badge variant="outline">{copy.youBadge}</Badge>}
         </div>
-        {member.inherited && (
-          <p className="text-muted-foreground text-xs">{copy.inheritedNote}</p>
-        )}
+        {member.inherited && <p className="text-muted-foreground text-xs">{copy.inheritedNote}</p>}
         {lockedAsLastAdmin && !member.inherited && (
           <p className="text-muted-foreground text-xs">{copy.lastAdminNote}</p>
         )}

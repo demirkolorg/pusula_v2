@@ -44,6 +44,7 @@
 ### Task 1: Domain And Database Contract
 
 **Files:**
+
 - Modify: `packages/domain/src/constants.ts`
 - Create: `packages/domain/src/schemas/attachment.ts`
 - Modify: `packages/domain/src/schemas/card.ts`
@@ -58,24 +59,30 @@
 Add tests asserting:
 
 ```ts
-expect(createAttachmentUploadInput.parse({
-  cardId: 'card_123',
-  fileName: 'kapak.png',
-  mimeType: 'image/png',
-  size: 1024,
-})).toMatchObject({ mimeType: 'image/png' });
+expect(
+  createAttachmentUploadInput.parse({
+    cardId: 'card_123',
+    fileName: 'kapak.png',
+    mimeType: 'image/png',
+    size: 1024,
+  }),
+).toMatchObject({ mimeType: 'image/png' });
 
-expect(() => createAttachmentUploadInput.parse({
-  cardId: 'card_123',
-  fileName: 'kapak.pdf',
-  mimeType: 'application/pdf',
-  size: 1024,
-})).toThrow();
+expect(() =>
+  createAttachmentUploadInput.parse({
+    cardId: 'card_123',
+    fileName: 'kapak.pdf',
+    mimeType: 'application/pdf',
+    size: 1024,
+  }),
+).toThrow();
 
-expect(updateCardInput.parse({
-  cardId: 'card_123',
-  coverImageAttachmentId: null,
-})).toMatchObject({ coverImageAttachmentId: null });
+expect(
+  updateCardInput.parse({
+    cardId: 'card_123',
+    coverImageAttachmentId: null,
+  }),
+).toMatchObject({ coverImageAttachmentId: null });
 ```
 
 - [ ] **Step 2: Run the failing domain tests**
@@ -145,6 +152,7 @@ Expected: generated migration adds `cards.cover_image_attachment_id` and the tes
 ### Task 2: Storage Adapter And Attachment Router
 
 **Files:**
+
 - Create: `packages/api/src/lib/object-storage.ts`
 - Create: `packages/api/src/routers/attachment.ts`
 - Create: `packages/api/src/routers/attachment.test.ts`
@@ -165,7 +173,10 @@ Use a fake storage implementation:
 
 ```ts
 const objectStorage = {
-  createPresignedPutUrl: vi.fn(async () => ({ url: 'https://storage.test/put', headers: { 'content-type': 'image/png' } })),
+  createPresignedPutUrl: vi.fn(async () => ({
+    url: 'https://storage.test/put',
+    headers: { 'content-type': 'image/png' },
+  })),
   createPresignedGetUrl: vi.fn(async () => 'https://storage.test/get'),
 };
 ```
@@ -213,15 +224,18 @@ export type CoverImage = {
 
 ```ts
 const storageKey = `boards/${ctx.card.boardId}/cards/${ctx.card.id}/${crypto.randomUUID()}-${safeName}`;
-const [attachment] = await ctx.db.insert(attachments).values({
-  cardId: ctx.card.id,
-  boardId: ctx.card.boardId,
-  uploaderId: ctx.session.user.id,
-  storageKey,
-  fileName: input.fileName,
-  mimeType: input.mimeType,
-  size: input.size,
-}).returning();
+const [attachment] = await ctx.db
+  .insert(attachments)
+  .values({
+    cardId: ctx.card.id,
+    boardId: ctx.card.boardId,
+    uploaderId: ctx.session.user.id,
+    storageKey,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    size: input.size,
+  })
+  .returning();
 ```
 
 Then call `ctx.objectStorage.createPresignedPutUrl({ key: storageKey, contentType: input.mimeType, contentLength: input.size })`.
@@ -257,6 +271,7 @@ Expected: PASS.
 ### Task 3: Card Cover Image Mutation And Board Projection
 
 **Files:**
+
 - Modify: `packages/api/src/routers/card.ts`
 - Modify: `packages/api/src/routers/board.ts`
 - Modify: `packages/api/src/routers/card.test.ts`
@@ -287,11 +302,13 @@ expect(updated.changed).toBe(true);
 Also assert:
 
 ```ts
-await expect(callerFor(memberId).card.update({
-  cardId: otherCard.id,
-  coverImageAttachmentId: upload.attachment.attachmentId,
-  clientMutationId: crypto.randomUUID(),
-})).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+await expect(
+  callerFor(memberId).card.update({
+    cardId: otherCard.id,
+    coverImageAttachmentId: upload.attachment.attachmentId,
+    clientMutationId: crypto.randomUUID(),
+  }),
+).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 ```
 
 - [ ] **Step 2: Run failing card tests**
@@ -311,8 +328,16 @@ const wantsCoverImage = 'coverImageAttachmentId' in input;
 Load and validate the attachment when non-null:
 
 ```ts
-const [coverAttachment] = await tx.select().from(attachments).where(eq(attachments.id, input.coverImageAttachmentId)).limit(1);
-if (!coverAttachment || coverAttachment.cardId !== card.id || coverAttachment.boardId !== card.boardId) {
+const [coverAttachment] = await tx
+  .select()
+  .from(attachments)
+  .where(eq(attachments.id, input.coverImageAttachmentId))
+  .limit(1);
+if (
+  !coverAttachment ||
+  coverAttachment.cardId !== card.id ||
+  coverAttachment.boardId !== card.boardId
+) {
   throw new TRPCError({ code: 'BAD_REQUEST', message: 'Kapak fotoğrafı bu karta ait olmalı.' });
 }
 ```
@@ -334,7 +359,9 @@ realtimePatch.coverImage = nextCoverImage;
 Fetch all referenced cover attachments in one batched query:
 
 ```ts
-const coverAttachmentIds = boardCards.map((c) => c.coverImageAttachmentId).filter((id): id is string => Boolean(id));
+const coverAttachmentIds = boardCards
+  .map((c) => c.coverImageAttachmentId)
+  .filter((id): id is string => Boolean(id));
 ```
 
 Map each card to:
@@ -356,6 +383,7 @@ Expected: PASS.
 ### Task 4: Web Cover Photo UI And Cache Updates
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-cover-image.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-item.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-item.test.tsx`
@@ -371,21 +399,41 @@ Expected: PASS.
 Assert photo cover wins over colour:
 
 ```tsx
-render(<CardItem card={{ ...card, coverColor: 'mavi', coverImage: { attachmentId: 'att_1', fileName: 'cover.png', mimeType: 'image/png', size: 123 } }} />);
+render(
+  <CardItem
+    card={{
+      ...card,
+      coverColor: 'mavi',
+      coverImage: {
+        attachmentId: 'att_1',
+        fileName: 'cover.png',
+        mimeType: 'image/png',
+        size: 123,
+      },
+    }}
+  />,
+);
 expect(screen.getByRole('img', { hidden: true })).toBeInTheDocument();
 ```
 
 Assert upload calls:
 
 ```ts
-expect(createUpload).toHaveBeenCalledWith(expect.objectContaining({ cardId: card.id, mimeType: 'image/png' }));
-expect(cardUpdate).toHaveBeenCalledWith(expect.objectContaining({ cardId: card.id, coverImageAttachmentId: 'att_1' }));
+expect(createUpload).toHaveBeenCalledWith(
+  expect.objectContaining({ cardId: card.id, mimeType: 'image/png' }),
+);
+expect(cardUpdate).toHaveBeenCalledWith(
+  expect.objectContaining({ cardId: card.id, coverImageAttachmentId: 'att_1' }),
+);
 ```
 
 Assert realtime merge:
 
 ```ts
-applyBoardRealtimeEvent(cache, { type: 'card.updated', data: { cardId, patch: { coverImage: null } } });
+applyBoardRealtimeEvent(cache, {
+  type: 'card.updated',
+  data: { cardId, patch: { coverImage: null } },
+});
 expect(nextCard.coverImage).toBeNull();
 ```
 
@@ -428,13 +476,21 @@ const upload = await createUpload.mutateAsync({
   size: file.size,
 });
 await fetch(upload.upload.url, { method: 'PUT', headers: upload.upload.headers, body: file });
-await updateCard.mutateAsync({ cardId, coverImageAttachmentId: upload.attachment.attachmentId, clientMutationId: crypto.randomUUID() });
+await updateCard.mutateAsync({
+  cardId,
+  coverImageAttachmentId: upload.attachment.attachmentId,
+  clientMutationId: crypto.randomUUID(),
+});
 ```
 
 Clear:
 
 ```tsx
-await updateCard.mutateAsync({ cardId, coverImageAttachmentId: null, clientMutationId: crypto.randomUUID() });
+await updateCard.mutateAsync({
+  cardId,
+  coverImageAttachmentId: null,
+  clientMutationId: crypto.randomUUID(),
+});
 ```
 
 - [ ] **Step 5: Run web tests**
@@ -446,6 +502,7 @@ Expected: PASS.
 ### Task 5: Verification And Finish
 
 **Files:**
+
 - All changed files from Tasks 1-4.
 
 - [ ] **Step 1: Run focused package tests**

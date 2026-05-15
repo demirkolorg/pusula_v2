@@ -81,7 +81,10 @@ function buildSnippet(row: Pick<SearchRow, 'title' | 'body' | 'labels'>, query: 
 
   if (source.length <= 180) return source;
   const lower = source.toLocaleLowerCase('tr');
-  const matchIndex = Math.max(0, needles.map((needle) => lower.indexOf(needle)).find((idx) => idx >= 0) ?? 0);
+  const matchIndex = Math.max(
+    0,
+    needles.map((needle) => lower.indexOf(needle)).find((idx) => idx >= 0) ?? 0,
+  );
   const start = Math.max(0, matchIndex - 70);
   const end = Math.min(source.length, start + 180);
   return `${start > 0 ? '...' : ''}${source.slice(start, end)}${end < source.length ? '...' : ''}`;
@@ -142,7 +145,11 @@ export const searchRouter = router({
       }
     } else if (input.workspaceId) {
       const [workspace] = await ctx.db
-        .select({ id: workspaces.id, archivedAt: workspaces.archivedAt, role: workspaceMembers.role })
+        .select({
+          id: workspaces.id,
+          archivedAt: workspaces.archivedAt,
+          role: workspaceMembers.role,
+        })
         .from(workspaces)
         .leftJoin(
           workspaceMembers,
@@ -175,7 +182,10 @@ export const searchRouter = router({
       or(vectorMatch, normalizedMatch) ?? sql`false`,
       isNull(workspaces.archivedAt),
       isNotNull(workspaceMembers.userId),
-      or(inArray(workspaceMembers.role, ['owner', 'admin', 'member']), isNotNull(boardMembers.userId)),
+      or(
+        inArray(workspaceMembers.role, ['owner', 'admin', 'member']),
+        isNotNull(boardMembers.userId),
+      ),
     ];
     if (input.workspaceId) clauses.push(eq(searchDocuments.workspaceId, input.workspaceId));
     if (input.boardId) clauses.push(eq(searchDocuments.boardId, input.boardId));

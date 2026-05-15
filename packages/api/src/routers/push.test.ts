@@ -67,16 +67,12 @@ describe.runIf(dbAvailable)('push-tokens router (integration)', () => {
   });
 
   beforeEach(async () => {
-    await db()
-      .delete(pushTokens)
-      .where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
   });
 
   afterAll(async () => {
     if (!probe) return;
-    await db()
-      .delete(pushTokens)
-      .where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
     await db().delete(users).where(dbMod.inArray(users.id, createdUserIds));
     await probe.pool.end();
   });
@@ -145,10 +141,7 @@ describe.runIf(dbAvailable)('push-tokens router (integration)', () => {
     expect(row?.userId).toBe(aliceId);
 
     // No duplicate row for the same token.
-    const rows = await db()
-      .select()
-      .from(pushTokens)
-      .where(dbMod.eq(pushTokens.token, token));
+    const rows = await db().select().from(pushTokens).where(dbMod.eq(pushTokens.token, token));
     expect(rows).toHaveLength(1);
   });
 
@@ -165,10 +158,7 @@ describe.runIf(dbAvailable)('push-tokens router (integration)', () => {
     expect(row?.revokedAt).toBeNull();
 
     // Still exactly one row globally.
-    const rows = await db()
-      .select()
-      .from(pushTokens)
-      .where(dbMod.eq(pushTokens.token, token));
+    const rows = await db().select().from(pushTokens).where(dbMod.eq(pushTokens.token, token));
     expect(rows).toHaveLength(1);
   });
 
@@ -251,8 +241,8 @@ describe.runIf(dbAvailable)('push-tokens router (integration)', () => {
   });
 
   it('revoke: requires authentication', async () => {
-    await expect(
-      callerFor(null).push.tokens.revoke({ token: newToken() }),
-    ).rejects.toThrow(/UNAUTHORIZED|Oturum gerekli/);
+    await expect(callerFor(null).push.tokens.revoke({ token: newToken() })).rejects.toThrow(
+      /UNAUTHORIZED|Oturum gerekli/,
+    );
   });
 });

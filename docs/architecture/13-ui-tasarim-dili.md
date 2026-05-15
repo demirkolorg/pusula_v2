@@ -1,26 +1,27 @@
 ---
-title: "13 — UI Tasarım Dili"
+title: '13 — UI Tasarım Dili'
 description: "Pusula web UI'ının tasarım dili: design token sistemi (renk paleti / radius / shadow / spacing / tipografi), board-kolon-kart anatomisi, kart detay modalı yapısı, ortak desenler ve bileşen spec'leri. Faz 2.7'nin 'önce belge' çıktısı."
 aliases:
-  - "UI Tasarım Dili"
-  - "Design Language"
-  - "Design Tokens"
+  - 'UI Tasarım Dili'
+  - 'Design Language'
+  - 'Design Tokens'
 tags:
-  - "pusula"
-  - "architecture/ui"
-  - "architecture/design-system"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/ui'
+  - 'architecture/design-system'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
-  - "[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]"
-  - "[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]"
-  - "[[docs/architecture/05-board-mekanigi|Board Mekaniği]]"
-  - "[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]"
-  - "[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]"
+  - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
+  - '[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]'
+  - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
+  - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
+  - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
 updated: 2026-05-14
 ---
+
 # 13 — UI Tasarım Dili
 
 > Eksen: **tasarım / teknik**. Bu dosya, Faz 2.7 ([DEM-58](https://linear.app/demirkol/issue/DEM-58)) "önce belge" adımının çıktısıdır:
@@ -29,7 +30,7 @@ updated: 2026-05-14
 > Uygulama Faz 2.7'nin alt işlerinde (`faz-bol 2.7` → 2.7A/2.7B/2.7C/2.7D) yapılır; **kod değişikliği bu belgede yok**.
 >
 > **Referans (karar):** karma — eski Pusula projesinin (`D:\projects\pusula`) layout/anatomi/token sistemi **baz** + Trello'dan
-> birkaç olgun pattern. Eski projenin *tasarımı* referans alınır, *kodu birebir kopyalanmaz* (`@base-ui/react` getirmemek için
+> birkaç olgun pattern. Eski projenin _tasarımı_ referans alınır, _kodu birebir kopyalanmaz_ (`@base-ui/react` getirmemek için
 > shadcn/Radix üzerine yeniden kurulur).
 >
 > **Kararlar (kullanıcı seçimi, 2026-05-12):** (1) palet = **Trello-vari** — parlak mavi primary + canlı çoklu accent + 12-renk
@@ -48,27 +49,27 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Çekirdek renk token'ları
 
-| Token | Light (≈) | Rol |
-| --- | --- | --- |
-| `--background` | `oklch(1 0 0)` | App-shell dışı genel sayfa zemini. Board zemini artık `--board-*` token'larıyla ayrı yönetilir; `boards.background = null` varsayılanı seçili indigo board zemini (`board-bg-default`). |
-| `--card` | `oklch(1 0 0)` | Kart, modal, popover yüzeyi (beyaz) |
-| `--muted` | `oklch(0.97 0.01 240)` | Kolon zemini (`bg-muted/40` ile yarı saydam), modal sağ panel (`bg-muted/40 backdrop-blur`), disabled |
-| `--muted-foreground` | `oklch(0.50 0.02 250)` | İkincil metin, kart metadata, kolon meta |
-| `--foreground` | `oklch(0.18 0.01 250)` | Birincil metin |
-| `--border` | `oklch(0.91 0.01 240)` | Kenarlıklar |
-| `--input` | `oklch(0.91 0.01 240)` | Form kenarlığı |
-| `--ring` | `oklch(0.55 0.16 245)` | Focus halkası (primary-türevli; görünür — a11y) |
-| `--primary` | `oklch(0.56 0.17 275)` | Ekte seçili indigo/mor-mavi — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme |
-| `--primary-foreground` | `oklch(0.99 0 0)` | Primary üstü metin |
-| `--secondary` | `oklch(0.97 0.01 240)` | İkincil/ghost buton zemini |
-| `--secondary-foreground` | `oklch(0.20 0.01 250)` | |
-| `--accent` | `oklch(0.96 0.02 245)` | Hover zemini (`hover:bg-accent`) |
-| `--accent-foreground` | `oklch(0.20 0.01 250)` | |
-| `--success` | `oklch(0.62 0.16 150)` | Yeşil — tamamlandı tik, dolu checklist progress, "onaylandı" |
-| `--success-foreground` | `oklch(0.99 0 0)` | |
-| `--warning` | `oklch(0.78 0.14 75)` | Amber — yaklaşan due (24–72 saat) noktası, dikkat |
-| `--destructive` | `oklch(0.58 0.21 27)` | Kırmızı — "GECİKTİ" rozeti/chip, sil, hata |
-| `--destructive-foreground` | `oklch(0.99 0 0)` | |
+| Token                      | Light (≈)              | Rol                                                                                                                                                                                     |
+| -------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--background`             | `oklch(1 0 0)`         | App-shell dışı genel sayfa zemini. Board zemini artık `--board-*` token'larıyla ayrı yönetilir; `boards.background = null` varsayılanı seçili indigo board zemini (`board-bg-default`). |
+| `--card`                   | `oklch(1 0 0)`         | Kart, modal, popover yüzeyi (beyaz)                                                                                                                                                     |
+| `--muted`                  | `oklch(0.97 0.01 240)` | Kolon zemini (`bg-muted/40` ile yarı saydam), modal sağ panel (`bg-muted/40 backdrop-blur`), disabled                                                                                   |
+| `--muted-foreground`       | `oklch(0.50 0.02 250)` | İkincil metin, kart metadata, kolon meta                                                                                                                                                |
+| `--foreground`             | `oklch(0.18 0.01 250)` | Birincil metin                                                                                                                                                                          |
+| `--border`                 | `oklch(0.91 0.01 240)` | Kenarlıklar                                                                                                                                                                             |
+| `--input`                  | `oklch(0.91 0.01 240)` | Form kenarlığı                                                                                                                                                                          |
+| `--ring`                   | `oklch(0.55 0.16 245)` | Focus halkası (primary-türevli; görünür — a11y)                                                                                                                                         |
+| `--primary`                | `oklch(0.56 0.17 275)` | Ekte seçili indigo/mor-mavi — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme                                                                                          |
+| `--primary-foreground`     | `oklch(0.99 0 0)`      | Primary üstü metin                                                                                                                                                                      |
+| `--secondary`              | `oklch(0.97 0.01 240)` | İkincil/ghost buton zemini                                                                                                                                                              |
+| `--secondary-foreground`   | `oklch(0.20 0.01 250)` |                                                                                                                                                                                         |
+| `--accent`                 | `oklch(0.96 0.02 245)` | Hover zemini (`hover:bg-accent`)                                                                                                                                                        |
+| `--accent-foreground`      | `oklch(0.20 0.01 250)` |                                                                                                                                                                                         |
+| `--success`                | `oklch(0.62 0.16 150)` | Yeşil — tamamlandı tik, dolu checklist progress, "onaylandı"                                                                                                                            |
+| `--success-foreground`     | `oklch(0.99 0 0)`      |                                                                                                                                                                                         |
+| `--warning`                | `oklch(0.78 0.14 75)`  | Amber — yaklaşan due (24–72 saat) noktası, dikkat                                                                                                                                       |
+| `--destructive`            | `oklch(0.58 0.21 27)`  | Kırmızı — "GECİKTİ" rozeti/chip, sil, hata                                                                                                                                              |
+| `--destructive-foreground` | `oklch(0.99 0 0)`      |                                                                                                                                                                                         |
 
 `.dark`: aynı token seti, L değerleri yukarı/aşağı ayarlanır (background ≈ `oklch(0.18 0.01 250)`, card ≈ `oklch(0.22 0.01 250)`, foreground ≈ `oklch(0.97 0 0)`, primary ≈ `oklch(0.62 0.15 245)`); border `oklch(1 0 0 / 12%)`. Dark mode baştan desteklenir (token sistemi zaten her ikisini taşır).
 
@@ -85,18 +86,18 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Radius / shadow / spacing / tipografi
 
-| Eksen | Değer | Not |
-| --- | --- | --- |
-| `--radius` (base) | `0.5rem` (8px) | `-sm` = `calc(--radius - 2px)` = 6px, `-md` = `--radius`, `-lg` = `calc(--radius + 2px)` = 10px, `-xl` = `calc(--radius + 6px)` = 14px. Kart `rounded-md`, kolon `rounded-lg`, modal `rounded-xl`, chip `rounded-sm`/`rounded-full` |
-| Shadow | `--shadow-card` (≈ `0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04)`), `--shadow-card-hover` (biraz daha derin), `--shadow-popover` (md — dropdown/modal/popover), `--shadow-drag` (2xl — drag overlay) | Tailwind `shadow-xs/sm/md` token'larıyla hizalanır; kartlarda `shadow-card`, sürüklemede `shadow-drag` |
-| Spacing | Tailwind 4px ölçeği | Kart `p-2`; kart-içi dikey `gap-1`/`gap-1.5`; kart başlık satırı `gap-1.5`; metadata satırı `gap-x-2 gap-y-1`; kolon `p-2`, başlık `p-2`, gövde `px-2 py-2 gap-2`; kolonlar arası `gap-3`; modal sol kolon `px-5 py-4 space-y-5`, section başlık `mb-2` |
-| Tipografi | Font = **Inter** (`--font-sans`, next/font self-host) | Ölçek: `text-[10px]`/`leading-tight` (kart metadata), `text-xs` 12px (chip, kolon meta, aktivite satırı), `text-sm` 14px (kart başlığı `leading-snug`, gövde, kolon başlığı `font-semibold`), `text-base` 16px (modal section/yorum), `text-lg` 18px (modal kart başlığı `font-semibold`), `text-xl` 20px (sayfa başlığı `tracking-tight`). Ağırlıklar 400/500/600 (heading 600). Kart başlığı `line-clamp-3`; section başlık `uppercase tracking-wide` `text-xs font-semibold text-muted-foreground` |
+| Eksen             | Değer                                                                                                                                                                                                                | Not                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--radius` (base) | `0.5rem` (8px)                                                                                                                                                                                                       | `-sm` = `calc(--radius - 2px)` = 6px, `-md` = `--radius`, `-lg` = `calc(--radius + 2px)` = 10px, `-xl` = `calc(--radius + 6px)` = 14px. Kart `rounded-md`, kolon `rounded-lg`, modal `rounded-xl`, chip `rounded-sm`/`rounded-full`                                                                                                                                                                                                                                                                   |
+| Shadow            | `--shadow-card` (≈ `0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04)`), `--shadow-card-hover` (biraz daha derin), `--shadow-popover` (md — dropdown/modal/popover), `--shadow-drag` (2xl — drag overlay) | Tailwind `shadow-xs/sm/md` token'larıyla hizalanır; kartlarda `shadow-card`, sürüklemede `shadow-drag`                                                                                                                                                                                                                                                                                                                                                                                                |
+| Spacing           | Tailwind 4px ölçeği                                                                                                                                                                                                  | Kart `p-2`; kart-içi dikey `gap-1`/`gap-1.5`; kart başlık satırı `gap-1.5`; metadata satırı `gap-x-2 gap-y-1`; kolon `p-2`, başlık `p-2`, gövde `px-2 py-2 gap-2`; kolonlar arası `gap-3`; modal sol kolon `px-5 py-4 space-y-5`, section başlık `mb-2`                                                                                                                                                                                                                                               |
+| Tipografi         | Font = **Inter** (`--font-sans`, next/font self-host)                                                                                                                                                                | Ölçek: `text-[10px]`/`leading-tight` (kart metadata), `text-xs` 12px (chip, kolon meta, aktivite satırı), `text-sm` 14px (kart başlığı `leading-snug`, gövde, kolon başlığı `font-semibold`), `text-base` 16px (modal section/yorum), `text-lg` 18px (modal kart başlığı `font-semibold`), `text-xl` 20px (sayfa başlığı `tracking-tight`). Ağırlıklar 400/500/600 (heading 600). Kart başlığı `line-clamp-3`; section başlık `uppercase tracking-wide` `text-xs font-semibold text-muted-foreground` |
 
 `packages/ui/src/styles/theme.css` hedef şekli (özet):
 
 ```css
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 :root {
   --radius: 0.5rem;
@@ -106,26 +107,39 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
   --foreground: oklch(0.18 0.01 250);
   --primary: oklch(0.56 0.17 275);
   --primary-foreground: oklch(0.99 0 0);
-  --success: oklch(0.62 0.16 150); --success-foreground: oklch(0.99 0 0);
+  --success: oklch(0.62 0.16 150);
+  --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.78 0.14 75);
-  --destructive: oklch(0.58 0.21 27); --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.91 0.01 240); --input: oklch(0.91 0.01 240); --ring: oklch(0.55 0.16 245);
+  --destructive: oklch(0.58 0.21 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.91 0.01 240);
+  --input: oklch(0.91 0.01 240);
+  --ring: oklch(0.55 0.16 245);
   /* ...muted-foreground, secondary*, accent*, popover*... */
-  --palet-mavi: oklch(0.55 0.16 245); --palet-mavi-foreground: oklch(0.99 0 0);
-  --palet-yesil: oklch(0.62 0.16 150); --palet-yesil-foreground: oklch(0.99 0 0);
+  --palet-mavi: oklch(0.55 0.16 245);
+  --palet-mavi-foreground: oklch(0.99 0 0);
+  --palet-yesil: oklch(0.62 0.16 150);
+  --palet-yesil-foreground: oklch(0.99 0 0);
   /* ...12 etiket rengi + -foreground eşleri... */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
-.dark { /* L değerleri ayarlı aynı set */ }
+.dark {
+  /* L değerleri ayarlı aynı set */
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-card: var(--card);
-  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground);
-  --color-success: var(--success); --color-warning: var(--warning);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-palet-mavi: var(--palet-mavi); /* ...12 renk... */
-  --radius-sm: calc(var(--radius) - 2px); --radius-md: var(--radius); --radius-lg: calc(var(--radius) + 2px); --radius-xl: calc(var(--radius) + 6px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
   --font-sans: var(--font-sans);
 }
 ```
@@ -138,26 +152,27 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
   **DEM-100 gradient token listesi ve class haritası (kesin):**
 
-  | Değer | CSS token | Utility class | Türkçe ad |
-  | --- | --- | --- | --- |
-  | `gradient:sunset` | `--bg-gradient-sunset` | `board-bg-gradient-sunset` | Gün batımı |
-  | `gradient:ocean` | `--bg-gradient-ocean` | `board-bg-gradient-ocean` | Okyanus |
-  | `gradient:rainbow` | `--bg-gradient-rainbow` | `board-bg-gradient-rainbow` | Gökkuşağı |
-  | `gradient:forest` | `--bg-gradient-forest` | `board-bg-gradient-forest` | Orman |
-  | `gradient:lavender` | `--bg-gradient-lavender` | `board-bg-gradient-lavender` | Lavanta |
-  | `gradient:sunrise` | `--bg-gradient-sunrise` | `board-bg-gradient-sunrise` | Gündoğumu |
-  | `gradient:midnight` | `--bg-gradient-midnight` | `board-bg-gradient-midnight` | Gece yarısı |
-  | `gradient:mint` | `--bg-gradient-mint` | `board-bg-gradient-mint` | Nane |
-  | `gradient:aurora` | `--bg-gradient-aurora` | `board-bg-gradient-aurora` | Kuzey ışığı |
-  | `gradient:coral` | `--bg-gradient-coral` | `board-bg-gradient-coral` | Mercan |
-  | `gradient:lagoon` | `--bg-gradient-lagoon` | `board-bg-gradient-lagoon` | Lagun |
-  | `gradient:ember` | `--bg-gradient-ember` | `board-bg-gradient-ember` | Kor |
-  | `gradient:blossom` | `--bg-gradient-blossom` | `board-bg-gradient-blossom` | Cicek |
-  | `gradient:meadow` | `--bg-gradient-meadow` | `board-bg-gradient-meadow` | Cayir |
-  | `gradient:dusk` | `--bg-gradient-dusk` | `board-bg-gradient-dusk` | Alacakaranlik |
-  | `gradient:pearl` | `--bg-gradient-pearl` | `board-bg-gradient-pearl` | Inci |
+  | Değer               | CSS token                | Utility class                | Türkçe ad     |
+  | ------------------- | ------------------------ | ---------------------------- | ------------- |
+  | `gradient:sunset`   | `--bg-gradient-sunset`   | `board-bg-gradient-sunset`   | Gün batımı    |
+  | `gradient:ocean`    | `--bg-gradient-ocean`    | `board-bg-gradient-ocean`    | Okyanus       |
+  | `gradient:rainbow`  | `--bg-gradient-rainbow`  | `board-bg-gradient-rainbow`  | Gökkuşağı     |
+  | `gradient:forest`   | `--bg-gradient-forest`   | `board-bg-gradient-forest`   | Orman         |
+  | `gradient:lavender` | `--bg-gradient-lavender` | `board-bg-gradient-lavender` | Lavanta       |
+  | `gradient:sunrise`  | `--bg-gradient-sunrise`  | `board-bg-gradient-sunrise`  | Gündoğumu     |
+  | `gradient:midnight` | `--bg-gradient-midnight` | `board-bg-gradient-midnight` | Gece yarısı   |
+  | `gradient:mint`     | `--bg-gradient-mint`     | `board-bg-gradient-mint`     | Nane          |
+  | `gradient:aurora`   | `--bg-gradient-aurora`   | `board-bg-gradient-aurora`   | Kuzey ışığı   |
+  | `gradient:coral`    | `--bg-gradient-coral`    | `board-bg-gradient-coral`    | Mercan        |
+  | `gradient:lagoon`   | `--bg-gradient-lagoon`   | `board-bg-gradient-lagoon`   | Lagun         |
+  | `gradient:ember`    | `--bg-gradient-ember`    | `board-bg-gradient-ember`    | Kor           |
+  | `gradient:blossom`  | `--bg-gradient-blossom`  | `board-bg-gradient-blossom`  | Cicek         |
+  | `gradient:meadow`   | `--bg-gradient-meadow`   | `board-bg-gradient-meadow`   | Cayir         |
+  | `gradient:dusk`     | `--bg-gradient-dusk`     | `board-bg-gradient-dusk`     | Alacakaranlik |
+  | `gradient:pearl`    | `--bg-gradient-pearl`    | `board-bg-gradient-pearl`    | Inci          |
 
   **Düz renk haritası:** `solid:<ad>` → `board-bg-solid-{ad}`; `ad ∈ BOARD_BACKGROUND_SOLID_COLORS`. Liste, kart kapak rengiyle ortak 12 paleti (`kirmizi`, `turuncu`, `sari`, `lime`, `yesil`, `sky`, `mavi`, `indigo`, `mor`, `pembe`, `gri`, `siyah`) ve pano-özel beyaz/nötr varyantları (`beyaz`, `kirik-beyaz`, `fildisi`, `buz-beyazi`, `gumus`) içerir. Pano-özel varyantlar kart kapak rengi olarak kullanılmaz. Board yüzeyi light/dark tema için `color-mix()` ile ayrı tonlanır. `boardBackgroundClass(background)` utility'si gradient/düz renk class'larını tek yerden döndürür, bilinmeyen değerlerde `board-bg-default` fallback'ine düşer.
+
 - **Pano chrome token'ları (DEM-111):** `board-bg-*` sınıfı `--board-surface-bg`, `--board-topbar-bg`, `--board-shell-bg`, `--board-chrome-fg` ve `--board-shell-border` değişkenlerini set eder. Light modda `BoardTopBar` seçilen renge yakın koyu, AppShell header daha koyu tonu kullanır; dark modda `BoardTopBar` renge yakın koyu kalır, AppShell header ise siyaha daha yakın tonlanır. Gradient preset'leri de `.dark` altında ayrı gradient token'larına sahiptir.
 - **Board üst barı (`BoardTopBar`):** sticky, `h-13 sm:h-14 flex items-center gap-3 px-4 bg-board-topbar text-[color:var(--board-chrome-fg)]`.
   - Sol: `BoardIdentity` — board ikonu/renk noktası + "Pano" etiketi (`text-[10px] uppercase text-muted-foreground`) + board adı (`text-sm font-semibold truncate`) + ⭐ favori butonu (`StarIcon`; favori altyapısı Faz 8 / [DEM-57](https://linear.app/demirkol/issue/DEM-57) — şimdilik görsel toggle veya gizli).
@@ -232,7 +247,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 - **Sticky başlık alanı** (`sticky top-0 bg-background z-10 pb-2 -mt-4 pt-4`): `CardCompleteToggle` (yuvarlak, hep görünür) + başlık inline-edit (`textarea`, `text-lg font-semibold leading-tight`, `field-sizing-content`).
 - **Meta chip satırı (`CardModalMetaChips`)** — `flex flex-wrap items-center gap-1`; chip shell `group inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground`: `ShieldIcon`+üye sayısı (→ üye picker `Popover`) · `CalendarIcon`+due (→ date picker; gecikmiş kırmızı + "GECİKTİ" rozeti, soon amber nokta) · `TagIcon`+etiket sayısı (→ etiket picker) · `PaletteIcon`+kapak rengi (→ renk picker) · `+` ekle.
-- **AÇIKLAMA** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` ` | ` **H1 H2 H3** ` | ` bullet ordered ` | ` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
+- **AÇIKLAMA** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` `|` **H1 H2 H3** `|` bullet ordered `|` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
 - **KONTROL LİSTESİ** — `SectionHeader` (`CheckSquareIcon` + "KONTROL LİSTESİ" + sağda toplam `Progress` mini-bar `w-20` + `x/y` `text-primary text-[11px] font-semibold` + "+ Liste ekle" `Button variant=outline size=sm border-dashed`): her checklist `border rounded-md p-3 space-y-1.5` — başlık (inline edit) + `x/y` + `Progress` (`h-1`, dolu → `bg-success`) + maddeler (`flex items-center gap-2`: `Checkbox` yuvarlak + madde metni inline-edit [tamsa `line-through text-muted-foreground`] + sağda atanan `Avatar size-xs` + chip "Ad S." `text-[10px] text-muted-foreground` + sil ikonu hover) + "+ Madde ekle" ghost.
 
 **Sağ panel (`CardModalSidebar`)** — `bg-muted/40 backdrop-blur border-t md:border-t-0 md:border-l overflow-y-auto flex flex-col`:
@@ -246,20 +261,20 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 ## 13.4 Ortak desenler + bileşenler (`packages/ui`'ye eklenecek)
 
-| Bileşen | Spec |
-| --- | --- |
-| `SectionHeader` | İkon + UPPERCASE label (`text-xs font-semibold uppercase tracking-wide text-muted-foreground`) + opsiyonel sağ aksiyon slotu; `flex items-center justify-between mb-2` |
-| `Avatar` | `users.image` URL varsa `<img>`, yoksa baş harf(ler); arka plan = isimden deterministik hash → `--palet-*` renklerinden biri; boyutlar `xs` 16px / `sm` 24px / `md` 32px / `lg` 40px; `rounded-full`; opsiyonel ring |
-| `Progress` | `h-1` (veya `h-1.5`) `bg-muted rounded-full overflow-hidden`; dolgu `bg-primary` (tamsa `bg-success`); `role="progressbar"` `aria-valuenow` |
-| `EmptyState` | İkon (`size-8 text-muted-foreground/60`) + mesaj (`text-sm text-muted-foreground`) + opsiyonel CTA; `flex flex-col items-center gap-2 py-6` |
-| `MetaChip` / `MetaRow` | Kart metadata + modal meta chip ortak shell; kart sürümü `text-[10px]`, modal sürümü `h-8 rounded-md px-2 text-xs hover:bg-muted`; variant: `due` (normal / overdue + "GECİKTİ" rozeti / soon + amber nokta), `count` (ikon + sayı), `members` (avatar stack) |
-| `LabelChip` | Solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`) / soft (`bg-palet-{ad}/15 text-palet-{ad}`); renk swatch `size-2.5 rounded-full bg-palet-{ad}` |
-| `CardCompleteToggle` | `size-4 rounded-full border-2`; boş: `border-muted-foreground/40 hover:border-foreground`; tamamlanmış: `bg-success border-success text-success-foreground` (`CheckIcon size-3`); kartta `opacity-0 group-hover/kart:opacity-100` (tamamlanmışsa hep görünür), modalda hep görünür |
-| `Tooltip` | shadcn `Tooltip` (`@radix-ui/react-tooltip`) — kolon ikon butonları, kart metadata ikonları, modal meta chip'leri |
-| `DropdownMenu` | shadcn `DropdownMenu` (`@radix-ui/react-dropdown-menu`) — kolon/kart/board ⋮ menüleri (DEM-37/53/54'teki "ghost button + onaylı Dialog" kalıbının yerine; yıkıcı aksiyonlar yine `AlertDialog`/onaylı) |
-| `ContextMenu` | shadcn `ContextMenu` (`@radix-ui/react-context-menu`) — kart sağ tık menüsü; hover aksiyonlarının yerini alır, nested sub-menu ve checkbox item destekler |
-| `Checkbox` | shadcn `Checkbox` (`@radix-ui/react-checkbox`) — checklist maddeleri + filter çipleri (DEM-53 native `<input type=checkbox>` yerine) |
-| `Tabs` | shadcn `Tabs` (`@radix-ui/react-tabs`) — modal sağ panel sekme strip'i |
+| Bileşen                | Spec                                                                                                                                                                                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SectionHeader`        | İkon + UPPERCASE label (`text-xs font-semibold uppercase tracking-wide text-muted-foreground`) + opsiyonel sağ aksiyon slotu; `flex items-center justify-between mb-2`                                                                                                             |
+| `Avatar`               | `users.image` URL varsa `<img>`, yoksa baş harf(ler); arka plan = isimden deterministik hash → `--palet-*` renklerinden biri; boyutlar `xs` 16px / `sm` 24px / `md` 32px / `lg` 40px; `rounded-full`; opsiyonel ring                                                               |
+| `Progress`             | `h-1` (veya `h-1.5`) `bg-muted rounded-full overflow-hidden`; dolgu `bg-primary` (tamsa `bg-success`); `role="progressbar"` `aria-valuenow`                                                                                                                                        |
+| `EmptyState`           | İkon (`size-8 text-muted-foreground/60`) + mesaj (`text-sm text-muted-foreground`) + opsiyonel CTA; `flex flex-col items-center gap-2 py-6`                                                                                                                                        |
+| `MetaChip` / `MetaRow` | Kart metadata + modal meta chip ortak shell; kart sürümü `text-[10px]`, modal sürümü `h-8 rounded-md px-2 text-xs hover:bg-muted`; variant: `due` (normal / overdue + "GECİKTİ" rozeti / soon + amber nokta), `count` (ikon + sayı), `members` (avatar stack)                      |
+| `LabelChip`            | Solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`) / soft (`bg-palet-{ad}/15 text-palet-{ad}`); renk swatch `size-2.5 rounded-full bg-palet-{ad}`                                                                                 |
+| `CardCompleteToggle`   | `size-4 rounded-full border-2`; boş: `border-muted-foreground/40 hover:border-foreground`; tamamlanmış: `bg-success border-success text-success-foreground` (`CheckIcon size-3`); kartta `opacity-0 group-hover/kart:opacity-100` (tamamlanmışsa hep görünür), modalda hep görünür |
+| `Tooltip`              | shadcn `Tooltip` (`@radix-ui/react-tooltip`) — kolon ikon butonları, kart metadata ikonları, modal meta chip'leri                                                                                                                                                                  |
+| `DropdownMenu`         | shadcn `DropdownMenu` (`@radix-ui/react-dropdown-menu`) — kolon/kart/board ⋮ menüleri (DEM-37/53/54'teki "ghost button + onaylı Dialog" kalıbının yerine; yıkıcı aksiyonlar yine `AlertDialog`/onaylı)                                                                             |
+| `ContextMenu`          | shadcn `ContextMenu` (`@radix-ui/react-context-menu`) — kart sağ tık menüsü; hover aksiyonlarının yerini alır, nested sub-menu ve checkbox item destekler                                                                                                                          |
+| `Checkbox`             | shadcn `Checkbox` (`@radix-ui/react-checkbox`) — checklist maddeleri + filter çipleri (DEM-53 native `<input type=checkbox>` yerine)                                                                                                                                               |
+| `Tabs`                 | shadcn `Tabs` (`@radix-ui/react-tabs`) — modal sağ panel sekme strip'i                                                                                                                                                                                                             |
 
 **Section başlık deseni:** her modal bölümü (AÇIKLAMA / KONTROL LİSTESİ / sağ panel sekmeleri) ve workspace/board ayar bölümleri aynı `SectionHeader` desenini kullanır. **Hover/focus:** kartlarda `hover:border-foreground/30 hover:shadow-card-hover`; ikon butonlarında `hover:bg-accent`; chip'lerde `hover:bg-muted hover:text-foreground`; tüm odaklanabilirlerde `--ring` ile görünür `focus-visible:ring-2 ring-ring/60` (a11y).
 
@@ -268,11 +283,11 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 - **Paketler:** `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-placeholder` (+ ileride `@tiptap/extension-mention` — Faz 6 @mention). Headless editör — component library değil; "yalnız shadcn/ui + Tailwind + lucide" kuralının istisnası değil, ek (bkz. `02-teknoloji-kararlari.md` Karar kaydı 2026-05-12).
 - **Bileşenler** (`packages/ui` veya `apps/web/_components`): `RichTextEditor` (toolbar + `EditorContent` — editable) ve `RichTextContent` (read-only `EditorContent` — yoruma/açıklamaya render). Kart açıklaması = full toolbar (B I S code · H1-3 · bullet/ordered · link); yorum = mini toolbar (B I · link).
 - **Storage = Tiptap JSON.** Mevcut `cards.description` ve `comments.body` `text` kolonları değişmez — Tiptap `getJSON()` çıktısı JSON string olarak saklanır. **Geriye dönük:** mevcut plain-text içerikler render/edit anında düz paragrafa parse edilir (`{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:eski}]}]}`); migration **gerekmez** (parse-time fallback). **XSS:** içerik Tiptap'ın controlled şema'sıyla üretilir + read-only render Tiptap `EditorContent` ile (DOM'a Tiptap basar) → `dangerouslySetInnerHTML` yok, ekstra sanitizer gerekmez.
-- **Sıralama/yetki etkisi yok:** Tiptap yalnızca `description`/`body` alanlarının *biçimini* değiştirir; `card.update` / `comment.{create,update}` procedure imzaları aynı (string in, string out). Faz 2.7 görsel — backend mantığı değişmez.
+- **Sıralama/yetki etkisi yok:** Tiptap yalnızca `description`/`body` alanlarının _biçimini_ değiştirir; `card.update` / `comment.{create,update}` procedure imzaları aynı (string in, string out). Faz 2.7 görsel — backend mantığı değişmez.
 
 ## 13.6 Kapsam dışı + uygulama sırası
 
-**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca *hedef görsel* — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board favorileri/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · fotoğraf/Unsplash/user-uploaded/custom gradient arka planları (Faz 8 / ayrı iş) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
+**Kapsam dışı (Faz 2.7'de yapılmaz):** drag-drop davranışı (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26); §13.2'deki drag spec'leri yalnızca _hedef görsel_ — uygulama Faz 3) · optimistic UI cache modeli (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); Faz 2.7'de mutation → invalidate → refetch kalır) · realtime (Faz 5) · @mention (Faz 6) · board içi/global arama (Faz 6.5 — [DEM-56](https://linear.app/demirkol/issue/DEM-56)) · board favorileri/son görülenler (Faz 8 — [DEM-57](https://linear.app/demirkol/issue/DEM-57)) · fotoğraf/Unsplash/user-uploaded/custom gradient arka planları (Faz 8 / ayrı iş) · mobil app (Faz 7 — [DEM-30](https://linear.app/demirkol/issue/DEM-30)) · attachment/ek yükleme (Faz 8) · "Liste"/"Etiketler" board görünümleri (ileri faz).
 
 **Uygulama sırası (`faz-bol 2.7` ile Linear alt issue'larına bölünür):** 2.7.0 (bu belge — tamam) → **2.7A** (tema + token + `packages/ui`: yeni `theme.css`, Inter font, 12-renk etiket token'ları, `Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`, `_components/label-colors.ts` → token + `LABEL_PALETTE`; mevcut shadcn bileşenlerinin tema rafinasyonu) ∥ **2.7B** (board ekranı: zemin/üst bar/kolon/kart anatomisi + metadata satırı + "GECİKTİ" rozeti + filter bar cilalama + loading skeleton + hover/focus) ∥ **2.7C** (kart detay modalı: iki-kolon yeniden yapı + kapak-renkli başlık + meta chip satırı + AÇIKLAMA/KONTROL LİSTESİ + sağ panel sekme strip/yorum composer/aktivite feed + Tiptap entegrasyonu) → **2.7D** (workspace/app-shell ekranlarının yeni tema uyumu + accessibility pass + `Dialog` hardcoded "Kapat" → `strings`) → **2.7C-2** ([DEM-74](https://linear.app/demirkol/issue/DEM-74) — kapanış-sonrası: 2.7C modalını §13.3'e tam çekme [modal genişlik `w-[min(960px,92vw)]` + `sm:max-w-none`, iki-kolon grid `min-w-0`, `SectionHeader` aksiyon-slotu ikon-only, "İşlemler"→"Aktivite", sol kolon overflow fix] + DEM-66/67 backend'ini UI'ye wire [`CardCompleteToggle` → `card.complete`/`uncomplete`; kapak rengi picker → `card.update({coverColor})`; kart kapak şeridi]) → **dark/light tema desteği** ([DEM-96](https://linear.app/demirkol/issue/DEM-96) — kapanış-sonrası #2: §13.7 "Tema modu" + `next-themes` wire + app-shell `ThemeToggle`). Tüm uygulama Faz 2.5 web bittiğinden serbest; Faz 2.7 → Faz 3. Türkçe metinler `apps/web/src/lib/strings.ts` (`strings.board.*` / `strings.card.*` / `strings.common.theme.*` genişletilir).
 
@@ -300,7 +315,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
       attribute="class"
       defaultTheme="light"
       enableSystem={false}
-      themes={["light", "dark"]}
+      themes={['light', 'dark']}
       storageKey="pusula-theme"
     >
       {children}
@@ -388,7 +403,7 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 ```
 
 - **Düzen:** `flex items-center justify-between gap-4`. Sol grup `flex items-center gap-2 min-w-0` (switcher'lar `truncate` ile uzun adları kısaltır). Sağ grup `flex items-center gap-1 shrink-0`.
-- **Brand link:** mevcut [app-shell.tsx:62-75](apps/web/src/app/(app)/_components/app-shell.tsx#L62-L75) (`LayoutGridIcon` rozet + "Pusula" tracking-tight) — dokunulmaz; sol grubun ilk öğesi.
+- **Brand link:** mevcut [app-shell.tsx:62-75](<apps/web/src/app/(app)/_components/app-shell.tsx#L62-L75>) (`LayoutGridIcon` rozet + "Pusula" tracking-tight) — dokunulmaz; sol grubun ilk öğesi.
 - **Switcher'lar arası ayırıcı:** brand ile WorkspaceSwitcher arasında `Separator orientation=vertical class="h-5"` (shadcn). WorkspaceSwitcher ile BoardSwitcher arasında: dropdown trigger'ların kendi border'ı yeterli — ek separator yok (görsel kalabalık olmasın).
 - **Responsive (`md:` altı):** `BoardSwitcher` ikon-only (renk noktası + chevron, ad gizli), `WorkspaceSwitcher` ikon-only (avatar + chevron). `sm:` altında brand metni gizli, yalnız `LayoutGridIcon` rozet. Sağ grup: bildirim placeholder + tema toggle + avatar (her zaman görünür).
 
@@ -404,7 +419,9 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
     {workspaceInitial}
   </span>
   <div className="grid min-w-0 flex-1 text-left leading-tight">
-    <span className="truncate text-sm font-medium">{workspaceName ?? strings.shell.workspaceSwitcher.placeholder}</span>
+    <span className="truncate text-sm font-medium">
+      {workspaceName ?? strings.shell.workspaceSwitcher.placeholder}
+    </span>
     <span className="truncate text-[10px] text-muted-foreground">{workspaceRoleLabels[role]}</span>
   </div>
   <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -426,17 +443,17 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 
 **Veri akışı:**
 
-- Aktif workspace ID: `useParams<{ id?: string }>()` (workspace ve board route'larında dolu). `useTRPC().workspace.get.queryOptions({ workspaceId })` cache hit beklenir (workspace sayfası zaten kullanıyor — [workspaces/[id]/page.tsx:41](apps/web/src/app/(app)/workspaces/[id]/page.tsx#L41)).
+- Aktif workspace ID: `useParams<{ id?: string }>()` (workspace ve board route'larında dolu). `useTRPC().workspace.get.queryOptions({ workspaceId })` cache hit beklenir (workspace sayfası zaten kullanıyor — [workspaces/[id]/page.tsx:41](<apps/web/src/app/(app)/workspaces/[id]/page.tsx#L41>)).
 - Liste: `useTRPC().workspace.list.queryOptions()`. `(app)/page.tsx` zaten kullanıyor — cache hit.
 
 **State'ler:**
 
-| Route | Trigger | Disabled? |
-| --- | --- | --- |
-| `/` (workspace list) | "Workspace seç" + chevron (workspace seçili yok) | hayır (tıklayınca liste açılır) |
-| `/workspaces/[id]` | aktif workspace adı + rol | hayır |
-| `/workspaces/[id]/boards/[boardId]` | aktif workspace adı + rol | hayır |
-| `/account` | "Workspace seç" + chevron | hayır |
+| Route                               | Trigger                                          | Disabled?                       |
+| ----------------------------------- | ------------------------------------------------ | ------------------------------- |
+| `/` (workspace list)                | "Workspace seç" + chevron (workspace seçili yok) | hayır (tıklayınca liste açılır) |
+| `/workspaces/[id]`                  | aktif workspace adı + rol                        | hayır                           |
+| `/workspaces/[id]/boards/[boardId]` | aktif workspace adı + rol                        | hayır                           |
+| `/account`                          | "Workspace seç" + chevron                        | hayır                           |
 
 ### 13.8.4 `BoardSwitcher` bileşeni
 
@@ -448,7 +465,10 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 <Button variant="outline" size="sm" className="h-9 max-w-56 gap-2 px-2" disabled={!workspaceId}>
   <span className="size-2.5 shrink-0 rounded-full bg-palet-{hash}" aria-hidden />
   <span className="truncate text-sm font-medium">
-    {boardTitle ?? (workspaceId ? strings.shell.boardSwitcher.placeholder : strings.shell.boardSwitcher.disabled)}
+    {boardTitle ??
+      (workspaceId
+        ? strings.shell.boardSwitcher.placeholder
+        : strings.shell.boardSwitcher.disabled)}
   </span>
   <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
 </Button>
@@ -470,7 +490,7 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 
 ### 13.8.5 `UserNavMenu` bileşeni
 
-`apps/web/src/app/(app)/_components/user-nav-menu.tsx` (yeni). Mevcut [app-shell.tsx:78-90](apps/web/src/app/(app)/_components/app-shell.tsx#L78-L90) "Hesap" link + "Çıkış yap" butonu **silinir**; bu bileşene taşınır.
+`apps/web/src/app/(app)/_components/user-nav-menu.tsx` (yeni). Mevcut [app-shell.tsx:78-90](<apps/web/src/app/(app)/_components/app-shell.tsx#L78-L90>) "Hesap" link + "Çıkış yap" butonu **silinir**; bu bileşene taşınır.
 
 **Trigger** — `Button variant=ghost size=icon` (h-9 w-9), avatar rozet:
 
@@ -501,7 +521,13 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 <Tooltip>
   <TooltipTrigger asChild>
     <span className="inline-flex">
-      <Button variant="ghost" size="icon" className="size-9" disabled aria-label={strings.shell.notifications.label}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-9"
+        disabled
+        aria-label={strings.shell.notifications.label}
+      >
         <BellIcon className="size-4" aria-hidden />
       </Button>
     </span>
@@ -510,14 +536,14 @@ Sticky `bg-card border-b shadow-card`, `h-14`, `mx-auto max-w-7xl px-4`. İçeri
 </Tooltip>
 ```
 
-- Disabled `Button` `<span>` ile sarılır (tooltip için — disabled element'e pointer event gelmez, span'a gelir; mevcut `ComingSoonAction` pattern'i — [board-top-bar.tsx:45-73](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L45-L73) ile aynı).
+- Disabled `Button` `<span>` ile sarılır (tooltip için — disabled element'e pointer event gelmez, span'a gelir; mevcut `ComingSoonAction` pattern'i — [board-top-bar.tsx:45-73](<apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L45-L73>) ile aynı).
 
 ### 13.8.7 `BoardTopBar` etkisi (K2 uygulama notu)
 
-[board-top-bar.tsx:135-184](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L135-L184) içindeki **identity bloğu** (`{/* Identity */}` yorumundan view switch öncesine kadar — workspace `Link` rozet + eyebrow + `RenameBoardForm`/h1 + arşiv ikonu + arşivli rozet + favori `StarIcon` + `Tooltip`) **kaldırılır**.
+[board-top-bar.tsx:135-184](<apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L135-L184>) içindeki **identity bloğu** (`{/* Identity */}` yorumundan view switch öncesine kadar — workspace `Link` rozet + eyebrow + `RenameBoardForm`/h1 + arşiv ikonu + arşivli rozet + favori `StarIcon` + `Tooltip`) **kaldırılır**.
 
 - Kalan: view switch (`BoardViewSwitch`) — sola çekilir (`flex-1` veya `mr-auto` yerine bilinçli sola hizalı); actions sağda.
-- `RenameBoardForm` render edilmeye devam eder, ama yalnız `editing=true` durumunda — tetikleyici ⋮ menüdeki "Yeniden adlandır" `DropdownMenuItem` (zaten var, [board-top-bar.tsx:228-231](apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L228-L231)). `hideTrigger` prop zaten destekliyor — değişiklik yalnız identity bloğunun kaldırılması.
+- `RenameBoardForm` render edilmeye devam eder, ama yalnız `editing=true` durumunda — tetikleyici ⋮ menüdeki "Yeniden adlandır" `DropdownMenuItem` (zaten var, [board-top-bar.tsx:228-231](<apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx#L228-L231>)). `hideTrigger` prop zaten destekliyor — değişiklik yalnız identity bloğunun kaldırılması.
 - Arşivli `Badge` ve favori `Tooltip` → app-shell switcher'ı board adını gösterirken arşiv durumunu gösteremez (switcher kompakt kalır); arşivli rozet `BoardTopBar`'da view switch'in **solunda** (eski identity yerinde) kalabilir — Identity'nin tek kalıntısı.
 - **DEM-99 board aksiyon ayrışması:** `Davet et / paylaş` birleşik butonu kaldırılır. Board admin için `Davet et` ve `Paylaş` iki ayrı aksiyondur; `Pano ayarları` dropdown'u üyeler/davetler/etiketler/pano işlemleri sekmelerini taşır. Eski `⋮` menü kaldırılır; rename/archive/restore yalnız `Pano işlemleri` sekmesinde bulunur.
 

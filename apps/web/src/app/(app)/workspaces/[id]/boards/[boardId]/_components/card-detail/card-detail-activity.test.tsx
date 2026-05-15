@@ -7,7 +7,14 @@ import type { CardActivityEvent } from './activity-summary';
 const copy = strings.card.activity;
 
 const events: CardActivityEvent[] = [
-  { id: 'a1', type: 'card.created', actorId: 'u1', actorName: 'Ada', payload: {}, createdAt: new Date('2026-01-01') },
+  {
+    id: 'a1',
+    type: 'card.created',
+    actorId: 'u1',
+    actorName: 'Ada',
+    payload: {},
+    createdAt: new Date('2026-01-01'),
+  },
   {
     id: 'a2',
     type: 'comment.created',

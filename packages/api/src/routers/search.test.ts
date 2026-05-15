@@ -35,9 +35,13 @@ const session = (id: string) => ({ user: { id, email: `${id}@example.test`, name
 function callerFor(userId: string) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
-  return create(createContext({ session: session(userId), db: probe.db })) as ReturnType<typeof create> & {
+  return create(createContext({ session: session(userId), db: probe.db })) as ReturnType<
+    typeof create
+  > & {
     search: {
-      query(input: unknown): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }>;
+      query(
+        input: unknown,
+      ): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }>;
     };
   };
 }
@@ -206,11 +210,31 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    const villageRoot = await callerFor(ownerId).search.query({ workspaceId, query: 'köy', limit: 20 });
-    const villageSuffixed = await callerFor(ownerId).search.query({ workspaceId, query: 'köyü', limit: 20 });
-    const villageAscii = await callerFor(ownerId).search.query({ workspaceId, query: 'koy', limit: 20 });
-    const acronymAscii = await callerFor(ownerId).search.query({ workspaceId, query: 'koydes', limit: 20 });
-    const acronymTypo = await callerFor(ownerId).search.query({ workspaceId, query: 'koyds', limit: 20 });
+    const villageRoot = await callerFor(ownerId).search.query({
+      workspaceId,
+      query: 'köy',
+      limit: 20,
+    });
+    const villageSuffixed = await callerFor(ownerId).search.query({
+      workspaceId,
+      query: 'köyü',
+      limit: 20,
+    });
+    const villageAscii = await callerFor(ownerId).search.query({
+      workspaceId,
+      query: 'koy',
+      limit: 20,
+    });
+    const acronymAscii = await callerFor(ownerId).search.query({
+      workspaceId,
+      query: 'koydes',
+      limit: 20,
+    });
+    const acronymTypo = await callerFor(ownerId).search.query({
+      workspaceId,
+      query: 'koyds',
+      limit: 20,
+    });
 
     for (const result of [villageRoot, villageSuffixed, villageAscii]) {
       const titles = result.items.map((item) => item.title);
@@ -218,8 +242,12 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
         expect.arrayContaining(['KÖYDES Köy Yolları Yapım İşleri', 'H Köyü Parke Döşeme']),
       );
     }
-    expect(acronymAscii.items.some((item) => item.title === 'KÖYDES Köy Yolları Yapım İşleri')).toBe(true);
-    expect(acronymTypo.items.some((item) => item.title === 'KÖYDES Köy Yolları Yapım İşleri')).toBe(true);
+    expect(
+      acronymAscii.items.some((item) => item.title === 'KÖYDES Köy Yolları Yapım İşleri'),
+    ).toBe(true);
+    expect(acronymTypo.items.some((item) => item.title === 'KÖYDES Köy Yolları Yapım İşleri')).toBe(
+      true,
+    );
     expect(villageSuffixed.items.some((item) => item.entityId === card.id)).toBe(true);
     expect(villageAscii.items.some((item) => item.entityId === card.id)).toBe(true);
     expect(villageRoot.items.map((item) => item.title).slice(0, 5)).toEqual(
@@ -230,7 +258,9 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
   it('does not leak inaccessible board or workspace results', async () => {
     const { workspaceId, boardId: visibleBoardId } = await seedBoard();
     await db().insert(workspaceMembers).values({ workspaceId, userId: guestId, role: 'guest' });
-    await db().insert(boardMembers).values({ boardId: visibleBoardId, userId: guestId, role: 'viewer' });
+    await db()
+      .insert(boardMembers)
+      .values({ boardId: visibleBoardId, userId: guestId, role: 'viewer' });
 
     const hiddenBoard = await callerFor(ownerId).board.create({
       workspaceId,
@@ -243,14 +273,20 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    const guestResult = await callerFor(guestId).search.query({ workspaceId, query: 'sosyal', limit: 20 });
+    const guestResult = await callerFor(guestId).search.query({
+      workspaceId,
+      query: 'sosyal',
+      limit: 20,
+    });
     expect(guestResult.items.some((item) => item.entityId === visibleBoardId)).toBe(true);
     expect(guestResult.items.some((item) => item.entityId === hiddenBoard.id)).toBe(false);
 
     const globalResult = await callerFor(ownerId).search.query({ query: 'sosyal', limit: 50 });
     expect(globalResult.items.some((item) => item.title === 'Sosyal Baska Workspace')).toBe(false);
 
-    await expect(callerFor(outsiderId).search.query({ workspaceId, query: 'sosyal' })).rejects.toMatchObject({
+    await expect(
+      callerFor(outsiderId).search.query({ workspaceId, query: 'sosyal' }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
@@ -268,7 +304,11 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    const activeOnly = await callerFor(ownerId).search.query({ boardId, query: 'arsiv kira', limit: 10 });
+    const activeOnly = await callerFor(ownerId).search.query({
+      boardId,
+      query: 'arsiv kira',
+      limit: 10,
+    });
     expect(activeOnly.items.some((item) => item.entityId === archivedCard.id)).toBe(false);
 
     const withArchived = await callerFor(ownerId).search.query({

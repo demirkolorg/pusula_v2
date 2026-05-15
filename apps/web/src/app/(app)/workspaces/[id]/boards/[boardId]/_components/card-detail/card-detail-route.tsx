@@ -33,6 +33,11 @@ export function CardDetailRoute({ boardId }: { boardId: string }) {
   };
 
   return (
-    <CardDetailDialog boardId={boardId} cardId={cardId} viewerUserId={viewerUserId} onClose={close} />
+    <CardDetailDialog
+      boardId={boardId}
+      cardId={cardId}
+      viewerUserId={viewerUserId}
+      onClose={close}
+    />
   );
 }

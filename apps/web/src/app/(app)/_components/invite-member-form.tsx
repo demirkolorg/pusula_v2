@@ -22,7 +22,12 @@ type InviteMemberFormProps = {
  * the shared `@pusula/domain` `emailSchema` so the rule matches the server
  * (which also normalizes the address).
  */
-export function InviteMemberForm({ onSubmit, onCancel, pending = false, error }: InviteMemberFormProps) {
+export function InviteMemberForm({
+  onSubmit,
+  onCancel,
+  pending = false,
+  error,
+}: InviteMemberFormProps) {
   const emailId = useId();
   const copy = strings.invitations;
   const [email, setEmail] = useState('');

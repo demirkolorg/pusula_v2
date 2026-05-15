@@ -36,11 +36,7 @@ describe('<InviteMemberForm>', () => {
 
   it('shows an inline server error and disables the submit button while pending', () => {
     render(
-      <InviteMemberForm
-        onSubmit={vi.fn()}
-        pending
-        error="Bu kullanıcı zaten workspace üyesi."
-      />,
+      <InviteMemberForm onSubmit={vi.fn()} pending error="Bu kullanıcı zaten workspace üyesi." />,
     );
     expect(screen.getByRole('alert')).toHaveTextContent('Bu kullanıcı zaten workspace üyesi.');
     expect(screen.getByRole('button', { name: 'Gönderiliyor…' })).toBeDisabled();

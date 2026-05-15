@@ -14,15 +14,8 @@ import { getDb } from '@pusula/db';
 import { auth } from '../auth';
 import { env } from '../env';
 import { attachRealtimeBridge, type RealtimeBridgeHandle } from './realtime-bridge';
-import {
-  attachNotificationBridge,
-  type NotificationBridgeHandle,
-} from './notification-bridge';
-import {
-  createSocketServer,
-  type AttachableHttpServer,
-  type SocketServerHandle,
-} from './server';
+import { attachNotificationBridge, type NotificationBridgeHandle } from './notification-bridge';
+import { createSocketServer, type AttachableHttpServer, type SocketServerHandle } from './server';
 
 export type { SocketServerHandle, AttachableHttpServer } from './server';
 export { REALTIME_EVENT_CHANNEL } from './emit';
@@ -36,9 +29,7 @@ export { roomName } from '@pusula/domain';
  * same `Server` so worker-published envelopes fan out to local sockets via
  * `io.local.to(...)`.
  */
-export async function setupSocketServer(
-  httpServer: AttachableHttpServer,
-): Promise<
+export async function setupSocketServer(httpServer: AttachableHttpServer): Promise<
   SocketServerHandle & {
     realtimeBridge?: RealtimeBridgeHandle;
     notificationBridge?: NotificationBridgeHandle;

@@ -17,9 +17,7 @@ describe('activitySummary', () => {
   });
 
   it('keeps DEM-93 activity aliases supported for older payloads', () => {
-    expect(activitySummary('card.member_added', { cardTitle: 'Eski kart' })).toContain(
-      'Eski kart',
-    );
+    expect(activitySummary('card.member_added', { cardTitle: 'Eski kart' })).toContain('Eski kart');
     expect(activitySummary('comment.created', { cardTitle: 'Yorum' })).toContain('Yorum');
     expect(activitySummary('due_reminder_1h', { cardTitle: 'Due' })).toContain('Due');
   });

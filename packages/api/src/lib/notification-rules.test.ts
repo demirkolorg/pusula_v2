@@ -119,8 +119,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
 
   afterAll(async () => {
     if (!probe) return;
-    await db().delete(notificationPreferences).where(dbMod.eq(notificationPreferences.boardId, boardId));
-    await db().delete(notificationPreferences).where(dbMod.eq(notificationPreferences.workspaceId, workspaceId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.boardId, boardId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.workspaceId, workspaceId));
     await db().delete(dbMod.cards).where(dbMod.eq(dbMod.cards.id, cardId));
     await db().delete(dbMod.lists).where(dbMod.eq(dbMod.lists.boardId, boardId));
     await db().delete(dbMod.boards).where(dbMod.eq(dbMod.boards.id, boardId));
@@ -143,7 +147,10 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
 
   it('card.member_added → assignee gets in_app + email + push; actor self-skipped', async () => {
     const rules = await computeNotifications(db(), memberAddedEvent(assigneeId));
-    const channels = rules.filter((r) => r.recipientUserId === assigneeId).map((r) => r.channel).sort();
+    const channels = rules
+      .filter((r) => r.recipientUserId === assigneeId)
+      .map((r) => r.channel)
+      .sort();
     expect(channels).toEqual(['email', 'in_app', 'push']);
     // Actor never appears in the recipient list.
     expect(rules.some((r) => r.recipientUserId === actorId)).toBe(false);

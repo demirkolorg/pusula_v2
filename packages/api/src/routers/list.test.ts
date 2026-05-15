@@ -17,11 +17,7 @@ import {
 import { positionBetween, POSITION_COMPACTION_MAX_LEN } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
-import {
-  createContext,
-  type EnqueueCompaction,
-  type EnqueueRealtimePublish,
-} from '../context';
+import { createContext, type EnqueueCompaction, type EnqueueRealtimePublish } from '../context';
 
 // Probe the database at collection time so `describe.runIf` can react to it.
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
@@ -59,15 +55,10 @@ function callerWithEnqueue(userId: string, enqueueCompaction: EnqueueCompaction)
 }
 
 /** A caller whose tRPC context carries a (mock) `enqueueRealtimePublish` hook. */
-function callerWithRealtimeEnqueue(
-  userId: string,
-  enqueueRealtimePublish: EnqueueRealtimePublish,
-) {
+function callerWithRealtimeEnqueue(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
-  return create(
-    createContext({ session: session(userId), db: probe.db, enqueueRealtimePublish }),
-  );
+  return create(createContext({ session: session(userId), db: probe.db, enqueueRealtimePublish }));
 }
 
 describe.runIf(dbAvailable)('list router (integration)', () => {
@@ -185,7 +176,11 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
 
   it('create: a board viewer (workspace guest with an explicit viewer membership) is FORBIDDEN', async () => {
     await expect(
-      callerFor(guestId).list.create({ boardId, title: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).list.create({
+        boardId,
+        title: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -195,7 +190,10 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Frozen',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archivedBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: archivedBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
       callerFor(ownerId).list.create({
         boardId: archivedBoard.id,
@@ -360,7 +358,8 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     const colorActivity = (await actsFor(boardId)).find(
-      (a) => a.type === 'list.color_changed' && (a.payload as { listId?: string }).listId === list.id,
+      (a) =>
+        a.type === 'list.color_changed' && (a.payload as { listId?: string }).listId === list.id,
     );
     expect(colorActivity?.payload).toMatchObject({
       listId: list.id,
@@ -373,7 +372,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
     );
     expect(updatedEvents).toHaveLength(1);
-    expect((updatedEvents[0]!.payload as { data: { listId: string; color: string | null } }).data).toMatchObject({
+    expect(
+      (updatedEvents[0]!.payload as { data: { listId: string; color: string | null } }).data,
+    ).toMatchObject({
       listId: list.id,
       color: 'yesil',
     });
@@ -409,7 +410,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(cleared).toMatchObject({ id: list.id, color: null, changed: true });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
     const clearedActivity = (await actsFor(boardId)).find(
-      (a) => a.type === 'list.color_cleared' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+      (a) =>
+        a.type === 'list.color_cleared' &&
+        (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
     );
     expect(clearedActivity?.payload).toMatchObject({
       listId: list.id,
@@ -442,7 +445,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const activityCount = (await actsFor(boardId)).filter(
       (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
     ).length;
-    const realtimeCount = (await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length;
+    const realtimeCount = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated',
+    ).length;
     const enqueue = vi.fn<EnqueueRealtimePublish>();
 
     const noop = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
@@ -459,7 +464,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
         (a) => a.type === 'list.color_changed' || a.type === 'list.color_cleared',
       ).length,
     ).toBe(activityCount);
-    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(realtimeCount);
+    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(
+      realtimeCount,
+    );
     expect(enqueue).not.toHaveBeenCalled();
   });
 
@@ -506,7 +513,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
     );
     expect(updatedEvents).toHaveLength(1);
-    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('color');
+    expect(
+      (updatedEvents[0]!.payload as { data: Record<string, unknown> }).data,
+    ).not.toHaveProperty('color');
     expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
   });
 
@@ -543,7 +552,8 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     const iconActivity = (await actsFor(boardId)).find(
-      (a) => a.type === 'list.icon_changed' && (a.payload as { listId?: string }).listId === list.id,
+      (a) =>
+        a.type === 'list.icon_changed' && (a.payload as { listId?: string }).listId === list.id,
     );
     expect(iconActivity?.payload).toMatchObject({
       listId: list.id,
@@ -559,7 +569,11 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     );
     expect(updatedEvents).toHaveLength(1);
     expect(
-      (updatedEvents[0]!.payload as { data: { listId: string; icon: string | null; iconColor: string | null } }).data,
+      (
+        updatedEvents[0]!.payload as {
+          data: { listId: string; icon: string | null; iconColor: string | null };
+        }
+      ).data,
     ).toMatchObject({
       listId: list.id,
       icon: 'star',
@@ -607,7 +621,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     const iconActivity = (await actsFor(boardId)).find(
-      (a) => a.type === 'list.icon_changed' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+      (a) =>
+        a.type === 'list.icon_changed' &&
+        (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
     );
     expect(iconActivity?.payload).toMatchObject({
       listId: list.id,
@@ -626,7 +642,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       listId: list.id,
       iconColor: null,
     });
-    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('icon');
+    expect(
+      (updatedEvents[0]!.payload as { data: Record<string, unknown> }).data,
+    ).not.toHaveProperty('icon');
     expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
   });
 
@@ -669,7 +687,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     const iconActivity = (await actsFor(boardId)).find(
-      (a) => a.type === 'list.icon_cleared' && (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
+      (a) =>
+        a.type === 'list.icon_cleared' &&
+        (a.payload as { clientMutationId?: string }).clientMutationId === cmid,
     );
     expect(iconActivity?.payload).toMatchObject({
       listId: list.id,
@@ -709,7 +729,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     const activityCount = (await actsFor(boardId)).filter(
       (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
     ).length;
-    const realtimeCount = (await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length;
+    const realtimeCount = (await rtEventsFor(boardId)).filter(
+      (r) => r.type === 'list.updated',
+    ).length;
     const enqueue = vi.fn<EnqueueRealtimePublish>();
 
     const noop = await callerWithRealtimeEnqueue(memberId, enqueue).list.update({
@@ -732,7 +754,9 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
         (a) => a.type === 'list.icon_changed' || a.type === 'list.icon_cleared',
       ).length,
     ).toBe(activityCount);
-    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(realtimeCount);
+    expect((await rtEventsFor(boardId)).filter((r) => r.type === 'list.updated').length).toBe(
+      realtimeCount,
+    );
     expect(enqueue).not.toHaveBeenCalled();
   });
 
@@ -782,8 +806,12 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       (r) => r.type === 'list.updated' && r.clientMutationId === cmid,
     );
     expect(updatedEvents).toHaveLength(1);
-    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('icon');
-    expect((updatedEvents[0]!.payload as { data: Record<string, unknown> }).data).not.toHaveProperty('iconColor');
+    expect(
+      (updatedEvents[0]!.payload as { data: Record<string, unknown> }).data,
+    ).not.toHaveProperty('icon');
+    expect(
+      (updatedEvents[0]!.payload as { data: Record<string, unknown> }).data,
+    ).not.toHaveProperty('iconColor');
     expect(enqueue).toHaveBeenCalledWith({ eventId: updatedEvents[0]!.id });
   });
 
@@ -842,9 +870,21 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Move Board',
       clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
-    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const c = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'C',
+      clientMutationId: crypto.randomUUID(),
+    });
     expect(a.position < b.position).toBe(true);
     expect(b.position < c.position).toBe(true);
 
@@ -899,9 +939,21 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'NewPosition Board',
       clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
-    const c = await callerFor(ownerId).list.create({ boardId: board.id, title: 'C', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const c = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'C',
+      clientMutationId: crypto.randomUUID(),
+    });
 
     // valid: a position strictly between A and B
     const between = positionBetween(a.position, b.position);
@@ -959,7 +1011,10 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Doomed',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: archBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: archBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
       callerFor(ownerId).list.move({
         boardId: archBoard.id,
@@ -976,7 +1031,11 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
     await expect(
-      callerFor(guestId).list.move({ boardId, listId: list.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).list.move({
+        boardId,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -986,8 +1045,16 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Noop Move Board',
       clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
 
     const v0 = await boardVersion(board.id);
     const before0 = (await actsFor(board.id)).filter((e) => e.type === 'list.moved').length;
@@ -1014,8 +1081,16 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Compaction Short Board',
       clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
 
     // A real move into the middle (between A and B) — short key.
     const moved = await callerWithEnqueue(memberId, enqueue).list.move({
@@ -1046,8 +1121,16 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
       title: 'Compaction Long Board',
       clientMutationId: crypto.randomUUID(),
     });
-    const a = await callerFor(ownerId).list.create({ boardId: board.id, title: 'A', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).list.create({ boardId: board.id, title: 'B', clientMutationId: crypto.randomUUID() });
+    const a = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'A',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'B',
+      clientMutationId: crypto.randomUUID(),
+    });
     const target = await callerFor(ownerId).list.create({
       boardId: board.id,
       title: 'Target',
@@ -1100,14 +1183,18 @@ describe.runIf(dbAvailable)('list router — realtime outbox (Faz 5B / DEM-84)',
     });
     wsId = ws.id;
     createdWorkspaceIds.push(ws.id);
-    await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: member, role: 'member' });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.id, userId: member, role: 'member' });
   });
 
   afterAll(async () => {
     for (const id of createdWorkspaceIds) {
       await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
     }
-    await db().delete(users).where(dbMod.inArray(users.id, [owner, member]));
+    await db()
+      .delete(users)
+      .where(dbMod.inArray(users.id, [owner, member]));
   });
 
   const rtEventsFor = (boardId: string) =>

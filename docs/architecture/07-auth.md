@@ -1,19 +1,20 @@
 ---
-title: "07 — Auth"
-description: "Better Auth, session yönetimi ve authorization ayrımı."
+title: '07 — Auth'
+description: 'Better Auth, session yönetimi ve authorization ayrımı.'
 aliases:
-  - "Auth"
-  - "Kimlik Doğrulama"
+  - 'Auth'
+  - 'Kimlik Doğrulama'
 tags:
-  - "pusula"
-  - "architecture/auth"
-  - "security"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/auth'
+  - 'security'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-12
 ---
+
 # 07 — Auth (Kimlik Doğrulama)
 
 > Eksen: **tasarım / teknik** — kimlik doğrulama altyapısı ve permission **enforcement noktası**.
@@ -62,7 +63,7 @@ Kullanıcının **kendi** hesabını yönetmesi (ad, avatar, parola, hesap silme
 
 Kullanıcı parolasını unutursa **e-posta ile şifre sıfırlama bağlantısı** alır. Profil/hesap yönetimi gibi bu da doğrudan Better Auth uçlarına gider — yeni tRPC katmanı **yoktur**.
 
-- **Web (`apps/web`):** `(auth)/forgot-password` — e-posta gir → `authClient.requestPasswordReset({ email, redirectTo: \`${window.location.origin}/reset-password\` })` → "Bağlantı e-posta adresine gönderildi" mesajı (e-posta var/yok **ayırt edilmez** — kullanıcı listesi sızdırılmaz; Better Auth da kayıt yoksa sessizce başarı döner). `(auth)/reset-password` — bağlantıdaki `?token=` URL'den okunur → yeni parola gir (`@pusula/domain` `passwordSchema` ile istemcide doğrula) → `authClient.resetPassword({ newPassword, token })` → başarıda sign-in'e yönlendir; token yok/geçersiz/süresi dolmuşsa açıklayıcı mesaj + "yeni bağlantı iste" linki. Sign-in ekranına **"Şifremi unuttum"** linki. Yalnız shadcn/ui; kullanıcı-yüzlü metinler `strings.auth.*`; ekran düzeni → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.1. `redirectTo` **mutlak** (web app origin'i) verilir — Better Auth `redirectTo`'yu sunucu tarafında kendi `baseURL`'üne (`API_URL`) göre çözer; göreli bir yol API sunucusuna işaret ederdi. Mutlak web URL'i `trustedOrigins` (`APP_URL`) origin kontrolünden geçer. `/reset-password` ve `/forgot-password` rotaları `Referrer-Policy: no-referrer` ile servis edilir (token query'de — `Referer` sızıntısına karşı defense-in-depth; `apps/web/next.config.ts`).
+- **Web (`apps/web`):** `(auth)/forgot-password` — e-posta gir → `authClient.requestPasswordReset({ email, redirectTo: \`${window.location.origin}/reset-password\` })`→ "Bağlantı e-posta adresine gönderildi" mesajı (e-posta var/yok **ayırt edilmez** — kullanıcı listesi sızdırılmaz; Better Auth da kayıt yoksa sessizce başarı döner).`(auth)/reset-password`— bağlantıdaki`?token=` URL'den okunur → yeni parola gir (`@pusula/domain` `passwordSchema`ile istemcide doğrula) →`authClient.resetPassword({ newPassword, token })`→ başarıda sign-in'e yönlendir; token yok/geçersiz/süresi dolmuşsa açıklayıcı mesaj + "yeni bağlantı iste" linki. Sign-in ekranına **"Şifremi unuttum"** linki. Yalnız shadcn/ui; kullanıcı-yüzlü metinler`strings.auth.\*`; ekran düzeni → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.1. `redirectTo`**mutlak** (web app origin'i) verilir — Better Auth`redirectTo`'yu sunucu tarafında kendi `baseURL`'üne (`API_URL`) göre çözer; göreli bir yol API sunucusuna işaret ederdi. Mutlak web URL'i `trustedOrigins` (`APP_URL`) origin kontrolünden geçer. `/reset-password`ve`/forgot-password`rotaları`Referrer-Policy: no-referrer`ile servis edilir (token query'de —`Referer`sızıntısına karşı defense-in-depth;`apps/web/next.config.ts`).
 - **API (`apps/api/src/auth.ts`):** Better Auth `emailAndPassword.sendResetPassword({ user, url, token }, request)` callback'i → **Resend** transactional e-postası gönderir (kısa HTML + plain-text gövde: sıfırlama linki + geçerlilik notu; gönderen = `EMAIL_FROM` env). `RESEND_API_KEY` / `EMAIL_FROM` `apps/api/src/env.ts` Zod şemasına eklenir; `RESEND_API_KEY` yoksa callback **best-effort** — uyarı loglanır, exception fırlatılmaz (signup bootstrap hook'undaki disiplinle aynı). Sıfırlama linki token'ı query'de taşıdığından **yalnızca dev'de** (`NODE_ENV !== 'production'`) log'a yazılır; prod'da `RESEND_API_KEY` unutulursa yalnızca "e-posta gönderilemedi" loglanır (token **log'a düşmez**). Dev ortamında (`NODE_ENV !== 'production'`) `EMAIL_DEV_OVERRIDE` env'i set ise tüm transactional auth e-postaları gerçek alıcı yerine bu adrese gönderilir (gerçek alıcıyı içeren bir uyarı loglanır); prod'da bu override **yok sayılır** — `EMAIL_FROM=onboarding@resend.dev` (Resend test göndereni, yalnız hesap sahibine teslim eder) ile farklı adresli kullanıcı testini kolaylaştırır (v1'deki `MAIL_DEV_ALICI_OVERRIDE` deseni). `resend` npm paketi `apps/api` deps'e eklenir. Şemalar `@pusula/domain` (`forgotPasswordInput` = `{ email }`, `resetPasswordInput` = `{ token, newPassword }` — `passwordSchema` yeniden kullanılır).
 - **Bu auth e-postası bildirim outbox'undan AYRIDIR:** parola sıfırlama (ve ileride signup doğrulama) **request-path**'te Better Auth tarafından Resend ile gönderilir; Faz 6'daki `notification_outbox` + worker akışı **bildirim** e-postaları içindir, transactional auth e-postaları onun parçası değildir. Karar kaydı → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) (2026-05-12).
 - **Token:** Better Auth tek-kullanımlık, süreli token üretir (`verifications` tablosu); link `${APP_URL}/reset-password?token=…`. Token üretimi/süresi/iptali Better Auth varsayılanlarına bırakılır.

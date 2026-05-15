@@ -120,7 +120,11 @@ async function loadChecklist(tx: Transaction, checklistId: string, cardId: strin
  * `cardId`; `NOT_FOUND` otherwise. Returns the item row.
  */
 async function loadItem(tx: Transaction, itemId: string, checklistId: string, cardId: string) {
-  const [item] = await tx.select(itemCols).from(checklistItems).where(eq(checklistItems.id, itemId)).limit(1);
+  const [item] = await tx
+    .select(itemCols)
+    .from(checklistItems)
+    .where(eq(checklistItems.id, itemId))
+    .limit(1);
   if (!item || item.checklistId !== checklistId) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist öğesi bulunamadı.' });
   }
@@ -174,7 +178,12 @@ const itemRouter = router({
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
         type: 'checklist.item_added',
-        payload: { checklistId: input.checklistId, itemId: created.id, cardId: ctx.card.id, content: created.content },
+        payload: {
+          checklistId: input.checklistId,
+          itemId: created.id,
+          cardId: ctx.card.id,
+          content: created.content,
+        },
       });
 
       const seq = await bumpBoardVersion(tx, ctx.card.boardId);
@@ -233,7 +242,11 @@ const itemRouter = router({
         .returning(itemCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      const togglePayload = { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id };
+      const togglePayload = {
+        checklistId: input.checklistId,
+        itemId: item.id,
+        cardId: ctx.card.id,
+      };
       const toggleType = input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked';
       const [activity] = await tx
         .insert(activityEvents)
@@ -299,7 +312,10 @@ const itemRouter = router({
    */
   update: cardProcedure.input(updateChecklistItemInput).mutation(async ({ ctx, input }) => {
     if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist öğesi düzenleme yetkiniz yok.' });
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Checklist öğesi düzenleme yetkiniz yok.',
+      });
     }
 
     let realtimeEventId: string | undefined;
@@ -402,14 +418,20 @@ const itemRouter = router({
 
       // An item cannot be positioned relative to itself (degenerate / no-op).
       if (input.beforeItemId === input.itemId || input.afterItemId === input.itemId) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bir öğe kendisine göre konumlandırılamaz.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Bir öğe kendisine göre konumlandırılamaz.',
+        });
       }
 
       const neighbourIds = [input.beforeItemId, input.afterItemId].filter(
         (id): id is string => typeof id === 'string',
       );
       const neighbours = neighbourIds.length
-        ? await tx.select(itemCols).from(checklistItems).where(inArray(checklistItems.id, neighbourIds))
+        ? await tx
+            .select(itemCols)
+            .from(checklistItems)
+            .where(inArray(checklistItems.id, neighbourIds))
         : [];
       const byId = new Map(neighbours.map((n) => [n.id, n] as const));
 
@@ -419,7 +441,10 @@ const itemRouter = router({
         (input.beforeItemId && (!before || before.checklistId !== input.checklistId)) ||
         (input.afterItemId && (!after || after.checklistId !== input.checklistId))
       ) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Komşu öğeler aynı checklist içinde olmalı.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Komşu öğeler aynı checklist içinde olmalı.',
+        });
       }
 
       // `fractional-indexing` throws when the neighbours are out of order

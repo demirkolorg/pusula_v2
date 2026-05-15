@@ -1,6 +1,7 @@
 ---
 description: Kontrol odası — bu tab'ın devir/handoff notu (değişen docs, açık kararlar, bekleyen catch-up, tab durumu)
 ---
+
 Bu bir **kontrol odası** tab işidir (bkz. `docs/kontrol-odasi/README.md`). Bu konuşma bir kod yazma tab'ıysa, devir notunu o tab'ın işine göre uyarla; kontrol odası tab'ıysa aşağıyı uygula.
 
 Görev: **devir notu** üret.

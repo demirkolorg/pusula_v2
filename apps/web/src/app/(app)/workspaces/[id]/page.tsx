@@ -214,13 +214,13 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
         </div>
 
         <aside className="space-y-4">
-        <Card>
-          <CardHeader>
+          <Card>
+            <CardHeader>
               <CardTitle role="heading" aria-level={2}>
                 {strings.workspace.manage.actionsTitle}
               </CardTitle>
               <CardDescription>{strings.workspace.manage.actionsDescription}</CardDescription>
-          </CardHeader>
+            </CardHeader>
             <CardContent className="space-y-4">
               {isOwner ? (
                 <>
@@ -257,8 +257,8 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
                   {strings.workspace.manage.ownerOnlyNote}
                 </p>
               )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         </aside>
       </div>
     </div>

@@ -74,13 +74,46 @@ function makeDnd(over: Partial<BoardDnd> = {}): BoardDnd & {
     moveCardToListEnd: vi.fn(),
     moveColumnByOne: vi.fn(),
     ...over,
-  } as BoardDnd & { moveCardToListEnd: ReturnType<typeof vi.fn>; moveColumnByOne: ReturnType<typeof vi.fn> };
+  } as BoardDnd & {
+    moveCardToListEnd: ReturnType<typeof vi.fn>;
+    moveColumnByOne: ReturnType<typeof vi.fn>;
+  };
 }
 
 const lists: BoardList[] = [
-  { id: 'L1', title: 'Yapılacak', position: 'a0', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L2', title: 'Devam Eden', position: 'a1', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'L3', title: 'Bitti', position: 'a2', color: null, icon: null, iconColor: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date() },
+  {
+    id: 'L1',
+    title: 'Yapılacak',
+    position: 'a0',
+    color: null,
+    icon: null,
+    iconColor: null,
+    archivedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 'L2',
+    title: 'Devam Eden',
+    position: 'a1',
+    color: null,
+    icon: null,
+    iconColor: null,
+    archivedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 'L3',
+    title: 'Bitti',
+    position: 'a2',
+    color: null,
+    icon: null,
+    iconColor: null,
+    archivedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
 ];
 
 const card: BoardCard = {
@@ -148,7 +181,9 @@ describe('board drag-and-drop accessible alternatives (⋮ menus)', () => {
       const user = userEvent.setup();
       render(<ListColumn boardId="b1" list={lists[1]!} cards={[]} canEdit allLists={lists} />);
       await user.click(screen.getByRole('button', { name: columnCopy.more }));
-      expect(await screen.findByRole('menuitem', { name: columnCopy.menuRename })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('menuitem', { name: columnCopy.menuRename }),
+      ).toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: dndCopy.moveLeft })).not.toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: dndCopy.moveRight })).not.toBeInTheDocument();
     });
@@ -172,7 +207,9 @@ describe('board drag-and-drop accessible alternatives (⋮ menus)', () => {
       expect(ownList).toHaveAttribute('aria-disabled', 'true');
       expect(screen.getByRole('menuitem', { name: /Devam Eden/ })).toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: /Bitti/ })).toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: strings.board.card.archive })).toBeInTheDocument();
+      expect(
+        screen.getByRole('menuitem', { name: strings.board.card.archive }),
+      ).toBeInTheDocument();
     });
 
     it('picking a target list calls moveCardToListEnd with the right ids', async () => {

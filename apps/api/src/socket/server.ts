@@ -45,7 +45,9 @@ export interface CreateSocketServerOptions {
    * pub/sub. Omit in tests → in-memory adapter (Socket.IO default), which is
    * perfectly fine for single-process suites.
    */
-  createRedisAdapterClients?: () => Promise<{ pub: Redis; sub: Redis }> | { pub: Redis; sub: Redis };
+  createRedisAdapterClients?: () =>
+    | Promise<{ pub: Redis; sub: Redis }>
+    | { pub: Redis; sub: Redis };
 }
 
 /** The result of building the socket server — the host owns disposal. */

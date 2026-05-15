@@ -12,10 +12,7 @@ import { connection } from './redis';
 import { db, pool } from './db';
 import { env } from './env';
 import { processCompactionJob, type CompactionJobData } from './jobs/compaction';
-import {
-  processSearchReindexJob,
-  type SearchReindexJobData,
-} from './jobs/search-reindex';
+import { processSearchReindexJob, type SearchReindexJobData } from './jobs/search-reindex';
 import {
   createDefaultNotificationPublisher,
   NOTIFICATION_PUBLISH_JOB_NAME,
@@ -327,10 +324,7 @@ void notificationsQueue
     },
   )
   .catch((err) => {
-    console.error(
-      '[worker:notifications-sweeper] failed to register repeatable job:',
-      err.message,
-    );
+    console.error('[worker:notifications-sweeper] failed to register repeatable job:', err.message);
   });
 
 // Faz 6A (DEM-90) — register the 5-minute due-date scheduler. Lives on

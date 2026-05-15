@@ -151,7 +151,8 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
 
     const acts = await actsFor(boardId);
     const addedActs = acts.filter(
-      (a) => a.type === 'card.label_added' && (a.payload as { labelId?: string }).labelId === labelId,
+      (a) =>
+        a.type === 'card.label_added' && (a.payload as { labelId?: string }).labelId === labelId,
     );
     expect(addedActs).toHaveLength(1);
     expect(addedActs[0]?.payload).toMatchObject({ cardId, labelId });
@@ -186,7 +187,11 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
 
   it('add: a board viewer is FORBIDDEN', async () => {
     await expect(
-      callerFor(guestId).card.labels.add({ cardId, labelId, clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).card.labels.add({
+        cardId,
+        labelId,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -213,14 +218,26 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
 
     const acts = await actsFor(boardId);
     expect(
-      acts.filter((a) => a.type === 'card.label_removed' && (a.payload as { labelId?: string }).labelId === labelId),
+      acts.filter(
+        (a) =>
+          a.type === 'card.label_removed' &&
+          (a.payload as { labelId?: string }).labelId === labelId,
+      ),
     ).toHaveLength(1);
   });
 
   it('remove: a board viewer is FORBIDDEN', async () => {
-    await callerFor(memberId).card.labels.add({ cardId, labelId, clientMutationId: crypto.randomUUID() });
+    await callerFor(memberId).card.labels.add({
+      cardId,
+      labelId,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
-      callerFor(guestId).card.labels.remove({ cardId, labelId, clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).card.labels.remove({
+        cardId,
+        labelId,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 

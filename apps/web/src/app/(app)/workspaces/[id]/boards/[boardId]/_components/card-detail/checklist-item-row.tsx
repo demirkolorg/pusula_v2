@@ -43,7 +43,9 @@ export function ChecklistItemRow({
   const [error, setError] = useState<string | null>(null);
 
   const completerName =
-    item.completed && item.completedBy ? nameOf?.(item.completedBy)?.toString().trim() || null : null;
+    item.completed && item.completedBy
+      ? nameOf?.(item.completedBy)?.toString().trim() || null
+      : null;
 
   return (
     <li className="group/item flex items-start gap-2 text-sm">

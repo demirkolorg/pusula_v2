@@ -10,11 +10,7 @@ import { BoardDndProvider } from './board-dnd-context';
 import { filterCardsByLabels, filterVisibleLists } from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
 import { useBoardDnd } from './use-board-dnd';
-import {
-  type BoardCard,
-  type BoardCardLabelOption,
-  type BoardCardMemberOption,
-} from './card-item';
+import { type BoardCard, type BoardCardLabelOption, type BoardCardMemberOption } from './card-item';
 
 type BoardColumnsProps = {
   boardId: string;

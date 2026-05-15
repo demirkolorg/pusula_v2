@@ -1,18 +1,18 @@
 ---
 name: kontrol
-title: "Pusula Project Skill"
+title: 'Pusula Project Skill'
 description: Use when building, reviewing, refactoring, planning, or making technology decisions for Pusula, a Trello-like task management product with Next.js web, Hono backend, Expo mobile, tRPC, optimistic UI, realtime board sync, notifications, shadcn/ui, Better Auth, Dokploy, MinIO, Resend, PostgreSQL, Drizzle, Redis, and Pragmatic Drag and Drop. Apply this skill whenever the task touches Pusula architecture, code structure, API design, drag-drop, notifications, realtime, auth, deployment, search, UI components, or implementation rules.
 aliases:
-  - "Pusula kontrol skill"
-  - "Implementation Contract"
+  - 'Pusula kontrol skill'
+  - 'Implementation Contract'
 tags:
-  - "pusula"
-  - "skill/claude-code"
-  - "process/protocol"
-type: "skill"
-axis: "process"
-status: "active"
-parent: "[[CLAUDE|Çalışma Protokolü]]"
+  - 'pusula'
+  - 'skill/claude-code'
+  - 'process/protocol'
+type: 'skill'
+axis: 'process'
+status: 'active'
+parent: '[[CLAUDE|Çalışma Protokolü]]'
 updated: 2026-05-12
 ---
 
@@ -40,31 +40,31 @@ The repo is also an Obsidian vault. Keep Markdown docs compatible with `docs/pro
 
 Use these decisions as defaults:
 
-| Area | Decision |
-| --- | --- |
-| Monorepo | pnpm workspaces + Turborepo |
-| Web | Next.js App Router |
-| Backend | Hono HTTP server |
-| API contract | tRPC |
-| Client cache | TanStack Query |
-| Mobile | Expo + Expo Router |
-| Database | PostgreSQL |
-| ORM | Drizzle |
-| Queue | BullMQ + Redis |
-| Realtime | Socket.IO + Redis adapter |
-| Push | Expo Notifications |
-| Drag-drop | Atlassian Pragmatic Drag and Drop |
-| Auth | Better Auth |
-| Web UI | shadcn/ui only (Radix as the shadcn primitive layer); UI design language (tokens, board/card/modal anatomy, shared components) → `docs/architecture/13-ui-tasarim-dili.md` |
-| Rich text | Tiptap (headless editor — not a component library; card description / comments; storage = Tiptap JSON) — Faz 2.7 |
-| Icons | lucide-react |
-| Deployment | Self-hosted Dokploy — single "Docker Compose" service (`compose.prod.yml` in repo) |
-| Object storage | Self-hosted MinIO through S3-compatible APIs |
-| Email | Resend |
-| Search | MVP: PostgreSQL full-text search; later: Meilisearch |
-| Billing | No billing/subscription |
-| Observability | Sentry + OpenTelemetry + structured logs |
-| Testing | Vitest, Playwright, React Testing Library |
+| Area           | Decision                                                                                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                |
+| Web            | Next.js App Router                                                                                                                                                         |
+| Backend        | Hono HTTP server                                                                                                                                                           |
+| API contract   | tRPC                                                                                                                                                                       |
+| Client cache   | TanStack Query                                                                                                                                                             |
+| Mobile         | Expo + Expo Router                                                                                                                                                         |
+| Database       | PostgreSQL                                                                                                                                                                 |
+| ORM            | Drizzle                                                                                                                                                                    |
+| Queue          | BullMQ + Redis                                                                                                                                                             |
+| Realtime       | Socket.IO + Redis adapter                                                                                                                                                  |
+| Push           | Expo Notifications                                                                                                                                                         |
+| Drag-drop      | Atlassian Pragmatic Drag and Drop                                                                                                                                          |
+| Auth           | Better Auth                                                                                                                                                                |
+| Web UI         | shadcn/ui only (Radix as the shadcn primitive layer); UI design language (tokens, board/card/modal anatomy, shared components) → `docs/architecture/13-ui-tasarim-dili.md` |
+| Rich text      | Tiptap (headless editor — not a component library; card description / comments; storage = Tiptap JSON) — Faz 2.7                                                           |
+| Icons          | lucide-react                                                                                                                                                               |
+| Deployment     | Self-hosted Dokploy — single "Docker Compose" service (`compose.prod.yml` in repo)                                                                                         |
+| Object storage | Self-hosted MinIO through S3-compatible APIs                                                                                                                               |
+| Email          | Resend                                                                                                                                                                     |
+| Search         | MVP: PostgreSQL full-text search; later: Meilisearch                                                                                                                       |
+| Billing        | No billing/subscription                                                                                                                                                    |
+| Observability  | Sentry + OpenTelemetry + structured logs                                                                                                                                   |
+| Testing        | Vitest, Playwright, React Testing Library                                                                                                                                  |
 
 ## Monorepo Shape
 

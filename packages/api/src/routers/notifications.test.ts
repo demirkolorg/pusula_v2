@@ -59,7 +59,11 @@ describe.runIf(dbAvailable)('notifications router (integration)', () => {
   // Seed N notifications for `userId` with monotonically increasing
   // `created_at` so the order is deterministic. Returns the inserted ids in
   // *creation order* (oldest first).
-  async function seed(userId: string, count: number, type: 'card_assigned' | 'comment_reply' = 'card_assigned') {
+  async function seed(
+    userId: string,
+    count: number,
+    type: 'card_assigned' | 'comment_reply' = 'card_assigned',
+  ) {
     const base = Date.now() - count * 1_000;
     const rows: { id: string; createdAt: Date }[] = [];
     for (let i = 0; i < count; i++) {
@@ -86,10 +90,16 @@ describe.runIf(dbAvailable)('notifications router (integration)', () => {
     expect(page1.items.map((i) => i.id)).toEqual([newestFirst[0]!.id, newestFirst[1]!.id]);
     expect(page1.nextCursor).not.toBeNull();
 
-    const page2 = await callerFor(aliceId).notifications.list({ limit: 2, cursor: page1.nextCursor! });
+    const page2 = await callerFor(aliceId).notifications.list({
+      limit: 2,
+      cursor: page1.nextCursor!,
+    });
     expect(page2.items.map((i) => i.id)).toEqual([newestFirst[2]!.id, newestFirst[3]!.id]);
 
-    const page3 = await callerFor(aliceId).notifications.list({ limit: 2, cursor: page2.nextCursor! });
+    const page3 = await callerFor(aliceId).notifications.list({
+      limit: 2,
+      cursor: page2.nextCursor!,
+    });
     expect(page3.items.map((i) => i.id)).toEqual([newestFirst[4]!.id]);
     expect(page3.nextCursor).toBeNull();
   });

@@ -153,7 +153,8 @@ async function resetThenSeed(db: Db): Promise<void> {
         boardId: E2E.boardId,
         listId: listRows[i]!.id,
         title,
-        description: i === 0 && j === 0 ? `Deterministic search body: ${E2E.search.cardTerm}` : null,
+        description:
+          i === 0 && j === 0 ? `Deterministic search body: ${E2E.search.cardTerm}` : null,
         position: cardPositions[j]!,
       })),
     );

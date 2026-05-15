@@ -1,19 +1,20 @@
 ---
-title: "08 — Web ve Mobil"
-description: "Next.js web ve ileri faz Expo mobile teknik kuralları."
+title: '08 — Web ve Mobil'
+description: 'Next.js web ve ileri faz Expo mobile teknik kuralları.'
 aliases:
-  - "Web ve Mobil"
-  - "Frontend"
+  - 'Web ve Mobil'
+  - 'Frontend'
 tags:
-  - "pusula"
-  - "architecture/frontend"
-  - "mobile"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/frontend'
+  - 'mobile'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-14
 ---
+
 # 08 — Web ve Mobil
 
 > Eksen: **tasarım / teknik**. Board mekaniği (drag-drop/optimistic/realtime) ayrı: [`05-board-mekanigi.md`](05-board-mekanigi.md).
@@ -27,7 +28,7 @@ Next.js App Router. App `apps/web/src/app`; `@/*` → `apps/web/src/*`.
 Sorumluluklar: board ekranı, drag-drop deneyimi, workspace & board yönetimi, notification center,
 activity feed, search, settings, auth ekranları.
 
-> **UI tasarım dili (token'lar, board/kolon/kart/modal anatomisi, ortak desenler, `packages/ui` bileşen spec'leri) → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md)** (Faz 2.7). Bu dosya web tarafının teknik/işlevsel ihtiyaçlarını tutar; *görsel/anatomi* kararları 13'te. Faz 2.7 uygulamasında §8.1.4–8.1.6'daki ekranlar 13'teki tasarım diline çekilir.
+> **UI tasarım dili (token'lar, board/kolon/kart/modal anatomisi, ortak desenler, `packages/ui` bileşen spec'leri) → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md)** (Faz 2.7). Bu dosya web tarafının teknik/işlevsel ihtiyaçlarını tutar; _görsel/anatomi_ kararları 13'te. Faz 2.7 uygulamasında §8.1.4–8.1.6'daki ekranlar 13'teki tasarım diline çekilir.
 >
 > **Dark/light tema desteği:** root layout'ta `next-themes` `ThemeProvider` (`attribute="class"`, `defaultTheme="light"`, `enableSystem={false}`, `themes=["light","dark"]`, `storageKey="pusula-theme"`); app-shell header sağ tarafında ve public auth kabuğu üst satırında `ThemeToggle` (Sun/Moon ikon swap, `Button variant=ghost size=icon`); persistence = localStorage. Tüm ekranlar (`(auth)/*`, `(app)/*`, board, board settings, card detail modal, filter bar, Tiptap prose) light + dark token cascade'inden besleniyor — yeni renk eklenmez; §13.7 [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md#137-tema-modu-lightdark) "önce belge"si + DEM-96 uygulaması. Mod seti **ikili** (`system` algılaması yok), default `light`.
 >
@@ -37,12 +38,12 @@ activity feed, search, settings, auth ekranları.
 >
 > **Pano arka planına bağlı chrome (DEM-111):** board route'larında AppShell wrapper aktif pano `background` değerinden `board-bg-*` sınıfını alır. Header `bg-board-shell`, `BoardTopBar` `bg-board-topbar` kullanır; bu iki yüzey light modda seçilen renge yakın koyu tonlara, dark modda ise sırasıyla koyu-renk ve siyaha daha yakın tona bağlanır. `boards.background = null` artık seçili indigo/mor-mavi `board-bg-default` zemindir.
 >
-> | Route | WorkspaceSwitcher trigger | BoardSwitcher trigger |
-> | --- | --- | --- |
-> | `/` (workspace list / onboarding) | "Workspace seç" placeholder (tıklanır → dropdown) | disabled, tooltip "Workspace seçin" |
-> | `/workspaces/[id]` | aktif workspace adı + rol | "Pano seç" placeholder |
-> | `/workspaces/[id]/boards/[boardId]` | aktif workspace adı + rol | aktif pano adı + renk noktası |
-> | `/account` | "Workspace seç" placeholder | disabled |
+> | Route                               | WorkspaceSwitcher trigger                         | BoardSwitcher trigger               |
+> | ----------------------------------- | ------------------------------------------------- | ----------------------------------- |
+> | `/` (workspace list / onboarding)   | "Workspace seç" placeholder (tıklanır → dropdown) | disabled, tooltip "Workspace seçin" |
+> | `/workspaces/[id]`                  | aktif workspace adı + rol                         | "Pano seç" placeholder              |
+> | `/workspaces/[id]/boards/[boardId]` | aktif workspace adı + rol                         | aktif pano adı + renk noktası       |
+> | `/account`                          | "Workspace seç" placeholder                       | disabled                            |
 >
 > Mobile (`md:` altı): `BoardSwitcher` ikon-only, `WorkspaceSwitcher` ikon-only; sağ grup (bildirim + tema + avatar) her zaman görünür. Faz 6D'de `NotificationBell` placeholder yerine gerçek bileşen geçer (§8.1.11).
 
@@ -107,7 +108,7 @@ Yeni kayıt olan kullanıcı boş bir ekrana düşmesin diye signup'ta otomatik 
 Backend Faz 2A/2B/2C tamam (`board.{list,create,get,update,archive}`, `list.{create,update,archive}`, `card.{create,get,update,archive}`). Bu faz web tarafında **salt CRUD** board ekranını kurar — drag-drop **yok** (Faz 3 — [DEM-26](https://linear.app/demirkol/issue/DEM-26)), optimistic UI **zorunlu değil** (Faz 4 — [DEM-27](https://linear.app/demirkol/issue/DEM-27); bu fazda mutation → `await` → ilgili query invalidate → refetch). Backend sözleşmesi → [`03-backend.md`](03-backend.md) (Faz 2 — board / list / card procedure'leri), [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) (Board / List / Card procedure haritası); board ekranı veri akışı → [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.0.
 
 - **Board listesi:** `app/(app)/workspaces/[id]/page.tsx` üst bölümüne (ayarlar/üyeler kartlarından **önce**) "Panolar" bölümü — `trpc.board.list` ({ workspaceId }); kart başına board adı → `Link` `/workspaces/[id]/boards/[boardId]`; "Pano oluştur" → shadcn `Dialog` + ad input (`@pusula/domain` `boardTitleSchema` ile client-side validasyon) → `trpc.board.create` (`clientMutationId` istemcide) → `board.list` invalidate. Arşivli board'lar listede soluk/ayrı işaretli ve salt-okunur; board satırındaki `role` alanına göre aksiyonlar gizlenir/gösterilir (gerçek kapı server-side).
-- **Board detay:** `app/(app)/workspaces/[id]/boards/[boardId]/page.tsx` (client component) — `trpc.board.get` ({ boardId }) tek seferde `{ board: {…, role}, lists: [...] (arşivli dahil, `position` sıralı), cards: [...] (yalnızca aktif, `position` sıralı) }` döndürür. Yatay kaydırılan kolon (liste) düzeni; her kolonda listenin kartları (`cards` `listId`'ye göre gruplanır). Kolon/kart ölçüleri stabil — hover/edit'te layout shift yok. Üstte board başlığı (admin ise inline yeniden adlandırma) + "geri" linki (`/workspaces/[id]`). Board yoksa/erişim yoksa `NOT_FOUND`/`FORBIDDEN` → `Alert` + geri linki.
+- **Board detay:** `app/(app)/workspaces/[id]/boards/[boardId]/page.tsx` (client component) — `trpc.board.get` ({ boardId }) tek seferde `{ board: {…, role}, lists: [...] (arşivli dahil, `position`sıralı), cards: [...] (yalnızca aktif,`position` sıralı) }` döndürür. Yatay kaydırılan kolon (liste) düzeni; her kolonda listenin kartları (`cards` `listId`'ye göre gruplanır). Kolon/kart ölçüleri stabil — hover/edit'te layout shift yok. Üstte board başlığı (admin ise inline yeniden adlandırma) + "geri" linki (`/workspaces/[id]`). Board yoksa/erişim yoksa `NOT_FOUND`/`FORBIDDEN` → `Alert` + geri linki.
 - **List CRUD** (board `member+` ise göster — `board.role`): "Liste ekle" (kolon listesi sonuna inline form → `trpc.list.create` { boardId, title }) · "yeniden adlandır" (kolon başlığı inline edit → `trpc.list.update` { listId, title }) · "arşivle" (kolon menüsü → `trpc.list.archive` { listId, archived: true }) — her biri sonrası `trpc.board.get` invalidate.
 - **Card CRUD** (board `member+`): "Kart ekle" (kolon altına inline form → `trpc.card.create` { listId, title }) · "düzenle" (kart tıkla → dialog: başlık/açıklama/`due_at` → `trpc.card.update`) · "arşivle" (kart menüsü/dialog → `trpc.card.archive` { cardId, archived: true }) — her biri sonrası `trpc.board.get` invalidate.
 - **Yetki:** UI board rolüne göre aksiyonları gizler/gösterir (`viewer` salt-okunur); arşivli board/liste salt-okunur (server zaten reddeder, UI da aksiyonları kapatır). Mutation hatası inline `Alert`.

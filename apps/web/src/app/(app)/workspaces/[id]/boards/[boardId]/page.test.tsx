@@ -310,9 +310,7 @@ describe('<BoardDetailPage> board access request gate', () => {
     expect(screen.getByTestId('board-search-open')).toBeInTheDocument();
 
     await userEvent.keyboard('?');
-    expect(
-      screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle })).toBeInTheDocument();
   });
 
   it('increments add-card and add-list shortcut tokens for editable boards', async () => {

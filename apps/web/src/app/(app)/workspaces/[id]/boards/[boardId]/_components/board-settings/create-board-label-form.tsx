@@ -21,7 +21,11 @@ type CreateBoardLabelFormProps = {
  * Resets the name after a submit. No tRPC dependency — the section container
  * wires the mutation.
  */
-export function CreateBoardLabelForm({ onSubmit, pending = false, error }: CreateBoardLabelFormProps) {
+export function CreateBoardLabelForm({
+  onSubmit,
+  pending = false,
+  error,
+}: CreateBoardLabelFormProps) {
   const nameId = useId();
   const copy = strings.board.settings;
   const [color, setColor] = useState<LabelColor>(LABEL_COLORS[0]);

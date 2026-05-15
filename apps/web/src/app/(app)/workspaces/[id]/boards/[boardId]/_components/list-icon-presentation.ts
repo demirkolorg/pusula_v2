@@ -19,12 +19,7 @@ import {
   ZapIcon,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  LIST_ICON_COLORS,
-  LIST_ICONS,
-  type ListIcon,
-  type ListIconColor,
-} from '@pusula/domain';
+import { LIST_ICON_COLORS, LIST_ICONS, type ListIcon, type ListIconColor } from '@pusula/domain';
 
 const LIST_ICON_SET = new Set<string>(LIST_ICONS);
 const LIST_ICON_COLOR_SET = new Set<string>(LIST_ICON_COLORS);

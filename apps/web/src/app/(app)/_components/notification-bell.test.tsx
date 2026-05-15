@@ -47,7 +47,9 @@ describe('<NotificationBell>', () => {
   it('hides the badge and uses the neutral aria label when unread count is zero', async () => {
     renderBell();
 
-    expect(await screen.findByRole('button', { name: strings.notifications.bellAria(0) })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: strings.notifications.bellAria(0) }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
@@ -56,7 +58,9 @@ describe('<NotificationBell>', () => {
 
     renderBell();
 
-    expect(await screen.findByRole('button', { name: strings.notifications.bellAria(3) })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: strings.notifications.bellAria(3) }),
+    ).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
@@ -65,7 +69,9 @@ describe('<NotificationBell>', () => {
 
     renderBell();
 
-    expect(await screen.findByRole('button', { name: strings.notifications.bellAria(12) })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: strings.notifications.bellAria(12) }),
+    ).toBeInTheDocument();
     expect(screen.getByText('9+')).toBeInTheDocument();
   });
 
@@ -73,7 +79,9 @@ describe('<NotificationBell>', () => {
     const user = userEvent.setup();
     renderBell();
 
-    await user.click(await screen.findByRole('button', { name: strings.notifications.bellAria(0) }));
+    await user.click(
+      await screen.findByRole('button', { name: strings.notifications.bellAria(0) }),
+    );
 
     expect(screen.getByText('Notification center panel')).toBeInTheDocument();
   });

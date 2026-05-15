@@ -1,6 +1,7 @@
 ---
 description: Kontrol odası — docs ↔ kod ↔ Linear tutarlılık + Obsidian standardı taraması, bulgu listesi, onayla docs-only düzeltme
 ---
+
 Bu bir **kontrol odası** tab işidir (bkz. `docs/kontrol-odasi/README.md` — bu tab kod yazmaz; yalnızca `docs/` + Linear + analiz). Bu konuşma bir kod yazma tab'ıysa, "bu kontrol odası işi, doğru tab'ta mıyız?" diye sor; teyit alınca devam et.
 
 Görev: **dokümantasyon eksiklik + senkron kayması denetimi**.

@@ -283,10 +283,7 @@ export function useOptimisticBoardListMutation<TBuilder extends MutationOptionsB
   const { workspaceId, apply, onConflict, onMutationError, onMutationSuccess, mutationOptions } =
     args;
 
-  const boardsFilter = useMemo(
-    () => cacheKeys.boards(workspaceId),
-    [cacheKeys, workspaceId],
-  );
+  const boardsFilter = useMemo(() => cacheKeys.boards(workspaceId), [cacheKeys, workspaceId]);
 
   const onMutate = useCallback(
     async (vars: TVars): Promise<OptimisticBoardListRollback> => {
@@ -396,12 +393,9 @@ export function getMutationErrorMessage(mutation: {
  * `clientMutationId` automatically. Internal helper used by both optimistic
  * hooks; not exported.
  */
-function wrapWithClientMutationId<
-  TData,
-  TError,
-  TVars extends { clientMutationId?: string },
-  TCtx,
->(mutation: ReturnType<typeof useMutation<TData, TError, TVars, TCtx>>) {
+function wrapWithClientMutationId<TData, TError, TVars extends { clientMutationId?: string }, TCtx>(
+  mutation: ReturnType<typeof useMutation<TData, TError, TVars, TCtx>>,
+) {
   const originalMutate = mutation.mutate;
   const originalMutateAsync = mutation.mutateAsync;
   return Object.assign(mutation, {

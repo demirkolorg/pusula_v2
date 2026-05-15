@@ -35,15 +35,15 @@ import { isValidPosition, positionsBetween, shouldCompact } from '@pusula/domain
 export const COMPACTION_JOB_NAME = 'position-compaction';
 
 /** Which scope a compaction run covers. */
-export type CompactionScope =
-  | { kind: 'list'; listId: string }
-  | { kind: 'board'; boardId: string };
+export type CompactionScope = { kind: 'list'; listId: string } | { kind: 'board'; boardId: string };
 
 export type CompactionJobData = { scope: CompactionScope };
 
 /** Stable string key for the advisory lock. BullMQ job ids encode this shape without `:`. */
 export function compactionScopeKey(scope: CompactionScope): string {
-  return scope.kind === 'list' ? `compaction:list:${scope.listId}` : `compaction:board:${scope.boardId}`;
+  return scope.kind === 'list'
+    ? `compaction:list:${scope.listId}`
+    : `compaction:board:${scope.boardId}`;
 }
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];

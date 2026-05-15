@@ -11,7 +11,13 @@ vi.mock('./use-board-dnd', () => ({
 }));
 
 vi.mock('./list-column', () => ({
-  ListColumn: ({ list, cards }: { list: BoardList; cards: Array<{ id: string; title: string }> }) => (
+  ListColumn: ({
+    list,
+    cards,
+  }: {
+    list: BoardList;
+    cards: Array<{ id: string; title: string }>;
+  }) => (
     <section aria-label={list.title} data-testid={`list-${list.id}`}>
       {cards.map((card) => (
         <span key={card.id}>{card.title}</span>

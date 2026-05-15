@@ -39,7 +39,10 @@ import { protectedProcedure, router } from '../trpc';
  */
 
 /** Build an `AccessContext` from a resolved workspace role (no board context here). */
-const accessFromWorkspaceRole = (workspaceRole: WorkspaceRole) => ({ workspaceRole, boardRole: null });
+const accessFromWorkspaceRole = (workspaceRole: WorkspaceRole) => ({
+  workspaceRole,
+  boardRole: null,
+});
 
 /** Cryptographically-random, URL-safe invitation token (~32 chars from 24 bytes). */
 const newInvitationToken = () => randomBytes(24).toString('base64url');
@@ -220,7 +223,10 @@ const workspaceMembersRouter = router({
         )
         .limit(1);
       if (pendingInvite) {
-        throw new TRPCError({ code: 'CONFLICT', message: 'Bu e-posta için zaten bekleyen bir davet var.' });
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Bu e-posta için zaten bekleyen bir davet var.',
+        });
       }
 
       const token = newInvitationToken();
@@ -353,7 +359,10 @@ const workspaceInvitationsRouter = router({
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
         }
         if (invitation.status !== 'pending') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Yalnızca bekleyen davetler iptal edilebilir.' });
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Yalnızca bekleyen davetler iptal edilebilir.',
+          });
         }
 
         await tx
@@ -459,7 +468,10 @@ const workspaceInvitationsRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
         }
         if (invitation.email.toLowerCase() !== userEmail) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu davet başka bir e-postaya gönderildi.' });
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Bu davet başka bir e-postaya gönderildi.',
+          });
         }
 
         const [workspace] = await tx
@@ -533,7 +545,10 @@ const workspaceInvitationsRouter = router({
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
         }
         if (invitation.email.toLowerCase() !== userEmail) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu davet başka bir e-postaya gönderildi.' });
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Bu davet başka bir e-postaya gönderildi.',
+          });
         }
         if (invitation.status !== 'pending') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
@@ -592,7 +607,9 @@ export const workspaceRouter = router({
       );
       if (!workspace) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(workspaceMembers).values({ workspaceId: workspace.id, userId, role: 'owner' });
+      await tx
+        .insert(workspaceMembers)
+        .values({ workspaceId: workspace.id, userId, role: 'owner' });
 
       await tx.insert(activityEvents).values({
         workspaceId: workspace.id,
@@ -636,7 +653,10 @@ export const workspaceRouter = router({
   /** Update workspace name and/or slug. Requires `admin+`. */
   update: workspaceProcedure.input(updateWorkspaceInput).mutation(async ({ ctx, input }) => {
     if (!canManageWorkspace(accessFromWorkspaceRole(ctx.workspace.role))) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Workspace ayarlarını değiştirme yetkiniz yok.' });
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Workspace ayarlarını değiştirme yetkiniz yok.',
+      });
     }
     if (input.name === undefined && input.slug === undefined && input.icon === undefined) {
       throw new TRPCError({
@@ -685,7 +705,11 @@ export const workspaceRouter = router({
       }
 
       const [updated] = await withSlugConflict(() =>
-        tx.update(workspaces).set(patch).where(eq(workspaces.id, ctx.workspace.id)).returning(workspaceCols),
+        tx
+          .update(workspaces)
+          .set(patch)
+          .where(eq(workspaces.id, ctx.workspace.id))
+          .returning(workspaceCols),
       );
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
@@ -707,7 +731,10 @@ export const workspaceRouter = router({
   /** Soft-archive a workspace (`archived_at`). Owner only. */
   archive: workspaceProcedure.input(archiveWorkspaceInput).mutation(async ({ ctx }) => {
     if (ctx.workspace.role !== 'owner') {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Yalnızca owner workspace arşivleyebilir.' });
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Yalnızca owner workspace arşivleyebilir.',
+      });
     }
 
     return ctx.db.transaction(async (tx) => {
@@ -760,7 +787,10 @@ export const workspaceRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace bulunamadı.' });
       }
       if (input.confirmName !== current.name) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Onay için workspace adını tam yazın.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Onay için workspace adını tam yazın.',
+        });
       }
 
       const [deleted] = await tx

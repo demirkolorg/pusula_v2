@@ -109,9 +109,7 @@ export async function processRealtimePublishJob(
         createdAt: realtimeEvents.createdAt,
       })
       .from(realtimeEvents)
-      .where(
-        and(eq(realtimeEvents.id, data.eventId), isNull(realtimeEvents.publishedAt)),
-      )
+      .where(and(eq(realtimeEvents.id, data.eventId), isNull(realtimeEvents.publishedAt)))
       .limit(1)
       .for('update', { skipLocked: true })) as RealtimeEventRow[];
     if (!row) {
@@ -198,7 +196,9 @@ function roomsFor(row: RealtimeEventRow): RealtimePublishMessage['rooms'] {
 }
 
 /** Default Redis publisher (production wiring). */
-export function createDefaultPublisher(redisUrl: string): RealtimePublisher & { quit: () => Promise<'OK'> } {
+export function createDefaultPublisher(
+  redisUrl: string,
+): RealtimePublisher & { quit: () => Promise<'OK'> } {
   const redis = new Redis(redisUrl);
   redis.on('error', (err) => {
     console.error('[worker:realtime] redis publisher error:', err.message);

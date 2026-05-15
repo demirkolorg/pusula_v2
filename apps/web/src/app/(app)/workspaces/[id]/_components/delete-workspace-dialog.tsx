@@ -157,7 +157,7 @@ export function DeleteWorkspaceDialog({ workspaceId, workspaceName }: DeleteWork
           pending={deleteWorkspace.isPending}
           error={
             deleteWorkspace.isError
-              ? (deleteWorkspace.error.message || strings.common.unknownError)
+              ? deleteWorkspace.error.message || strings.common.unknownError
               : null
           }
         />

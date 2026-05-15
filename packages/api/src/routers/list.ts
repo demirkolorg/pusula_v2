@@ -107,7 +107,12 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.created',
-        payload: { listId: created.id, title: created.title, position: created.position, clientMutationId: ctx.clientMutationId },
+        payload: {
+          listId: created.id,
+          title: created.title,
+          position: created.position,
+          clientMutationId: ctx.clientMutationId,
+        },
       });
 
       const [bumped] = await tx
@@ -193,9 +198,13 @@ export const listRouter = router({
 
       const titleChanged = wantsTitle && input.title !== list.title;
       const colorChanged = wantsColor && (list.color ?? null) !== (input.color ?? null);
-      const nextIcon = wantsIcon ? input.icon ?? null : list.icon ?? null;
+      const nextIcon = wantsIcon ? (input.icon ?? null) : (list.icon ?? null);
       const nextIconColor =
-        nextIcon === null ? null : wantsIconColor ? input.iconColor ?? null : list.iconColor ?? null;
+        nextIcon === null
+          ? null
+          : wantsIconColor
+            ? (input.iconColor ?? null)
+            : (list.iconColor ?? null);
       const iconChanged = wantsIcon && (list.icon ?? null) !== nextIcon;
       const iconColorChanged =
         (wantsIcon || wantsIconColor) && (list.iconColor ?? null) !== nextIconColor;
@@ -223,7 +232,12 @@ export const listRouter = router({
           boardId: ctx.board.id,
           actorId: ctx.session.user.id,
           type: 'list.renamed',
-          payload: { listId: updated.id, fromTitle: list.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
+          payload: {
+            listId: updated.id,
+            fromTitle: list.title,
+            toTitle: updated.title,
+            clientMutationId: ctx.clientMutationId,
+          },
         });
       }
 
@@ -234,7 +248,12 @@ export const listRouter = router({
           actorId: ctx.session.user.id,
           type: updated.color ? 'list.color_changed' : 'list.color_cleared',
           payload: updated.color
-            ? { listId: updated.id, oldColor: list.color ?? null, newColor: updated.color, clientMutationId: ctx.clientMutationId }
+            ? {
+                listId: updated.id,
+                oldColor: list.color ?? null,
+                newColor: updated.color,
+                clientMutationId: ctx.clientMutationId,
+              }
             : { listId: updated.id, oldColor: list.color, clientMutationId: ctx.clientMutationId },
         });
       }
@@ -367,7 +386,11 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.archived',
-        payload: { listId: updated.id, archived: input.archived, clientMutationId: ctx.clientMutationId },
+        payload: {
+          listId: updated.id,
+          archived: input.archived,
+          clientMutationId: ctx.clientMutationId,
+        },
       });
 
       const [bumped] = await tx
@@ -419,7 +442,9 @@ export const listRouter = router({
       // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
       // scope serialize. Scope = board (`ctx.board.id`): list positions are
       // board-scoped, so the lock covers the same key the compaction worker uses.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'board', boardId: ctx.board.id })}))`);
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'board', boardId: ctx.board.id })}))`,
+      );
 
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -433,7 +458,11 @@ export const listRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
       }
 
-      const [list] = await tx.select(listCols).from(lists).where(eq(lists.id, input.listId)).limit(1);
+      const [list] = await tx
+        .select(listCols)
+        .from(lists)
+        .where(eq(lists.id, input.listId))
+        .limit(1);
       if (!list) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Liste bulunamadı.' });
       }
@@ -443,7 +472,10 @@ export const listRouter = router({
 
       // A list cannot be positioned relative to itself (degenerate).
       if (input.beforeListId === input.listId || input.afterListId === input.listId) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bir liste kendisine göre konumlandırılamaz.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Bir liste kendisine göre konumlandırılamaz.',
+        });
       }
 
       // Load the target neighbours (each must belong to this board).
@@ -461,7 +493,10 @@ export const listRouter = router({
         (input.beforeListId && (!before || before.boardId !== ctx.board.id)) ||
         (input.afterListId && (!after || after.boardId !== ctx.board.id))
       ) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: "Komşu listeler bu board'a ait olmalı." });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: "Komşu listeler bu board'a ait olmalı.",
+        });
       }
 
       const position = resolveMovePosition(
@@ -486,7 +521,12 @@ export const listRouter = router({
         boardId: ctx.board.id,
         actorId: ctx.session.user.id,
         type: 'list.moved',
-        payload: { listId: updated.id, fromPosition: list.position, toPosition: updated.position, clientMutationId: ctx.clientMutationId },
+        payload: {
+          listId: updated.id,
+          fromPosition: list.position,
+          toPosition: updated.position,
+          clientMutationId: ctx.clientMutationId,
+        },
       });
 
       const [bumped] = await tx

@@ -1,15 +1,7 @@
 import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { SearchEntityType } from '@pusula/domain';
 import type { Database } from './client';
-import {
-  boards,
-  cardLabels,
-  cards,
-  comments,
-  labels,
-  lists,
-  searchDocuments,
-} from './schema';
+import { boards, cardLabels, cards, comments, labels, lists, searchDocuments } from './schema';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 export type SearchIndexerDb = Database | Tx;
@@ -199,7 +191,10 @@ function refKey(ref: SearchDocumentRef): string {
   return `${ref.entityType}:${ref.entityId}`;
 }
 
-function scopeAllows(entityTypes: readonly SearchEntityType[] | undefined, entityType: SearchEntityType): boolean {
+function scopeAllows(
+  entityTypes: readonly SearchEntityType[] | undefined,
+  entityType: SearchEntityType,
+): boolean {
   return !entityTypes || entityTypes.includes(entityType);
 }
 
@@ -229,7 +224,12 @@ export async function deleteSearchDocument(
 ): Promise<{ deleted: number }> {
   const rows = await tx
     .delete(searchDocuments)
-    .where(and(eq(searchDocuments.entityType, ref.entityType), eq(searchDocuments.entityId, ref.entityId)))
+    .where(
+      and(
+        eq(searchDocuments.entityType, ref.entityType),
+        eq(searchDocuments.entityId, ref.entityId),
+      ),
+    )
     .returning({ id: searchDocuments.id });
   return { deleted: rows.length };
 }
@@ -286,7 +286,10 @@ export async function resolveSearchDocumentPayload(
   }
 }
 
-async function resolveBoardPayload(tx: SearchIndexerDb, boardId: string): Promise<ResolvedSearchDocument | null> {
+async function resolveBoardPayload(
+  tx: SearchIndexerDb,
+  boardId: string,
+): Promise<ResolvedSearchDocument | null> {
   const [row] = await tx
     .select({
       id: boards.id,
@@ -313,7 +316,10 @@ async function resolveBoardPayload(tx: SearchIndexerDb, boardId: string): Promis
   };
 }
 
-async function resolveListPayload(tx: SearchIndexerDb, listId: string): Promise<ResolvedSearchDocument | null> {
+async function resolveListPayload(
+  tx: SearchIndexerDb,
+  listId: string,
+): Promise<ResolvedSearchDocument | null> {
   const [row] = await tx
     .select({
       id: lists.id,
@@ -343,7 +349,10 @@ async function resolveListPayload(tx: SearchIndexerDb, listId: string): Promise<
   };
 }
 
-async function resolveCardPayload(tx: SearchIndexerDb, cardId: string): Promise<ResolvedSearchDocument | null> {
+async function resolveCardPayload(
+  tx: SearchIndexerDb,
+  cardId: string,
+): Promise<ResolvedSearchDocument | null> {
   const [row] = await tx
     .select({
       id: cards.id,
@@ -384,7 +393,10 @@ async function resolveCardPayload(tx: SearchIndexerDb, cardId: string): Promise<
   };
 }
 
-async function resolveCommentPayload(tx: SearchIndexerDb, commentId: string): Promise<ResolvedSearchDocument | null> {
+async function resolveCommentPayload(
+  tx: SearchIndexerDb,
+  commentId: string,
+): Promise<ResolvedSearchDocument | null> {
   const [row] = await tx
     .select({
       id: comments.id,
@@ -420,7 +432,10 @@ async function resolveCommentPayload(tx: SearchIndexerDb, commentId: string): Pr
   };
 }
 
-async function resolveLabelPayload(tx: SearchIndexerDb, labelId: string): Promise<ResolvedSearchDocument | null> {
+async function resolveLabelPayload(
+  tx: SearchIndexerDb,
+  labelId: string,
+): Promise<ResolvedSearchDocument | null> {
   const [row] = await tx
     .select({
       id: labels.id,
@@ -526,7 +541,12 @@ export async function syncSearchDocumentsForCard(
   const existing = await db
     .select({ entityType: searchDocuments.entityType, entityId: searchDocuments.entityId })
     .from(searchDocuments)
-    .where(and(eq(searchDocuments.cardId, cardId), inArray(searchDocuments.entityType, ['card', 'comment'])));
+    .where(
+      and(
+        eq(searchDocuments.cardId, cardId),
+        inArray(searchDocuments.entityType, ['card', 'comment']),
+      ),
+    );
   for (const row of existing) {
     if (currentKeys.has(refKey(row))) continue;
     deleted += (await deleteSearchDocument(db, row)).deleted;
@@ -535,11 +555,17 @@ export async function syncSearchDocumentsForCard(
   return { scanned: refs.length, upserted, deleted, nextCursor: null };
 }
 
-async function boardIdsForScope(db: SearchIndexerDb, input: ReindexSearchDocumentsInput): Promise<string[]> {
+async function boardIdsForScope(
+  db: SearchIndexerDb,
+  input: ReindexSearchDocumentsInput,
+): Promise<string[]> {
   if (input.boardId) {
     const clauses = [eq(boards.id, input.boardId)];
     if (input.workspaceId) clauses.push(eq(boards.workspaceId, input.workspaceId));
-    const rows = await db.select({ id: boards.id }).from(boards).where(and(...clauses));
+    const rows = await db
+      .select({ id: boards.id })
+      .from(boards)
+      .where(and(...clauses));
     return rows.map((row) => row.id);
   }
   if (input.workspaceId) {
@@ -568,7 +594,10 @@ async function collectSearchDocumentRefs(
   for (const boardId of boardIds) add({ entityType: 'board', entityId: boardId });
 
   if (scopeAllows(input.entityTypes, 'list')) {
-    const rows = await db.select({ id: lists.id }).from(lists).where(inArray(lists.boardId, boardIds));
+    const rows = await db
+      .select({ id: lists.id })
+      .from(lists)
+      .where(inArray(lists.boardId, boardIds));
     for (const row of rows) add({ entityType: 'list', entityId: row.id });
   }
 
@@ -584,13 +613,24 @@ async function collectSearchDocumentRefs(
       const commentRows = await db
         .select({ id: comments.id })
         .from(comments)
-        .where(and(inArray(comments.cardId, cardRows.map((row) => row.id)), isNull(comments.deletedAt)));
+        .where(
+          and(
+            inArray(
+              comments.cardId,
+              cardRows.map((row) => row.id),
+            ),
+            isNull(comments.deletedAt),
+          ),
+        );
       for (const row of commentRows) add({ entityType: 'comment', entityId: row.id });
     }
   }
 
   if (scopeAllows(input.entityTypes, 'label')) {
-    const rows = await db.select({ id: labels.id }).from(labels).where(inArray(labels.boardId, boardIds));
+    const rows = await db
+      .select({ id: labels.id })
+      .from(labels)
+      .where(inArray(labels.boardId, boardIds));
     for (const row of rows) add({ entityType: 'label', entityId: row.id });
   }
 

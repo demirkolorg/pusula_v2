@@ -1,25 +1,26 @@
 ---
-title: "00 — Çalışma Başlangıç Rehberi"
-description: "Her yeni Pusula işi veya oturumunda baz alınacak genel başlangıç dosyası."
+title: '00 — Çalışma Başlangıç Rehberi'
+description: 'Her yeni Pusula işi veya oturumunda baz alınacak genel başlangıç dosyası.'
 aliases:
-  - "Çalışma Başlangıç Rehberi"
-  - "Yeni İş Başlangıcı"
-  - "Session Start Guide"
+  - 'Çalışma Başlangıç Rehberi'
+  - 'Yeni İş Başlangıcı'
+  - 'Session Start Guide'
 tags:
-  - "pusula"
-  - "process/start"
-  - "linear"
-type: "process"
-axis: "process"
-status: "active"
-parent: "[[docs/process/README|Süreç]]"
+  - 'pusula'
+  - 'process/start'
+  - 'linear'
+type: 'process'
+axis: 'process'
+status: 'active'
+parent: '[[docs/process/README|Süreç]]'
 related:
-  - "[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]"
-  - "[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]"
-  - "[[docs/process/05-is-kayit-defteri|İş Kayıt Defteri]]"
-  - "[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]"
+  - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
+  - '[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]'
+  - '[[docs/process/05-is-kayit-defteri|İş Kayıt Defteri]]'
+  - '[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]'
 updated: 2026-05-12
 ---
+
 # 00 — Çalışma Başlangıç Rehberi
 
 > Eksen: **süreç**. Bu dosya, bundan sonraki her yeni işte veya yeni oturumda
@@ -34,15 +35,15 @@ updated: 2026-05-12
 
 ## Kanonik kaynak sırası
 
-| Sıra | Kaynak | Ne için kullanılır |
-| --- | --- | --- |
-| 1 | [`CLAUDE.md`](../../CLAUDE.md) + [`.claude/skills/kontrol/SKILL.md`](../../.claude/skills/kontrol/SKILL.md) | Genel çalışma sözleşmesi ve teknik kurallar |
-| 2 | Bu dosya | Yeni işin başlangıç akışı |
-| 3 | [`05-is-kayit-defteri.md`](05-is-kayit-defteri.md) + Linear | Aktif/Todo/Review iş durumları |
-| 4 | [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md) | Faz seviyesi mevcut durum ve sıradaki ürün işi |
-| 5 | [`04-otomatik-is-akisi-protokolu.md`](04-otomatik-is-akisi-protokolu.md) | Linear ↔ docs senkron kuralları |
-| 6 | İlgili `docs/architecture/*` ve `docs/domain/*` | Koddan önce güncellenecek teknik/domain kararları |
-| 7 | [`03-faz-0-devir-notu.md`](03-faz-0-devir-notu.md) | Yalnızca Faz 0 kurulum/handoff ayrıntısı gerektiğinde |
+| Sıra | Kaynak                                                                                                      | Ne için kullanılır                                    |
+| ---- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 1    | [`CLAUDE.md`](../../CLAUDE.md) + [`.claude/skills/kontrol/SKILL.md`](../../.claude/skills/kontrol/SKILL.md) | Genel çalışma sözleşmesi ve teknik kurallar           |
+| 2    | Bu dosya                                                                                                    | Yeni işin başlangıç akışı                             |
+| 3    | [`05-is-kayit-defteri.md`](05-is-kayit-defteri.md) + Linear                                                 | Aktif/Todo/Review iş durumları                        |
+| 4    | [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md)                                                                | Faz seviyesi mevcut durum ve sıradaki ürün işi        |
+| 5    | [`04-otomatik-is-akisi-protokolu.md`](04-otomatik-is-akisi-protokolu.md)                                    | Linear ↔ docs senkron kuralları                       |
+| 6    | İlgili `docs/architecture/*` ve `docs/domain/*`                                                             | Koddan önce güncellenecek teknik/domain kararları     |
+| 7    | [`03-faz-0-devir-notu.md`](03-faz-0-devir-notu.md)                                                          | Yalnızca Faz 0 kurulum/handoff ayrıntısı gerektiğinde |
 
 ## Yeni işe başlama akışı
 

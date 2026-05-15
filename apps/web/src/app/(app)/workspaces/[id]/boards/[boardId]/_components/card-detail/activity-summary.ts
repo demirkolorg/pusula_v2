@@ -40,7 +40,8 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
         : `${who} panoyu yeniden adlandırdı`;
     }
     case 'board.archived': {
-      const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
+      const archived =
+        typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} panoyu geri yükledi` : `${who} panoyu arşivledi`;
     }
     case 'board.member_added':
@@ -65,7 +66,8 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
         : `${who} listeyi yeniden adlandırdı`;
     }
     case 'list.archived': {
-      const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
+      const archived =
+        typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} listeyi geri yükledi` : `${who} listeyi arşivledi`;
     }
     case 'list.moved':
@@ -90,7 +92,8 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
     case 'card.due_cleared':
       return `${who} son tarihi kaldırdı`;
     case 'card.archived': {
-      const archived = typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
+      const archived =
+        typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} kartı geri yükledi` : `${who} kartı arşivledi`;
     }
     case 'card.completed':
@@ -127,7 +130,9 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return `${who} bir yorumu sildi`;
     case 'checklist.created': {
       const title = str(p, 'title');
-      return title ? `${who} bir yapılacaklar listesi ekledi: “${title}”` : `${who} bir yapılacaklar listesi ekledi`;
+      return title
+        ? `${who} bir yapılacaklar listesi ekledi: “${title}”`
+        : `${who} bir yapılacaklar listesi ekledi`;
     }
     case 'checklist.item_added': {
       const content = str(p, 'content');

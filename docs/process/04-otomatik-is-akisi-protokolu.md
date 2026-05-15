@@ -1,19 +1,20 @@
 ---
-title: "04 — Otomatik İş Akışı Protokolü"
-description: "Linear MCP, docs ve iş kayıt defteri senkronizasyon protokolü."
+title: '04 — Otomatik İş Akışı Protokolü'
+description: 'Linear MCP, docs ve iş kayıt defteri senkronizasyon protokolü.'
 aliases:
-  - "Otomatik İş Akışı Protokolü"
-  - "Workflow Sync Protocol"
+  - 'Otomatik İş Akışı Protokolü'
+  - 'Workflow Sync Protocol'
 tags:
-  - "pusula"
-  - "process/protocol"
-  - "linear"
-type: "protocol"
-axis: "process"
-status: "active"
-parent: "[[docs/process/README|Süreç]]"
+  - 'pusula'
+  - 'process/protocol'
+  - 'linear'
+type: 'protocol'
+axis: 'process'
+status: 'active'
+parent: '[[docs/process/README|Süreç]]'
 updated: 2026-05-13
 ---
+
 # 04 — Otomatik İş Akışı Protokolü
 
 > Eksen: **süreç**. Amaç: Claude Code geliştirme yaparken Linear MCP ve `docs/` aynı iş
@@ -26,15 +27,15 @@ updated: 2026-05-13
 
 ## Kaynaklar ve roller
 
-| Kaynak | Rol |
-| --- | --- |
-| `docs/process/00-calisma-baslangic-rehberi.md` | Her yeni iş/oturum için kanonik başlangıç dosyası |
-| Linear issue | Operasyonel iş kaydı: durum, sahip, yorumlar, kabul kriterleri, bağlantılı işler |
-| `docs/process/05-is-kayit-defteri.md` | Linear'ın repo içindeki takip aynası: iş listesi, durum, son senkron, etkilenen dosyalar |
-| `docs/process/02-mvp-faz-plani.md` | Faz seviyesinde ilerleme kaydı |
-| `docs/process/06-obsidian-dokumantasyon-kurallari.md` | Markdown frontmatter, tag, link ve MOC standardı |
-| `docs/architecture/*` | Teknik karar ve tasarım kaynağı |
-| `docs/domain/*` | Ürün, yetki, bildirim, sıralama ve domain kuralı kaynağı |
+| Kaynak                                                | Rol                                                                                      |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `docs/process/00-calisma-baslangic-rehberi.md`        | Her yeni iş/oturum için kanonik başlangıç dosyası                                        |
+| Linear issue                                          | Operasyonel iş kaydı: durum, sahip, yorumlar, kabul kriterleri, bağlantılı işler         |
+| `docs/process/05-is-kayit-defteri.md`                 | Linear'ın repo içindeki takip aynası: iş listesi, durum, son senkron, etkilenen dosyalar |
+| `docs/process/02-mvp-faz-plani.md`                    | Faz seviyesinde ilerleme kaydı                                                           |
+| `docs/process/06-obsidian-dokumantasyon-kurallari.md` | Markdown frontmatter, tag, link ve MOC standardı                                         |
+| `docs/architecture/*`                                 | Teknik karar ve tasarım kaynağı                                                          |
+| `docs/domain/*`                                       | Ürün, yetki, bildirim, sıralama ve domain kuralı kaynağı                                 |
 
 Teknik/domain kararlarında kaynak `docs/`tur. İş durumunda Linear operasyonel kaynak, iş kayıt
 defteri ise repo içi aynadır. Her görevde ikisi birlikte güncellenir.
@@ -45,16 +46,16 @@ defteri ise repo içi aynadır. Her görevde ikisi birlikte güncellenir.
 Linear workflow state'leri sütundaki gibidir; takımda ayrı state olmayan durumlar (`Review`, `Blocked`)
 için "en yakın karşılık + notta belirt" kuralı uygulanır.
 
-| Docs durumu | Linear state (Demirkol takımı) | Anlam |
-| --- | --- | --- |
-| `Backlog` | `Backlog` | Uzak; henüz sıraya alınmadı |
-| `Sonraki Faz` | `Sonraki Faz` (Unstarted kategorisi, `Backlog` ↔ `Todo` arası) | Önden bölünmüş ama henüz başlamamış "bir sonraki faz"ın işi; faz başlayınca `Todo`'ya alınır |
-| `Todo` | `Todo` | Mevcut fazın bekleyen işi; geliştirme başlamadı |
-| `In Progress` | `In Progress` | Aktif çalışma başladı |
-| `Review` | (ayrı state yok →) `In Progress` + notta "kullanıcı onayı bekliyor" | Kod/doküman hazır, kullanıcı onayı veya inceleme bekliyor |
-| `Blocked` | (ayrı state yok →) `Todo`/`Backlog` + `blockedBy` ilişkisi + notta belirt | Dış karar, erişim, bağımlılık veya çelişki bekleniyor |
-| `Done` | `Done` | Kabul edildi, kapanış yorumu ve docs güncellemesi tamam |
-| `Canceled` | `Canceled` (gerekirse `Duplicate`) | Artık yapılmayacak |
+| Docs durumu   | Linear state (Demirkol takımı)                                            | Anlam                                                                                        |
+| ------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Backlog`     | `Backlog`                                                                 | Uzak; henüz sıraya alınmadı                                                                  |
+| `Sonraki Faz` | `Sonraki Faz` (Unstarted kategorisi, `Backlog` ↔ `Todo` arası)            | Önden bölünmüş ama henüz başlamamış "bir sonraki faz"ın işi; faz başlayınca `Todo`'ya alınır |
+| `Todo`        | `Todo`                                                                    | Mevcut fazın bekleyen işi; geliştirme başlamadı                                              |
+| `In Progress` | `In Progress`                                                             | Aktif çalışma başladı                                                                        |
+| `Review`      | (ayrı state yok →) `In Progress` + notta "kullanıcı onayı bekliyor"       | Kod/doküman hazır, kullanıcı onayı veya inceleme bekliyor                                    |
+| `Blocked`     | (ayrı state yok →) `Todo`/`Backlog` + `blockedBy` ilişkisi + notta belirt | Dış karar, erişim, bağımlılık veya çelişki bekleniyor                                        |
+| `Done`        | `Done`                                                                    | Kabul edildi, kapanış yorumu ve docs güncellemesi tamam                                      |
+| `Canceled`    | `Canceled` (gerekirse `Duplicate`)                                        | Artık yapılmayacak                                                                           |
 
 > İhtiyaç olursa Linear takımına `Review` (completed-öncesi) state'i eklenebilir — şu an `Sonraki Faz` gibi bir UI işi olarak ertelenmiştir. Yeni Linear workflow state'leri yalnızca Linear arayüzünden eklenir (MCP'de tool yok); eklenince bu tabloyu güncelle.
 

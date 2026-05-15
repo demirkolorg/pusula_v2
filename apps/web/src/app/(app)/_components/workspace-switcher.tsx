@@ -188,11 +188,7 @@ export function WorkspaceSwitcher() {
           {copy.manageAll}
         </DropdownMenuItem>
       </DropdownMenuContent>
-      <CreateWorkspaceDialog
-        hideTrigger
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-      />
+      <CreateWorkspaceDialog hideTrigger open={createOpen} onOpenChange={setCreateOpen} />
     </DropdownMenu>
   );
 }

@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@pusula/ui';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 type ShortcutItem = {

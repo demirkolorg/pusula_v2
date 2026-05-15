@@ -82,9 +82,7 @@ describe('<CreateBoardDialog>', () => {
     await user.click(screen.getByRole('button', { name: strings.board.newButton }));
 
     expect(screen.getByLabelText(strings.board.create.nameLabel)).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: strings.board.create.submit }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: strings.board.create.submit })).toBeInTheDocument();
   });
 
   it('blocks submit on an empty title and does not call the mutation', async () => {

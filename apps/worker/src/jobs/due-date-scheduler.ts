@@ -122,7 +122,8 @@ export async function runDueDateScheduler(
       .where(eq(workspaceMembers.workspaceId, card.workspaceId));
     const wsRole = new Map(wsRows.map((r) => [r.userId, r.role] as const));
 
-    const notificationType: NotificationType = tier === 'due_overdue' ? 'due_overdue' : 'due_approaching';
+    const notificationType: NotificationType =
+      tier === 'due_overdue' ? 'due_overdue' : 'due_approaching';
 
     let wroteForThisCard = false;
     await db.transaction(async (tx) => {

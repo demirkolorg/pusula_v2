@@ -32,7 +32,14 @@
  * and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
 import { and, eq } from '@pusula/db';
-import { activityEvents, boardMembers, boards, cardMembers, users, workspaceMembers } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  boards,
+  cardMembers,
+  users,
+  workspaceMembers,
+} from '@pusula/db';
 import {
   addCardMemberInput,
   canEditBoardContent,
@@ -122,7 +129,9 @@ export const cardMembersRouter = router({
       const [boardMember] = await tx
         .select({ role: boardMembers.role })
         .from(boardMembers)
-        .where(and(eq(boardMembers.boardId, ctx.card.boardId), eq(boardMembers.userId, input.userId)))
+        .where(
+          and(eq(boardMembers.boardId, ctx.card.boardId), eq(boardMembers.userId, input.userId)),
+        )
         .limit(1);
       const candidateRole = effectiveBoardRole({
         workspaceRole: wsMember.role,
@@ -143,7 +152,12 @@ export const cardMembersRouter = router({
         .onConflictDoNothing()
         .returning({ cardId: cardMembers.cardId });
       if (inserted.length === 0) {
-        return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: false as const };
+        return {
+          cardId: ctx.card.id,
+          userId: input.userId,
+          role: input.role,
+          changed: false as const,
+        };
       }
 
       const [activity] = await tx
@@ -189,7 +203,12 @@ export const cardMembersRouter = router({
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 
-      return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: true as const };
+      return {
+        cardId: ctx.card.id,
+        userId: input.userId,
+        role: input.role,
+        changed: true as const,
+      };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
@@ -236,7 +255,12 @@ export const cardMembersRouter = router({
         )
         .returning({ cardId: cardMembers.cardId });
       if (deleted.length === 0) {
-        return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: false as const };
+        return {
+          cardId: ctx.card.id,
+          userId: input.userId,
+          role: input.role,
+          changed: false as const,
+        };
       }
 
       await tx.insert(activityEvents).values({
@@ -260,7 +284,12 @@ export const cardMembersRouter = router({
         data: { cardId: ctx.card.id, userId: input.userId, role: input.role },
       });
 
-      return { cardId: ctx.card.id, userId: input.userId, role: input.role, changed: true as const };
+      return {
+        cardId: ctx.card.id,
+        userId: input.userId,
+        role: input.role,
+        changed: true as const,
+      };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;

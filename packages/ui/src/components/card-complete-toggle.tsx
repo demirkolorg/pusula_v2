@@ -59,8 +59,7 @@ function CardCompleteToggle({
         checked
           ? 'border-success bg-success text-success-foreground'
           : 'border-muted-foreground/40 hover:border-foreground',
-        !alwaysVisible &&
-          'opacity-0 group-hover/kart:opacity-100 aria-checked:opacity-100',
+        !alwaysVisible && 'opacity-0 group-hover/kart:opacity-100 aria-checked:opacity-100',
         className,
       )}
       {...props}

@@ -1,12 +1,7 @@
 'use client';
 
 import { BellIcon } from 'lucide-react';
-import {
-  Button,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@pusula/ui';
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 export function NotificationBellPlaceholder() {

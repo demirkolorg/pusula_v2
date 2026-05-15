@@ -50,7 +50,12 @@ type CardCommentComposerProps = {
   error?: string | null;
 };
 
-export function CardCommentComposer({ viewerName, onSubmit, pending = false, error }: CardCommentComposerProps) {
+export function CardCommentComposer({
+  viewerName,
+  onSubmit,
+  pending = false,
+  error,
+}: CardCommentComposerProps) {
   const copy = strings.card.detail;
   // `null` ⇒ a fresh/empty editor; a non-empty string ⇒ the in-progress draft.
   // Resetting `value` to `null` after submit makes the editor resync to empty.
