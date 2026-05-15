@@ -147,9 +147,6 @@ importers:
       '@pusula/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@pusula/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@pusula/domain':
         specifier: workspace:*
         version: link:../../packages/domain
