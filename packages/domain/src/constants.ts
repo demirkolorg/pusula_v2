@@ -124,24 +124,257 @@ export const WORKSPACE_INVITATION_TTL_DAYS = 7;
 /**
  * Seed data for the new-user onboarding bootstrap (best-effort, runs at signup —
  * see `docs/domain/01-urun-modeli.md` invariant 11 and `docs/architecture/08-web-ve-mobil.md`
- * §8.1.3). These are persisted *data* (workspace/board names, list titles, welcome
- * card titles), not UI chrome — kept here so the bootstrap (and any later board-template
- * work) share one source. User-facing → Turkish; an i18n placeholder for now, and the
- * welcome copy is written against what's actually shipped — refresh it as features land.
+ * §8.1.3). The first board acts as a "trailer" for the product: it ships with a board
+ * background, a colourful list/icon layout, a board-scoped label palette, and cards that
+ * each both *explain* and *visualise* one feature (cover colour, labels, checklists,
+ * comments, due dates, members, completion). Persisted *data* — kept here so bootstrap
+ * (and any later template work) share one source. User-facing → Turkish (i18n placeholder).
  */
 /** Name of the default workspace auto-created for a new user at signup. */
 export const ONBOARDING_WORKSPACE_NAME = 'Çalışma Alanım';
 /** Title of the board auto-created inside the onboarding workspace. */
 export const ONBOARDING_BOARD_TITLE = 'İlk Pano';
-/** Default list titles seeded into the onboarding board, in display (left-to-right) order. */
-export const ONBOARDING_LIST_TITLES = ['Yapılacak', 'Devam Eden', 'Bitti'] as const;
-/** Welcome / sample card titles seeded into the onboarding board's first list (`Yapılacak`), in order. */
-export const ONBOARDING_WELCOME_CARDS = [
-  '👋 Pusula’ya hoş geldin',
-  'Bu pano senin için otomatik oluşturuldu — listeleri ve kartları dilediğin gibi düzenle',
-  'Yeni kart ve liste ekle, panoyu yeniden adlandır (üst bar ve liste altındaki butonlar)',
-  'Bu örnek kartları ve listeleri silip panonu sıfırdan kurabilirsin',
-] as const;
+/**
+ * Board background preset for the onboarding board — a Trello-style peach/orange
+ * gradient. Stored verbatim in `boards.background`; format = `gradient:<name>`
+ * (`@pusula/ui` mirrors the class map). One of `BOARD_BACKGROUND_GRADIENTS`.
+ */
+export const ONBOARDING_BOARD_BACKGROUND = 'gradient:trello-peach' as const;
+
+/** Stable key for an onboarding label (referenced from `ONBOARDING_CARDS`). */
+export type OnboardingLabelKey = 'urgent' | 'important' | 'design' | 'dev' | 'research' | 'waiting';
+
+/**
+ * Board-scope label palette seeded for the onboarding board. Each entry becomes
+ * one `labels` row (board-scoped); `card_labels` rows reference it by `key`.
+ */
+export interface OnboardingLabel {
+  readonly key: OnboardingLabelKey;
+  readonly name: string;
+  readonly color: LabelColor;
+}
+
+export const ONBOARDING_LABELS: readonly OnboardingLabel[] = [
+  { key: 'urgent', name: 'Acil', color: 'red' },
+  { key: 'important', name: 'Önemli', color: 'orange' },
+  { key: 'design', name: 'Tasarım', color: 'purple' },
+  { key: 'dev', name: 'Geliştirme', color: 'blue' },
+  { key: 'research', name: 'Araştırma', color: 'green' },
+  { key: 'waiting', name: 'Beklemede', color: 'yellow' },
+];
+
+/** Stable key for an onboarding list (referenced from `ONBOARDING_CARDS.listKey`). */
+export type OnboardingListKey = 'welcome' | 'features' | 'try' | 'done';
+
+/**
+ * One column in the onboarding board. Order in `ONBOARDING_LISTS` = display
+ * (left-to-right) order; bootstrap assigns fractional `position` keys in this order.
+ * `color`/`icon`/`iconColor` are nullable so the showcase can also seed default-styled
+ * columns (the first and last list ship without colour/icon to show the default look).
+ * Invariant: when `icon` is `null`, `iconColor` must also be `null`.
+ */
+export interface OnboardingList {
+  readonly key: OnboardingListKey;
+  readonly title: string;
+  readonly color: ListColor | null;
+  readonly icon: ListIcon | null;
+  readonly iconColor: ListIconColor | null;
+}
+
+export const ONBOARDING_LISTS: readonly OnboardingList[] = [
+  { key: 'welcome', title: 'Hoş geldin', color: null, icon: null, iconColor: null },
+  { key: 'features', title: 'Özellikler', color: 'mor', icon: 'star', iconColor: 'mor' },
+  { key: 'try', title: 'Sen dene', color: 'turuncu', icon: 'zap', iconColor: 'turuncu' },
+  { key: 'done', title: 'Bitti', color: null, icon: null, iconColor: null },
+];
+
+/** A single checklist on an onboarding card. */
+export interface OnboardingChecklist {
+  readonly title: string;
+  readonly items: readonly { readonly content: string; readonly completed: boolean }[];
+}
+
+/** A single comment on an onboarding card; author = the new user (the only user). */
+export interface OnboardingComment {
+  readonly body: string;
+}
+
+/**
+ * Card-member entry on an onboarding card. The new user is the only member that
+ * can be referenced (signup is a single-user event); the role determines whether
+ * the showcase renders them as an assignee chip or a watcher.
+ */
+export interface OnboardingCardMember {
+  readonly role: CardRole;
+}
+
+/**
+ * One showcase card in the onboarding board. `listKey` points to an
+ * `ONBOARDING_LISTS` entry; `labelKeys` to `ONBOARDING_LABELS` entries.
+ * Optional fields default to "no value" — the bootstrap only writes the row +
+ * activity event when the field is present.
+ */
+export interface OnboardingCard {
+  readonly listKey: OnboardingListKey;
+  readonly title: string;
+  readonly description?: string;
+  readonly coverColor?: CardCoverColor;
+  /**
+   * Due-date offset in days, **relative to the bootstrap moment**. Positive =
+   * future, negative = past. The bootstrap resolves it to a timestamp at runtime.
+   */
+  readonly dueAtOffsetDays?: number;
+  readonly completed?: boolean;
+  readonly labelKeys?: readonly OnboardingLabelKey[];
+  readonly members?: readonly OnboardingCardMember[];
+  readonly checklists?: readonly OnboardingChecklist[];
+  readonly comments?: readonly OnboardingComment[];
+}
+
+/**
+ * The showcase card set. Order within each list is the order cards appear in
+ * this array (cards are bucketed by `listKey`, then positioned left-to-right).
+ * Each card explains *and* visualises one feature — keep it that way when adding
+ * new entries.
+ */
+export const ONBOARDING_CARDS: readonly OnboardingCard[] = [
+  // --- Hoş geldin (default-styled list) ---
+  {
+    listKey: 'welcome',
+    title: 'Pusula’ya hoş geldin',
+    description:
+      'Bu pano, Pusula’nın liste ve kart yetkinliklerini bir fragman gibi sergiler. Her kart bir özelliği hem anlatır hem de görsel olarak gösterir — kapak rengine, etiketlere, checklist’e ve yorumlara dikkat et.',
+    labelKeys: ['dev', 'design'],
+    members: [{ role: 'watcher' }],
+  },
+  {
+    listKey: 'welcome',
+    title: 'Pano arka planı + ikon',
+    description:
+      'Üst bardaki pano başlığının yanındaki ⋮ menüsünden “Pano arka planı”nı aç; preset gradient’ler ve düz renkler arasından seç. Bu panonun arka planı `gradient:trello-peach` ile geldi.',
+    labelKeys: ['design'],
+  },
+  {
+    listKey: 'welcome',
+    title: 'Liste rengi + ikonu',
+    description:
+      'Bir kolonun üst sağındaki ⋮ menüsünden “Liste rengi” ve “Liste ikonu”nu değiştirebilirsin. Bu panoda “Özellikler” ve “Sen dene” listeleri renk + ikon ile geldi; ilk ve son liste ise varsayılan görünümde — kendi kolonlarına uygula.',
+    labelKeys: ['design'],
+  },
+
+  // --- Özellikler ---
+  {
+    listKey: 'features',
+    title: 'Kapak rengi',
+    description:
+      'Kart kapağına 12 renkten birini atayabilirsin (kart detay modalı → kapak rengi şeridi). Bu kart kapak rengini canlı gösterir. Kart kapak görseli (resim) de var — kartın açıklamasından bir resim yükleyebilir, ardından kapak olarak seçebilirsin.',
+    coverColor: 'kirmizi',
+    labelKeys: ['design'],
+  },
+  {
+    listKey: 'features',
+    title: 'Etiketler',
+    description:
+      'Etiketler pano kapsamlıdır — bu pano 6 hazır etiketle (Acil, Önemli, Tasarım, Geliştirme, Araştırma, Beklemede) geliyor. Bir karta birden fazla etiket atayabilir, kendi etiketlerini de oluşturabilirsin.',
+    labelKeys: ['urgent', 'important', 'design', 'dev', 'research', 'waiting'],
+  },
+  {
+    listKey: 'features',
+    title: 'Checklist’ler',
+    description:
+      'Bir kart birden fazla checklist taşıyabilir; her madde tek tek işaretlenir, kart kapağında “2 / 5” gibi ilerleme görülür. Aşağıdaki checklist’i deneyerek başla.',
+    labelKeys: ['dev'],
+    members: [{ role: 'assignee' }],
+    checklists: [
+      {
+        title: 'Pusula ile ilk adımlar',
+        items: [
+          { content: 'Hesabı oluştur', completed: true },
+          { content: 'Showcase panosunu gez', completed: true },
+          { content: 'Bir kartı başka listeye sürükle', completed: false },
+          { content: 'Bir karta etiket ata', completed: false },
+          { content: 'Bir karta yorum yaz', completed: false },
+        ],
+      },
+    ],
+  },
+  {
+    listKey: 'features',
+    title: 'Yorumlar',
+    description:
+      'Her karta yorum bırakabilirsin; başka bir üyeyi `@kullanıcı` ile mention’layabilirsin ve o kişi bildirim alır. Aşağıdaki örnek yorumlar bunun nasıl göründüğünü gösteriyor.',
+    labelKeys: ['waiting'],
+    comments: [
+      { body: 'Yorum alanı kart altında akışta görünür — yorumları düzenleyebilir veya silebilirsin.' },
+      { body: 'İpucu: Bir takım arkadaşını davet ettiğinde `@adı` yazarak ona bildirim gönderebilirsin.' },
+    ],
+  },
+  {
+    listKey: 'features',
+    title: 'Vade tarihi',
+    description:
+      'Karta vade tarihi atayabilirsin; yaklaşan vade kart altında turuncu, geçmiş vade kırmızı görünür ve sahiplerine hatırlatma bildirimi gider. Bu kartın vadesi 3 gün sonra.',
+    dueAtOffsetDays: 3,
+    labelKeys: ['urgent'],
+  },
+  {
+    listKey: 'features',
+    title: 'Kart tamamlama',
+    description:
+      'Kart kapağındaki onay kutusundan kartı tamamlandı olarak işaretleyebilirsin. Bu kart örnek olarak işaretli — kart başlığı üstü çizili gösterilir.',
+    completed: true,
+    labelKeys: ['important', 'dev'],
+  },
+
+  // --- Sen dene ---
+  {
+    listKey: 'try',
+    title: 'Bu kartı sürükle',
+    description:
+      'Bu kartı tutup başka bir kolona bırak. Sürüklerken arka planda mutation atılmaz — yalnızca bıraktığında atılır ve optimistic olarak hemen görünür.',
+  },
+  {
+    listKey: 'try',
+    title: 'Bir etiket ekle',
+    description:
+      'Kart detayını aç → etiket bölümünden “Acil” veya kendi etiketini ekle. Etiket eklenince kart üstünde renkli bir şerit görünür.',
+    labelKeys: ['research'],
+  },
+  {
+    listKey: 'try',
+    title: 'Bir yorum yaz',
+    description:
+      'Kart detayını aç → en altta “Yorum yaz” alanını kullan. Yazılan yorumlar anlık olarak akışta görünür.',
+    labelKeys: ['waiting'],
+  },
+  {
+    listKey: 'try',
+    title: 'Bu kartı tamamla',
+    description:
+      'Kart kapağındaki tamamla işaretine tıkla. Vade geçmiş bir kart bu işaretle “tamamlanmış geç” olarak kapanır.',
+    dueAtOffsetDays: -2,
+    labelKeys: ['urgent'],
+    members: [{ role: 'assignee' }],
+  },
+
+  // --- Bitti (default-styled list) ---
+  {
+    listKey: 'done',
+    title: 'Pusula’yı keşfettim',
+    description:
+      'Bu kart örnek bir tamamlanmış kart. Aynı disiplinle kendi “Bitti” kolonunu oluşturabilirsin.',
+    completed: true,
+    labelKeys: ['dev'],
+  },
+  {
+    listKey: 'done',
+    title: 'İlk panomu kurdum',
+    description:
+      'Showcase panosunu örnek aldığında kendi panonun nasıl görüneceğini bu kart anlatır.',
+    completed: true,
+    labelKeys: ['design'],
+  },
+];
 
 /**
  * Trello-style fixed label palette. A card label's `color` is one of these
@@ -371,6 +604,25 @@ export const OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'dead
 
 /** Entity kinds indexed in `search_documents`. */
 export const SEARCH_ENTITY_TYPES = ['board', 'list', 'card', 'comment', 'label'] as const;
+
+/**
+ * Kart paylaşım linkleri için izin verilen süreler (gün). Üye paylaşım linki
+ * oluştururken bu setten birini seçer; parolasız token sonsuz yaşamaz. Bkz.
+ * `docs/domain/08-paylasim-linki-kurallari.md` "Link davranışı".
+ */
+export const SHARE_LINK_EXPIRY_PRESETS = [7, 30, 90] as const;
+export type ShareLinkExpiryPreset = (typeof SHARE_LINK_EXPIRY_PRESETS)[number];
+
+/** Varsayılan paylaşım linki ömrü (gün). */
+export const DEFAULT_SHARE_LINK_EXPIRY_DAYS: ShareLinkExpiryPreset = 90;
+
+/**
+ * Misafir (anonim) yorumcunun sabit yazar etiketi. `comments.author_id IS NULL
+ * AND share_link_id IS NOT NULL` satırları UI ve bildirim template'lerinde bu
+ * etiketle resolve edilir. Bkz. `docs/domain/08-paylasim-linki-kurallari.md`
+ * "Misafir yorum yapma".
+ */
+export const GUEST_AUTHOR_LABEL = 'Misafir';
 
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type BoardRole = (typeof BOARD_ROLES)[number];
