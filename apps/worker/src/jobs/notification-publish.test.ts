@@ -296,7 +296,10 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
-  it('email channel with NO enqueuer wired: row stays pending so the sweeper can retry', async () => {
+  it('email channel with NO enqueuer wired: keeps row pending instead of marking sent', async () => {
+    // Missing channel wiring is an operational bug, not a successful delivery.
+    // The publish processor must leave the row retryable so the sweeper can
+    // recover after the host is correctly wired.
     const [outbox] = await db()
       .insert(notificationOutbox)
       .values({
@@ -336,7 +339,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
-  it('push channel with NO enqueuer wired: row stays pending so the sweeper can retry', async () => {
+  it('push channel with NO enqueuer wired: keeps row pending instead of marking sent', async () => {
     const [outbox] = await db()
       .insert(notificationOutbox)
       .values({

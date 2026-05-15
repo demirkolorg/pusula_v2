@@ -93,7 +93,7 @@ export const cardUncompletedPayloadSchema = z.object({
 
 const payloadObjectSchema = z.record(z.string(), z.unknown());
 
-function hasPositionField(payload: { position?: unknown; toPosition?: unknown }): boolean {
+function hasPositionField(payload: Record<string, unknown>): boolean {
   return typeof payload.position === 'string' || typeof payload.toPosition === 'string';
 }
 
