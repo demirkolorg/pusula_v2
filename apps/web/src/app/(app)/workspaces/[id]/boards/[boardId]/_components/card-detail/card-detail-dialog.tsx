@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import {
   CARD_COVER_COLORS,
@@ -24,6 +24,7 @@ import {
   DialogTitle,
   cn,
   toast,
+  type MentionSource,
 } from '@pusula/ui';
 import {
   applyCardArchive,
@@ -128,8 +129,15 @@ export function CardDetailDialog({
     boardQ,
   ] = queries;
 
-  /** Invalidate the per-card queries + the board screen's `board.get`. */
-  const invalidateCard = async () => {
+  /**
+   * Invalidate the per-card queries + the board screen's `board.get`.
+   *
+   * Faz 4 review fix (W3 DEM-80): `useCallback` ile sabit referans — `cardId`/
+   * `boardId`/`queryClient`/`trpc` deps. Aksi halde her render yeni fonksiyon
+   * üretirdi ve `useOptimisticBoardMutation` 7 ayrı instance'ın `useMutation`
+   * options bag'ı her render yeniden init olurdu.
+   */
+  const invalidateCard = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries(trpc.card.get.queryFilter({ cardId })),
       queryClient.invalidateQueries(trpc.card.members.list.queryFilter({ cardId })),
@@ -141,8 +149,8 @@ export function CardDetailDialog({
       queryClient.invalidateQueries(trpc.board.members.list.queryFilter({ boardId })),
       queryClient.invalidateQueries(trpc.label.list.queryFilter({ boardId })),
     ]);
-  };
-  const onMutated = { onSuccess: invalidateCard };
+  }, [queryClient, trpc, cardId, boardId]);
+  const onMutated = useMemo(() => ({ onSuccess: invalidateCard }), [invalidateCard]);
 
   // --- Mutations -----------------------------------------------------------
   // Title / description / due-date / cover-colour each get their own `card.update`
@@ -152,9 +160,14 @@ export function CardDetailDialog({
   // `board.get` + `card.get` flip immediately, rollback on error, CONFLICT
   // refetches; `invalidateCard` runs on success to refresh the dependent
   // per-card lists (members / labels / activity) the hook doesn't touch.
-  const onConflict = () => toast(strings.board.conflict.refreshed);
-  const onMutationError = () => toast.error(strings.board.optimistic.error);
-  const cardOnSuccess = () => invalidateCard();
+  //
+  // Faz 4 review fix (W3 DEM-80): toast callback'leri `useCallback`'le
+  // sabitlenir — `toast` import edilen modül fonksiyonu, stable; `strings`
+  // sabit literal — deps boş. Bu, 7 mutation × `useMutation` options bag'ının
+  // her parent render'da yeniden init edilmesini engeller.
+  const onConflict = useCallback(() => toast(strings.board.conflict.refreshed), []);
+  const onMutationError = useCallback(() => toast.error(strings.board.optimistic.error), []);
+  const cardOnSuccess = useCallback(() => invalidateCard(), [invalidateCard]);
 
   const updateTitle = useOptimisticBoardMutation({
     mutationOptions: trpc.card.update.mutationOptions,
@@ -306,6 +319,25 @@ export function CardDetailDialog({
     return (userId: string) => map.get(userId);
   }, [boardMembers, cardMembers]);
   const viewerName = nameOf(viewerUserId) ?? null;
+
+  // @-mention picker source: board members (incl. workspace-inherited admins),
+  // filtered by query — self is excluded so users can't mention themselves.
+  // Backend parser resolves `attrs.id` directly, so the chip is robust to name
+  // collisions / renames. Memoised on the member list reference; the inner
+  // function is stable across keystrokes.
+  const mentionSource: MentionSource = useMemo(() => {
+    const candidates = boardMembers
+      .filter((m) => m.userId !== viewerUserId)
+      .map((m) => ({ id: m.userId, label: (m.name ?? m.userId).trim() || m.userId }));
+    return {
+      search(query) {
+        const q = query.trim().toLowerCase();
+        if (q.length === 0) return candidates;
+        return candidates.filter((u) => u.label.toLowerCase().includes(q));
+      },
+      emptyLabel: strings.card.detail.composer.mentionEmpty,
+    };
+  }, [boardMembers, viewerUserId]);
 
   // Board role lives on `board.get` — but we lean on `board.members.list`, which
   // includes the viewer's effective role. (Falls back to `viewer` until it resolves.)
@@ -716,6 +748,7 @@ export function CardDetailDialog({
                   createComment.isPending || editComment.isPending || deleteComment.isPending
                 }
                 commentError={errOf(createComment) || errOf(editComment) || errOf(deleteComment)}
+                mentions={mentionSource}
               />
             </div>
           </>

@@ -52,18 +52,30 @@ const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  * realtime echo filtering. See `docs/architecture/05-board-mekanigi.md` §5.2.
  */
 const enforceClientMutationId = middleware(async ({ ctx, next, getRawInput }) => {
-  let clientMutationId: string | undefined;
+  // Faz 4 review fix (M1 DEM-78): try/catch yalnız `getRawInput()` çağrısını
+  // sarmalar — yorumda söz verildiği gibi sadece "no input" hatasını ele alır.
+  // Önceki sürümde tüm scope try içindeydi; ileride regex/typeof kontrolleri
+  // çağrılırsa hata sessizce yutulurdu. Daraltılmış scope kör catch riskini
+  // kapatır.
+  let raw: { clientMutationId?: unknown } | undefined;
   try {
-    const raw = (await getRawInput()) as { clientMutationId?: unknown } | undefined;
-    const value = raw && typeof raw === 'object' ? raw.clientMutationId : undefined;
-    if (typeof value === 'string' && UUID_LIKE.test(value)) {
-      clientMutationId = value;
-    }
+    raw = (await getRawInput()) as { clientMutationId?: unknown } | undefined;
   } catch {
-    // `getRawInput()` throws when the procedure has no input — that just means
-    // no `clientMutationId`. Same default as a missing field.
+    // No input on the procedure — same default as a missing field.
+    raw = undefined;
   }
+  const value = raw && typeof raw === 'object' ? raw.clientMutationId : undefined;
+  const clientMutationId =
+    typeof value === 'string' && UUID_LIKE.test(value) ? value : undefined;
   return next({ ctx: { ...ctx, clientMutationId } });
 });
 
+// Faz 4 review fix (M2 DEM-78) ERTELEME — geri alındı: middleware sırasını
+// `auth → cmid` yapmak tRPC tip inference zincirinde `enforceAuth`'un session
+// narrow'unu son handler'a kadar taşıyamadı (`ctx.session` `Session | null`
+// kaldı, 9 router'da `TS18047` hatası). Faz 8 hardening'de cmid middleware'i
+// session-aware şekilde yeniden yazılarak çözülecek; Faz 5 dedupe `ctx.session`
+// ihtiyacını o sırada kendi session-check'iyle kapatır. Mevcut sıra (`cmid →
+// auth`) güvenli: dedupe Faz 5'te eklenmediği için anonim istekteki UUID regex
+// koşusu zararsız.
 export const protectedProcedure = t.procedure.use(enforceClientMutationId).use(enforceAuth);

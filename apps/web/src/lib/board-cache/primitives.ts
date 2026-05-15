@@ -73,14 +73,21 @@ export function applyListMove<TBoard, TList extends ListLike, TCard extends Card
 /**
  * Patch one card by id (shallow-merge `patch`). Re-sorts cards when the patch
  * touches `position`. No-op if the card isn't in the cache.
+ *
+ * Faz 4 review fix (W2 DEM-79): `patch`'in tip imzasından `listId` exclude
+ * edildi — list değişimi tasarım gereği yalnız `applyCardMove` üzerinden yapılır
+ * (cross-list move re-sort gerektirir; `applyCardPatch` non-position patch
+ * branch'inde re-sort yapmaz). Tip seviyesinde yanlış kullanım engellendi.
  */
 export function applyCardPatch<TBoard, TList extends ListLike, TCard extends CardLike>(
   data: BoardCacheData<TBoard, TList, TCard>,
   cardId: string,
-  patch: Partial<TCard>,
+  patch: Partial<Omit<TCard, 'listId'>>,
 ): BoardCacheData<TBoard, TList, TCard> {
   if (!data.cards.some((c) => c.id === cardId)) return data;
-  const mapped = data.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c));
+  const mapped = data.cards.map((c) =>
+    c.id === cardId ? ({ ...c, ...(patch as Partial<TCard>) }) : c,
+  );
   const cards = 'position' in patch ? sortByPosition(mapped) : mapped;
   return { ...data, cards };
 }
@@ -110,6 +117,14 @@ export function applyCardRemove<TBoard, TList extends ListLike, TCard extends Ca
  * Drop the card from the cache. `board.get` only returns active cards, so an
  * optimistic `card.archive` removes the card outright (mirrors what the
  * server-side refetch would yield).
+ *
+ * Faz 4 review fix (W3 DEM-79): `applyCardArchive` ile `applyCardRemove`
+ * implementasyon olarak aynı — fakat ayrı sembol tutulur: çağıran kod
+ * "archive" niyeti ile "permanently delete" niyetini ayırt edebilsin (Faz 5C
+ * realtime event handler `card.archived` → `applyCardArchive`, hypothetical
+ * `card.deleted` → `applyCardRemove`). `board.get` bir gün arşivli kartları da
+ * filtre opsiyonuyla döndürürse (Faz 8 board filtre UI), bu fonksiyonun ayrı
+ * implementasyonu gerekecek.
  */
 export function applyCardArchive<TBoard, TList extends ListLike, TCard extends CardLike>(
   data: BoardCacheData<TBoard, TList, TCard>,

@@ -188,6 +188,15 @@ export function useOptimisticBoardMutation<TBuilder extends MutationOptionsBuild
           queryClient.setQueriesData<CardDetailCache>(cardFilter, (data) =>
             data == null ? data : applyCardDetail(data, vars),
           );
+        } else if (process.env.NODE_ENV !== 'production') {
+          // Faz 4 review fix (W1 DEM-80): `applyCardDetail` opsiyonel + `cardId`
+          // de opsiyonel. Caller `applyCardDetail` verir ama `cardId`/var resolver
+          // bir id döndürmezse modal `card.get` cache'i sessizce patch'lenmez.
+          // Dev ortamında uyarı ver — production'da yutulur (sessiz fail
+          // beklenenden gerçekten farklı değil; warn yalnız dev rehberi).
+          console.warn(
+            '[useOptimisticBoardMutation] applyCardDetail provided but cardId could not be resolved; card.get cache will not receive the optimistic patch.',
+          );
         }
       }
       return { previous, cardDetail };
@@ -392,16 +401,22 @@ export function getMutationErrorMessage(mutation: {
  * Wrap a `useMutation` result so `mutate` / `mutateAsync` inject a
  * `clientMutationId` automatically. Internal helper used by both optimistic
  * hooks; not exported.
+ *
+ * Faz 4 review fix (W2 DEM-80): React Query'nin result objesi `Object.assign`
+ * ile **yerinde mutate edilmez** — yeni bir obje döner. React Query bu objeyi
+ * internal observer cache'iyle paylaşabiliyor; yerinde mutation observer leak
+ * riski yaratırdı.
  */
 function wrapWithClientMutationId<TData, TError, TVars extends { clientMutationId?: string }, TCtx>(
   mutation: ReturnType<typeof useMutation<TData, TError, TVars, TCtx>>,
-) {
+): ReturnType<typeof useMutation<TData, TError, TVars, TCtx>> {
   const originalMutate = mutation.mutate;
   const originalMutateAsync = mutation.mutateAsync;
-  return Object.assign(mutation, {
-    mutate: ((vars: TVars, options?: Parameters<typeof originalMutate>[1]) =>
-      originalMutate(withClientMutationId(vars), options)) as typeof originalMutate,
-    mutateAsync: ((vars: TVars, options?: Parameters<typeof originalMutateAsync>[1]) =>
-      originalMutateAsync(withClientMutationId(vars), options)) as typeof originalMutateAsync,
-  });
+  const wrappedMutate = ((vars: TVars, options?: Parameters<typeof originalMutate>[1]) =>
+    originalMutate(withClientMutationId(vars), options)) as typeof originalMutate;
+  const wrappedMutateAsync = ((
+    vars: TVars,
+    options?: Parameters<typeof originalMutateAsync>[1],
+  ) => originalMutateAsync(withClientMutationId(vars), options)) as typeof originalMutateAsync;
+  return { ...mutation, mutate: wrappedMutate, mutateAsync: wrappedMutateAsync };
 }

@@ -20,6 +20,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  type MentionSource,
 } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
@@ -27,7 +28,9 @@ import { isSameRichText } from './rich-text-helpers';
 
 export type CommentView = {
   id: string;
-  authorId: string;
+  // Faz 9A (DEM-127) share-link sonrası comments.authorId nullable: misafir
+  // yorumlarda `null` taşır, UI tarafında "Misafir" olarak resolve edilir.
+  authorId: string | null;
   body: string;
   editedAt: Date | string | null;
   deletedAt: Date | string | null;
@@ -48,6 +51,8 @@ type CardCommentComposerProps = {
   onSubmit: (body: string) => void;
   pending?: boolean;
   error?: string | null;
+  /** Optional @-mention picker source (board members) — when omitted, no picker. */
+  mentions?: MentionSource;
 };
 
 export function CardCommentComposer({
@@ -55,6 +60,7 @@ export function CardCommentComposer({
   onSubmit,
   pending = false,
   error,
+  mentions,
 }: CardCommentComposerProps) {
   const copy = strings.card.detail;
   // `null` ⇒ a fresh/empty editor; a non-empty string ⇒ the in-progress draft.
@@ -93,6 +99,7 @@ export function CardCommentComposer({
             toolbar="mini"
             ariaLabel={copy.composer.placeholder}
             disabled={pending}
+            mentions={mentions}
             onChange={(serialized, isEmpty) => {
               setValue(isEmpty ? null : serialized);
               setEmpty(isEmpty);
@@ -143,6 +150,7 @@ function CommentRow({
   pending,
   onEdit,
   onDelete,
+  mentions,
 }: {
   comment: CommentView;
   authorName: string;
@@ -150,6 +158,7 @@ function CommentRow({
   pending: boolean;
   onEdit: (body: string) => void;
   onDelete: () => void;
+  mentions?: MentionSource;
 }) {
   const copy = strings.card.comments;
   const detailCopy = strings.card.detail;
@@ -183,6 +192,7 @@ function CommentRow({
               toolbar="mini"
               ariaLabel={copy.edit}
               disabled={pending}
+              mentions={mentions}
               onChange={(serialized, isEmpty) => {
                 setDraft(serialized);
                 setEditorEmpty(isEmpty);
@@ -312,6 +322,8 @@ type CardDetailCommentsProps = {
   onDelete: (commentId: string) => void;
   pending?: boolean;
   error?: string | null;
+  /** Optional @-mention picker source — forwarded to the inline edit editor. */
+  mentions?: MentionSource;
 };
 
 /**
@@ -331,6 +343,7 @@ export function CardDetailComments({
   onDelete,
   pending = false,
   error,
+  mentions,
 }: CardDetailCommentsProps) {
   const copy = strings.card.comments;
 
@@ -347,9 +360,16 @@ export function CardDetailComments({
       ) : (
         <ul className="space-y-3">
           {comments.map((comment) => {
-            const canEditThis = canComment && (comment.authorId === viewerUserId || isBoardAdmin);
+            const canEditThis =
+              canComment &&
+              comment.authorId !== null &&
+              (comment.authorId === viewerUserId || isBoardAdmin);
+            // Faz 9A (DEM-127): authorId null → misafir yorum; nameOf çağrılmaz,
+            // copy.unknownAuthor (örn. "Misafir") fallback kullanılır.
             const authorName =
-              nameOf(comment.authorId)?.toString().trim() || comment.authorId || copy.unknownAuthor;
+              (comment.authorId &&
+                (nameOf(comment.authorId)?.toString().trim() || comment.authorId)) ||
+              copy.unknownAuthor;
             return (
               <CommentRow
                 key={comment.id}
@@ -359,6 +379,7 @@ export function CardDetailComments({
                 pending={pending}
                 onEdit={(body) => onEdit({ commentId: comment.id, body })}
                 onDelete={() => onDelete(comment.id)}
+                mentions={mentions}
               />
             );
           })}

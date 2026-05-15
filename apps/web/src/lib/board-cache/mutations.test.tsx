@@ -25,6 +25,10 @@ import { QueryClient, QueryClientProvider, type UseMutationOptions } from '@tans
 import { renderHook, waitFor } from '@testing-library/react';
 import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// Faz 4 review fix (W1 DEM-81): in-flight `clientMutationId` set modül-scope
+// `Set` (in-flight-store.ts). Test'ler arası temizlenmezse, erken bail-out
+// veya flaky assertion durumunda sonraki test'e sızıntı olur.
+import { clearInFlightClientMutationIds } from '@/lib/realtime/in-flight-store';
 import {
   applyBoardPatch,
   applyCardArchive,
@@ -154,6 +158,7 @@ describe('useOptimisticBoardMutation — failure modes (Phase 4D / DEM-81)', () 
 
   afterEach(() => {
     queryClient.clear();
+    clearInFlightClientMutationIds();
   });
 
   // ----- clientMutationId injection (5 mutations × 1 test each) ------------
@@ -561,22 +566,41 @@ describe('useOptimisticBoardMutation — failure modes (Phase 4D / DEM-81)', () 
         });
       });
 
+      // Faz 4 review fix (W2 DEM-81): intermediate state assertion.
+      // İki mutate fire edildi, ikisi de pending — cache her iki optimistic
+      // patch'i de barındırmalı, position'lar tam (sıralama doğru), c3 hala
+      // L1'de.
       const inFlight = queryClient.getQueryData(boardKey('b1')) as FixCache;
-      const onL2 = inFlight.cards.filter((c) => c.listId === 'L2').map((c) => c.id);
-      expect(onL2).toEqual(expect.arrayContaining(['c1', 'c2', 'c3']));
+      const c1InFlight = inFlight.cards.find((c) => c.id === 'c1');
+      const c2InFlight = inFlight.cards.find((c) => c.id === 'c2');
+      expect(c1InFlight?.listId).toBe('L2');
+      expect(c1InFlight?.position).toBe('b0V');
+      expect(c2InFlight?.listId).toBe('L2');
+      expect(c2InFlight?.position).toBe('b0W');
       expect(mutationFn).toHaveBeenCalledTimes(2);
 
-      // Resolve in order — first then second. After both settle, cache is stable.
+      // Resolve first only — second still pending. Cache should preserve both
+      // optimistic patches (`onSettled` invalidate observer-free no-op).
       await act(async () => {
         resolveFirst({ ok: true });
+        await Promise.resolve();
+      });
+      const midState = queryClient.getQueryData(boardKey('b1')) as FixCache;
+      expect(midState.cards.find((c) => c.id === 'c1')?.listId).toBe('L2');
+      expect(midState.cards.find((c) => c.id === 'c2')?.listId).toBe('L2');
+
+      // Resolve second — both settle. Final cache stable, position-ordered.
+      await act(async () => {
         resolveSecond({ ok: true });
         await Promise.resolve();
       });
       await waitFor(() => expect(result.current.isPending).toBe(false));
 
       const final = queryClient.getQueryData(boardKey('b1')) as FixCache;
-      const finalOnL2 = final.cards.filter((c) => c.listId === 'L2').map((c) => c.id);
-      expect(finalOnL2).toEqual(expect.arrayContaining(['c1', 'c2']));
+      const finalOnL2 = final.cards.filter((c) => c.listId === 'L2');
+      // Fixture'da c3 zaten L2'de (position 'a'); ardından c1 (b0V), sonra c2
+      // (b0W) — sortByPosition ASCII compare ile sıralar.
+      expect(finalOnL2.map((c) => c.id)).toEqual(['c3', 'c1', 'c2']);
     });
   });
 
