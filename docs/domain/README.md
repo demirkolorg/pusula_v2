@@ -31,15 +31,15 @@ helper, domain/event tipleri). Domain paketi **framework-bağımsızdır** — D
 
 ## İçindekiler
 
-| #   | Dosya                                                            | Konu                                                                             |
-| --- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 01  | [`01-urun-modeli.md`](01-urun-modeli.md)                         | Entity'ler, ilişkiler, çekirdek invariant'lar                                    |
-| 02  | [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md) | Workspace/board/card rolleri ve yetki matrisi                                    |
-| 03  | [`03-siralama-kurallari.md`](03-siralama-kurallari.md)           | Pozisyonun iş anlamı, before/after semantiği, compaction tetiği, concurrent move |
-| 04  | [`04-bildirim-kurallari.md`](04-bildirim-kurallari.md)           | Hangi event hangi bildirimi üretir, mute seviyeleri, tercih kapsamı, dedup       |
-| 05  | [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md)           | Aktivite event taksonomisi                                                       |
-| 06  | [`06-arama-kapsami.md`](06-arama-kapsami.md)                     | Neler aranabilir, permission filtreleme, archived davranışı                      |
-| 07  | [`07-ek-kurallari.md`](07-ek-kurallari.md)                       | Attachment: MIME/boyut limiti, kim yükleyebilir                                  |
+| #   | Dosya                                                              | Konu                                                                                     |
+| --- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 01  | [`01-urun-modeli.md`](01-urun-modeli.md)                           | Entity'ler, ilişkiler, çekirdek invariant'lar                                            |
+| 02  | [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md)   | Workspace/board/card rolleri ve yetki matrisi                                            |
+| 03  | [`03-siralama-kurallari.md`](03-siralama-kurallari.md)             | Pozisyonun iş anlamı, before/after semantiği, compaction tetiği, concurrent move         |
+| 04  | [`04-bildirim-kurallari.md`](04-bildirim-kurallari.md)             | Hangi event hangi bildirimi üretir, mute seviyeleri, tercih kapsamı, dedup               |
+| 05  | [`05-aktivite-kurallari.md`](05-aktivite-kurallari.md)             | Aktivite event taksonomisi                                                               |
+| 06  | [`06-arama-kapsami.md`](06-arama-kapsami.md)                       | Neler aranabilir, permission filtreleme, archived davranışı                              |
+| 07  | [`07-ek-kurallari.md`](07-ek-kurallari.md)                         | Attachment: MIME/boyut limiti, kim yükleyebilir                                          |
 | 08  | [`08-paylasim-linki-kurallari.md`](08-paylasim-linki-kurallari.md) | Kart paylaşım linki: misafir görme/yorum, "Misafir" etiketi, mention yok, expiry, revoke |
 
 ## Kaçınılması gerekenler (domain)

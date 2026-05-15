@@ -152,13 +152,13 @@ Headers ve davranış:
 
 ## Permission enforcement
 
-| Aksiyon | Yetki |
-|---|---|
-| `share.create` | Kart board'unda admin veya member ([`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md)) |
-| `share.revoke` | Board admin **veya** `createdById === ctx.session.userId` |
-| `share.list` | Board member+ (viewer dahil — okuma) |
-| `GET /share/:token` | Token geçerli + kart aktif (arşiv/silinmiş değil) |
-| `POST /share/:token/comments` | Token geçerli + kart aktif + body validasyonu (Zod, Tiptap JSON şeması) |
+| Aksiyon                       | Yetki                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `share.create`                | Kart board'unda admin veya member ([`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md)) |
+| `share.revoke`                | Board admin **veya** `createdById === ctx.session.userId`                                                                |
+| `share.list`                  | Board member+ (viewer dahil — okuma)                                                                                     |
+| `GET /share/:token`           | Token geçerli + kart aktif (arşiv/silinmiş değil)                                                                        |
+| `POST /share/:token/comments` | Token geçerli + kart aktif + body validasyonu (Zod, Tiptap JSON şeması)                                                  |
 
 Public endpoint **session check yapmaz**; kontrol edilen tek şey token + kart durumudur. Yetki kararı linki üreten kullanıcının üretim anındaki yetkisine dayanır; sonradan yetki kaybedilirse mevcut linkler `share_links` invariant'ı ile iptal edilir ([`../domain/08-paylasim-linki-kurallari.md`](../domain/08-paylasim-linki-kurallari.md) "Otomatik geçersiz olma durumları").
 

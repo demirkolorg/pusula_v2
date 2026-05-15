@@ -106,18 +106,18 @@ Notification preference hiyerarşisi (workspace > board > kart) misafir yorumlar
 
 ## Etkileşim sınırları (özet)
 
-| Aksiyon | Misafir |
-|---|---|
-| Kart içeriğini görme | ✅ |
-| Yorum bırakma | ✅ (yazar = "Misafir") |
-| Mention | ❌ (parse edilmez, notification üretmez) |
-| Yorum silme/düzenleme | ❌ |
-| Checklist toggle | ❌ |
-| Etiket / üye / due date değişikliği | ❌ |
-| Attachment indirme | ✅ (presigned URL) |
-| Attachment yükleme | ❌ |
-| Realtime canlı güncelleme | ❌ (manuel refresh) |
-| Activity feed görüntüleme | ❌ |
+| Aksiyon                             | Misafir                                  |
+| ----------------------------------- | ---------------------------------------- |
+| Kart içeriğini görme                | ✅                                       |
+| Yorum bırakma                       | ✅ (yazar = "Misafir")                   |
+| Mention                             | ❌ (parse edilmez, notification üretmez) |
+| Yorum silme/düzenleme               | ❌                                       |
+| Checklist toggle                    | ❌                                       |
+| Etiket / üye / due date değişikliği | ❌                                       |
+| Attachment indirme                  | ✅ (presigned URL)                       |
+| Attachment yükleme                  | ❌                                       |
+| Realtime canlı güncelleme           | ❌ (manuel refresh)                      |
+| Activity feed görüntüleme           | ❌                                       |
 
 ## Yan etki & invariant'lar
 

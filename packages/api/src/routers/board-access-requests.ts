@@ -66,7 +66,10 @@ async function loadBoardRequestContext(db: Queryable, boardId: string, userId: s
     .select({ role: workspaceMembers.role })
     .from(workspaceMembers)
     .where(
-      and(eq(workspaceMembers.workspaceId, target.workspaceId), eq(workspaceMembers.userId, userId)),
+      and(
+        eq(workspaceMembers.workspaceId, target.workspaceId),
+        eq(workspaceMembers.userId, userId),
+      ),
     )
     .limit(1);
   const [boardMembership] = await db
