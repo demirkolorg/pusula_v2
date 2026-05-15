@@ -27,31 +27,31 @@ export type BoardCacheKeys = {
   ) => ReturnType<ReturnType<typeof useTRPC>['board']['list']['queryFilter']>;
   /** `card.get({ cardId })` — card detail (comments/checklist/labels/members are *not* in here). */
   card: (cardId: string) => ReturnType<ReturnType<typeof useTRPC>['card']['get']['queryFilter']>;
-  /** `comment.list({ cardId })` â€” card comments. */
+  /** `comment.list({ cardId })` — card comments. */
   comments: (
     cardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['comment']['list']['queryFilter']>;
-  /** `checklist.list({ cardId })` â€” card checklists with nested items. */
+  /** `checklist.list({ cardId })` — card checklists with nested items. */
   checklists: (
     cardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['checklist']['list']['queryFilter']>;
-  /** `card.labels.list({ cardId })` â€” labels attached to a card. */
+  /** `card.labels.list({ cardId })` — labels attached to a card. */
   cardLabels: (
     cardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['card']['labels']['list']['queryFilter']>;
-  /** `card.members.list({ cardId })` â€” members attached to a card. */
+  /** `card.members.list({ cardId })` — members attached to a card. */
   cardMembers: (
     cardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['card']['members']['list']['queryFilter']>;
-  /** `label.list({ boardId })` â€” board label catalogue. */
+  /** `label.list({ boardId })` — board label catalogue. */
   boardLabels: (
     boardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['label']['list']['queryFilter']>;
-  /** `board.members.list({ boardId })` â€” board members. */
+  /** `board.members.list({ boardId })` — board members. */
   boardMembers: (
     boardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['board']['members']['list']['queryFilter']>;
-  /** `board.invitations.list({ boardId })` â€” pending board invitations. */
+  /** `board.invitations.list({ boardId })` — pending board invitations. */
   boardInvitations: (
     boardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['board']['invitations']['list']['queryFilter']>;

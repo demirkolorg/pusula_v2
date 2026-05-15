@@ -313,4 +313,104 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
       .where(dbMod.eq(activityEvents.boardId, fx.board.id));
     expect(activityRows.filter((row) => row.type === 'card.member_added')).toHaveLength(2);
   });
+
+  // Faz 6 review fix (W1 DEM-94): spec'te söz verilmiş ama 1dfee5a'da
+  // atlanmış olan due-date + permission rejection + cooldown-elapsed
+  // senaryoları. Hepsi DB integration; `runIf(dbAvailable)` zaten dışta.
+
+  it('due-date flow: card.update sets dueAt → card.due_set activity → watched_activity outbox for card watchers', async () => {
+    const fx = await seedFixture();
+
+    // Bob kart üzerinde watcher olsun (assignee değil — watched_activity
+    // notification'ı tüm watcher'lara fan-out eder).
+    await probe!.db.insert(cardMembers).values({
+      cardId: fx.card.id,
+      userId: fx.bob.id,
+      role: 'watcher',
+    });
+
+    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // +1 gün
+    await callerFor(fx.alice).card.update({
+      cardId: fx.card.id,
+      dueAt,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const activity = await activityFor(fx, 'card.due_set', 'cardId', fx.card.id);
+    expect(activity).toBeDefined();
+
+    // Watcher Bob'a in_app outbox satırı bekleniyor (watched_activity tipi).
+    const outbox = await outboxFor(fx.bob.id, 'watched_activity');
+    expect(outbox.length).toBeGreaterThanOrEqual(1);
+    expect(outbox[0]).toMatchObject({ channel: 'in_app', type: 'watched_activity' });
+  });
+
+  it('permission rejection: workspace guest with no board access does NOT receive a notification', async () => {
+    const fx = await seedFixture();
+    // Charlie: workspace `guest` rolü, board_members'de YOK → effective board
+    // erişimi `null`. notification-rules permission gate'i bu kullanıcıya
+    // notification yazılmasını engellemeli.
+    const charlie = { id: newId('u-nf-charlie'), name: 'charlie' };
+    createdUserIds.push(charlie.id);
+    await probe!.db.insert(users).values({
+      id: charlie.id,
+      name: charlie.name,
+      email: `${charlie.id}@example.test`,
+      emailVerified: true,
+    });
+    await probe!.db.insert(workspaceMembers).values({
+      workspaceId: fx.workspace.id,
+      userId: charlie.id,
+      role: 'guest',
+    });
+
+    // Charlie'ye kart ataması yapılır — yetki yoksa outbox satırı oluşmamalı.
+    // (Alice bu mutation'ı yapabilmek için admin; bob işin dışında.)
+    try {
+      await callerFor(fx.alice).card.members.add({
+        cardId: fx.card.id,
+        userId: charlie.id,
+        role: 'assignee',
+        clientMutationId: crypto.randomUUID(),
+      });
+    } catch {
+      // Server-side permission/validation reddedebilir — fix budur. Reddedilirse
+      // outbox da yazılmamış olur; iki yön de testin "Charlie outbox boş"
+      // assertion'ını destekler.
+    }
+
+    const charlieOutbox = await outboxFor(charlie.id, 'card_assigned');
+    expect(charlieOutbox).toHaveLength(0);
+  });
+
+  it('cooldown elapsed: a second assignment activity after 60s writes a fresh notification set', async () => {
+    const fx = await seedFixture({ extraCards: 1 });
+
+    await callerFor(fx.alice).card.members.add({
+      cardId: fx.card.id,
+      userId: fx.bob.id,
+      role: 'assignee',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // İlk outbox satırlarını 70 saniye geriye al — 60s cooldown window
+    // bitmiş kabul edilsin. (Gerçek 70s bekleme yerine time-travel.)
+    await probe!.db
+      .update(notificationOutbox)
+      .set({ createdAt: new Date(Date.now() - 70 * 1000) })
+      .where(dbMod.eq(notificationOutbox.recipientId, fx.bob.id));
+
+    await callerFor(fx.alice).card.members.add({
+      cardId: fx.extraCards[0]!.id,
+      userId: fx.bob.id,
+      role: 'assignee',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const outbox = await outboxFor(fx.bob.id, 'card_assigned');
+    // İki ayrı event (cooldown geçti) → her event için kanal başına ayrı
+    // satır. Cooldown window içinde olsaydı sadece birinci event'in satırları
+    // kalırdı.
+    expect(new Set(outbox.map((row) => row.eventId)).size).toBe(2);
+  });
 });

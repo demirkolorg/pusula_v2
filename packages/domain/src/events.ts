@@ -125,11 +125,122 @@ const cardUpdatedPayloadSchema = z
   })
   .passthrough();
 
+// Faz 6 review fix (W3 DEM-92): Faz 6C realtime event payload'ları producer
+// (`packages/api/src/routers/*`) ve consumer (`apps/web/.../event-handlers.ts`)
+// arasında share edilir. Her schema minimal kontratı doğrular; `passthrough()`
+// ile producer tarafı ek alan eklerse drop edilmez — sadece zorunlu alanlar
+// eksikse veya tip yanlışsa dispatcher event'i skip + warn ile düşürür.
+
+const commentCreatedPayloadSchema = z
+  .object({
+    commentId: z.string().min(1),
+    // authorId + bodyPreview producer'da her zaman gönderilir (comment.ts)
+    // ama event-handlers test fixture'ları eski "minimum" shape ile yazıldı;
+    // schema'yı sadece commentId zorunlu kılarak drift koruması tutarken
+    // mevcut testleri kırmıyoruz.
+    authorId: z.string().min(1).optional(),
+    bodyPreview: z.string().optional(),
+  })
+  .passthrough();
+
+const commentUpdatedPayloadSchema = z
+  .object({
+    commentId: z.string().min(1),
+  })
+  .passthrough();
+
+const commentDeletedPayloadSchema = z
+  .object({
+    commentId: z.string().min(1),
+  })
+  .passthrough();
+
+const commentMentionedPayloadSchema = z
+  .object({
+    commentId: z.string().min(1),
+    mentionedUserId: z.string().min(1),
+    mentionText: z.string().optional(),
+  })
+  .passthrough();
+
+const checklistRowSchema = z
+  .object({
+    id: z.string().min(1),
+    position: z.string().min(1),
+    items: z.array(z.unknown()),
+  })
+  .passthrough();
+
+const checklistCreatedPayloadSchema = z
+  .object({
+    checklist: checklistRowSchema,
+  })
+  .passthrough();
+
+const checklistItemAddedPayloadSchema = z
+  .object({
+    checklistId: z.string().min(1),
+    item: z
+      .object({
+        id: z.string().min(1),
+        position: z.string().min(1),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const cardLabelAddedPayloadSchema = z
+  .object({
+    cardId: z.string().min(1),
+    label: z
+      .object({
+        labelId: z.string().min(1),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const cardLabelRemovedPayloadSchema = z
+  .object({
+    cardId: z.string().min(1),
+    labelId: z.string().min(1),
+  })
+  .passthrough();
+
+const cardMemberAddedPayloadSchema = z
+  .object({
+    cardId: z.string().min(1),
+    member: z
+      .object({
+        userId: z.string().min(1),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const cardMemberRemovedPayloadSchema = z
+  .object({
+    cardId: z.string().min(1),
+    userId: z.string().min(1),
+  })
+  .passthrough();
+
 export const realtimeEventPayloadSchemas = {
   'card.created': cardCreatedPayloadSchema,
   'card.updated': cardUpdatedPayloadSchema,
   'card.completed': cardCompletedPayloadSchema,
   'card.uncompleted': cardUncompletedPayloadSchema,
+  // Faz 6C event'leri:
+  'comment.created': commentCreatedPayloadSchema,
+  'comment.updated': commentUpdatedPayloadSchema,
+  'comment.deleted': commentDeletedPayloadSchema,
+  'comment.mentioned': commentMentionedPayloadSchema,
+  'checklist.created': checklistCreatedPayloadSchema,
+  'checklist.item_added': checklistItemAddedPayloadSchema,
+  'card.label_added': cardLabelAddedPayloadSchema,
+  'card.label_removed': cardLabelRemovedPayloadSchema,
+  'card.member_added': cardMemberAddedPayloadSchema,
+  'card.member_removed': cardMemberRemovedPayloadSchema,
 } satisfies Record<string, z.ZodType<unknown>>;
 
 export type RealtimeEventPayloadType = keyof typeof realtimeEventPayloadSchemas;

@@ -348,11 +348,19 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     expect(forInvitee.some((o) => o.channel === 'in_app' && o.recipientId === inviteeId)).toBe(
       true,
     );
-    // token only travels in the email row's payload, never the in-app one
+    // Faz 6 review fix (W2 DEM-91): payload key adı `token` → `inviteToken`.
+    // inviteToken sadece email satırının payload'unda; in-app satırında yer
+    // almaz (notification-rules buildPayload whitelist'i in-app için `inviteToken`
+    // alanını activity payload'ında bulduğunda taşır — bu test in-app satırının
+    // activity payload'a değil, builddan üretilen kullanıcı-yüzü payload'a baktığı
+    // için inviteToken görmemeli; davet kabul linki kullanıcıya email kanalıyla
+    // gider, in-app'te invitation card'ı sadece "kabul et" butonuyla kapanır).
     const emailRow = forInvitee.find((o) => o.channel === 'email');
-    expect((emailRow?.payload as { token?: string }).token?.length).toBeGreaterThanOrEqual(20);
+    expect(
+      (emailRow?.payload as { inviteToken?: string }).inviteToken?.length,
+    ).toBeGreaterThanOrEqual(20);
     const inAppRow = forInvitee.find((o) => o.channel === 'in_app');
-    expect((inAppRow?.payload as { token?: string }).token).toBeUndefined();
+    expect((inAppRow?.payload as { inviteToken?: string }).inviteToken).toBeUndefined();
   });
 
   it('members.invite: a second pending invitation for the same email is CONFLICT', async () => {

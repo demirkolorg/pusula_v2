@@ -46,7 +46,21 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
   }
 
   // Auto-join the personal room — Faz 6 notification delivery target.
-  void socket.join(roomName('user', userId));
+  // Faz 6 review fix (W4 DEM-94): join'i await edip ardından `user:joined`
+  // ack event'i emit ediyoruz — e2e testleri (`installRealtimeProbe`)
+  // room üyeliğinin gerçekten tamamlandığını bu sinyalle bekler; aksi halde
+  // bridge'in ilk envelope'u room üyeliği tamamlanmadan önce gelirse kaçırılır.
+  void (async () => {
+    try {
+      await socket.join(roomName('user', userId));
+      socket.emit('user:joined', { userId });
+    } catch (err) {
+      console.warn(
+        `[api:socket] user:auto-join failed (user=${userId}):`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  })();
 
   socket.on('board:join', async (payload: BoardJoinPayload, ack?: (res: BoardRoomAck) => void) => {
     const boardId = typeof payload?.boardId === 'string' ? payload.boardId : '';

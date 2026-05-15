@@ -519,6 +519,17 @@ function buildPayload(
     'role',
     'title',
     'dueAt',
+    // Faz 6 review fix (W1 DEM-91): mention / comment-reply email template
+    // `commentPreview` bekliyor; producer activity payload'una ekledikleri
+    // zaman worker outbox satırına da geçiş yapsın.
+    //
+    // NOT: `inviteToken` bilinçli olarak BU WHITELIST'TE DEĞİL. Token davet
+    // kabul linki için gizli kalmalı ve yalnız **email kanalı** outbox satırı
+    // taşımalı (board-members + workspace router'larında direct insert ile);
+    // whitelist üzerinden in-app outbox payload'una sızdırılırsa client'ta
+    // open token leak riski olur. Email template payload'ta `inviteToken`
+    // okur — direct insert satırında zaten var.
+    'commentPreview',
   ] as const) {
     const v = event.payload[key];
     if (v !== undefined && v !== null) payload[key] = v;

@@ -311,7 +311,9 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     expect(emailRow).toBeDefined();
     expect(emailRow!.recipientId).toBeNull();
     expect(emailRow!.payload).toMatchObject({ boardId, email: inviteEmail, role: 'member' });
-    expect((emailRow!.payload as { token?: string }).token).toBe(inv!.token);
+    // Faz 6 review fix (W2 DEM-91): payload key adı `token` → `inviteToken`
+    // (notification template `inviteToken`'i okur; producer/template hizalandı).
+    expect((emailRow!.payload as { inviteToken?: string }).inviteToken).toBe(inv!.token);
 
     // re-inviting the same address while pending is a CONFLICT
     await expect(

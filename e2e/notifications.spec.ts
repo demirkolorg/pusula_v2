@@ -38,7 +38,10 @@ function seedBobNotifications(count: number): void {
 }
 
 async function waitForUserSocket(page: Page): Promise<void> {
-  await page.waitForFunction('globalThis.__pusulaE2eSocketIoConnected === true', undefined, {
+  // Faz 6 review fix (W4 DEM-94): connection (`40`) yerine server'ın
+  // `user:joined` ack mesajını bekleriz. Aksi halde bridge'in ilk
+  // envelope'u room üyeliği tamamlanmadan ulaşırsa kaçırılır → flaky e2e.
+  await page.waitForFunction('globalThis.__pusulaE2eUserRoomJoined === true', undefined, {
     timeout: NOTIFICATION_TIMEOUT_MS,
   });
 }
@@ -51,16 +54,26 @@ async function installRealtimeProbe(page: Page): Promise<void> {
   if (!NativeWebSocket || NativeWebSocket.__pusulaE2EWrapped) return;
 
   globalThis.__pusulaE2eSocketIoConnected = false;
+  // Faz 6 review fix (W4 DEM-94): server-side ack — \`user:joined\` event'i
+  // \`socket.join('user:{id}')\` tamamlandıktan sonra emit edilir.
+  // Socket.IO wire-format: \`42["user:joined",{...}]\`. Probe bu paketi yakalar.
+  globalThis.__pusulaE2eUserRoomJoined = false;
   class PusulaE2EWebSocket extends NativeWebSocket {
     constructor(url, protocols) {
       super(url, protocols);
       this.addEventListener('message', (event) => {
-        if (typeof event.data === 'string' && event.data.startsWith('40')) {
+        if (typeof event.data !== 'string') return;
+        if (event.data.startsWith('40')) {
           globalThis.__pusulaE2eSocketIoConnected = true;
+        }
+        // \`42["user:joined", ...]\` — server room-join ack.
+        if (event.data.startsWith('42') && event.data.includes('"user:joined"')) {
+          globalThis.__pusulaE2eUserRoomJoined = true;
         }
       });
       this.addEventListener('close', () => {
         globalThis.__pusulaE2eSocketIoConnected = false;
+        globalThis.__pusulaE2eUserRoomJoined = false;
       });
     }
   }

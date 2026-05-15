@@ -259,6 +259,9 @@ const workspaceMembersRouter = router({
           workspaceId: ctx.workspace.id,
           actorId: ctx.session.user.id,
           type: 'workspace.member_invited',
+          // Faz 6 review fix (W2 DEM-91): activity payload'unda `inviteToken`
+          // YOK — in-app notification'a sızmasın. Token sadece direct email
+          // outbox satırı (aşağıda) taşır.
           payload: { invitationId: invitation.id, email, role: input.role },
         })
         .returning({ id: activityEvents.id });
@@ -276,7 +279,7 @@ const workspaceMembersRouter = router({
           workspaceName: workspace.name,
           email,
           role: input.role,
-          token,
+          inviteToken: token,
           invitedById: ctx.session.user.id,
         },
       });

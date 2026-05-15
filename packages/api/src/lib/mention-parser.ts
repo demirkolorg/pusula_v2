@@ -60,18 +60,30 @@ function collectMentions(body: TiptapJSON): MentionCandidate[] {
     textBuffer = '';
   };
 
-  const visit = (node: unknown): void => {
+  // Faz 6 review fix (K1/K3): depth cap + root-only JSON re-parse.
+  // Recursion bombası riski: kötü niyetli bir yorum `text` node'una iç içe
+  // JSON.stringify(self) yerleştirip sonsuz visit() zinciri tetikleyebilir.
+  // Ayrıca yalnız kök body'nin string-encoded Tiptap JSON olması beklenir;
+  // inner `text` node'ları kod örnekleri (`{ foo: 'bar' }`) içerebilir ve
+  // bunlar yanlışlıkla JSON.parse'a sürüklenmemelidir.
+  const MAX_DEPTH = 32;
+  const visit = (node: unknown, depth: number): void => {
+    if (depth > MAX_DEPTH) return;
     if (typeof node === 'string') {
-      const trimmed = node.trim();
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try {
-          const parsed = JSON.parse(node) as unknown;
-          if (parsed && typeof parsed === 'object') {
-            visit(parsed);
-            return;
+      // Sadece kök body (depth === 0) için JSON.parse fallback'i çalışır;
+      // inner text node'ları (depth > 0) düz metin olarak buffer'a eklenir.
+      if (depth === 0) {
+        const trimmed = node.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(node) as unknown;
+            if (parsed && typeof parsed === 'object') {
+              visit(parsed, depth + 1);
+              return;
+            }
+          } catch {
+            // Not JSON after all; treat it as plain comment text below.
           }
-        } catch {
-          // Not JSON after all; treat it as plain comment text below.
         }
       }
       textBuffer += node;
@@ -92,11 +104,11 @@ function collectMentions(body: TiptapJSON): MentionCandidate[] {
     }
 
     if (Array.isArray(record.content)) {
-      for (const child of record.content) visit(child);
+      for (const child of record.content) visit(child, depth + 1);
     }
   };
 
-  visit(body);
+  visit(body, 0);
   flushText();
   return candidates;
 }

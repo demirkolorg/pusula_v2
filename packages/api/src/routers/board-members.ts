@@ -364,6 +364,11 @@ export const boardMembersRouter = router({
           boardId: ctx.board.id,
           actorId: ctx.session.user.id,
           type: 'board.member_invited',
+          // Faz 6 review fix (W2 DEM-91): activity payload'unda `inviteToken`
+          // YOK — token in-app notification payload'una sızmasın diye
+          // notification-rules whitelist'i de `inviteToken`'i taşımaz. Token
+          // sadece direct email outbox satırında (aşağıda) yer alır; worker
+          // template `inviteToken` adıyla okuyor, key adı orada da hizalandı.
           payload: { invitationId: invitation.id, email, role: input.role },
         })
         .returning({ id: activityEvents.id });
@@ -382,7 +387,7 @@ export const boardMembersRouter = router({
           workspaceId: ctx.board.workspaceId,
           email,
           role: input.role,
-          token,
+          inviteToken: token,
           invitedById: ctx.session.user.id,
         },
       });

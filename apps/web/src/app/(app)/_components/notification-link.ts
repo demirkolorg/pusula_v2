@@ -8,7 +8,16 @@ function pathPart(value: string): string {
 export function resolveNotificationLink(notification: NotificationRow): string | null {
   const payload = notificationPayload(notification);
 
-  if (payload.linkTo?.startsWith('/')) {
+  // Faz 6 review fix (W3 DEM-93): protocol-relative URL koruması. `//evil.com/x`
+  // form'u `/` ile başlar ve çoğu tarayıcıda `https://evil.com/x` olarak resolve
+  // edilir; defansif kontrol open-redirect riskini kapatır. `linkTo` worker'dan
+  // gelir (trusted) ama defense-in-depth disiplini.
+  if (
+    payload.linkTo &&
+    payload.linkTo.startsWith('/') &&
+    !payload.linkTo.startsWith('//') &&
+    !payload.linkTo.startsWith('/\\')
+  ) {
     return payload.linkTo;
   }
 

@@ -138,4 +138,54 @@ describe('parseMentions', () => {
       { mentionedUserId: 'user-123', mentionText: 'bob' },
     ]);
   });
+
+  // Faz 6 review fix (K1/K3): inner `text` node'larında JSON-shaped içerik
+  // root-only parse guard sayesinde tekrar JSON.parse'a sürüklenmemeli;
+  // aksi halde sonsuz recursion / DoS riski. Inner JSON-string içine
+  // gömülmüş bir `mention` node'u yalnızca guard bozulursa keşfedilebilir;
+  // doğru davranışta string düz metin olarak ele alınır ve attrs.id ulaşılmaz.
+  it('does not re-parse JSON-shaped content inside an inner text node', async () => {
+    const innerWithMention = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          // attrs.id parse edilirse `user-trojan` mention olarak yakalanır.
+          content: [{ type: 'mention', attrs: { id: 'user-trojan', label: 'trojan' } }],
+        },
+      ],
+    });
+    const ctx = ctxWithRows([{ id: 'user-trojan', name: 'trojan' }]);
+    const body = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: innerWithMention }],
+        },
+      ],
+    };
+
+    // Guard çalışıyorsa: inner JSON string düz metin → `mention` node ulaşılmaz
+    // → ctx.db.execute hiç çağrılmaz (içerikte @ regex match'i de yok) → []
+    await expect(parseMentions(body, 'board-1', ctx)).resolves.toEqual([]);
+    expect(ctx.db.execute).not.toHaveBeenCalled();
+  });
+
+  it('handles deeply nested Tiptap JSON without unbounded recursion (depth cap = 32)', async () => {
+    const ctx = ctxWithRows([{ id: 'user-bob', name: 'bob' }]);
+    // 100 seviye iç içe paragraph node'u — depth cap olmadan stack overflow olur.
+    let nested: { type: string; content?: unknown[] } = {
+      type: 'paragraph',
+      content: [{ type: 'text', text: '@bob' }],
+    };
+    for (let i = 0; i < 100; i++) {
+      nested = { type: 'paragraph', content: [nested] };
+    }
+    const body = { type: 'doc', content: [nested] };
+
+    // Cap aşıldığı için derinlerdeki `@bob` görülmez; ama stack'te patlamadan
+    // boş array dönmeli (DoS önlemi).
+    await expect(parseMentions(body, 'board-1', ctx)).resolves.toEqual([]);
+  });
 });
