@@ -117,7 +117,7 @@ describe('<ListColumn>', () => {
     h.invalidateQueries.mockReset();
   });
 
-  it('renders the list title and the card count', () => {
+  it('renders the list title without a header card count', () => {
     render(
       <ListColumn
         boardId="b1"
@@ -264,6 +264,7 @@ describe('<ListColumn>', () => {
     expect(
       screen.queryByRole('button', { name: strings.board.card.addCard }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(`1 ${columnCopy.cardCount}`)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: columnCopy.expand })).toHaveAttribute(
       'aria-expanded',
       'false',

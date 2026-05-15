@@ -1,8 +1,7 @@
 /*
  * Pusula shared design tokens (shadcn/ui — new-york, Tailwind v4).
  * Consumed by apps that also `@import "tailwindcss"`; do NOT import Tailwind here.
- * See docs/architecture/13-ui-tasarim-dili.md §9.1 — token names/roles are binding,
- * the OKLCH values are tuned-but-not-frozen.
+ * See docs/architecture/13-ui-tasarim-dili.md §9.1 — token names/roles are binding.
  */
 @import 'tw-animate-css';
 
@@ -40,31 +39,45 @@
   --destructive: oklch(0.58 0.21 27);
   --destructive-foreground: oklch(0.99 0 0);
 
-  /* 12-color label palette (solid + readable foreground) */
-  --palet-kirmizi: oklch(0.58 0.21 27);
-  --palet-kirmizi-foreground: oklch(0.99 0 0);
-  --palet-turuncu: oklch(0.68 0.18 50);
-  --palet-turuncu-foreground: oklch(0.99 0 0);
-  --palet-sari: oklch(0.84 0.16 90);
-  --palet-sari-foreground: oklch(0.28 0.05 90);
-  --palet-lime: oklch(0.78 0.18 128);
-  --palet-lime-foreground: oklch(0.28 0.06 128);
-  --palet-yesil: oklch(0.62 0.16 150);
-  --palet-yesil-foreground: oklch(0.99 0 0);
-  --palet-sky: oklch(0.74 0.13 225);
-  --palet-sky-foreground: oklch(0.28 0.05 225);
-  --palet-mavi: oklch(0.55 0.16 245);
-  --palet-mavi-foreground: oklch(0.99 0 0);
+  /* Trello/Atlassian palette: accent-subtle swatches + readable foregrounds. */
+  --palet-kirmizi: #f87168;
+  --palet-kirmizi-foreground: #ffffff;
+  --palet-turuncu: #fca700;
+  --palet-turuncu-foreground: #172b4d;
+  --palet-sari: #eed12b;
+  --palet-sari-foreground: #172b4d;
+  --palet-lime: #94c748;
+  --palet-lime-foreground: #172b4d;
+  --palet-yesil: #4bce97;
+  --palet-yesil-foreground: #ffffff;
+  --palet-sky: #6cc3e0;
+  --palet-sky-foreground: #172b4d;
+  --palet-mavi: #669df1;
+  --palet-mavi-foreground: #ffffff;
   --palet-indigo: oklch(0.56 0.17 275);
   --palet-indigo-foreground: oklch(0.99 0 0);
-  --palet-mor: oklch(0.54 0.21 305);
-  --palet-mor-foreground: oklch(0.99 0 0);
-  --palet-pembe: oklch(0.65 0.21 350);
-  --palet-pembe-foreground: oklch(0.99 0 0);
-  --palet-gri: oklch(0.62 0.01 250);
-  --palet-gri-foreground: oklch(0.99 0 0);
+  --palet-mor: #c97cf4;
+  --palet-mor-foreground: #172b4d;
+  --palet-pembe: #e774bb;
+  --palet-pembe-foreground: #172b4d;
+  --palet-gri: #8c8f97;
+  --palet-gri-foreground: #ffffff;
   --palet-siyah: oklch(0.28 0.01 250);
   --palet-siyah-foreground: oklch(0.99 0 0);
+
+  /* Trello list/card surfaces. List colours use accent-subtler. */
+  --board-list-bg: #f1f2f4;
+  --board-card-bg: #ffffff;
+  --board-list-color-kirmizi-bg: #ffd5d2;
+  --board-list-color-turuncu-bg: #fce4a6;
+  --board-list-color-sari-bg: #f5e989;
+  --board-list-color-lime-bg: #d3f1a7;
+  --board-list-color-yesil-bg: #baf3db;
+  --board-list-color-sky-bg: #c6edfb;
+  --board-list-color-mavi-bg: #cfe1fd;
+  --board-list-color-mor-bg: #eed7fc;
+  --board-list-color-pembe-bg: #fdd0ec;
+  --board-list-color-gri-bg: var(--board-list-bg);
 
   /* Board background gradient presets (DEM-100/DEM-111). Light defaults. */
   --bg-gradient-sunset: linear-gradient(
@@ -217,30 +230,43 @@
   --destructive: oklch(0.62 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --palet-kirmizi: oklch(0.62 0.2 27);
-  --palet-kirmizi-foreground: oklch(0.99 0 0);
-  --palet-turuncu: oklch(0.7 0.17 50);
-  --palet-turuncu-foreground: oklch(0.18 0.03 50);
-  --palet-sari: oklch(0.82 0.15 90);
-  --palet-sari-foreground: oklch(0.22 0.04 90);
-  --palet-lime: oklch(0.78 0.17 128);
-  --palet-lime-foreground: oklch(0.2 0.05 128);
-  --palet-yesil: oklch(0.66 0.16 150);
-  --palet-yesil-foreground: oklch(0.16 0.03 150);
-  --palet-sky: oklch(0.72 0.13 225);
-  --palet-sky-foreground: oklch(0.18 0.04 225);
-  --palet-mavi: oklch(0.62 0.15 245);
-  --palet-mavi-foreground: oklch(0.99 0 0);
+  --palet-kirmizi: #ae2e24;
+  --palet-kirmizi-foreground: #ffffff;
+  --palet-turuncu: #9e4c00;
+  --palet-turuncu-foreground: #ffffff;
+  --palet-sari: #7f5f01;
+  --palet-sari-foreground: #ffffff;
+  --palet-lime: #4c6b1f;
+  --palet-lime-foreground: #ffffff;
+  --palet-yesil: #216e4e;
+  --palet-yesil-foreground: #ffffff;
+  --palet-sky: #206a83;
+  --palet-sky-foreground: #ffffff;
+  --palet-mavi: #1558bc;
+  --palet-mavi-foreground: #ffffff;
   --palet-indigo: oklch(0.58 0.16 275);
   --palet-indigo-foreground: oklch(0.99 0 0);
-  --palet-mor: oklch(0.58 0.2 305);
-  --palet-mor-foreground: oklch(0.99 0 0);
-  --palet-pembe: oklch(0.68 0.19 350);
-  --palet-pembe-foreground: oklch(0.99 0 0);
-  --palet-gri: oklch(0.62 0.01 250);
-  --palet-gri-foreground: oklch(0.99 0 0);
+  --palet-mor: #803fa5;
+  --palet-mor-foreground: #ffffff;
+  --palet-pembe: #943d73;
+  --palet-pembe-foreground: #ffffff;
+  --palet-gri: #63666b;
+  --palet-gri-foreground: #ffffff;
   --palet-siyah: oklch(0.32 0.01 250);
   --palet-siyah-foreground: oklch(0.97 0 0);
+
+  --board-list-bg: #101204;
+  --board-card-bg: #242528;
+  --board-list-color-kirmizi-bg: #5d1f1a;
+  --board-list-color-turuncu-bg: #693200;
+  --board-list-color-sari-bg: #533f04;
+  --board-list-color-lime-bg: #37471f;
+  --board-list-color-yesil-bg: #164b35;
+  --board-list-color-sky-bg: #164555;
+  --board-list-color-mavi-bg: #123263;
+  --board-list-color-mor-bg: #48245d;
+  --board-list-color-pembe-bg: #50253f;
+  --board-list-color-gri-bg: var(--board-list-bg);
 
   --bg-gradient-sunset: linear-gradient(
     135deg,
@@ -481,15 +507,18 @@
     --board-shell-bg: color-mix(in oklch, var(--board-base) 58%, black);
     --board-chrome-fg: oklch(0.99 0 0);
     --board-shell-border: color-mix(in oklch, var(--board-shell-bg) 76%, white 24%);
-    --board-list-bg: color-mix(in oklch, var(--card) 88%, var(--board-base) 12%);
-    --board-list-bg-hover: color-mix(in oklch, var(--card) 84%, var(--board-base) 16%);
-    --board-list-border: color-mix(in oklch, var(--board-list-bg) 84%, var(--foreground) 16%);
-    --board-list-add-bg: color-mix(in oklch, var(--board-list-bg) 52%, transparent);
-    --board-list-add-bg-hover: color-mix(in oklch, var(--board-list-bg) 70%, transparent);
-    --board-list-archived-bg: color-mix(in oklch, var(--board-list-bg) 68%, transparent);
-    --board-card-bg: var(--card);
-    --board-card-border: color-mix(in oklch, var(--board-card-bg) 82%, var(--foreground) 18%);
-    --board-card-border-hover: color-mix(in oklch, var(--board-card-bg) 64%, var(--foreground) 36%);
+    --board-list-current-bg: var(--board-list-bg);
+    --board-list-bg-hover: color-mix(
+      in srgb,
+      var(--board-list-current-bg) 88%,
+      var(--foreground) 12%
+    );
+    --board-list-border: color-mix(in srgb, var(--board-list-bg) 84%, var(--foreground) 16%);
+    --board-list-add-bg: color-mix(in srgb, var(--board-list-bg) 52%, transparent);
+    --board-list-add-bg-hover: color-mix(in srgb, var(--board-list-bg) 70%, transparent);
+    --board-list-archived-bg: color-mix(in srgb, var(--board-list-bg) 68%, transparent);
+    --board-card-border: color-mix(in srgb, var(--board-card-bg) 82%, var(--foreground) 18%);
+    --board-card-border-hover: color-mix(in srgb, var(--board-card-bg) 64%, var(--foreground) 36%);
     background-color: var(--board-surface-bg);
     background-image: var(--board-surface-image);
   }

@@ -115,17 +115,17 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
 
 const LIST_COLOR_SET = new Set<string>(LIST_COLORS);
 
-const LIST_ACCENT_BG: Record<ListColor, string> = {
-  yesil: 'bg-palet-yesil',
-  sari: 'bg-palet-sari',
-  turuncu: 'bg-palet-turuncu',
-  kirmizi: 'bg-palet-kirmizi',
-  mor: 'bg-palet-mor',
-  mavi: 'bg-palet-mavi',
-  sky: 'bg-palet-sky',
-  lime: 'bg-palet-lime',
-  pembe: 'bg-palet-pembe',
-  gri: 'bg-palet-gri',
+const LIST_COLUMN_BG: Record<ListColor, string> = {
+  yesil: '[--board-list-current-bg:var(--board-list-color-yesil-bg)]',
+  sari: '[--board-list-current-bg:var(--board-list-color-sari-bg)]',
+  turuncu: '[--board-list-current-bg:var(--board-list-color-turuncu-bg)]',
+  kirmizi: '[--board-list-current-bg:var(--board-list-color-kirmizi-bg)]',
+  mor: '[--board-list-current-bg:var(--board-list-color-mor-bg)]',
+  mavi: '[--board-list-current-bg:var(--board-list-color-mavi-bg)]',
+  sky: '[--board-list-current-bg:var(--board-list-color-sky-bg)]',
+  lime: '[--board-list-current-bg:var(--board-list-color-lime-bg)]',
+  pembe: '[--board-list-current-bg:var(--board-list-color-pembe-bg)]',
+  gri: '[--board-list-current-bg:var(--board-list-color-gri-bg)]',
 };
 
 const LIST_ACCENT_FG: Record<ListColor, string> = {
@@ -351,29 +351,18 @@ export function ListColumn({
     <section
       ref={columnRef}
       className={cn(
-        'relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] transition-[opacity,width]',
+        'relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
         collapsed ? 'h-52 w-10 overflow-hidden' : 'w-72',
         listArchived && 'border-dashed',
         listArchived
-          ? 'bg-[color:var(--board-list-archived-bg)]'
-          : 'bg-[color:var(--board-list-bg)]',
+          ? '[--board-list-current-bg:var(--board-list-archived-bg)]'
+          : listColor && LIST_COLUMN_BG[listColor],
         columnDragging && 'opacity-0',
       )}
       data-dragging={columnDragging ? '' : undefined}
       data-collapsed={collapsed ? '' : undefined}
       aria-label={list.title}
     >
-      {listColor && (
-        <div
-          data-list-accent
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-x-0 top-0 h-1 rounded-t-lg',
-            LIST_ACCENT_BG[listColor],
-          )}
-        />
-      )}
-
       {collapsed ? (
         <header className="text-card-foreground flex h-full min-h-0 shrink-0 flex-col items-center gap-2 p-1.5">
           {renderCollapseToggle()}
@@ -612,7 +601,7 @@ export function ListColumn({
       {!collapsed && listEditable && (
         <footer className="shrink-0 p-2">
           {addingCard ? (
-            <div className="rounded-md bg-card p-2 shadow-sm">
+            <div className="rounded-md bg-[color:var(--board-card-bg)] p-2 shadow-sm">
               <AddCardForm
                 variant="compact"
                 onSubmit={(title) =>
