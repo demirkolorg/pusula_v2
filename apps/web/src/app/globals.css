@@ -3,3 +3,128 @@
 
 /* Make Tailwind scan the shared UI package (it lives outside this app dir). */
 @source '../../../../packages/ui/src/**/*.{ts,tsx}';
+
+@layer base {
+  :root {
+    --palet-kirmizi: #f87168;
+    --palet-kirmizi-foreground: #ffffff;
+    --palet-turuncu: #fca700;
+    --palet-turuncu-foreground: #172b4d;
+    --palet-sari: #eed12b;
+    --palet-sari-foreground: #172b4d;
+    --palet-lime: #94c748;
+    --palet-lime-foreground: #172b4d;
+    --palet-yesil: #4bce97;
+    --palet-yesil-foreground: #ffffff;
+    --palet-sky: #6cc3e0;
+    --palet-sky-foreground: #172b4d;
+    --palet-mavi: #669df1;
+    --palet-mavi-foreground: #ffffff;
+    --palet-mor: #c97cf4;
+    --palet-mor-foreground: #172b4d;
+    --palet-pembe: #e774bb;
+    --palet-pembe-foreground: #172b4d;
+    --palet-gri: #8c8f97;
+    --palet-gri-foreground: #ffffff;
+
+    --trello-list-bg: #f1f2f4;
+    --trello-card-bg: #ffffff;
+    --trello-list-kirmizi-bg: #ffd5d2;
+    --trello-list-turuncu-bg: #fce4a6;
+    --trello-list-sari-bg: #f5e989;
+    --trello-list-lime-bg: #d3f1a7;
+    --trello-list-yesil-bg: #baf3db;
+    --trello-list-sky-bg: #c6edfb;
+    --trello-list-mavi-bg: #cfe1fd;
+    --trello-list-mor-bg: #eed7fc;
+    --trello-list-pembe-bg: #fdd0ec;
+    --trello-list-gri-bg: var(--trello-list-bg);
+  }
+
+  .dark {
+    --palet-kirmizi: #ae2e24;
+    --palet-kirmizi-foreground: #ffffff;
+    --palet-turuncu: #9e4c00;
+    --palet-turuncu-foreground: #ffffff;
+    --palet-sari: #7f5f01;
+    --palet-sari-foreground: #ffffff;
+    --palet-lime: #4c6b1f;
+    --palet-lime-foreground: #ffffff;
+    --palet-yesil: #216e4e;
+    --palet-yesil-foreground: #ffffff;
+    --palet-sky: #206a83;
+    --palet-sky-foreground: #ffffff;
+    --palet-mavi: #1558bc;
+    --palet-mavi-foreground: #ffffff;
+    --palet-mor: #803fa5;
+    --palet-mor-foreground: #ffffff;
+    --palet-pembe: #943d73;
+    --palet-pembe-foreground: #ffffff;
+    --palet-gri: #63666b;
+    --palet-gri-foreground: #ffffff;
+
+    --trello-list-bg: #101204;
+    --trello-card-bg: #242528;
+    --trello-list-kirmizi-bg: #5d1f1a;
+    --trello-list-turuncu-bg: #693200;
+    --trello-list-sari-bg: #533f04;
+    --trello-list-lime-bg: #37471f;
+    --trello-list-yesil-bg: #164b35;
+    --trello-list-sky-bg: #164555;
+    --trello-list-mavi-bg: #123263;
+    --trello-list-mor-bg: #48245d;
+    --trello-list-pembe-bg: #50253f;
+    --trello-list-gri-bg: var(--trello-list-bg);
+  }
+}
+
+@layer utilities {
+  .board-bg-default,
+  [class*='board-bg-solid-'],
+  [class*='board-bg-gradient-'] {
+    --board-list-bg: var(--trello-list-bg);
+    --board-list-bg-hover: color-mix(in srgb, var(--trello-list-bg) 88%, var(--foreground) 12%);
+    --board-list-border: color-mix(in srgb, var(--trello-list-bg) 84%, var(--foreground) 16%);
+    --board-list-add-bg: color-mix(in srgb, var(--trello-list-bg) 52%, transparent);
+    --board-list-add-bg-hover: color-mix(in srgb, var(--trello-list-bg) 70%, transparent);
+    --board-list-archived-bg: color-mix(in srgb, var(--trello-list-bg) 68%, transparent);
+    --board-card-bg: var(--trello-card-bg);
+    --board-card-border: color-mix(in srgb, var(--trello-card-bg) 82%, var(--foreground) 18%);
+    --board-card-border-hover: color-mix(in srgb, var(--trello-card-bg) 64%, var(--foreground) 36%);
+  }
+
+  section:has(> [data-list-accent]) > [data-list-accent] {
+    display: none;
+  }
+
+  section:has(> [data-list-accent].bg-palet-yesil) {
+    background-color: var(--trello-list-yesil-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-sari) {
+    background-color: var(--trello-list-sari-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-turuncu) {
+    background-color: var(--trello-list-turuncu-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-kirmizi) {
+    background-color: var(--trello-list-kirmizi-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-mor) {
+    background-color: var(--trello-list-mor-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-mavi) {
+    background-color: var(--trello-list-mavi-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-sky) {
+    background-color: var(--trello-list-sky-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-lime) {
+    background-color: var(--trello-list-lime-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-pembe) {
+    background-color: var(--trello-list-pembe-bg);
+  }
+  section:has(> [data-list-accent].bg-palet-gri) {
+    background-color: var(--trello-list-gri-bg);
+  }
+}
