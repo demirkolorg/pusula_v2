@@ -33,6 +33,7 @@ import { test, expect } from './fixtures/realtime.fixture';
 import { BoardPage } from './fixtures/board.fixture';
 import { dragElement } from './helpers/dnd';
 import { E2E_DATABASE_URL } from './fixtures/env';
+import { E2E } from './fixtures/e2e-data';
 import { strings } from '../apps/web/src/lib/strings';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -58,24 +59,20 @@ const SYNC_TIMEOUT_MS = 10_000;
 
 /**
  * `useBoardRealtime` mounts after `board.goto()` returns (which only waits on
- * the first list to paint). The socket handshake + `board:join` ack is async
- * — and on a cold boot the API attaches Socket.IO + the realtime bridge
- * *after* `/health` opens (see `apps/api/src/index.ts`: server.listen first,
- * then `void setupSocketServer(...)`). So a peer can miss the very first
- * envelope if alice mutates while the bridge is still attaching its Redis
- * subscriber.
+ * the first list to paint). The socket handshake + `board:join` ack is async,
+ * and the page exposes the server-acknowledged room state. A peer can miss the
+ * first envelope if alice mutates before bob has joined the room.
  *
- * We settle by waiting a small fixed window. 2 s comfortably covers the
- * handshake + room join on a warm process; cold-boot the API's bridge attach
- * (Redis subscribe + adapter pub/sub clients) can stretch to a couple seconds
- * which is why we don't go lower. Measured against the local docker stack.
- *
- * TODO(Faz 8): when `apps/api/src/index.ts` awaits `setupSocketServer` before
- * `server.listen()` (so `/health` only opens once Socket.IO + the bridge are
- * fully attached), this helper becomes a no-op and should be removed.
+ * `/health` now opens only after Socket.IO + the realtime bridge are ready, so
+ * the helper waits for the client-side room join ack rather than sleeping for a
+ * fixed window.
  */
 async function waitForSocketJoin(page: Page): Promise<void> {
-  await page.waitForTimeout(2_000);
+  await expect(
+    page.locator(
+      `[data-realtime-board-id="${E2E.boardId}"][data-realtime-board-joined="true"]`,
+    ),
+  ).toBeAttached({ timeout: SYNC_TIMEOUT_MS });
 }
 
 test.describe.configure({ mode: 'serial' });

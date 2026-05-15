@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { app, setRealtimeEmit } from './app';
+import { app, markApiStartupFailed, markApiStartupReady, setRealtimeEmit } from './app';
 import { closeCompactionQueue } from './compaction-queue';
 import { closeNotificationQueue } from './notification-queue';
 import { closeRealtimePublishQueue } from './realtime-publish-queue';
@@ -24,12 +24,15 @@ void setupSocketServer(server as unknown as AttachableHttpServer)
   .then((handle) => {
     socketHandle = handle;
     setRealtimeEmit(handle.realtime);
+    markApiStartupReady();
     console.warn('[api] socket.io attached (transport=websocket, redis-adapter=on)');
   })
   .catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    markApiStartupFailed(message);
     console.error(
       '[api] failed to attach socket.io:',
-      err instanceof Error ? err.message : String(err),
+      message,
     );
   });
 
