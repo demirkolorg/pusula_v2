@@ -56,7 +56,12 @@ class FakeSocket {
     return this;
   }
   emit(event: string, ...args: unknown[]): this {
-    this.emitted.push({ event, args });
+    const maybeAck = args[args.length - 1];
+    const recordedArgs = typeof maybeAck === 'function' ? args.slice(0, -1) : args;
+    this.emitted.push({ event, args: recordedArgs });
+    if (typeof maybeAck === 'function' && (event === 'board:join' || event === 'board:leave')) {
+      maybeAck({ ok: true });
+    }
     return this;
   }
   /** Test helper: invoke registered listeners as if the server sent something. */
@@ -161,9 +166,10 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     qc.setQueryData(boardKey('b1'), fixture());
     expect(fakeSocket.connected).toBe(false);
 
-    renderHook(() => useBoardRealtime('b1'), { wrapper: wrap(qc) });
+    const { result } = renderHook(() => useBoardRealtime('b1'), { wrapper: wrap(qc) });
 
     expect(fakeSocket.connected).toBe(true);
+    expect(result.current.joined).toBe(true);
     expect(fakeSocket.emitted).toContainEqual({ event: 'board:join', args: [{ boardId: 'b1' }] });
     expect(fakeSocket.listeners.get('realtime:event')?.size).toBe(1);
   });
@@ -177,6 +183,7 @@ describe('useBoardRealtime — mount/unmount lifecycle', () => {
     });
 
     expect(result.current.connected).toBe(true);
+    expect(result.current.joined).toBe(true);
     expect(fakeSocket.connected).toBe(false);
     expect(fakeSocket.emitted).toEqual([]);
     expect(fakeSocket.listeners.get('realtime:event')?.size ?? 0).toBe(0);
@@ -405,11 +412,13 @@ describe('useBoardRealtime — connection status', () => {
       fakeSocket.disconnect();
     });
     expect(result.current.connected).toBe(false);
+    expect(result.current.joined).toBe(false);
 
     await act(async () => {
       fakeSocket.connect();
     });
     expect(result.current.connected).toBe(true);
+    expect(result.current.joined).toBe(true);
   });
 
   it('closes and reconnects the socket on browser offline/online events', async () => {
@@ -428,6 +437,7 @@ describe('useBoardRealtime — connection status', () => {
 
     expect(fakeSocket.connected).toBe(false);
     expect(result.current.connected).toBe(false);
+    expect(result.current.joined).toBe(false);
 
     await act(async () => {
       window.dispatchEvent(new Event('online'));

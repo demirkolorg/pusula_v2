@@ -156,7 +156,7 @@ describe('<BoardDetailPage> board access request gate', () => {
     h.boardTopBarProps = [];
     h.requestMutate.mockReset();
     h.useBoardRealtime.mockReset();
-    h.useBoardRealtime.mockReturnValue({ connected: true });
+    h.useBoardRealtime.mockReturnValue({ connected: true, joined: true });
     h.useMutation.mockReset();
     h.useMutation.mockReturnValue({
       mutate: h.requestMutate,

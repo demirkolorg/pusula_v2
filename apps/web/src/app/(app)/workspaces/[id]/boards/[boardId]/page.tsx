@@ -109,7 +109,8 @@ export default function BoardDetailPage({
   );
   // Phase 5C (DEM-85) — keep `board.get` in sync with concurrent edits from
   // other users. Subscribes to `board:{boardId}` on mount, applies envelopes,
-  // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner.
+  // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner;
+  // `joined` marks deterministic room readiness for e2e sync tests.
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
   const [showArchivedLists, setShowArchivedLists] = useState(false);
@@ -232,7 +233,11 @@ export default function BoardDetailPage({
   const hasActiveList = lists.some((list) => list.archivedAt == null);
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}>
+    <div
+      className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}
+      data-realtime-board-id={boardId}
+      data-realtime-board-joined={realtime.joined ? 'true' : 'false'}
+    >
       <BoardTopBar
         boardId={boardId}
         workspaceId={workspaceId}

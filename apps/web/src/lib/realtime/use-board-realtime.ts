@@ -44,6 +44,8 @@ import { getRealtimeSocket, REALTIME_EVENT_CHANNEL } from './client';
 export interface UseBoardRealtimeResult {
   /** True while the browser is online and the socket is connected; drives the disconnect banner. */
   connected: boolean;
+  /** True once the server has acknowledged membership in `board:{boardId}`. */
+  joined: boolean;
 }
 
 type UseBoardRealtimeOptions = {
@@ -53,6 +55,8 @@ type UseBoardRealtimeOptions = {
 function isBrowserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false;
 }
+
+type BoardJoinAck = { ok: true } | { ok: false; error?: string };
 
 export function useBoardRealtime(
   boardId: string,
@@ -72,12 +76,15 @@ export function useBoardRealtime(
   const [connected, setConnected] = useState<boolean>(() =>
     enabled ? socket.connected && isBrowserOnline() : true,
   );
+  const [joined, setJoined] = useState<boolean>(() => !enabled);
 
   useEffect(() => {
     if (!enabled) {
       setConnected(true);
+      setJoined(true);
       return;
     }
+    setJoined(false);
 
     const getBoardFilter = () => cacheKeysRef.current.board(boardId);
     const filters: RealtimeFilters = {
@@ -145,23 +152,40 @@ export function useBoardRealtime(
     // matching `board:leave` on cleanup if we did. Otherwise a fast
     // mount-then-unmount before `connect` fires would send the server a
     // `leave` for a board that never saw a `join`.
-    let joined = false;
+    let joinedRoom = false;
+    let active = true;
 
     const handleConnect = (): void => {
       setConnected(isBrowserOnline());
+      setJoined(false);
       // Cold start + reconnect both pass through here: refetch first (server
       // is the authority over the catch-up window) and rejoin the board room.
       void queryClient.invalidateQueries(getBoardFilter());
-      socket.emit('board:join', { boardId });
-      joined = true;
+      socket.emit('board:join', { boardId }, (ack?: BoardJoinAck) => {
+        if (!ack?.ok) {
+          if (active) setJoined(false);
+          console.warn(`[realtime] board:join rejected for ${boardId}: ${ack?.error ?? 'unknown'}`);
+          return;
+        }
+        if (!active) {
+          socket.emit('board:leave', { boardId });
+          return;
+        }
+        joinedRoom = true;
+        setJoined(true);
+      });
     };
 
     const handleDisconnect = (): void => {
       setConnected(false);
+      joinedRoom = false;
+      setJoined(false);
     };
 
     const handleBrowserOffline = (): void => {
       setConnected(false);
+      joinedRoom = false;
+      setJoined(false);
       if (socket.connected) socket.disconnect();
     };
 
@@ -189,14 +213,15 @@ export function useBoardRealtime(
     }
 
     return () => {
+      active = false;
       socket.off(REALTIME_EVENT_CHANNEL, handleEvent);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       window.removeEventListener('offline', handleBrowserOffline);
       window.removeEventListener('online', handleBrowserOnline);
-      if (joined) socket.emit('board:leave', { boardId });
+      if (joinedRoom) socket.emit('board:leave', { boardId });
     };
   }, [boardId, enabled, queryClient, socket]);
 
-  return { connected };
+  return { connected, joined };
 }

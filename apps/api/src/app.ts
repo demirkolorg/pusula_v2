@@ -11,10 +11,9 @@ import { buildTrpcContext } from './trpc';
 /**
  * Faz 5A (DEM-83) — the Socket.IO server is attached *after* the HTTP server
  * starts listening (it needs the `Server` handle from `@hono/node-server`).
- * Once it's up, `index.ts` calls `setRealtimeEmit` and from then on every
- * tRPC request picks the helpers up through `getRealtimeEmit()` inside
- * `buildTrpcContext`. Until then (and in unit tests that drive `app.fetch`
- * directly), `ctx.realtime` stays `undefined` and emits are a no-op.
+ * Once it's up, `index.ts` calls `setRealtimeEmit` and
+ * `markApiStartupReady()`. Until then `/health` stays non-ready and direct
+ * `app.fetch` tests keep `ctx.realtime` undefined.
  */
 let realtimeEmit: RealtimeEmit | undefined;
 export function setRealtimeEmit(emit: RealtimeEmit | undefined): void {
@@ -22,6 +21,29 @@ export function setRealtimeEmit(emit: RealtimeEmit | undefined): void {
 }
 export function getRealtimeEmit(): RealtimeEmit | undefined {
   return realtimeEmit;
+}
+
+type ApiStartupStatus = 'starting' | 'ready' | 'failed';
+
+interface ApiReadiness {
+  status: ApiStartupStatus;
+  realtime: ApiStartupStatus;
+  error?: string;
+}
+
+let readiness: ApiReadiness = { status: 'starting', realtime: 'starting' };
+
+export function markApiStartupReady(): void {
+  readiness = { status: 'ready', realtime: 'ready' };
+}
+
+export function markApiStartupFailed(error: string): void {
+  readiness = { status: 'failed', realtime: 'failed', error };
+}
+
+export function resetApiReadinessForTests(): void {
+  readiness = { status: 'starting', realtime: 'starting' };
+  realtimeEmit = undefined;
 }
 
 const TRPC_ENDPOINT = '/trpc';
@@ -43,7 +65,17 @@ app.use(
 
 // --- Liveness / readiness ---
 app.get('/', (c) => c.json({ name: 'pusula-api', ok: true }));
-app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }));
+app.get('/health', (c) => {
+  const ok = readiness.status === 'ready' && readiness.realtime === 'ready';
+  const body = {
+    ok,
+    status: readiness.status,
+    realtime: readiness.realtime,
+    ...(readiness.error ? { error: readiness.error } : {}),
+    ts: new Date().toISOString(),
+  };
+  return c.json(body, ok ? 200 : 503);
+});
 
 // --- Better Auth: owns /api/auth/* (sign-up / sign-in / session / ...) ---
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
