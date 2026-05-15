@@ -116,6 +116,28 @@ const cards: BoardCard[] = [
   },
 ];
 
+const archivedCards = [
+  {
+    id: 'C3',
+    listId: 'L1',
+    boardId: 'b1',
+    title: 'Arsivli kart',
+    description: null,
+    position: 'a1',
+    dueAt: null,
+    archivedAt: new Date('2026-05-01'),
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    completed: false,
+    completedAt: null,
+    completedBy: null,
+    coverColor: null,
+    coverImageAttachmentId: null,
+    listTitle: 'Yapilacak',
+    listArchivedAt: null,
+  },
+];
+
 describe('<BoardColumns>', () => {
   it('renders the list drop placeholder before the hovered target list', () => {
     h.dnd = makeDnd({
@@ -159,5 +181,41 @@ describe('<BoardColumns>', () => {
     expect(screen.getByTestId('list-L1')).toHaveTextContent('Acil kart');
     expect(screen.getByTestId('list-L2')).not.toHaveTextContent('Beklemede kart');
     expect(screen.queryByText(strings.board.filter.labelsTitle)).not.toBeInTheDocument();
+  });
+
+  it('adds archived cards to their visible columns only when the card archive toggle is enabled', () => {
+    h.dnd = makeDnd();
+
+    const { rerender } = render(
+      <BoardColumns
+        boardId="b1"
+        board={{ role: 'member', archivedAt: null }}
+        lists={lists}
+        cards={cards}
+        selectedLabelIds={new Set()}
+        showArchivedLists={false}
+        showArchivedCards={false}
+        archivedCards={archivedCards}
+      />,
+    );
+
+    expect(screen.getByTestId('list-L1')).toHaveTextContent('Acil kart');
+    expect(screen.getByTestId('list-L1')).not.toHaveTextContent('Arsivli kart');
+
+    rerender(
+      <BoardColumns
+        boardId="b1"
+        board={{ role: 'member', archivedAt: null }}
+        lists={lists}
+        cards={cards}
+        selectedLabelIds={new Set()}
+        showArchivedLists={false}
+        showArchivedCards
+        archivedCards={archivedCards}
+      />,
+    );
+
+    expect(screen.getByTestId('list-L1')).toHaveTextContent('Acil kart');
+    expect(screen.getByTestId('list-L1')).toHaveTextContent('Arsivli kart');
   });
 });

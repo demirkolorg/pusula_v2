@@ -167,14 +167,15 @@ describe('<ListColumn>', () => {
     expect(icon).toHaveClass('text-palet-mavi');
   });
 
-  it('renders a coloured list as a stable surface with a palette accent', () => {
+  it('renders a coloured list with the Trello-style full column background', () => {
     render(<ListColumn boardId="b1" list={{ ...list, color: 'mavi' }} cards={[]} canEdit />);
 
     const column = screen.getByRole('region', { name: list.title });
-    expect(column).toHaveClass('bg-[color:var(--board-list-bg)]');
+    expect(column).toHaveClass('[--board-list-current-bg:var(--board-list-color-mavi-bg)]');
+    expect(column).toHaveClass('bg-[color:var(--board-list-current-bg)]');
     expect(column).toHaveClass('border-[color:var(--board-list-border)]');
     expect(column).not.toHaveClass('bg-palet-mavi');
-    expect(column.querySelector('[data-list-accent]')).toHaveClass('bg-palet-mavi');
+    expect(column.querySelector('[data-list-accent]')).toBeNull();
     expect(column.querySelector('header')).toHaveClass('text-card-foreground');
   });
 

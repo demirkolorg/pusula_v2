@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
     boardSearchOpen?: boolean;
     onBoardSearchOpenChange?: (open: boolean) => void;
   }>,
+  boardColumnsProps: [] as Array<Record<string, unknown>>,
   useQuery: vi.fn(),
   useMutation: vi.fn(),
   requestMutate: vi.fn(),
@@ -75,6 +76,15 @@ vi.mock('@/trpc/client', () => ({
         }),
       },
     },
+    card: {
+      listArchived: {
+        queryOptions: (input: unknown, options?: unknown) => ({
+          key: 'card.listArchived',
+          input,
+          ...(typeof options === 'object' && options ? options : {}),
+        }),
+      },
+    },
   }),
 }));
 
@@ -86,12 +96,16 @@ vi.mock('./_components/board-columns', () => ({
   BoardColumns: (props: {
     openFirstCardComposerToken?: number;
     openAddListComposerToken?: number;
-  }) => (
-    <div data-testid="board-columns">
-      <span data-testid="add-card-token">{props.openFirstCardComposerToken ?? 0}</span>
-      <span data-testid="add-list-token">{props.openAddListComposerToken ?? 0}</span>
-    </div>
-  ),
+  }) => {
+    h.boardColumnsProps.push(props as Record<string, unknown>);
+
+    return (
+      <div data-testid="board-columns">
+        <span data-testid="add-card-token">{props.openFirstCardComposerToken ?? 0}</span>
+        <span data-testid="add-list-token">{props.openAddListComposerToken ?? 0}</span>
+      </div>
+    );
+  },
 }));
 
 vi.mock('./_components/board-top-bar', () => ({
@@ -154,6 +168,7 @@ describe('<BoardDetailPage> board access request gate', () => {
     h.queryResults = new Map();
     h.queryOptionsSeen = [];
     h.boardTopBarProps = [];
+    h.boardColumnsProps = [];
     h.requestMutate.mockReset();
     h.useBoardRealtime.mockReset();
     h.useBoardRealtime.mockReturnValue({ connected: true, joined: true });
@@ -233,7 +248,7 @@ describe('<BoardDetailPage> board access request gate', () => {
     });
   });
 
-  it('does not pass an inert archived-card board toggle to the top bar', async () => {
+  it('passes archived-card board toggle state and archived cards to the board surface', async () => {
     h.queryResults.set(
       'board.accessRequests.context',
       queryStub({
@@ -272,13 +287,54 @@ describe('<BoardDetailPage> board access request gate', () => {
         },
       }),
     );
+    h.queryResults.set(
+      'card.listArchived',
+      queryStub({
+        isSuccess: true,
+        data: [
+          {
+            id: 'archived-card',
+            boardId: 'b_1',
+            listId: 'l_1',
+            title: 'Arsivli kart',
+            description: null,
+            position: 'a1',
+            dueAt: null,
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+            coverColor: null,
+            coverImageAttachmentId: null,
+            archivedAt: new Date('2026-05-01T10:00:00.000Z'),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            listTitle: 'Yapilacak',
+            listArchivedAt: null,
+          },
+        ],
+      }),
+    );
 
     await renderPage();
 
     expect(await screen.findByTestId('board-top-bar')).toBeInTheDocument();
-    expect(screen.queryByTestId('archived-card-toggle-prop')).not.toBeInTheDocument();
-    expect(h.boardTopBarProps[0]?.archive).not.toHaveProperty('showArchivedCards');
-    expect(h.boardTopBarProps[0]?.archive).not.toHaveProperty('onToggleArchivedCards');
+    expect(screen.getByTestId('archived-card-toggle-prop')).toBeInTheDocument();
+    expect(h.boardTopBarProps[0]?.archive).toMatchObject({ showArchivedCards: false });
+    expect(h.boardTopBarProps[0]?.archive?.onToggleArchivedCards).toEqual(expect.any(Function));
+    expect(h.boardColumnsProps.at(-1)).toMatchObject({
+      showArchivedCards: false,
+      archivedCards: [],
+    });
+
+    act(() => {
+      (h.boardTopBarProps.at(-1)?.archive?.onToggleArchivedCards as () => void)();
+    });
+
+    expect(h.boardTopBarProps.at(-1)?.archive).toMatchObject({ showArchivedCards: true });
+    expect(h.boardColumnsProps.at(-1)).toMatchObject({
+      showArchivedCards: true,
+      archivedCards: [expect.objectContaining({ id: 'archived-card' })],
+    });
   });
 
   it('opens board search with slash and shortcut help with question mark', async () => {

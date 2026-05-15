@@ -593,9 +593,10 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
   });
 
-  it('opens archived items as a dropdown, keeps archived cards listed, and only exposes the list board toggle', async () => {
+  it('opens archived items as a dropdown and exposes list and card board toggles', async () => {
     const user = userEvent.setup();
     const onToggleArchivedLists = vi.fn();
+    const onToggleArchivedCards = vi.fn();
     h.archivedCards = {
       data: [
         {
@@ -626,6 +627,8 @@ describe('<BoardTopBar>', () => {
           canEdit: true,
           showArchivedLists: true,
           onToggleArchivedLists,
+          showArchivedCards: false,
+          onToggleArchivedCards,
           archivedListCount: 1,
           lists: [
             { id: 'l-active', title: 'Aktif liste', archivedAt: null },
@@ -648,13 +651,15 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByText('Eski liste')).toBeInTheDocument();
     expect(screen.getByText('Eski kart')).toBeInTheDocument();
 
-    const cardsToggle = screen.queryByRole('menuitemcheckbox', {
+    const cardsToggle = screen.getByRole('menuitemcheckbox', {
       name: /Ar.ivli kartlar. g.ster/,
     });
-    expect(cardsToggle).not.toBeInTheDocument();
+    expect(cardsToggle).toHaveAttribute('aria-checked', 'false');
 
     expect(screen.getAllByRole('button', { name: 'Geri yükle' })).toHaveLength(2);
     await user.click(screen.getByRole('menuitemcheckbox', { name: /Ar.ivli listeleri g.ster/ }));
     expect(onToggleArchivedLists).toHaveBeenCalledTimes(1);
+    await user.click(cardsToggle);
+    expect(onToggleArchivedCards).toHaveBeenCalledTimes(1);
   });
 });
