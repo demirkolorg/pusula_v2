@@ -3,15 +3,24 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Avatar, Button, cn } from '@pusula/ui';
+import { BellIcon, CheckIcon } from 'lucide-react';
+import {
+  Avatar,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  cn,
+} from '@pusula/ui';
 import type { RouterOutputs } from '@pusula/api';
 import { activitySummary } from '@/lib/activity-summary';
 import { formatRelativeTime } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { resolveNotificationLink } from './notification-link';
-import type { NotificationRow } from './notification-types';
-import { notificationPayload } from './notification-types';
+import type { NotificationGroupKey, NotificationRow } from './notification-types';
+import { groupNotificationsByDate, notificationPayload } from './notification-types';
 import { notificationTypeIcon } from './notification-type-icon';
 
 const NOTIFICATIONS_LIMIT = 20;
@@ -63,6 +72,10 @@ function withAllRead(
       ),
     })),
   };
+}
+
+function groupLabel(key: NotificationGroupKey): string {
+  return strings.notifications.groups[key];
 }
 
 export function NotificationCenter({ onClose }: { onClose: () => void }) {
@@ -151,114 +164,196 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
   );
 
   const items = flattenPages(data as NotificationListData | undefined);
-  const allRead = items.length === 0 || items.every((notification) => !isUnread(notification));
+  const unreadCount = items.filter(isUnread).length;
+  const allRead = items.length === 0 || unreadCount === 0;
+  const groups = groupNotificationsByDate(items);
 
-  const handleClick = (notification: NotificationRow): void => {
+  const handleOpen = (notification: NotificationRow): void => {
     const link = resolveNotificationLink(notification);
     if (link) router.push(link);
     if (isUnread(notification)) markRead.mutate({ id: notification.id });
     onClose();
   };
 
+  const handleMarkOneRead = (notification: NotificationRow): void => {
+    if (!isUnread(notification)) return;
+    markRead.mutate({ id: notification.id });
+  };
+
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold">{strings.notifications.title}</h2>
-          {items.length > 0 && (
-            <p className="text-muted-foreground text-xs">
-              {strings.notifications.unreadCountLabel(items.filter(isUnread).length)}
-            </p>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => markAllRead.mutate()}
-          disabled={markAllRead.isPending || allRead}
-        >
-          {strings.notifications.markAllRead}
-        </Button>
-      </div>
-
-      <div className="max-h-96 overflow-y-auto">
-        {isLoading ? (
-          <div className="space-y-2 p-3" aria-busy>
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                data-testid="notification-skeleton"
-                className="bg-muted h-12 w-full animate-pulse rounded-md"
-              />
-            ))}
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-muted-foreground p-6 text-center text-sm">
-            {strings.notifications.empty}
-          </div>
-        ) : (
-          <ul className="divide-y">
-            {items.map((notification) => {
-              const payload = notificationPayload(notification);
-              const actorName = payload.actorName ?? strings.notifications.fallbackActorName;
-              const unread = isUnread(notification);
-
-              return (
-                <li
-                  key={notification.id}
-                  data-testid={`notification-row-${notification.id}`}
-                  data-unread={unread ? 'true' : 'false'}
-                  className={cn(
-                    'hover:bg-accent/50 flex cursor-pointer items-start gap-3 px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-                    unread && 'border-l-2 border-primary bg-accent/30',
-                  )}
-                  onClick={() => handleClick(notification)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleClick(notification);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="relative mt-0.5 shrink-0">
-                    <Avatar name={actorName} image={payload.actorImage} size="sm" />
-                    <span className="bg-card absolute -right-1 -bottom-1 inline-flex size-4 items-center justify-center rounded-full border">
-                      {notificationTypeIcon(notification.type, 'size-3')}
-                    </span>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm leading-snug">
-                      <span className="font-medium">{actorName}</span>{' '}
-                      <span>{activitySummary(notification.type, notification.payload)}</span>
-                    </span>
-                    <time className="text-muted-foreground mt-0.5 block text-xs">
-                      {formatRelativeTime(notification.createdAt)}
-                    </time>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {hasNextPage && (
-          <div className="border-t p-2">
+    <TooltipProvider delayDuration={300}>
+      <div className="flex flex-col">
+        <div className="border-b px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold leading-none">
+                {strings.notifications.title}
+              </h2>
+              <p
+                className="text-muted-foreground mt-1 text-xs"
+                data-testid="notification-counter"
+              >
+                {items.length === 0
+                  ? strings.notifications.empty
+                  : unreadCount > 0
+                    ? strings.notifications.unreadCountLabel(unreadCount)
+                    : strings.notifications.allCaughtUp}
+              </p>
+            </div>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="w-full"
-              onClick={() => void fetchNextPage()}
-              disabled={isFetchingNextPage}
+              className="h-8 shrink-0 text-xs"
+              onClick={() => markAllRead.mutate()}
+              disabled={markAllRead.isPending || allRead}
             >
-              {strings.notifications.loadMore}
+              {strings.notifications.markAllRead}
             </Button>
           </div>
-        )}
+        </div>
+
+        <div className="max-h-[28rem] overflow-y-auto">
+          {isLoading ? (
+            <div className="space-y-2 p-3" aria-busy>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  data-testid="notification-skeleton"
+                  className="bg-muted h-14 w-full animate-pulse rounded-md"
+                />
+              ))}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <span className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full">
+                <BellIcon className="size-5" aria-hidden />
+              </span>
+              <p className="text-foreground text-sm font-medium">
+                {strings.notifications.empty}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {strings.notifications.emptyHint}
+              </p>
+            </div>
+          ) : (
+            groups.map((group) => (
+              <section key={group.key} aria-label={groupLabel(group.key)}>
+                <h3
+                  data-testid={`notification-group-${group.key}`}
+                  className="bg-card/95 supports-[backdrop-filter]:bg-card/80 text-muted-foreground sticky top-0 z-10 border-b px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide backdrop-blur"
+                >
+                  {groupLabel(group.key)}
+                </h3>
+                <ul className="divide-border/60 divide-y">
+                  {group.items.map((notification) => {
+                    const payload = notificationPayload(notification);
+                    const actorName =
+                      payload.actorName ?? strings.notifications.fallbackActorName;
+                    const unread = isUnread(notification);
+
+                    return (
+                      <li
+                        key={notification.id}
+                        data-testid={`notification-row-${notification.id}`}
+                        data-unread={unread ? 'true' : 'false'}
+                        className={cn(
+                          'group hover:bg-accent focus-visible:ring-ring/60 relative flex cursor-pointer items-start gap-3 px-4 py-3 pr-10 transition focus-visible:outline-none focus-visible:ring-2',
+                          unread ? 'bg-primary/5' : 'bg-transparent',
+                        )}
+                        onClick={() => handleOpen(notification)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleOpen(notification);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <span className="relative mt-0.5 shrink-0">
+                          <Avatar name={actorName} image={payload.actorImage} size="md" />
+                          <span className="bg-card ring-card absolute -right-1 -bottom-1 inline-flex size-5 items-center justify-center rounded-full ring-2">
+                            {notificationTypeIcon(notification.type, 'size-3')}
+                          </span>
+                        </span>
+
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              'block text-sm leading-snug',
+                              !unread && 'text-muted-foreground',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'font-medium',
+                                unread ? 'text-foreground' : 'text-muted-foreground',
+                              )}
+                            >
+                              {actorName}
+                            </span>{' '}
+                            <span>
+                              {activitySummary(notification.type, notification.payload)}
+                            </span>
+                          </span>
+                          <time className="text-muted-foreground mt-1 block text-xs">
+                            {formatRelativeTime(notification.createdAt)}
+                          </time>
+                        </span>
+
+                        {unread && (
+                          <span className="absolute top-3 right-3 flex items-center">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  aria-label={strings.notifications.markOneRead}
+                                  data-testid={`notification-mark-read-${notification.id}`}
+                                  className="hover:bg-primary/10 text-primary focus-visible:ring-ring/60 hidden size-6 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 group-hover:flex group-focus-within:flex"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleMarkOneRead(notification);
+                                  }}
+                                >
+                                  <CheckIcon className="size-3.5" aria-hidden />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                {strings.notifications.markOneRead}
+                              </TooltipContent>
+                            </Tooltip>
+                            <span
+                              aria-label={strings.notifications.unreadDotLabel}
+                              data-testid={`notification-unread-dot-${notification.id}`}
+                              className="bg-primary block size-2 rounded-full group-hover:hidden group-focus-within:hidden"
+                            />
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))
+          )}
+
+          {hasNextPage && (
+            <div className="border-t p-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {strings.notifications.loadMore}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

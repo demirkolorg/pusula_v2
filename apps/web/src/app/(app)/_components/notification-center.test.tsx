@@ -193,6 +193,92 @@ describe('<NotificationCenter>', () => {
     expect(screen.getByTestId('notification-row-n3')).toHaveAttribute('data-unread', 'false');
   });
 
+  it('renders an unread dot for unread rows and omits it for read rows', async () => {
+    listResult = {
+      items: [
+        unreadNotification({ id: 'n1' }),
+        unreadNotification({
+          id: 'n2',
+          readAt: new Date('2026-05-14T09:05:00.000Z'),
+        }),
+      ],
+      nextCursor: null,
+    };
+
+    renderCenter();
+
+    expect(await screen.findByTestId('notification-unread-dot-n1')).toBeInTheDocument();
+    expect(screen.queryByTestId('notification-unread-dot-n2')).not.toBeInTheDocument();
+  });
+
+  it('groups notifications by relative date with sticky section headers', async () => {
+    const today = new Date();
+    const earlier = new Date(today);
+    earlier.setDate(today.getDate() - 30);
+
+    listResult = {
+      items: [
+        unreadNotification({
+          id: 'today-1',
+          createdAt: today,
+          payload: { actorName: 'Ada', cardTitle: 'Bugün' },
+        }),
+        unreadNotification({
+          id: 'earlier-1',
+          createdAt: earlier,
+          payload: { actorName: 'Bora', cardTitle: 'Eski' },
+          readAt: earlier,
+        }),
+      ],
+      nextCursor: null,
+    };
+
+    renderCenter();
+
+    expect(await screen.findByTestId('notification-group-today')).toHaveTextContent(
+      strings.notifications.groups.today,
+    );
+    expect(screen.getByTestId('notification-group-earlier')).toHaveTextContent(
+      strings.notifications.groups.earlier,
+    );
+  });
+
+  it('renders the all-caught-up counter when every notification is read', async () => {
+    listResult = {
+      items: [
+        unreadNotification({
+          id: 'n1',
+          readAt: new Date('2026-05-14T09:05:00.000Z'),
+        }),
+      ],
+      nextCursor: null,
+    };
+
+    renderCenter();
+
+    expect(await screen.findByTestId('notification-counter')).toHaveTextContent(
+      strings.notifications.allCaughtUp,
+    );
+  });
+
+  it('mark-one-read button marks just the row read without navigating or closing', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    listResult = {
+      items: [unreadNotification({ id: 'n1' }), unreadNotification({ id: 'n2' })],
+      nextCursor: null,
+    };
+
+    renderCenter(newQueryClient(), onClose);
+
+    const button = await screen.findByTestId('notification-mark-read-n1');
+    await user.click(button);
+
+    expect(markReadCalls).toEqual([{ id: 'n1' }]);
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('renders unknown notification types with fallback actor and summary copy', async () => {
     listResult = {
       items: [

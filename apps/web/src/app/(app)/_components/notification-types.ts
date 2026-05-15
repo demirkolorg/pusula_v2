@@ -36,3 +36,55 @@ export function notificationPayload(notification: NotificationRow): Notification
     linkTo: stringValue(raw.linkTo),
   };
 }
+
+export type NotificationGroupKey = 'today' | 'yesterday' | 'thisWeek' | 'earlier';
+
+export type NotificationGroup = {
+  key: NotificationGroupKey;
+  items: NotificationRow[];
+};
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function classifyByDate(createdAt: Date | string, now: Date): NotificationGroupKey {
+  const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return 'earlier';
+
+  const today = startOfDay(now);
+  const created = startOfDay(date);
+  const diffDays = Math.round((today.getTime() - created.getTime()) / 86_400_000);
+
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays <= 7) return 'thisWeek';
+  return 'earlier';
+}
+
+const GROUP_ORDER: NotificationGroupKey[] = ['today', 'yesterday', 'thisWeek', 'earlier'];
+
+/**
+ * Bucket notifications into date-relative groups, preserving the incoming order
+ * within each bucket. Returned groups follow `GROUP_ORDER` and skip empty ones.
+ */
+export function groupNotificationsByDate(
+  items: NotificationRow[],
+  now: Date = new Date(),
+): NotificationGroup[] {
+  const buckets = new Map<NotificationGroupKey, NotificationRow[]>();
+
+  for (const item of items) {
+    const key = classifyByDate(item.createdAt, now);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(item);
+    else buckets.set(key, [item]);
+  }
+
+  return GROUP_ORDER.flatMap((key) => {
+    const bucketItems = buckets.get(key);
+    return bucketItems && bucketItems.length > 0 ? [{ key, items: bucketItems }] : [];
+  });
+}
