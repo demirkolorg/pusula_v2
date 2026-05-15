@@ -24,9 +24,9 @@
  *   3. On unmount: emit `board:leave` and detach both listeners. The socket
  *      stays alive (singleton) — the next board's mount reuses it.
  *
- * `connected` reflects the underlying socket state so the page can render a
- * subtle "Bağlantı koptu, tekrar bağlanılıyor…" banner while the link is down
- * (matches `strings.realtime.disconnected`).
+ * `connected` reflects the underlying socket state and the browser online state
+ * so the page can render a subtle "Bağlantı koptu, tekrar bağlanılıyor…" banner
+ * while the link is down (matches `strings.realtime.disconnected`).
  *
  * Spec: `08-web-ve-mobil.md` §8.1.10, `05-board-mekanigi.md` §5.3.
  */
@@ -42,13 +42,17 @@ import { hasInFlightClientMutationId } from './in-flight-store';
 import { getRealtimeSocket, REALTIME_EVENT_CHANNEL } from './client';
 
 export interface UseBoardRealtimeResult {
-  /** True while the underlying socket is connected — drives the disconnect banner. */
+  /** True while the browser is online and the socket is connected; drives the disconnect banner. */
   connected: boolean;
 }
 
 type UseBoardRealtimeOptions = {
   enabled?: boolean;
 };
+
+function isBrowserOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine !== false;
+}
 
 export function useBoardRealtime(
   boardId: string,
@@ -65,7 +69,9 @@ export function useBoardRealtime(
   const cacheKeysRef = useRef(cacheKeys);
   cacheKeysRef.current = cacheKeys;
   const socket = getRealtimeSocket();
-  const [connected, setConnected] = useState<boolean>(() => (enabled ? socket.connected : true));
+  const [connected, setConnected] = useState<boolean>(() =>
+    enabled ? socket.connected && isBrowserOnline() : true,
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -142,7 +148,7 @@ export function useBoardRealtime(
     let joined = false;
 
     const handleConnect = (): void => {
-      setConnected(true);
+      setConnected(isBrowserOnline());
       // Cold start + reconnect both pass through here: refetch first (server
       // is the authority over the catch-up window) and rejoin the board room.
       void queryClient.invalidateQueries(getBoardFilter());
@@ -154,9 +160,24 @@ export function useBoardRealtime(
       setConnected(false);
     };
 
+    const handleBrowserOffline = (): void => {
+      setConnected(false);
+      if (socket.connected) socket.disconnect();
+    };
+
+    const handleBrowserOnline = (): void => {
+      if (socket.connected) {
+        handleConnect();
+        return;
+      }
+      socket.connect();
+    };
+
     socket.on(REALTIME_EVENT_CHANNEL, handleEvent);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
+    window.addEventListener('offline', handleBrowserOffline);
+    window.addEventListener('online', handleBrowserOnline);
 
     if (!socket.connected) {
       socket.connect();
@@ -171,6 +192,8 @@ export function useBoardRealtime(
       socket.off(REALTIME_EVENT_CHANNEL, handleEvent);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
+      window.removeEventListener('offline', handleBrowserOffline);
+      window.removeEventListener('online', handleBrowserOnline);
       if (joined) socket.emit('board:leave', { boardId });
     };
   }, [boardId, enabled, queryClient, socket]);
