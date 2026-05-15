@@ -111,5 +111,7 @@ export {
   type RichTextEditorProps,
   type RichTextEditorLabels,
   type RichTextContentProps,
+  type MentionUser,
+  type MentionSource,
 } from './components/rich-text-editor';
 export { Toaster, toast, type ToasterProps } from './components/sonner';

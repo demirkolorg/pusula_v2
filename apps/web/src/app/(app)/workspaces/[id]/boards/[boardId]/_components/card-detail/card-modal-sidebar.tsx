@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { ActivityIcon, PaperclipIcon } from 'lucide-react';
-import { EmptyState, Tabs, TabsContent, TabsList, TabsTrigger } from '@pusula/ui';
+import {
+  EmptyState,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  type MentionSource,
+} from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardDetailActivity } from './card-detail-activity';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
@@ -34,6 +41,8 @@ type CardModalSidebarProps = {
   onDeleteComment: (commentId: string) => void;
   commentPending: boolean;
   commentError: string | null;
+  /** Optional @-mention picker source (board members) for composer + inline edit. */
+  mentions?: MentionSource;
 };
 
 type FeedItem =
@@ -68,6 +77,7 @@ export function CardModalSidebar({
   onDeleteComment,
   commentPending,
   commentError,
+  mentions,
 }: CardModalSidebarProps) {
   const copy = strings.card.detail;
   const [tab, setTab] = useState<'comments' | 'activity' | 'attachments' | 'all'>('comments');
@@ -112,6 +122,7 @@ export function CardModalSidebar({
       onDelete={onDeleteComment}
       pending={commentPending}
       error={commentError}
+      mentions={mentions}
     />
   );
   const activityList = (
@@ -150,6 +161,7 @@ export function CardModalSidebar({
               onSubmit={onCreateComment}
               pending={commentPending}
               error={commentError}
+              mentions={mentions}
             />
           )}
         </div>
@@ -184,6 +196,7 @@ export function CardModalSidebar({
                       onDelete={onDeleteComment}
                       pending={commentPending}
                       error={null}
+                      mentions={mentions}
                     />
                   ) : (
                     <CardDetailActivity

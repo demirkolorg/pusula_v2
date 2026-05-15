@@ -5,6 +5,7 @@ import {
   RichTextContent,
   RichTextEditor,
   parseRichTextValue,
+  type MentionSource,
   type RichTextEditorLabels,
 } from '@pusula/ui';
 
@@ -100,6 +101,24 @@ describe('<RichTextContent>', () => {
     });
   });
 
+  it('renders a stored `mention` node as an @-prefixed chip', async () => {
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Selam ' },
+            { type: 'mention', attrs: { id: 'u-alice', label: 'Alice' } },
+            { type: 'text', text: ' bak buna' },
+          ],
+        },
+      ],
+    });
+    render(<RichTextContent value={doc} />);
+    expect(await screen.findByText(/@Alice/)).toBeInTheDocument();
+  });
+
   it('keeps a safe `https:` link href in a stored doc', async () => {
     const safe = JSON.stringify({
       type: 'doc',
@@ -139,6 +158,104 @@ describe('<RichTextEditor>', () => {
     expect(screen.queryByRole('button', { name: labels.heading1 })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: labels.bulletList })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: labels.link })).toBeInTheDocument();
+  });
+
+  it('opens the @-mention picker, narrows by query and inserts a mention node on click', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const candidates = [
+      { id: 'u-alice', label: 'Alice' },
+      { id: 'u-bob', label: 'Bob' },
+      { id: 'u-carol', label: 'Carol' },
+    ];
+    const mentions: MentionSource = {
+      search: (query) => {
+        const q = query.trim().toLowerCase();
+        if (q.length === 0) return candidates;
+        return candidates.filter((u) => u.label.toLowerCase().includes(q));
+      },
+      emptyLabel: 'Eşleşen kullanıcı yok',
+    };
+    render(
+      <RichTextEditor
+        value={null}
+        placeholder="Yorum yaz…"
+        ariaLabel="Yorum"
+        labels={labels}
+        toolbar="mini"
+        mentions={mentions}
+        onChange={onChange}
+      />,
+    );
+
+    const region = await screen.findByLabelText('Yorum');
+    await user.click(region);
+    await user.keyboard('@');
+
+    // Popup with all candidates opens on the bare `@`.
+    const popup = await screen.findByRole('listbox', { name: '@mention' });
+    expect(popup).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Bob' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Carol' })).toBeInTheDocument();
+
+    // Typing narrows.
+    await user.keyboard('ca');
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: 'Alice' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('option', { name: 'Carol' })).toBeInTheDocument();
+
+    // Click insert → mention node lands in the serialised doc.
+    await user.click(screen.getByRole('option', { name: 'Carol' }));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const [serialized] = onChange.mock.calls.at(-1) as [string, boolean];
+    const doc = JSON.parse(serialized) as {
+      content: Array<{ content?: Array<{ type: string; attrs?: { id?: string; label?: string } }> }>;
+    };
+    const inline = doc.content[0]?.content ?? [];
+    const mention = inline.find((node) => node.type === 'mention');
+    expect(mention).toBeDefined();
+    expect(mention?.attrs?.id).toBe('u-carol');
+    expect(mention?.attrs?.label).toBe('Carol');
+  });
+
+  it('shows the empty label when no candidate matches the query', async () => {
+    const user = userEvent.setup();
+    const mentions: MentionSource = {
+      search: () => [],
+      emptyLabel: 'Eşleşen kullanıcı yok',
+    };
+    render(
+      <RichTextEditor
+        value={null}
+        placeholder="Yorum yaz…"
+        ariaLabel="Yorum"
+        labels={labels}
+        toolbar="mini"
+        mentions={mentions}
+      />,
+    );
+    const region = await screen.findByLabelText('Yorum');
+    await user.click(region);
+    await user.keyboard('@xyz');
+    expect(await screen.findByText('Eşleşen kullanıcı yok')).toBeInTheDocument();
+  });
+
+  it('does not mount the @-mention popup when `mentions` is absent', async () => {
+    const user = userEvent.setup();
+    render(
+      <RichTextEditor
+        value={null}
+        placeholder="Açıklama"
+        ariaLabel="Açıklama"
+        labels={labels}
+      />,
+    );
+    const region = await screen.findByLabelText('Açıklama');
+    await user.click(region);
+    await user.keyboard('@asya');
+    expect(screen.queryByRole('listbox', { name: '@mention' })).not.toBeInTheDocument();
   });
 
   it('seeds the editor from legacy plain text and reports edits as serialised JSON', async () => {
