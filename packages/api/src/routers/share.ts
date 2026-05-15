@@ -41,9 +41,10 @@ import { generateShareToken } from '../lib/share-token';
 import { router } from '../trpc';
 
 /** Web tarafındaki `/share/[token]` SSR sayfası için base URL. Production'da
- * `PUBLIC_APP_URL` env değişkeninden okunur (örn. `https://pusula.app`); env
- * eksikse `http://localhost:3000` lokal default. */
-const SHARE_APP_URL = (process.env.PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+ * `APP_URL` env değişkeninden okunur (örn. `https://pusula.app`); env eksikse
+ * `http://localhost:3000` lokal default. `apps/api/src/env.ts` Zod schema'da
+ * aynı değişken validate edilir. */
+const SHARE_APP_URL = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 
 export const shareRouter = router({
   /**

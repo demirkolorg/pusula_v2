@@ -47,7 +47,12 @@ export interface InsertRealtimeEventInput<TData = unknown> {
   workspaceId: string;
   boardId?: string | null;
   cardId?: string | null;
-  actorId: string;
+  /**
+   * Aktör kullanıcı id'si; misafir (anonim) yorum gibi sistemce üretilen
+   * event'lerde `null` (Faz 9C — DEM-129). Mevcut çağrıların hepsi `string`
+   * verir; genişletme backward-compatible.
+   */
+  actorId: string | null;
   clientMutationId?: string | null;
   /** `boards.version` snapshot — surfaces as envelope.`seq`. */
   seq: number;

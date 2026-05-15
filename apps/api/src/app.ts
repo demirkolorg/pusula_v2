@@ -6,6 +6,7 @@ import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter, type RealtimeEmit } from '@pusula/api';
 import { auth } from './auth';
 import { env } from './env';
+import { shareRoute } from './routes/share';
 import { buildTrpcContext } from './trpc';
 
 /**
@@ -76,6 +77,12 @@ app.get('/health', (c) => {
   };
   return c.json(body, ok ? 200 : 503);
 });
+
+// --- Public share endpoint (Faz 9C — DEM-129): misafir kart görüntüleme +
+// anonim yorum. tRPC dışı; rate-limited + Cache-Control no-store. CORS web
+// origin (üstte set edildi) + paydaşın kendi mail/uygulamasından açabilmesi
+// için `origin: '*'` opsiyonu V2 için bırakıldı. ---
+app.route('/share', shareRoute);
 
 // --- Better Auth: owns /api/auth/* (sign-up / sign-in / session / ...) ---
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));

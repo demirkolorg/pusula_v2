@@ -15,6 +15,7 @@ export {
   type RealtimeEmit,
 } from './context';
 export { insertRealtimeEvent, maybeEnqueueRealtimePublish } from './lib/realtime-publish';
+export { generateShareToken, hashShareToken } from './lib/share-token';
 export {
   insertNotificationOutbox,
   maybeEnqueueNotificationPublish,
