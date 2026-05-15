@@ -126,8 +126,9 @@ describe('<ListColumn>', () => {
         canEdit={false}
       />,
     );
-    expect(screen.getByRole('heading', { name: 'Yapılacak' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Yapılacak' })).toHaveClass('text-[15px]');
     expect(screen.getByText(`2 ${columnCopy.cardCount}`)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bir' }).parentElement).toHaveClass('pt-1');
   });
 
   it('viewer (canEdit=false): no "⋮" menu, no add-card form', () => {

@@ -116,6 +116,23 @@ export const strings = {
       requestNewLink: 'Yeni bağlantı iste',
       backToSignIn: 'Giriş ekranına dön',
     },
+    verifyEmail: {
+      bannerTitle: 'E-postani dogrula',
+      bannerBody: 'Hesabini guvende tutmak icin e-posta adresini dogrula.',
+      resend: 'Dogrulama e-postasini yeniden gonder',
+      sending: 'Gonderiliyor...',
+      sent: 'Dogrulama e-postasi yeniden gonderildi. Gelen kutunu kontrol et.',
+      error: 'Dogrulama e-postasi gonderilemedi. Lutfen tekrar deneyin.',
+      successTitle: 'E-posta dogrulandi',
+      successBody: 'E-posta adresin dogrulandi. Pusula kullanmaya devam edebilirsin.',
+      pendingTitle: 'E-posta dogrulaniyor',
+      pendingBody: 'Dogrulama baglantisi kontrol ediliyor...',
+      invalidTitle: 'Dogrulama baglantisi gecersiz',
+      invalidBody:
+        'Bu dogrulama baglantisi gecersiz ya da suresi dolmus. Uygulamaya girip yeni bir baglanti isteyebilirsin.',
+      goToApp: 'Uygulamaya git',
+      goToSignIn: 'Giris ekranina don',
+    },
   },
   shell: {
     signOut: 'Çıkış',

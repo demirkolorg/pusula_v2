@@ -14,7 +14,12 @@ function SignUpForm() {
     setPending(true);
     setError(null);
     try {
-      const result = await authClient.signUp.email({ name: name ?? '', email, password });
+      const result = await authClient.signUp.email({
+        name: name ?? '',
+        email,
+        password,
+        callbackURL: `${window.location.origin}/verify-email`,
+      });
       if (result.error) {
         setError(result.error.message ?? strings.common.unknownError);
       }

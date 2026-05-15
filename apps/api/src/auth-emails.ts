@@ -67,6 +67,7 @@ export function resolveRecipient(to: string): string {
 }
 
 const RESET_SUBJECT = 'Pusula — Şifre sıfırlama';
+const VERIFY_SUBJECT = 'Pusula - E-posta dogrulama';
 
 /** Plain-text body for the password-reset email. */
 export function resetPasswordEmailText(url: string): string {
@@ -99,6 +100,41 @@ export function resetPasswordEmailHtml(url: string): string {
     `<p>${safeUrl}</p>`,
     '<p>Bu bağlantı kısa süre (yaklaşık 1 saat) geçerlidir.</p>',
     '<p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; parolan değişmez.</p>',
+    '<p>Pusula</p>',
+    '</body>',
+    '</html>',
+  ].join('\n');
+}
+
+/** Plain-text body for the signup email-verification email. */
+export function verificationEmailText(url: string): string {
+  return [
+    'Merhaba,',
+    '',
+    'Pusula hesabinin e-posta adresini dogrulamak icin asagidaki baglantiyi ac:',
+    url,
+    '',
+    'Bu baglanti kisa sure (yaklasik 1 saat) gecerlidir.',
+    'Bu hesabi sen olusturmadiysan bu e-postayi yok sayabilirsin.',
+    '',
+    'Pusula',
+  ].join('\n');
+}
+
+/** Minimal HTML body for the signup email-verification email. */
+export function verificationEmailHtml(url: string): string {
+  const safeUrl = escapeHtml(url);
+  return [
+    '<!doctype html>',
+    '<html lang="tr">',
+    '<body style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #1f2937;">',
+    '<p>Merhaba,</p>',
+    '<p>Pusula hesabinin e-posta adresini dogrulamak icin asagidaki baglantiya tikla:</p>',
+    `<p><a href="${safeUrl}">E-postami dogrula</a></p>`,
+    '<p>Buton calismazsa su baglantiyi tarayicina kopyala:</p>',
+    `<p>${safeUrl}</p>`,
+    '<p>Bu baglanti kisa sure (yaklasik 1 saat) gecerlidir.</p>',
+    '<p>Bu hesabi sen olusturmadiysan bu e-postayi yok sayabilirsin.</p>',
     '<p>Pusula</p>',
     '</body>',
     '</html>',
@@ -146,6 +182,47 @@ export async function sendResetPasswordEmail(params: { to: string; url: string }
     }
   } catch (error) {
     console.error('[auth] şifre sıfırlama e-postası gönderilirken beklenmeyen hata:', error);
+  }
+}
+
+/**
+ * Send the signup email-verification email. Best-effort: with no Resend key it
+ * logs the link only in non-production; on a Resend error it logs and returns.
+ * Never throws, so Better Auth signup and resend endpoints are not broken by a
+ * transient email provider failure.
+ */
+export async function sendVerificationEmail(params: {
+  to: string;
+  url: string;
+}): Promise<void> {
+  const { to, url } = params;
+  const resend = getResend();
+
+  if (!resend) {
+    if (env.NODE_ENV === 'production') {
+      console.warn('[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilemedi.');
+    } else {
+      console.warn(
+        '[auth] RESEND_API_KEY tanimli degil - e-posta dogrulama e-postasi gonderilmiyor. Dogrulama baglantisi (yalnizca dev):',
+        url,
+      );
+    }
+    return;
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: env.EMAIL_FROM,
+      to: resolveRecipient(to),
+      subject: VERIFY_SUBJECT,
+      html: verificationEmailHtml(url),
+      text: verificationEmailText(url),
+    });
+    if (error) {
+      console.error('[auth] e-posta dogrulama e-postasi gonderilemedi:', error);
+    }
+  } catch (error) {
+    console.error('[auth] e-posta dogrulama e-postasi gonderilirken beklenmeyen hata:', error);
   }
 }
 

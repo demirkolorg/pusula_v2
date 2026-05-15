@@ -126,7 +126,7 @@ export function RenameBoardForm({
 
     return (
       <div className="flex min-w-0 items-center gap-1.5">
-        <h1 className="min-w-0 truncate text-[15px] font-semibold">
+        <h1 className="min-w-0 truncate text-base font-semibold">
           <button
             type="button"
             className="min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -182,7 +182,7 @@ export function RenameBoardForm({
         className={cn(
           variant === 'settings'
             ? 'h-9 max-w-none bg-background px-3 text-sm font-medium'
-            : 'h-7 max-w-xs border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50',
+            : 'h-7 max-w-xs border-0 bg-muted/40 px-1.5 text-base font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50',
           valueError && 'ring-2 ring-destructive/40',
         )}
         aria-invalid={valueError || renameBoard.isError ? true : undefined}

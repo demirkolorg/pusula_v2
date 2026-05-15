@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 
@@ -70,6 +71,7 @@ const h = vi.hoisted(() => {
     makeSearchQuery,
     cardResult,
     searchQuery: makeSearchQuery(),
+    sendVerificationEmail: vi.fn(),
   };
 });
 
@@ -150,7 +152,7 @@ vi.mock('@/trpc/client', () => ({
 }));
 
 vi.mock('@/lib/auth-client', () => ({
-  authClient: { signOut: vi.fn() },
+  authClient: { signOut: vi.fn(), sendVerificationEmail: h.sendVerificationEmail },
 }));
 
 vi.mock('@/lib/realtime/use-user-realtime', () => ({
@@ -183,11 +185,12 @@ describe('<AppShell>', () => {
     h.searchCalls = [];
     h.boardGetData = undefined;
     h.searchQuery = h.makeSearchQuery();
+    h.sendVerificationEmail.mockReset();
   });
 
   it('renders brand and switchers on the left, then bell, theme, font size, and avatar on the right', async () => {
     render(
-      <AppShell userName="Aria Chen" userEmail="aria@example.com">
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
         <div>content</div>
       </AppShell>,
     );
@@ -224,11 +227,43 @@ describe('<AppShell>', () => {
     expect(screen.queryByRole('button', { name: strings.shell.signOut })).not.toBeInTheDocument();
   });
 
+  it('does not show the email verification banner for verified users', () => {
+    render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    expect(screen.queryByText(strings.auth.verifyEmail.bannerTitle)).not.toBeInTheDocument();
+  });
+
+  it('shows the email verification banner for unverified users and resends the email', async () => {
+    const user = userEvent.setup();
+    h.sendVerificationEmail.mockResolvedValue({ error: null });
+
+    render(
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified={false}>
+        <div>content</div>
+      </AppShell>,
+    );
+
+    expect(screen.getByText(strings.auth.verifyEmail.bannerTitle)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: strings.auth.verifyEmail.resend }));
+
+    await waitFor(() =>
+      expect(h.sendVerificationEmail).toHaveBeenCalledWith({
+        email: 'aria@example.com',
+        callbackURL: `${window.location.origin}/verify-email`,
+      }),
+    );
+    expect(await screen.findByText(strings.auth.verifyEmail.sent)).toBeInTheDocument();
+  });
+
   it('opens global search with Ctrl+K, debounces query calls, and follows result targetUrl', () => {
     vi.useFakeTimers();
     try {
       render(
-        <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
         </AppShell>,
       );
@@ -265,7 +300,7 @@ describe('<AppShell>', () => {
 
   it('opens global search with Ctrl+Space', () => {
     render(
-      <AppShell userName="Aria Chen" userEmail="aria@example.com">
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
         <div>content</div>
       </AppShell>,
     );
@@ -286,7 +321,7 @@ describe('<AppShell>', () => {
         ),
       );
       render(
-        <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
         </AppShell>,
       );
@@ -317,7 +352,7 @@ describe('<AppShell>', () => {
         h.cardResult('c2', 'Ikinci kart', '/workspaces/w1/boards/b1?card=c2'),
       ];
       render(
-        <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
         </AppShell>,
       );
@@ -354,7 +389,7 @@ describe('<AppShell>', () => {
     try {
       h.searchQuery.data.items = [];
       render(
-        <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
         </AppShell>,
       );
@@ -379,7 +414,7 @@ describe('<AppShell>', () => {
       h.searchQuery.isError = true;
       h.searchQuery.error = new Error('Arama servisi yanıt vermedi.');
       render(
-        <AppShell userName="Aria Chen" userEmail="aria@example.com">
+        <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
         </AppShell>,
       );
@@ -405,7 +440,7 @@ describe('<AppShell>', () => {
     h.boardGetData = { board: { id: 'b1', title: 'Sprint', background: 'solid:mavi' } };
 
     render(
-      <AppShell userName="Aria Chen" userEmail="aria@example.com">
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
         <div>content</div>
       </AppShell>,
     );
@@ -425,7 +460,7 @@ describe('<AppShell>', () => {
     h.boardGetData = { board: { id: 'b1', title: 'Sprint', background: 'solid:mavi' } };
 
     render(
-      <AppShell userName="Aria Chen" userEmail="aria@example.com">
+      <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
         <div>content</div>
       </AppShell>,
     );

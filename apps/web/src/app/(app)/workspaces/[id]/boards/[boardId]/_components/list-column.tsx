@@ -402,7 +402,7 @@ export function ListColumn({
                 aria-hidden
               />
             )}
-            <span className="min-h-0 flex-1 truncate text-sm font-semibold [writing-mode:vertical-rl]">
+            <span className="min-h-0 flex-1 truncate text-[15px] font-semibold [writing-mode:vertical-rl]">
               {list.title}
             </span>
             <span className="text-muted-foreground shrink-0 text-[11px] leading-none [writing-mode:vertical-rl]">
@@ -435,7 +435,7 @@ export function ListColumn({
                 disabled={renameList.isPending}
                 autoComplete="off"
                 autoFocus
-                className="h-7 border-0 bg-muted/40 px-1.5 text-sm font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="h-7 border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 aria-invalid={renameError || renameList.isError ? true : undefined}
                 aria-describedby={renameError ? `${renameId}-error` : undefined}
               />
@@ -478,7 +478,7 @@ export function ListColumn({
                   />
                 )}
                 {listEditable ? (
-                  <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold">
                     <button
                       type="button"
                       className={cn(
@@ -490,7 +490,7 @@ export function ListColumn({
                     </button>
                   </h2>
                 ) : (
-                  <h2 className="truncate text-sm font-semibold">{list.title}</h2>
+                  <h2 className="truncate text-[15px] font-semibold">{list.title}</h2>
                 )}
                 <span className="text-muted-foreground shrink-0 text-xs">
                   {cards.length} {columnCopy.cardCount}
@@ -576,7 +576,7 @@ export function ListColumn({
         <div
           id={cardsAreaId}
           ref={cardsAreaRef}
-          className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2"
+          className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-2"
         >
           {cards.length === 0 && !listEditable ? (
             <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>

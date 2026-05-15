@@ -4,7 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { count, eq, getDb, accounts, sessions, users, verifications, workspaces } from '@pusula/db';
 import { canDeleteOwnAccount, userImageUrlSchema, userNameSchema } from '@pusula/domain';
 import { bootstrapNewUser } from './bootstrap';
-import { sendResetPasswordEmail } from './auth-emails';
+import { sendResetPasswordEmail, sendVerificationEmail } from './auth-emails';
 import { env } from './env';
 
 /**
@@ -31,8 +31,19 @@ export const auth = betterAuth({
     provider: 'pg',
     schema: { user: users, session: sessions, account: accounts, verification: verifications },
   }),
+  emailVerification: {
+    sendOnSignUp: true,
+    expiresIn: 60 * 60,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      void sendVerificationEmail({ to: user.email, url });
+    },
+  },
   emailAndPassword: {
     enabled: true,
+    // Soft policy for DEM-72: unverified users can sign in and continue
+    // onboarding, but the web shell shows a persistent verification banner.
+    requireEmailVerification: false,
     // "Forgot password": the web app calls `authClient.requestPasswordReset({
     // email, redirectTo: '${window.location.origin}/reset-password' })` — an
     // *absolute* URL on the web app's origin. Better Auth resolves `redirectTo`

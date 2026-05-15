@@ -190,6 +190,7 @@ describe('<BoardTopBar>', () => {
     );
     const viewMenuButton = screen.getByRole('button', { name: topCopy.viewMenu });
     const title = screen.getByRole('heading', { name: 'Sprint Panosu' });
+    expect(title).toHaveClass('text-base');
     expect(viewMenuButton.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(container.querySelector('.uppercase')).not.toBeInTheDocument();
     expect(
@@ -249,6 +250,7 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('button', { name: actionCopy.share })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: topCopy.more })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sprint' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sprint' })).toHaveClass('text-base');
   });
 
   it('uses an icon button dropdown for board views instead of an inline tablist', async () => {
@@ -494,6 +496,7 @@ describe('<BoardTopBar>', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sprint' }));
     const input = await screen.findByLabelText(strings.board.detail.renamePlaceholder);
+    expect(input).toHaveClass('text-base');
     await user.clear(input);
     await user.type(input, 'Inline Sprint');
     await user.tab();

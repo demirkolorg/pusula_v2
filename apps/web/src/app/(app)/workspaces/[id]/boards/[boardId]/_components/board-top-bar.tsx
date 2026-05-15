@@ -177,7 +177,7 @@ export function BoardTopBar({
             hideTrigger
           />
         ) : (
-          <h1 className="min-w-0 truncate text-[15px] font-semibold">{title}</h1>
+          <h1 className="min-w-0 truncate text-base font-semibold">{title}</h1>
         )}
         {archived && <Badge variant="outline">{copy.archivedBadge}</Badge>}
       </div>

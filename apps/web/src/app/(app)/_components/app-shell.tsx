@@ -10,6 +10,7 @@ import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { BoardSwitcher } from './board-switcher';
+import { EmailVerificationBanner } from './email-verification-banner';
 import { FontSizeToggle } from './font-size-toggle';
 import { NotificationBell } from './notification-bell';
 import { SearchDialog } from './search-dialog';
@@ -20,6 +21,7 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 type AppShellProps = {
   userName: string;
   userEmail: string;
+  emailVerified: boolean;
   children: ReactNode;
 };
 
@@ -42,7 +44,7 @@ const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+\/?$/;
  * board surface can reach the viewport edges); all other screens get a centred
  * `max-w-5xl` container with comfortable padding.
  */
-export function AppShell({ userName, userEmail, children }: AppShellProps) {
+export function AppShell({ userName, userEmail, emailVerified, children }: AppShellProps) {
   const pathname = usePathname();
   const params = useParams<{ boardId?: string }>();
   const trpc = useTRPC();
@@ -105,6 +107,7 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
           </div>
         </div>
       </header>
+      {!emailVerified && <EmailVerificationBanner email={userEmail} />}
       {fullBleed ? (
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       ) : (

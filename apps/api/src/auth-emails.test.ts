@@ -40,10 +40,15 @@ const {
   resetPasswordEmailText,
   resolveRecipient,
   sendResetPasswordEmail,
+  sendVerificationEmail,
+  verificationEmailHtml,
+  verificationEmailText,
 } = await import('./auth-emails');
 
 const RESET_URL =
   'http://localhost:3000/reset-password?token=tok_abc&callbackURL=%2Freset-password';
+const VERIFY_URL =
+  'http://localhost:3001/api/auth/verify-email?token=tok_verify&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fverify-email';
 
 afterEach(() => {
   sendMock.mockReset();
@@ -79,6 +84,26 @@ describe('resetPasswordEmailHtml', () => {
     const html = resetPasswordEmailHtml('http://x/"><script>alert(1)</script>');
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+describe('verificationEmailText', () => {
+  it('includes the verification URL and Turkish expiry copy', () => {
+    const text = verificationEmailText(VERIFY_URL);
+    expect(text).toContain(VERIFY_URL);
+    expect(text).toMatch(/1 saat/);
+    expect(text).toMatch(/sen olusturmadiysan|sen yapmadiysan|sen yapmadıysan/i);
+  });
+});
+
+describe('verificationEmailHtml', () => {
+  it('renders an anchor to the verification URL and escapes it', () => {
+    const html = verificationEmailHtml(VERIFY_URL);
+    expect(html).toContain(
+      'href="http://localhost:3001/api/auth/verify-email?token=tok_verify&amp;callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fverify-email"',
+    );
+    expect(html).toContain('E-postami dogrula');
+    expect(html).not.toContain('token=tok_verify&callbackURL=');
   });
 });
 
@@ -157,6 +182,56 @@ describe('sendResetPasswordEmail — with RESEND_API_KEY', () => {
       sendResetPasswordEmail({ to: 'aria@test.com', url: RESET_URL }),
     ).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
+  });
+});
+
+describe('sendVerificationEmail - no RESEND_API_KEY (best-effort)', () => {
+  it('in dev: does not throw and logs the token-bearing link for local testing only', async () => {
+    mockEnv.NODE_ENV = 'development';
+    __resetResendClientForTests();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      sendVerificationEmail({ to: 'aria@test.com', url: VERIFY_URL }),
+    ).resolves.toBeUndefined();
+
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('RESEND_API_KEY'), VERIFY_URL);
+  });
+
+  it('in production: does not throw and never logs the token-bearing URL', async () => {
+    mockEnv.NODE_ENV = 'production';
+    __resetResendClientForTests();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      sendVerificationEmail({ to: 'aria@test.com', url: VERIFY_URL }),
+    ).resolves.toBeUndefined();
+
+    expect(sendMock).not.toHaveBeenCalled();
+    for (const call of warn.mock.calls) {
+      for (const arg of call) {
+        expect(String(arg)).not.toContain(VERIFY_URL);
+        expect(String(arg)).not.toContain('tok_verify');
+      }
+    }
+  });
+});
+
+describe('sendVerificationEmail - with RESEND_API_KEY', () => {
+  it('sends the email via Resend with from/to/subject/html/text', async () => {
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    __resetResendClientForTests();
+    sendMock.mockResolvedValue({ data: { id: 'email_2' }, error: null });
+
+    await sendVerificationEmail({ to: 'aria@test.com', url: VERIFY_URL });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.to).toBe('aria@test.com');
+    expect(arg.subject).toMatch(/E-posta dogrulama/);
+    expect(String(arg.html)).toContain('verify-email');
+    expect(String(arg.text)).toContain(VERIFY_URL);
   });
 });
 
