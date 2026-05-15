@@ -121,6 +121,8 @@ Linear MCP erişilemiyorsa `Linear` alanına `MCP bekliyor` yazılır ve ilk uyg
 
 | BE-2026-05-15-001 | DEM-122 | Notification outbox email/push unwired fallback sertleştirmesi | 6/8 — Bildirim sertleştirme | In Progress | Codex | `docs/architecture/06-bildirim-altyapisi.md`, `docs/process/05-is-kayit-defteri.md` | `apps/worker/src/jobs/notification-publish.ts`, `apps/worker/src/jobs/notification-publish.test.ts` | 2026-05-15 | Email/push enqueuer eksikken outbox satırı kanal kuyruğuna devredilmeden `sent` damgalanmayacak; satır `pending`, `processed_at=NULL`, `last_error` dolu ve sweeper ile retry edilebilir kalacak. |
 
+| QA-2026-05-15-001 | DEM-123 | Minor system hygiene findings | 8 — Sertleştirme | In Progress | Codex | `docs/process/05-is-kayit-defteri.md` | `apps/web`, `packages/db`, `packages/api`, `apps/worker` | 2026-05-15 | `card-meta-row.tsx` unused import temizliği, Better Auth generator yorumu pnpm standardı, notification sweeper raw SQL row typing izolasyonu ve `pg` deprecation trace kaynağı düzeltmesi. |
+
 ## Faz durumu özeti
 
 Faz statüsünün kanonik kaynağı [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md); aşağısı Linear epic'leriyle hızlı hizalama içindir.

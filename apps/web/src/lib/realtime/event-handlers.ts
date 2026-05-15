@@ -28,6 +28,8 @@ import type { QueryClient, QueryFilters } from '@tanstack/react-query';
 import {
   cardCompletedPayloadSchema,
   cardUncompletedPayloadSchema,
+  hasRealtimeEventPayloadSchema,
+  parseRealtimeEventPayload,
   type RealtimeEventEnvelope,
 } from '@pusula/domain';
 import {
@@ -83,7 +85,6 @@ export interface RealtimeFilters {
 }
 
 type Payload = Record<string, unknown>;
-// DEM-121 runtime validation edit marker
 type IdRow = { id: string };
 type CommentRow = { id: string; deletedAt: unknown };
 type LabelIdRow = { labelId: string };
@@ -128,19 +129,17 @@ function archivedAtFromPayload(
 }
 
 function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): CardCache | undefined {
-  const nested = payload.card;
-  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as CardCache;
-
-  const id = stringField(payload, 'cardId');
-  const listId = stringField(payload, 'listId');
-  const title = stringField(payload, 'title');
-  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+  const source = isPayload(payload.card) ? payload.card : payload;
+  const id = stringField(source, 'id') ?? stringField(source, 'cardId');
+  const listId = stringField(source, 'listId');
+  const title = stringField(source, 'title');
+  const position = stringField(source, 'position') ?? stringField(source, 'toPosition');
   if (!id || !listId || !title || !position) return undefined;
 
   const timestamp = createdAtDate(envelope);
   return {
     id,
-    boardId: envelope.boardId ?? '',
+    boardId: stringField(source, 'boardId') ?? envelope.boardId ?? '',
     listId,
     title,
     description: null,
@@ -150,6 +149,7 @@ function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Car
     completedAt: null,
     completedBy: null,
     coverColor: null,
+    coverImageAttachmentId: null,
     archivedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -158,16 +158,15 @@ function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Car
     checklistDone: 0,
     commentCount: 0,
     members: [],
-  } as unknown as CardCache;
+    coverImage: null,
+  } as CardCache;
 }
 
 function listFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): ListCache | undefined {
-  const nested = payload.list;
-  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as ListCache;
-
-  const id = stringField(payload, 'listId');
-  const title = stringField(payload, 'title');
-  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
+  const source = isPayload(payload.list) ? payload.list : payload;
+  const id = stringField(source, 'id') ?? stringField(source, 'listId');
+  const title = stringField(source, 'title');
+  const position = stringField(source, 'position') ?? stringField(source, 'toPosition');
   if (!id || !title || !position) return undefined;
 
   const timestamp = createdAtDate(envelope);
@@ -181,7 +180,7 @@ function listFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Lis
     archivedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
-  } as unknown as ListCache;
+  } as ListCache;
 }
 
 function setBoard(
@@ -397,7 +396,10 @@ export function dispatchRealtimeEvent(
   filters: RealtimeFilters,
   envelope: RealtimeEventEnvelope,
 ): void {
-  const payload = isPayload(envelope.payload) ? envelope.payload : {};
+  const parsedPayload = parseRealtimeEventPayload(envelope.type, envelope.payload);
+  if (parsedPayload === undefined && hasRealtimeEventPayloadSchema(envelope.type)) return;
+
+  const payload = isPayload(parsedPayload) ? parsedPayload : {};
 
   switch (envelope.type) {
     case 'card.moved': {

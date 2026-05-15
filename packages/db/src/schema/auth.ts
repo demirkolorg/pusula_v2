@@ -4,7 +4,7 @@
  * are snake-cased via the `casing: 'snake_case'` option. Table names are plural
  * to match the rest of the schema and the architecture doc.
  *
- * Keep these in sync with Better Auth: `npx @better-auth/cli generate` can
+ * Keep these in sync with Better Auth: `pnpm dlx @better-auth/cli generate` can
  * regenerate this file when the auth config changes.
  */
 import { boolean, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';

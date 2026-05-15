@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-14
+updated: 2026-05-15
 ---
 
 # 13 — UI Tasarım Dili
@@ -199,7 +199,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 #### Renkli kolon (DEM-98)
 
-- **Model:** `lists.color` nullable. `null` ve renkli listeler aynı stabil kolon yüzeyini kullanır: container `bg-[color:var(--board-list-bg)] border-[color:var(--board-list-border)]`, arşivli liste `--board-list-archived-bg`, hover yüzeyleri `--board-list-bg-hover`. Renk seçilince tüm kolon solid `bg-palet-{ad}` olmaz; renk yalnız üstteki `data-list-accent` şeridi ve varsayılan ikon accent'i olarak görünür. Başlık/metin `text-card-foreground`, ikincil metinler `text-muted-foreground` kalır. Kartlar içeride opak `--board-card-bg` / `--board-card-border` tokenlarıyla kalır; kart içeriği liste rengine karışmaz.
+- **Model:** `lists.color` nullable. `null` ve renkli listeler aynı stabil kolon yüzeyini kullanır: container `bg-[color:var(--board-list-bg)] border-[color:var(--board-list-border)]`, arşivli liste `--board-list-archived-bg`, hover yüzeyleri `--board-list-bg-hover`. Renk seçilince tüm kolon solid `bg-palet-{ad}` olmaz; renk yalnız üstteki `data-list-accent` şeridi ve varsayılan ikon accent'i olarak görünür. Başlık/metin `text-card-foreground`, ikincil metinler `text-muted-foreground` kalır. Kartlar içeride opak `--board-card-bg` token'ıyla kalır (kenarlık yok — Trello görünümü; kart `bg + shadow` ile yüzer); kart içeriği liste rengine karışmaz.
 - **Picker:** liste header ⋮ menüsünde `PaletteIcon` + "Liste rengini değiştir" `DropdownMenuSub` tetikleyicisi. İçerik shadcn `Popover`/submenu içinde 2×5 grid (`grid-cols-5 gap-1.5`): 10 `LIST_COLORS` (`yesil/sari/turuncu/kirmizi/mor/mavi/sky/lime/pembe/gri`) swatch butonu `size-9 rounded-md bg-palet-{ad} border border-border/30 hover:ring-2 ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring`; seçili renkte `CheckIcon size-4 text-palet-{ad}-foreground`.
 - **Clear:** grid altında ghost `Button` (`w-full justify-center`) "Rengi kaldır"; mevcut renk `null` ise disabled. Tüm metinler `apps/web/src/lib/strings.ts` (`board.list.colorPicker.*`) üzerinden gelir; hardcode yok.
 - **Mutation:** swatch click `useOptimisticBoardListMutation(api.list.update)` ile `{ listId, color, clientMutationId }`; clear `{ listId, color: null, clientMutationId }`. Aynı renge tıklama UI tarafında no-op olabilir; backend de idempotent no-op'tur. Realtime `list.updated` `color` payload'ı ikinci tarayıcı cache'ine işler.
@@ -214,7 +214,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Kart (`CardItem`)
 
-`<article class="bg-[color:var(--board-card-bg)] border-[color:var(--board-card-border)] rounded-md border p-2 text-sm shadow-card hover:border-[color:var(--board-card-border-hover)] hover:shadow-card-hover group/kart cursor-pointer">` — tıklayınca kart detay modalı (`?card=<id>`). İçerik sırası (yalnızca ilgili veri varsa render):
+`<article class="bg-[color:var(--board-card-bg)] rounded-md p-2 text-sm shadow-card hover:shadow-card-hover group/kart cursor-pointer">` — tıklayınca kart detay modalı (`?card=<id>`). Kartta görünür border **yok** (Trello görünümü — 2026-05-15); kart yalnız `--board-card-bg` üstüne `shadow-card`/`shadow-card-hover` ile yüzer. (Önceki `--board-card-border`/`--board-card-border-hover` token'ları kaldırıldı.) İçerik sırası (yalnızca ilgili veri varsa render):
 
 1. **Kapak görseli** (varsa) — `-mx-2 -mt-2 mb-1.5 h-24 w-[calc(100%+1rem)] rounded-t-md object-cover`.
 2. **Etiket chip'leri** (varsa) — `flex flex-wrap gap-1 mb-1.5`; her chip `LabelChip` solid (`bg-palet-{ad} text-palet-{ad}-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium`; adı varsa ad, yoksa kısa renkli bar `h-2 w-8`). Kapak görseli yoksa ve etiket varsa chip'ler kartın görsel "rengini" verir (Trello hissi).
@@ -276,7 +276,7 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 | `Checkbox`             | shadcn `Checkbox` (`@radix-ui/react-checkbox`) — checklist maddeleri + filter çipleri (DEM-53 native `<input type=checkbox>` yerine)                                                                                                                                               |
 | `Tabs`                 | shadcn `Tabs` (`@radix-ui/react-tabs`) — modal sağ panel sekme strip'i                                                                                                                                                                                                             |
 
-**Section başlık deseni:** her modal bölümü (AÇIKLAMA / KONTROL LİSTESİ / sağ panel sekmeleri) ve workspace/board ayar bölümleri aynı `SectionHeader` desenini kullanır. **Hover/focus:** kartlarda `hover:border-foreground/30 hover:shadow-card-hover`; ikon butonlarında `hover:bg-accent`; chip'lerde `hover:bg-muted hover:text-foreground`; tüm odaklanabilirlerde `--ring` ile görünür `focus-visible:ring-2 ring-ring/60` (a11y).
+**Section başlık deseni:** her modal bölümü (AÇIKLAMA / KONTROL LİSTESİ / sağ panel sekmeleri) ve workspace/board ayar bölümleri aynı `SectionHeader` desenini kullanır. **Hover/focus:** kartlarda yalnız `hover:shadow-card-hover` (kart border'sızdır — Trello görünümü); ikon butonlarında `hover:bg-accent`; chip'lerde `hover:bg-muted hover:text-foreground`; tüm odaklanabilirlerde `--ring` ile görünür `focus-visible:ring-2 ring-ring/60` (a11y).
 
 ## 13.5 Tiptap rich text entegrasyonu
 
@@ -358,7 +358,7 @@ Tüm ekranlarda her ikisinde test:
 - **Workspaces**: workspace listesi, kart hover, empty state, onboarding ekranı.
 - **Workspace settings**: rename/slug formu, üye listesi, davet et dialog'u, gönderilmiş davetler, tehlikeli bölge.
 - **Account**: profil form, parola form, hesap silme dialog'u.
-- **Board ekranı**: zemin (`bg-background` varsayılanı + DEM-100 `bg-gradient-*` / `bg-palet-*` board background seçenekleri), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`), kart hover (`hover:border-foreground/30`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
+- **Board ekranı**: zemin (`bg-background` varsayılanı + DEM-100 `bg-gradient-*` / `bg-palet-*` board background seçenekleri), top bar, view switch, kolon (`bg-muted/30`), kolon header, kart (`bg-card` + `shadow-card`, border yok — Trello), kart hover (`hover:shadow-card-hover`), drag preview (rüya modu placeholder), filter bar, loading skeleton.
 - **Board settings dialog**: section başlıkları, etiket yönetimi, üye yönetimi, davetler, Arka plan sekmesi.
 - **Card detail modal**: header (kapak-renksiz `bg-background border-b` + kapak-renkli `bg-palet-{ad}`), sol kolon (sticky başlık + meta chip satırı + AÇIKLAMA Tiptap editör + KONTROL LİSTESİ + Progress bar), sağ panel (`bg-muted/40 backdrop-blur` — dark'ta backdrop-blur okunabilir kalmalı), Tabs strip, yorum composer, yorum kartı, aktivite satırı.
 - **Tiptap prose**: editör + read-only `RichTextContent` — `.dark` altında başlık/paragraf/bullet/link/inline-code/blockquote okunabilir (token-bazlı: `[&_h1]:text-foreground` vb. veya `prose-invert` alternatifi tartışılır; tercih: token-bazlı, palet tutarlı kalır).

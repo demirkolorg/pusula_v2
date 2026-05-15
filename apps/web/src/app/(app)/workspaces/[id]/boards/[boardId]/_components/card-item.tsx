@@ -450,11 +450,11 @@ export function CardItem({
       data-dragging={dragging ? '' : undefined}
       className={cn(
         'relative cursor-pointer rounded-md p-2 text-sm outline-none',
-        'transition-[box-shadow,border-color]',
+        'transition-shadow',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
         !dragging &&
-          'group group/kart border border-[color:var(--board-card-border)] bg-[color:var(--board-card-bg)] shadow-sm hover:border-[color:var(--board-card-border-hover)] hover:shadow-card-hover',
-        card.archivedAt != null && 'border-dashed opacity-70',
+          'group group/kart bg-[color:var(--board-card-bg)] shadow-sm hover:shadow-card-hover',
+        !dragging && card.archivedAt != null && 'border border-dashed border-muted-foreground/40 opacity-70 shadow-none',
         dragging && 'border border-dashed border-primary/60 bg-primary/5',
       )}
     >

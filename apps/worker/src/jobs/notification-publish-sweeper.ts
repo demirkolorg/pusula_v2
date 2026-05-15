@@ -39,6 +39,10 @@ export interface NotificationPublishEnqueuer {
   enqueue: (eventId: string) => Promise<void>;
 }
 
+type NotificationOutboxEventIdRow = {
+  event_id: string | null;
+};
+
 /**
  * One sweeper tick: find distinct `event_id`s with stale pending rows, hand
  * each to the enqueuer. Returns the number of events re-enqueued.
@@ -55,7 +59,7 @@ export async function sweepStaleNotificationEvents(
   // a single event; we only need to enqueue the job once. Rows with
   // `event_id IS NULL` (orphans from a deleted activity_events row — ON
   // DELETE SET NULL FK) are skipped here; the retention job cleans them up.
-  const rows = await db.execute(sql`
+  const result = await db.execute(sql`
     SELECT DISTINCT event_id
     FROM ${notificationOutbox}
     WHERE ${and(
@@ -69,7 +73,7 @@ export async function sweepStaleNotificationEvents(
     LIMIT ${NOTIFICATION_PUBLISH_SWEEPER_BATCH}
   `);
 
-  const eventIds = extractRawSqlRows<{ event_id: string | null }>(rows)
+  const eventIds = extractRawSqlRows<NotificationOutboxEventIdRow>(result)
     .map((r) => r.event_id)
     .filter((id): id is string => typeof id === 'string');
 

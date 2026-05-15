@@ -57,46 +57,41 @@ async function loadBoardRequestContext(db: Queryable, boardId: string, userId: s
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
   }
 
-  const [[user], [workspaceMembership], [boardMembership], [pendingRequest]] = await Promise.all([
-    db
-      .select({ id: users.id, name: users.name, email: users.email, image: users.image })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1),
-    db
-      .select({ role: workspaceMembers.role })
-      .from(workspaceMembers)
-      .where(
-        and(
-          eq(workspaceMembers.workspaceId, target.workspaceId),
-          eq(workspaceMembers.userId, userId),
-        ),
-      )
-      .limit(1),
-    db
-      .select({ role: boardMembers.role })
-      .from(boardMembers)
-      .where(and(eq(boardMembers.boardId, target.boardId), eq(boardMembers.userId, userId)))
-      .limit(1),
-    db
-      .select({
-        id: boardAccessRequests.id,
-        boardId: boardAccessRequests.boardId,
-        requesterId: boardAccessRequests.requesterId,
-        status: boardAccessRequests.status,
-        message: boardAccessRequests.message,
-        createdAt: boardAccessRequests.createdAt,
-      })
-      .from(boardAccessRequests)
-      .where(
-        and(
-          eq(boardAccessRequests.boardId, target.boardId),
-          eq(boardAccessRequests.requesterId, userId),
-          eq(boardAccessRequests.status, 'pending'),
-        ),
-      )
-      .limit(1),
-  ]);
+  const [user] = await db
+    .select({ id: users.id, name: users.name, email: users.email, image: users.image })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const [workspaceMembership] = await db
+    .select({ role: workspaceMembers.role })
+    .from(workspaceMembers)
+    .where(
+      and(eq(workspaceMembers.workspaceId, target.workspaceId), eq(workspaceMembers.userId, userId)),
+    )
+    .limit(1);
+  const [boardMembership] = await db
+    .select({ role: boardMembers.role })
+    .from(boardMembers)
+    .where(and(eq(boardMembers.boardId, target.boardId), eq(boardMembers.userId, userId)))
+    .limit(1);
+  const [pendingRequest] = await db
+    .select({
+      id: boardAccessRequests.id,
+      boardId: boardAccessRequests.boardId,
+      requesterId: boardAccessRequests.requesterId,
+      status: boardAccessRequests.status,
+      message: boardAccessRequests.message,
+      createdAt: boardAccessRequests.createdAt,
+    })
+    .from(boardAccessRequests)
+    .where(
+      and(
+        eq(boardAccessRequests.boardId, target.boardId),
+        eq(boardAccessRequests.requesterId, userId),
+        eq(boardAccessRequests.status, 'pending'),
+      ),
+    )
+    .limit(1);
 
   const role =
     workspaceMembership == null
