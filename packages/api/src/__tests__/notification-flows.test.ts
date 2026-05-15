@@ -127,15 +127,19 @@ async function seedFixture(opts: { extraCards?: number } = {}) {
   };
 }
 
-async function activityFor(fixture: Fixture, type: string, payloadKey: string, payloadValue: string) {
+async function activityFor(
+  fixture: Fixture,
+  type: string,
+  payloadKey: string,
+  payloadValue: string,
+) {
   const rows = await probe!.db
     .select()
     .from(activityEvents)
     .where(dbMod.eq(activityEvents.boardId, fixture.board.id));
   return rows.find(
     (row) =>
-      row.type === type &&
-      (row.payload as Record<string, unknown>)[payloadKey] === payloadValue,
+      row.type === type && (row.payload as Record<string, unknown>)[payloadKey] === payloadValue,
   );
 }
 
@@ -161,7 +165,9 @@ async function outboxFor(recipientId: string, type: string) {
 describe.runIf(dbAvailable)('notification flows (integration)', () => {
   beforeEach(async () => {
     if (!probe) return;
-    await probe.db.delete(notifications).where(dbMod.inArray(notifications.recipientId, createdUserIds));
+    await probe.db
+      .delete(notifications)
+      .where(dbMod.inArray(notifications.recipientId, createdUserIds));
     await probe.db
       .delete(notificationOutbox)
       .where(dbMod.inArray(notificationOutbox.recipientId, createdUserIds));
@@ -232,7 +238,12 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    const mentionActivity = await activityFor(fx, 'comment.mentioned', 'mentionedUserId', fx.bob.id);
+    const mentionActivity = await activityFor(
+      fx,
+      'comment.mentioned',
+      'mentionedUserId',
+      fx.bob.id,
+    );
     expect(mentionActivity?.payload).toMatchObject({
       mentionedUserId: fx.bob.id,
       mentionText: 'bob',

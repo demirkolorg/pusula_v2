@@ -1,18 +1,19 @@
 ---
-title: "04 — Bildirim Kuralları"
-description: "Bildirim kanalları, event kaynakları, tercih ve bastırma kuralları."
+title: '04 — Bildirim Kuralları'
+description: 'Bildirim kanalları, event kaynakları, tercih ve bastırma kuralları.'
 aliases:
-  - "Bildirim Kuralları"
-  - "Notification Rules"
+  - 'Bildirim Kuralları'
+  - 'Notification Rules'
 tags:
-  - "pusula"
-  - "domain/notifications"
-type: "domain"
-axis: "domain"
-status: "active"
-parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+  - 'pusula'
+  - 'domain/notifications'
+type: 'domain'
+axis: 'domain'
+status: 'active'
+parent: '[[docs/domain/README|İş / Domain Kuralları]]'
 updated: 2026-05-13
 ---
+
 # 04 — Bildirim Kuralları
 
 > Eksen: **iş / domain** — _hangi olay hangi bildirimi üretir, kime, hangi kanaldan, ne zaman
@@ -20,35 +21,35 @@ updated: 2026-05-13
 
 ## Kanallar
 
-| Kanal | Açıklama |
-| --- | --- |
-| In-app notification | `notifications` tablosu; notification center'da gösterilir |
-| Realtime badge | Okunmamış sayısı değişince Socket.IO `user:{userId}` room'una `notification.created` event yayını (Faz 5 altyapısı) |
-| Mobile push | Expo Notifications (worker üzerinden); backend Faz 6, mobile aktivasyon Faz 7 |
-| Email | Resend — transactional (DEM-68 auth e-postalarıyla aynı kanal) + ileride digest |
-| Slack/Teams | Yalnızca açıkça istenirse (ileride) |
+| Kanal               | Açıklama                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| In-app notification | `notifications` tablosu; notification center'da gösterilir                                                          |
+| Realtime badge      | Okunmamış sayısı değişince Socket.IO `user:{userId}` room'una `notification.created` event yayını (Faz 5 altyapısı) |
+| Mobile push         | Expo Notifications (worker üzerinden); backend Faz 6, mobile aktivasyon Faz 7                                       |
+| Email               | Resend — transactional (DEM-68 auth e-postalarıyla aynı kanal) + ileride digest                                     |
+| Slack/Teams         | Yalnızca açıkça istenirse (ileride)                                                                                 |
 
 ## Bildirim kaynakları (activity event → bildirim)
 
 `activity_events` tablosundaki her olay için bildirim kuralı `packages/api/src/lib/notification-rules.ts`'te tanımlıdır (Faz 6A — [DEM-90](https://linear.app/demirkol/issue/DEM-90)). Tablo: olay tipi → kimin bildirim alacağı → varsayılan kanal(lar).
 
-| Activity event tipi | Bildirim kimde? | Varsayılan kanal(lar) | Not |
-| --- | --- | --- | --- |
-| `card.member_added` | Atanan kullanıcı | in-app + email (opt-in) | Faz 2.5C; en yaygın |
-| `comment.mentioned` | Mention edilen kullanıcı(lar) | in-app + push + email (her zaman; mute-bypass) | Yüksek öncelik |
-| `comment.created` | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push | Actor hariç |
-| `card.due_changed` | Kart üyeleri + watcher'lar | in-app + (tercihse) push | Yeni due/yeni tarih |
-| `card.completed` / `uncompleted` | Kart üyeleri (actor hariç) | in-app | Görünür ama düşük gürültü |
-| `card.moved` (cross-list) | Kart üyeleri | in-app | Faz 3A; aynı liste içi reorder bildirim üretmez |
-| `card.movedToList` (cross-board) | Kart üyeleri | in-app | Faz 3E; board değişimi belirtilir |
-| `card.archived` | Kart üyeleri | in-app | Actor hariç |
-| `checklist.item_checked` (watch edilen kartta) | Kart watcher'ları | in-app | Düşük gürültü; checklist tamamlandığında bir kez özet üretilebilir (sonraki tur) |
-| `board.member_invited` | Davet edilen e-posta | email (+ in-app kabul sonrası) | Faz 2.5C; davet token + accept/decline link |
-| `board.member_added` | Eklenen kullanıcı | in-app + email | |
-| `workspace.member_invited` | Davet edilen e-posta | email | Faz 1.3 |
-| `due_reminder_1d` | Kart üyeleri | in-app + push (opt-in) | Due-date scheduler (Faz 6A, 5dk cron — 24 saat içinde) |
-| `due_reminder_1h` | Kart üyeleri | in-app + push (opt-in) | Due-date scheduler (1 saat içinde) |
-| `due_overdue` | Kart üyeleri | in-app + push + email (opt-in) | Due-date scheduler (geçmiş; bir kez) |
+| Activity event tipi                            | Bildirim kimde?                           | Varsayılan kanal(lar)                          | Not                                                                              |
+| ---------------------------------------------- | ----------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| `card.member_added`                            | Atanan kullanıcı                          | in-app + email (opt-in)                        | Faz 2.5C; en yaygın                                                              |
+| `comment.mentioned`                            | Mention edilen kullanıcı(lar)             | in-app + push + email (her zaman; mute-bypass) | Yüksek öncelik                                                                   |
+| `comment.created`                              | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push                       | Actor hariç                                                                      |
+| `card.due_changed`                             | Kart üyeleri + watcher'lar                | in-app + (tercihse) push                       | Yeni due/yeni tarih                                                              |
+| `card.completed` / `uncompleted`               | Kart üyeleri (actor hariç)                | in-app                                         | Görünür ama düşük gürültü                                                        |
+| `card.moved` (cross-list)                      | Kart üyeleri                              | in-app                                         | Faz 3A; aynı liste içi reorder bildirim üretmez                                  |
+| `card.movedToList` (cross-board)               | Kart üyeleri                              | in-app                                         | Faz 3E; board değişimi belirtilir                                                |
+| `card.archived`                                | Kart üyeleri                              | in-app                                         | Actor hariç                                                                      |
+| `checklist.item_checked` (watch edilen kartta) | Kart watcher'ları                         | in-app                                         | Düşük gürültü; checklist tamamlandığında bir kez özet üretilebilir (sonraki tur) |
+| `board.member_invited`                         | Davet edilen e-posta                      | email (+ in-app kabul sonrası)                 | Faz 2.5C; davet token + accept/decline link                                      |
+| `board.member_added`                           | Eklenen kullanıcı                         | in-app + email                                 |                                                                                  |
+| `workspace.member_invited`                     | Davet edilen e-posta                      | email                                          | Faz 1.3                                                                          |
+| `due_reminder_1d`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (Faz 6A, 5dk cron — 24 saat içinde)                           |
+| `due_reminder_1h`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (1 saat içinde)                                               |
+| `due_overdue`                                  | Kart üyeleri                              | in-app + push + email (opt-in)                 | Due-date scheduler (geçmiş; bir kez)                                             |
 
 ## Genel kurallar
 
@@ -65,6 +66,7 @@ updated: 2026-05-13
 Niçin: Alice aynı kişiye 5 saniye içinde 4 kart atarsa Bob'a 4 ayrı "atandın" bildirimi yerine **tek** bildirim gider. Toplu işlemlerde gürültü azalır.
 
 İstisnalar:
+
 - `comment.mentioned` — cooldown'a tabi değil (her mention ayrı önemli).
 - `board.member_invited` / `workspace.member_invited` — cooldown'a tabi değil (her davet farklı token + e-posta).
 - `due_reminder_*` — scheduler zaten dedupe yapıyor (`scheduled_at` + tip + card_id).
@@ -85,6 +87,7 @@ Tercihler workspace / board / card seviyesinde tutulur (`user_id, workspace_id?,
 `mention` ve `davet` her zaman en yüksek öncelik; mute/mention-only ayarlarından etkilenmez. Diğer bildirimler tercih kapsamı ve mute seviyesine tabidir.
 
 UI'da (Faz 6D notification center) öncelik:
+
 1. Mention + Davet (üstte, vurgulu)
 2. Atama + Due overdue
 3. Yorum (watcher) + Due reminder
@@ -102,6 +105,7 @@ Tüm liste `notifications.created_at desc` ile sıralı (en yeni üstte); öncel
 - Notification-rules `comment.mentioned` olayını görür → mention edilen kullanıcıya bildirim (mute-bypass).
 
 Edge case'ler:
+
 - `email@domain.com` formatı match edilmez (`@` öncesi non-alphanumeric karakter olmalı veya başlangıçta).
 - Aynı yorumda aynı kullanıcıyı iki kez mention etmek → tek bildirim (dedupe).
 - Mention edilen ama kart'ın board'una erişimi olmayan kullanıcı → bildirim üretilmez (silently skipped).
@@ -109,6 +113,7 @@ Edge case'ler:
 ## Faz 6 kapsamı (implementasyon)
 
 **Bu fazda implement edilir:**
+
 - In-app notification kanalı (notification center + bell + badge)
 - Email kanalı (Resend transactional — atama/mention/yorum/due/davet template'leri)
 - Push kanalı backend (Expo Push API; `push_tokens` tablo + API + worker processor) — gerçek gönderim mobile aktivasyonuyla
@@ -118,6 +123,7 @@ Edge case'ler:
 - Faz 5 outbox pattern'i comment/checklist/label/member mutation'larına genişletme (realtime kart detay sync)
 
 **Bu fazda implement edilmez (sonraki tur):**
+
 - Notification tercih/ayarlar ekranı UI (varsayılan tercihlerle çalışır)
 - Email digest (saatlik/günlük özet)
 - Slack/Teams entegrasyonu

@@ -73,12 +73,12 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
     // Scheduler rows live with `event_id IS NULL` and a `dedupeKey` payload.
     // Earlier drafts of this test relied on the long-gone `event_id LIKE
     // 'due:%'` filter, which never matched anything.
-    await db().delete(notificationOutbox).where(
-      dbMod.sql`${notificationOutbox.eventId} IS NULL AND ${notificationOutbox.payload} ? 'dedupeKey'`,
-    );
-    await db().delete(cardMembers).where(
-      dbMod.inArray(cardMembers.userId, createdUserIds),
-    );
+    await db()
+      .delete(notificationOutbox)
+      .where(
+        dbMod.sql`${notificationOutbox.eventId} IS NULL AND ${notificationOutbox.payload} ? 'dedupeKey'`,
+      );
+    await db().delete(cardMembers).where(dbMod.inArray(cardMembers.userId, createdUserIds));
     await db().delete(cards).where(dbMod.eq(cards.boardId, boardId));
     await db().delete(lists).where(dbMod.eq(lists.boardId, boardId));
     await db().delete(boards).where(dbMod.eq(boards.id, boardId));
@@ -89,7 +89,9 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
 
   async function seedCard(dueAt: Date, position: string) {
     const cardId = newId('c-ds');
-    await db().insert(cards).values({ id: cardId, boardId, listId, title: 'Due card', position, dueAt });
+    await db()
+      .insert(cards)
+      .values({ id: cardId, boardId, listId, title: 'Due card', position, dueAt });
     await db().insert(cardMembers).values({ cardId, userId: watcherId, role: 'watcher' });
     return cardId;
   }
@@ -117,13 +119,17 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
       const rows = await db()
         .select({ type: notificationOutbox.type, channel: notificationOutbox.channel })
         .from(notificationOutbox)
-        .where(dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`);
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`,
+        );
       expect(rows.length).toBeGreaterThanOrEqual(1);
       expect(rows.every((r) => r.type === 'due_overdue')).toBe(true);
     } finally {
-      await db().delete(notificationOutbox).where(
-        dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`,
-      );
+      await db()
+        .delete(notificationOutbox)
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`,
+        );
       await db().delete(cardMembers).where(dbMod.eq(cardMembers.cardId, cardId));
       await db().delete(cards).where(dbMod.eq(cards.id, cardId));
     }
@@ -141,9 +147,11 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
       // marked the (card, 1h) tier).
       expect(second.written).toBe(0);
     } finally {
-      await db().delete(notificationOutbox).where(
-        dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_reminder_1h:${cardId}`}`,
-      );
+      await db()
+        .delete(notificationOutbox)
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_reminder_1h:${cardId}`}`,
+        );
       await db().delete(cardMembers).where(dbMod.eq(cardMembers.cardId, cardId));
       await db().delete(cards).where(dbMod.eq(cards.id, cardId));
     }

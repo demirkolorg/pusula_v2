@@ -61,7 +61,9 @@ export function CardDetailChecklists({
                 </span>
               </span>
             )}
-            {canEdit && <AddChecklistForm onSubmit={handlers.onCreateChecklist} pending={pending} />}
+            {canEdit && (
+              <AddChecklistForm onSubmit={handlers.onCreateChecklist} pending={pending} />
+            )}
           </>
         }
       >

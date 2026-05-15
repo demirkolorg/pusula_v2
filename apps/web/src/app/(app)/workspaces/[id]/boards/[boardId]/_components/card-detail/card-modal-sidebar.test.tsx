@@ -12,10 +12,24 @@ const detailCopy = strings.card.detail;
 const nameOf = (id: string) => ({ u1: 'Ada', u2: 'Bora' })[id as 'u1' | 'u2'] ?? null;
 
 const comments: CommentView[] = [
-  { id: 'c1', authorId: 'u1', body: 'Yorum bir', editedAt: null, deletedAt: null, createdAt: new Date('2026-02-01') },
+  {
+    id: 'c1',
+    authorId: 'u1',
+    body: 'Yorum bir',
+    editedAt: null,
+    deletedAt: null,
+    createdAt: new Date('2026-02-01'),
+  },
 ];
 const activity: CardActivityEvent[] = [
-  { id: 'a1', type: 'card.created', actorId: 'u2', actorName: 'Bora', payload: {}, createdAt: new Date('2026-02-02') },
+  {
+    id: 'a1',
+    type: 'card.created',
+    actorId: 'u2',
+    actorName: 'Bora',
+    payload: {},
+    createdAt: new Date('2026-02-02'),
+  },
 ];
 
 function setup(overrides: Partial<Parameters<typeof CardModalSidebar>[0]> = {}) {

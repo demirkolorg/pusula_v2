@@ -82,7 +82,12 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const [inv] = await db()
       .select()
       .from(boardInvitations)
-      .where(dbMod.and(dbMod.eq(boardInvitations.boardId, boardId), dbMod.eq(boardInvitations.email, email)))
+      .where(
+        dbMod.and(
+          dbMod.eq(boardInvitations.boardId, boardId),
+          dbMod.eq(boardInvitations.email, email),
+        ),
+      )
       .limit(1);
     return inv!;
   }
@@ -99,7 +104,9 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
   }
   /** Create the user account for a previously-allocated invitee id. */
   async function materializeUser(id: string): Promise<void> {
-    await db().insert(users).values({ id, name: id, email: emailOf(id) });
+    await db()
+      .insert(users)
+      .values({ id, name: id, email: emailOf(id) });
     extraUserIds.push(id);
   }
 
@@ -204,7 +211,9 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     expect(listed2.some((r) => r.id === inv.id)).toBe(false);
 
     // a board viewer cannot even list (member+ required)
-    await expect(callerFor(boardViewerId).board.invitations.list({ boardId })).rejects.toMatchObject({
+    await expect(
+      callerFor(boardViewerId).board.invitations.list({ boardId }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
@@ -225,7 +234,10 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // a different user (email mismatch) cannot accept
     await expect(
-      callerFor(mismatchId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(mismatchId).board.invitations.accept({
+        token: inv.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // the invitee accepts → workspace `guest` + board `member`
@@ -249,7 +261,12 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const [bmRow] = await db()
       .select()
       .from(boardMembers)
-      .where(dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, accepterId)))
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, boardId),
+          dbMod.eq(boardMembers.userId, accepterId),
+        ),
+      )
       .limit(1);
     expect(bmRow).toMatchObject({ role: 'member' });
 
@@ -265,19 +282,25 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     expect(
       wsActs.some(
         (a) =>
-          a.type === 'workspace.member_added' && (a.payload as { userId?: string }).userId === accepterId,
+          a.type === 'workspace.member_added' &&
+          (a.payload as { userId?: string }).userId === accepterId,
       ),
     ).toBe(true);
     const acts = await actsFor(boardId);
     expect(
       acts.some(
-        (a) => a.type === 'board.member_added' && (a.payload as { userId?: string }).userId === accepterId,
+        (a) =>
+          a.type === 'board.member_added' &&
+          (a.payload as { userId?: string }).userId === accepterId,
       ),
     ).toBe(true);
 
     // accepting again → BAD_REQUEST (no longer pending)
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(accepterId).board.invitations.accept({
+        token: inv.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // it's gone from `mine`
@@ -306,7 +329,10 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
       .where(dbMod.eq(boardInvitations.id, inv.id));
 
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(accepterId).board.invitations.accept({
+        token: inv.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     const [after] = await db()
@@ -376,7 +402,10 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     });
 
     await expect(
-      callerFor(accepterId).board.invitations.accept({ token: inv!.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(accepterId).board.invitations.accept({
+        token: inv!.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
@@ -389,7 +418,10 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
 
     // email mismatch → FORBIDDEN
     await expect(
-      callerFor(mismatchId).board.invitations.decline({ token: inv.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(mismatchId).board.invitations.decline({
+        token: inv.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const declined = await callerFor(declinerId).board.invitations.decline({
@@ -408,12 +440,20 @@ describe.runIf(dbAvailable)('board-invitations router (integration)', () => {
     const bmRows = await db()
       .select()
       .from(boardMembers)
-      .where(dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, declinerId)));
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, boardId),
+          dbMod.eq(boardMembers.userId, declinerId),
+        ),
+      );
     expect(bmRows).toHaveLength(0);
 
     // declining again → BAD_REQUEST
     await expect(
-      callerFor(declinerId).board.invitations.decline({ token: inv.token, clientMutationId: crypto.randomUUID() }),
+      callerFor(declinerId).board.invitations.decline({
+        token: inv.token,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

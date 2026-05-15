@@ -114,9 +114,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationOutbox)
       .where(dbMod.inArray(notificationOutbox.recipientId, createdUserIds));
-    await db()
-      .delete(pushTokens)
-      .where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
   });
 
   afterAll(async () => {
@@ -124,9 +122,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationOutbox)
       .where(dbMod.inArray(notificationOutbox.recipientId, createdUserIds));
-    await db()
-      .delete(pushTokens)
-      .where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
     await db().delete(users).where(dbMod.inArray(users.id, createdUserIds));
     await probe.pool.end();
   });

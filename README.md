@@ -1,21 +1,22 @@
 ---
-title: "Pusula"
-description: "Pusula v2 monorepo başlangıç, çalışma ve yol haritası notu."
+title: 'Pusula'
+description: 'Pusula v2 monorepo başlangıç, çalışma ve yol haritası notu.'
 aliases:
-  - "Pusula Ana Sayfa"
-  - "Pusula v2"
+  - 'Pusula Ana Sayfa'
+  - 'Pusula v2'
 tags:
-  - "pusula"
-  - "project/index"
-  - "obsidian/vault"
-type: "project-index"
-axis: "root"
-status: "active"
+  - 'pusula'
+  - 'project/index'
+  - 'obsidian/vault'
+type: 'project-index'
+axis: 'root'
+status: 'active'
 related:
-  - "[[docs/README|Pusula Belgeleri]]"
-  - "[[CLAUDE|Çalışma Protokolü]]"
+  - '[[docs/README|Pusula Belgeleri]]'
+  - '[[CLAUDE|Çalışma Protokolü]]'
 updated: 2026-05-12
 ---
+
 # Pusula
 
 Trello benzeri görev yönetim ürünü — monorepo (pnpm + Turborepo).
@@ -96,20 +97,20 @@ Compose proje adı `pusula_v2` ve bu portlar, v1 projesiyle (`D:\projects\pusula
 
 ## Komutlar
 
-| Komut | Açıklama |
-| --- | --- |
-| `pnpm dev` | Tüm uygulamaları geliştirme modunda çalıştır |
-| `pnpm build` | Tüm workspace'leri derle |
-| `pnpm typecheck` | Tip kontrolü (tüm workspace) |
-| `pnpm lint` | ESLint (tüm workspace) |
-| `pnpm test` | Testler (Vitest) |
-| `pnpm format` | Prettier ile biçimlendir |
-| `pnpm db:push` | Drizzle şemasını veritabanına uygula (migration'sız) |
-| `pnpm db:generate` | Migration SQL üret |
-| `pnpm db:migrate` | Migration'ları uygula |
-| `pnpm db:studio` | Drizzle Studio |
-| `pnpm db:seed` | Seed verisi |
-| `pnpm infra:up` / `infra:down` | Docker altyapısını başlat / durdur |
+| Komut                          | Açıklama                                             |
+| ------------------------------ | ---------------------------------------------------- |
+| `pnpm dev`                     | Tüm uygulamaları geliştirme modunda çalıştır         |
+| `pnpm build`                   | Tüm workspace'leri derle                             |
+| `pnpm typecheck`               | Tip kontrolü (tüm workspace)                         |
+| `pnpm lint`                    | ESLint (tüm workspace)                               |
+| `pnpm test`                    | Testler (Vitest)                                     |
+| `pnpm format`                  | Prettier ile biçimlendir                             |
+| `pnpm db:push`                 | Drizzle şemasını veritabanına uygula (migration'sız) |
+| `pnpm db:generate`             | Migration SQL üret                                   |
+| `pnpm db:migrate`              | Migration'ları uygula                                |
+| `pnpm db:studio`               | Drizzle Studio                                       |
+| `pnpm db:seed`                 | Seed verisi                                          |
+| `pnpm infra:up` / `infra:down` | Docker altyapısını başlat / durdur                   |
 
 ## Yol haritası (özet)
 

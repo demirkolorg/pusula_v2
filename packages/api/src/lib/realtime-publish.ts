@@ -117,6 +117,9 @@ export function maybeEnqueueRealtimePublish(
 }
 
 /** Best-effort enqueue for mutations that create multiple realtime rows. */
-export function maybeEnqueueRealtimePublishes(ctx: CtxWithEnqueue, eventIds: readonly string[]): void {
+export function maybeEnqueueRealtimePublishes(
+  ctx: CtxWithEnqueue,
+  eventIds: readonly string[],
+): void {
   for (const eventId of eventIds) maybeEnqueueRealtimePublish(ctx, eventId);
 }

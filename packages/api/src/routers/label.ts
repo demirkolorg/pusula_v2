@@ -30,7 +30,11 @@ import {
   updateLabelInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
-import { deleteSearchDocument, syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
+import {
+  deleteSearchDocument,
+  syncSearchDocumentsForScope,
+  upsertSearchDocument,
+} from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import {
   bumpBoardVersionForRealtime,
@@ -155,7 +159,10 @@ export const labelRouter = router({
     const wantsName = input.name !== undefined;
     const wantsColor = input.color !== undefined;
     if (!wantsName && !wantsColor) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Güncellenecek bir alan belirtin (name veya color).' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Güncellenecek bir alan belirtin (name veya color).',
+      });
     }
     if (!canEditBoardContent(accessFromBoardRole(ctx.board.role))) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Etiket düzenleme yetkiniz yok.' });

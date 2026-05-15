@@ -3,12 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import {
-  CheckIcon,
-  ChevronsUpDownIcon,
-  PlusIcon,
-  Settings2Icon,
-} from 'lucide-react';
+import { CheckIcon, ChevronsUpDownIcon, PlusIcon, Settings2Icon } from 'lucide-react';
 import { DEFAULT_BOARD_ICON, type EntityIcon } from '@pusula/domain';
 import {
   Button,
@@ -80,11 +75,9 @@ export function BoardSwitcher() {
   const activeBoard =
     boardId == null
       ? undefined
-      : (((boardGet.data as BoardGetPayload | undefined)?.board) ??
+      : ((boardGet.data as BoardGetPayload | undefined)?.board ??
         list.find((board) => board.id === boardId));
-  const triggerText = workspaceId
-    ? activeBoard?.title ?? copy.placeholder
-    : copy.disabled;
+  const triggerText = workspaceId ? (activeBoard?.title ?? copy.placeholder) : copy.disabled;
   const triggerIcon = activeBoard?.icon ?? DEFAULT_BOARD_ICON;
 
   const trigger = (
@@ -107,9 +100,7 @@ export function BoardSwitcher() {
             : 'bg-muted text-muted-foreground',
         )}
       />
-      <span className="hidden min-w-0 truncate text-sm font-medium md:inline">
-        {triggerText}
-      </span>
+      <span className="hidden min-w-0 truncate text-sm font-medium md:inline">{triggerText}</span>
       <ChevronsUpDownIcon
         className={cn(
           'size-3.5 shrink-0',

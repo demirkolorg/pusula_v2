@@ -245,7 +245,11 @@ export function RichTextEditor({
   return (
     <div
       data-slot="rich-text-editor"
-      className={cn('overflow-hidden rounded-md border bg-card', disabled && 'opacity-60', className)}
+      className={cn(
+        'overflow-hidden rounded-md border bg-card',
+        disabled && 'opacity-60',
+        className,
+      )}
     >
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-card px-1 py-1">
         <ToolbarButton

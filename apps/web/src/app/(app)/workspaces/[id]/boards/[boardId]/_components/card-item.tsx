@@ -249,7 +249,7 @@ export function CardItem({
   );
 
   useEffect(() => {
-    if (!dnd) return;
+    if (!dnd || !canEdit) return;
     const el = articleRef.current;
     if (!el) return;
     return dnd.registerCard({
@@ -454,6 +454,7 @@ export function CardItem({
         'focus-visible:ring-2 focus-visible:ring-ring/60',
         !dragging &&
           'group group/kart border border-[color:var(--board-card-border)] bg-[color:var(--board-card-bg)] shadow-sm hover:border-[color:var(--board-card-border-hover)] hover:shadow-card-hover',
+        card.archivedAt != null && 'border-dashed opacity-70',
         dragging && 'border border-dashed border-primary/60 bg-primary/5',
       )}
     >

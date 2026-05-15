@@ -45,6 +45,7 @@ The approved spec is one subsystem: keyboard shortcuts for existing board and ca
 ### Task 1: Shortcut Utility Module
 
 **Files:**
+
 - Create: `apps/web/src/lib/shortcuts/keyboard.ts`
 - Create: `apps/web/src/lib/shortcuts/use-shortcut-scope.ts`
 - Create: `apps/web/src/lib/shortcuts/index.ts`
@@ -271,6 +272,7 @@ git commit -m "feat: DEM-73 add shortcut utilities"
 ### Task 2: SearchDialog Controlled Open and Ctrl+Space
 
 **Files:**
+
 - Modify: `apps/web/src/app/(app)/_components/search-dialog.tsx`
 - Modify: `apps/web/src/app/(app)/_components/app-shell.test.tsx`
 
@@ -387,6 +389,7 @@ git commit -m "feat: DEM-73 add ctrl-space search shortcut"
 ### Task 3: Shortcut Help Dialog and Strings
 
 **Files:**
+
 - Create: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/shortcut-help-dialog.tsx`
 - Create: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/shortcut-help-dialog.test.tsx`
 - Modify: `apps/web/src/lib/strings.ts`
@@ -487,13 +490,7 @@ Create `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/shor
 ```tsx
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@pusula/ui';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 type ShortcutItem = {
@@ -603,6 +600,7 @@ git commit -m "feat: DEM-73 add shortcut help dialog"
 ### Task 4: Board Route Shortcuts
 
 **Files:**
+
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/page.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-top-bar.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/board-columns.tsx`
@@ -671,7 +669,13 @@ it('opens board search with slash and shortcut help with question mark', async (
     queryStub({
       isSuccess: true,
       data: {
-        board: { id: 'b_1', title: 'Aktif pano', role: 'admin', archivedAt: null, background: null },
+        board: {
+          id: 'b_1',
+          title: 'Aktif pano',
+          role: 'admin',
+          archivedAt: null,
+          background: null,
+        },
         lists: [],
         cards: [],
       },
@@ -697,7 +701,13 @@ it('increments add-card and add-list shortcut tokens for editable boards', async
     queryStub({
       isSuccess: true,
       data: {
-        board: { id: 'b_1', title: 'Aktif pano', role: 'admin', archivedAt: null, background: null },
+        board: {
+          id: 'b_1',
+          title: 'Aktif pano',
+          role: 'admin',
+          archivedAt: null,
+          background: null,
+        },
         lists: [
           {
             id: 'l_1',
@@ -811,7 +821,11 @@ Pass token only to first active list:
 Pass token to `AddListColumn`:
 
 ```tsx
-{canEdit && <AddListColumn boardId={boardId} openAddListComposerToken={openAddListComposerToken} />}
+{
+  canEdit && (
+    <AddListColumn boardId={boardId} openAddListComposerToken={openAddListComposerToken} />
+  );
+}
 ```
 
 In `list-column.tsx`, extend props:
@@ -952,15 +966,15 @@ const hasActiveList = lists.some((list) => list.archivedAt == null);
 Pass search props to `BoardTopBar`:
 
 ```tsx
-boardSearchOpen={boardSearchOpen}
-onBoardSearchOpenChange={setBoardSearchOpen}
+boardSearchOpen = { boardSearchOpen };
+onBoardSearchOpenChange = { setBoardSearchOpen };
 ```
 
 Pass tokens to `BoardColumns`:
 
 ```tsx
-openFirstCardComposerToken={openFirstCardComposerToken}
-openAddListComposerToken={openAddListComposerToken}
+openFirstCardComposerToken = { openFirstCardComposerToken };
+openAddListComposerToken = { openAddListComposerToken };
 ```
 
 Render shortcut scope and help dialog near the existing `CardDetailRoute` Suspense:
@@ -1017,6 +1031,7 @@ git commit -m "feat: DEM-73 add board shortcuts"
 ### Task 5: Card Modal Shortcuts
 
 **Files:**
+
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-detail/card-detail-title.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-detail/card-modal-meta-chips.tsx`
 - Modify: `apps/web/src/app/(app)/workspaces/[id]/boards/[boardId]/_components/card-detail/card-modal-meta-chips.test.tsx`
@@ -1371,18 +1386,14 @@ Pass title token:
 Pass the controlled menu props to `CardModalMetaChips` immediately after `canEdit={canEdit}`. Keep the existing `membersContent`, `dueContent`, `labelsContent`, and `coverContent` props unchanged:
 
 ```tsx
-openMenu={openMetaMenu}
-onOpenMenuChange={setOpenMetaMenu}
+openMenu = { openMetaMenu };
+onOpenMenuChange = { setOpenMetaMenu };
 ```
 
 Render shortcut help inside the Dialog content fragment:
 
 ```tsx
-<ShortcutHelpDialog
-  open={shortcutHelpOpen}
-  onOpenChange={setShortcutHelpOpen}
-  includeCardModal
-/>
+<ShortcutHelpDialog open={shortcutHelpOpen} onOpenChange={setShortcutHelpOpen} includeCardModal />
 ```
 
 - [ ] **Step 8: Run modal and meta chip tests**
@@ -1407,6 +1418,7 @@ git commit -m "feat: DEM-73 add card modal shortcuts"
 ### Task 6: Documentation Sync
 
 **Files:**
+
 - Modify: `docs/architecture/08-web-ve-mobil.md`
 - Modify: `docs/architecture/13-ui-tasarim-dili.md`
 - Modify: `docs/process/05-is-kayit-defteri.md`
@@ -1457,6 +1469,7 @@ git commit -m "docs: DEM-73 document keyboard shortcuts"
 ### Task 7: Full Verification and Linear Closure Prep
 
 **Files:**
+
 - No new files.
 - Verify all DEM-73 touched files.
 
@@ -1525,6 +1538,7 @@ Kodlama notu:
 - Aktif kart/liste seçim modeli ayrı follow-up kapsamına bırakıldı.
 
 Verification:
+
 - PASS/FAIL: `<focused vitest command>`
 - PASS/FAIL: `pnpm.cmd --filter @pusula/web typecheck`
 - PASS/FAIL: `pnpm.cmd --filter @pusula/web lint`

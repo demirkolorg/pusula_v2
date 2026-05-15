@@ -42,7 +42,9 @@ export const cards = pgTable(
      */
     coverColor: text(),
     /** Selected image attachment to use as the card cover (DEM-110). */
-    coverImageAttachmentId: text().references((): AnyPgColumn => attachments.id, { onDelete: 'set null' }),
+    coverImageAttachmentId: text().references((): AnyPgColumn => attachments.id, {
+      onDelete: 'set null',
+    }),
     archivedAt: archivedAt(),
     ...timestamps,
   },

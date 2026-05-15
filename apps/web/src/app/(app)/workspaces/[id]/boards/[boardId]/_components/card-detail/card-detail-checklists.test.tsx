@@ -23,8 +23,22 @@ const checklists: ChecklistView[] = [
     title: 'Hazırlık',
     position: 'a0',
     items: [
-      { id: 'i1', checklistId: 'c1', content: 'Birinci', position: 'a0', completed: false, completedBy: null },
-      { id: 'i2', checklistId: 'c1', content: 'İkinci', position: 'a1', completed: true, completedBy: null },
+      {
+        id: 'i1',
+        checklistId: 'c1',
+        content: 'Birinci',
+        position: 'a0',
+        completed: false,
+        completedBy: null,
+      },
+      {
+        id: 'i2',
+        checklistId: 'c1',
+        content: 'İkinci',
+        position: 'a1',
+        completed: true,
+        completedBy: null,
+      },
     ],
   },
 ];
@@ -50,7 +64,11 @@ describe('<CardDetailChecklists>', () => {
     const [firstBox] = screen.getAllByLabelText(copy.itemToggleLabel);
     if (!firstBox) throw new Error('expected at least one checklist item checkbox');
     await user.click(firstBox); // 'Birinci' is unchecked → becomes true
-    expect(h.onToggleItem).toHaveBeenCalledWith({ checklistId: 'c1', itemId: 'i1', completed: true });
+    expect(h.onToggleItem).toHaveBeenCalledWith({
+      checklistId: 'c1',
+      itemId: 'i1',
+      completed: true,
+    });
   });
 
   it('member: "add item" form submits the trimmed content', async () => {

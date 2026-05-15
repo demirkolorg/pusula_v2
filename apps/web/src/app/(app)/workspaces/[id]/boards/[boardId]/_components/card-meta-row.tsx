@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  AlignLeftIcon,
-  CalendarIcon,
-  MessageSquareIcon,
-  TagIcon,
-} from 'lucide-react';
+import { AlignLeftIcon, CalendarIcon, MessageSquareIcon, TagIcon } from 'lucide-react';
 import { Avatar, MetaChip, MetaRow, Tooltip, TooltipContent, TooltipTrigger, cn } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';

@@ -55,13 +55,7 @@ export function EntityIconGlyph({ icon, className }: EntityIconGlyphProps) {
     ? (icon as EntityIcon)
     : DEFAULT_BOARD_ICON;
   const Icon = ENTITY_ICON_COMPONENTS[normalizedIcon];
-  return (
-    <Icon
-      data-entity-icon={normalizedIcon}
-      className={cn('size-4', className)}
-      aria-hidden
-    />
-  );
+  return <Icon data-entity-icon={normalizedIcon} className={cn('size-4', className)} aria-hidden />;
 }
 
 type EntityIconBadgeProps = {

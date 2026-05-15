@@ -276,7 +276,11 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const result = await processNotificationPublishJob(
       db(),
       publisher,
-      { enqueuePush: async (id) => { enqueuedPush.push(id); } },
+      {
+        enqueuePush: async (id) => {
+          enqueuedPush.push(id);
+        },
+      },
       { eventId: activityId },
     );
     expect(result.processed).toBe(1);
@@ -310,7 +314,12 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const outboxId = outbox!.id;
 
     const publisher = capturingPublisher();
-    const result = await processNotificationPublishJob(db(), publisher, {}, { eventId: activityId });
+    const result = await processNotificationPublishJob(
+      db(),
+      publisher,
+      {},
+      { eventId: activityId },
+    );
     expect(result.processed).toBe(1);
 
     const [stamped] = await db()

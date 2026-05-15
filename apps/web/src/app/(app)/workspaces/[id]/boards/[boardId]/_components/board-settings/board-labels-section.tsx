@@ -46,9 +46,7 @@ export function BoardLabelsSection({ boardId, canEdit }: BoardLabelsSectionProps
       queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId })),
     ]);
 
-  const createLabel = useMutation(
-    trpc.label.create.mutationOptions({ onSuccess: refetchLabels }),
-  );
+  const createLabel = useMutation(trpc.label.create.mutationOptions({ onSuccess: refetchLabels }));
 
   const updateLabel = useMutation(
     trpc.label.update.mutationOptions({
@@ -57,7 +55,10 @@ export function BoardLabelsSection({ boardId, canEdit }: BoardLabelsSectionProps
         clearRowState();
       },
       onError: (error, variables) => {
-        setRowError({ labelId: variables.labelId, message: error.message || strings.common.unknownError });
+        setRowError({
+          labelId: variables.labelId,
+          message: error.message || strings.common.unknownError,
+        });
       },
     }),
   );
@@ -69,7 +70,10 @@ export function BoardLabelsSection({ boardId, canEdit }: BoardLabelsSectionProps
         clearRowState();
       },
       onError: (error, variables) => {
-        setRowError({ labelId: variables.labelId, message: error.message || strings.common.unknownError });
+        setRowError({
+          labelId: variables.labelId,
+          message: error.message || strings.common.unknownError,
+        });
       },
     }),
   );
@@ -110,7 +114,9 @@ export function BoardLabelsSection({ boardId, canEdit }: BoardLabelsSectionProps
             createLabel.mutate({ boardId, ...input, clientMutationId: crypto.randomUUID() });
           }}
           pending={createLabel.isPending}
-          error={createLabel.isError ? createLabel.error.message || strings.common.unknownError : null}
+          error={
+            createLabel.isError ? createLabel.error.message || strings.common.unknownError : null
+          }
         />
       )}
 

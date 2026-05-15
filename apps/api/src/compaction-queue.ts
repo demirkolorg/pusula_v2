@@ -54,11 +54,7 @@ function scopeId(scope: CompactionScope): string {
  */
 export async function enqueueCompaction(scope: CompactionScope): Promise<void> {
   try {
-    await compactionQueue.add(
-      JOB_NAME,
-      { scope },
-      { jobId: compactionJobId(scope) },
-    );
+    await compactionQueue.add(JOB_NAME, { scope }, { jobId: compactionJobId(scope) });
   } catch (err) {
     console.warn(
       `[api] compaction enqueue failed (${scope.kind}:${scopeId(scope)}):`,

@@ -31,7 +31,10 @@ export const searchDocuments = pgTable(
     entityId: text().notNull(),
     title: text().notNull().default(''),
     body: text(),
-    labels: text().array().notNull().default(sql`ARRAY[]::text[]`),
+    labels: text()
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     searchVector: tsvector('search_vector').notNull(),
     archivedAt: timestamp({ withTimezone: true }),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

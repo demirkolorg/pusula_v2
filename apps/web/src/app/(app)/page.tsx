@@ -5,14 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Settings2Icon } from 'lucide-react';
 import { DEFAULT_BOARD_ICON, workspaceRoleAtLeast } from '@pusula/domain';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Badge,
-  boardBackgroundClass,
-  cn,
-} from '@pusula/ui';
+import { Alert, AlertDescription, AlertTitle, Badge, boardBackgroundClass, cn } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
 import { EntityIconBadge } from '@/components/entity-icon';
 import {

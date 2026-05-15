@@ -142,9 +142,7 @@ test.describe('realtime board sync', () => {
     await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
-    await expect
-      .poll(() => bobBoard.columnTitles())
-      .toEqual(['Liste 1', 'Liste 2', 'Liste 3']);
+    await expect.poll(() => bobBoard.columnTitles()).toEqual(['Liste 1', 'Liste 2', 'Liste 3']);
 
     // Alice opens the "add a list" column form and submits a new title.
     const newListTitle = 'Realtime Liste';
@@ -157,11 +155,13 @@ test.describe('realtime board sync', () => {
     await titleInput.press('Enter');
 
     // The new column shows up for alice (sanity)…
-    await expect(alicePeer.page.getByRole('region', { name: newListTitle, exact: true }))
-      .toBeVisible({ timeout: SYNC_TIMEOUT_MS });
+    await expect(
+      alicePeer.page.getByRole('region', { name: newListTitle, exact: true }),
+    ).toBeVisible({ timeout: SYNC_TIMEOUT_MS });
     // …and for bob via realtime.
-    await expect(bobPeer.page.getByRole('region', { name: newListTitle, exact: true }))
-      .toBeVisible({ timeout: SYNC_TIMEOUT_MS });
+    await expect(bobPeer.page.getByRole('region', { name: newListTitle, exact: true })).toBeVisible(
+      { timeout: SYNC_TIMEOUT_MS },
+    );
   });
 
   test('3. seq ordering — two consecutive card.creates land at bob in order (no gap)', async ({
@@ -174,9 +174,7 @@ test.describe('realtime board sync', () => {
     await Promise.all([aliceBoard.goto(), bobBoard.goto()]);
     await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
-    await expect
-      .poll(() => bobBoard.cardTitlesIn('Liste 3'))
-      .toEqual(['Kart F', 'Kart G']);
+    await expect.poll(() => bobBoard.cardTitlesIn('Liste 3')).toEqual(['Kart F', 'Kart G']);
 
     // `AddCardForm` uses a `<textarea>` (Enter inserts a newline, not submit),
     // and the column closes the form after each submit. So the natural flow is:
@@ -219,9 +217,7 @@ test.describe('realtime board sync', () => {
     // is hover-revealed and brittle to drive from Playwright.
     await aliceBoard.card('Kart B', 'Liste 1').click();
     const modalCopy = strings.card.detail.modal;
-    await alicePeer.page
-      .getByRole('button', { name: modalCopy.more, exact: true })
-      .click();
+    await alicePeer.page.getByRole('button', { name: modalCopy.more, exact: true }).click();
     await alicePeer.page
       .getByRole('menuitem', { name: modalCopy.menuArchive, exact: true })
       .click();
@@ -260,12 +256,8 @@ test.describe('realtime board sync', () => {
       aliceBoard.card('Kart E', 'Liste 2'),
       { edge: 'bottom' },
     );
-    await expect
-      .poll(() => aliceBoard.cardTitlesIn('Liste 1'))
-      .toEqual(['Kart B', 'Kart C']);
-    await expect
-      .poll(() => aliceBoard.cardTitlesIn('Liste 2'))
-      .toContain('Kart A');
+    await expect.poll(() => aliceBoard.cardTitlesIn('Liste 1')).toEqual(['Kart B', 'Kart C']);
+    await expect.poll(() => aliceBoard.cardTitlesIn('Liste 2')).toContain('Kart A');
 
     // Bob comes back online — Socket.IO auto-reconnects → `connect` handler
     // re-emits `board:join` + invalidates `board.get` → refetch carries the

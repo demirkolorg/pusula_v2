@@ -14,9 +14,7 @@ describe('avatar-color utilities', () => {
   });
 
   it('returns a deterministic palette name for the same string', () => {
-    expect(avatarPaletteName('Marketing Workspace')).toBe(
-      avatarPaletteName('Marketing Workspace'),
-    );
+    expect(avatarPaletteName('Marketing Workspace')).toBe(avatarPaletteName('Marketing Workspace'));
   });
 
   it('returns Tailwind palette classes for solid avatars and swatches', () => {

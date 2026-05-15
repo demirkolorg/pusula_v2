@@ -1,19 +1,20 @@
 ---
-title: "06 — Obsidian Dokümantasyon Kuralları"
-description: "Pusula dokümanlarının Obsidian kasasında okunabilir, linklenebilir ve sürdürülebilir kalması için yazım kuralları."
+title: '06 — Obsidian Dokümantasyon Kuralları'
+description: 'Pusula dokümanlarının Obsidian kasasında okunabilir, linklenebilir ve sürdürülebilir kalması için yazım kuralları.'
 aliases:
-  - "Obsidian Dokümantasyon Kuralları"
-  - "Dokümantasyon Yazım Standardı"
+  - 'Obsidian Dokümantasyon Kuralları'
+  - 'Dokümantasyon Yazım Standardı'
 tags:
-  - "pusula"
-  - "process/documentation"
-  - "obsidian/vault"
-type: "process"
-axis: "process"
-status: "active"
-parent: "[[docs/process/README|Süreç]]"
+  - 'pusula'
+  - 'process/documentation'
+  - 'obsidian/vault'
+type: 'process'
+axis: 'process'
+status: 'active'
+parent: '[[docs/process/README|Süreç]]'
 updated: 2026-05-12
 ---
+
 # 06 — Obsidian Dokümantasyon Kuralları
 
 > Eksen: **süreç**. Bu repo klasörü Obsidian kasası olarak kullanılır. Markdown
@@ -38,17 +39,17 @@ Her yeni `.md` dosyası en üstte YAML frontmatter ile başlamalıdır:
 
 ```yaml
 ---
-title: "Okunabilir başlık"
-description: "Belgenin bir cümlelik amacı."
+title: 'Okunabilir başlık'
+description: 'Belgenin bir cümlelik amacı.'
 aliases:
-  - "Obsidian hızlı açma için alternatif ad"
+  - 'Obsidian hızlı açma için alternatif ad'
 tags:
-  - "pusula"
-  - "architecture/example"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/example'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: YYYY-MM-DD
 ---
 ```

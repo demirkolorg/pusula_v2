@@ -23,15 +23,21 @@ type ResetPasswordFormProps = {
  * `resetPasswordInput` schema (so the password rule matches the server) plus a
  * client-side confirm-match check.
  */
-export function ResetPasswordForm({ token, onSubmit, pending = false, error }: ResetPasswordFormProps) {
+export function ResetPasswordForm({
+  token,
+  onSubmit,
+  pending = false,
+  error,
+}: ResetPasswordFormProps) {
   const copy = strings.auth.resetPassword;
   const newId = useId();
   const confirmId = useId();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ newPassword?: string; confirmPassword?: string }>(
-    {},
-  );
+  const [fieldErrors, setFieldErrors] = useState<{
+    newPassword?: string;
+    confirmPassword?: string;
+  }>({});
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

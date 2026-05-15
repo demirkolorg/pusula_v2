@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BOARD_BACKGROUND_GRADIENTS,
-  CARD_COVER_COLORS,
-} from '../constants';
+import { BOARD_BACKGROUND_GRADIENTS, CARD_COVER_COLORS } from '../constants';
 import { boardBackgroundSchema, createBoardInput, updateBoardInput } from './board';
 
 describe('boardBackgroundSchema', () => {
@@ -69,7 +66,9 @@ describe('updateBoardInput background', () => {
   });
 
   it('rejects invalid background formats in board updates', () => {
-    expect(updateBoardInput.safeParse({ boardId: 'board_1', background: 'ocean' }).success).toBe(false);
+    expect(updateBoardInput.safeParse({ boardId: 'board_1', background: 'ocean' }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -99,8 +98,11 @@ describe('board icon inputs', () => {
 
   it('rejects unknown board icons instead of silently stripping them', () => {
     expect(
-      createBoardInput.safeParse({ workspaceId: 'workspace_1', title: 'Yol Haritası', icon: 'unknown' })
-        .success,
+      createBoardInput.safeParse({
+        workspaceId: 'workspace_1',
+        title: 'Yol Haritası',
+        icon: 'unknown',
+      }).success,
     ).toBe(false);
     expect(updateBoardInput.safeParse({ boardId: 'board_1', icon: 'unknown' }).success).toBe(false);
   });

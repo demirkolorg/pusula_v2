@@ -29,7 +29,11 @@ describe('search-indexer normalization', () => {
   });
 
   it('normalizes labels by trimming, removing blanks, and de-duping', () => {
-    expect(normalizeSearchLabels(['  Acil ', '', 'acil', 'Acil', '  Gida  '])).toEqual(['Acil', 'acil', 'Gida']);
+    expect(normalizeSearchLabels(['  Acil ', '', 'acil', 'Acil', '  Gida  '])).toEqual([
+      'Acil',
+      'acil',
+      'Gida',
+    ]);
   });
 });
 
@@ -55,7 +59,9 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
   beforeAll(async () => {
     const ownerId = newId('u-search-owner');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
   });
 
   afterAll(async () => {
@@ -71,7 +77,9 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
   async function seedBoard() {
     const ownerId = newId('u-search');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
 
     const [ws] = await db()
       .insert(workspaces)
@@ -79,7 +87,9 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
       .returning({ id: workspaces.id });
     createdWorkspaceIds.push(ws!.id);
 
-    await db().insert(workspaceMembers).values({ workspaceId: ws!.id, userId: ownerId, role: 'owner' });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws!.id, userId: ownerId, role: 'owner' });
     const [board] = await db()
       .insert(boards)
       .values({ workspaceId: ws!.id, title: 'Nakdi Yardimlar' })
@@ -89,7 +99,10 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
     return { workspaceId: ws!.id, boardId: board!.id, ownerId };
   }
 
-  async function readDoc(entityType: 'board' | 'list' | 'card' | 'comment' | 'label', entityId: string) {
+  async function readDoc(
+    entityType: 'board' | 'list' | 'card' | 'comment' | 'label',
+    entityId: string,
+  ) {
     const rows = await db()
       .select({
         id: searchDocuments.id,
@@ -102,7 +115,12 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
         archivedAt: searchDocuments.archivedAt,
       })
       .from(searchDocuments)
-      .where(dbMod.and(dbMod.eq(searchDocuments.entityType, entityType), dbMod.eq(searchDocuments.entityId, entityId)));
+      .where(
+        dbMod.and(
+          dbMod.eq(searchDocuments.entityType, entityType),
+          dbMod.eq(searchDocuments.entityId, entityId),
+        ),
+      );
     return rows;
   }
 
@@ -134,7 +152,13 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
       .returning({ id: lists.id });
     const [card] = await db()
       .insert(cards)
-      .values({ boardId, listId: list!.id, title: 'Ahmet Y.', description: 'Kira yardimi', position: 'a0' })
+      .values({
+        boardId,
+        listId: list!.id,
+        title: 'Ahmet Y.',
+        description: 'Kira yardimi',
+        position: 'a0',
+      })
       .returning({ id: cards.id });
     const insertedLabels = await db()
       .insert(labels)
@@ -143,7 +167,9 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
         { boardId, name: 'Kira', color: 'blue' },
       ])
       .returning({ id: labels.id });
-    await db().insert(cardLabels).values(insertedLabels.map((label) => ({ cardId: card!.id, labelId: label.id })));
+    await db()
+      .insert(cardLabels)
+      .values(insertedLabels.map((label) => ({ cardId: card!.id, labelId: label.id })));
 
     await upsertSearchDocument(db(), { entityType: 'card', entityId: card!.id });
     await db().update(lists).set({ archivedAt: new Date() }).where(dbMod.eq(lists.id, list!.id));
@@ -177,7 +203,10 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
     await upsertSearchDocument(db(), { entityType: 'comment', entityId: comment!.id });
     expect(await readDoc('comment', comment!.id)).toHaveLength(1);
 
-    await db().update(comments).set({ deletedAt: new Date(), body: '' }).where(dbMod.eq(comments.id, comment!.id));
+    await db()
+      .update(comments)
+      .set({ deletedAt: new Date(), body: '' })
+      .where(dbMod.eq(comments.id, comment!.id));
     await upsertSearchDocument(db(), { entityType: 'comment', entityId: comment!.id });
 
     expect(await readDoc('comment', comment!.id)).toHaveLength(0);

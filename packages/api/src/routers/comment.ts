@@ -323,7 +323,12 @@ export const commentRouter = router({
     let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [comment] = await tx
-        .select({ id: comments.id, cardId: comments.cardId, authorId: comments.authorId, deletedAt: comments.deletedAt })
+        .select({
+          id: comments.id,
+          cardId: comments.cardId,
+          authorId: comments.authorId,
+          deletedAt: comments.deletedAt,
+        })
         .from(comments)
         .where(eq(comments.id, input.commentId))
         .limit(1);

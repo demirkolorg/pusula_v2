@@ -1,18 +1,19 @@
 ---
-title: "01 — Genel Bakış"
-description: "Ürün hedefi, kalite hedefleri, monorepo yapısı ve teknoloji özeti."
+title: '01 — Genel Bakış'
+description: 'Ürün hedefi, kalite hedefleri, monorepo yapısı ve teknoloji özeti.'
 aliases:
-  - "Genel Bakış"
-  - "Pusula Teknik Genel Bakış"
+  - 'Genel Bakış'
+  - 'Pusula Teknik Genel Bakış'
 tags:
-  - "pusula"
-  - "architecture/genel-bakis"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/genel-bakis'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-12
 ---
+
 # 01 — Genel Bakış
 
 > Eksen: **tasarım / teknik**. Ürün modeli ve domain kuralları için [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md).
@@ -66,26 +67,26 @@ validasyon şemalarını paylaşır. TypeScript strict mode + project references
 
 ## Teknoloji özeti
 
-| Katman | Seçim | Sebep (özet) |
-| --- | --- | --- |
-| Monorepo | pnpm workspaces + Turborepo | Hızlı workspace yönetimi, cache, task orchestration |
-| Web | Next.js App Router | Modern React, SSR/RSC, route-level optimizasyon |
-| Backend HTTP | Hono | Hafif, hızlı, Web Standard tabanlı HTTP katmanı |
-| API sözleşmesi | tRPC | Web + mobil arası type-safe API |
-| Client cache | TanStack Query | Optimistic UI, cache invalidation, mutation lifecycle |
-| Mobil | Expo + Expo Router | RN geliştirme hızı, OTA + push entegrasyonu |
-| Database | PostgreSQL | Transaction, relational model, index, JSONB |
-| ORM | Drizzle | Type-safe SQL, migration kontrolü, transaction netliği |
-| Queue | BullMQ + Redis | Bildirim, outbox, retry, scheduled job |
-| Realtime | Socket.IO + Redis adapter | Board event, presence, room modeli, yatay ölçek |
-| Push | Expo Notifications | iOS/Android push token + gönderim |
-| Drag-drop | Atlassian Pragmatic Drag and Drop | Trello/Jira hissi, performans odaklı nested taşıma |
-| Auth | Better Auth | Self-hosted, TypeScript odaklı kimlik yönetimi |
-| Web UI | shadcn/ui (tek standart) + Tailwind + lucide-react | Tek web component sistemi |
-| Deployment | Self-hosted Dokploy ("Docker Compose" servis tipi) | `compose.prod.yml` tek ünite; Traefik + Let's Encrypt + git-push-to-deploy Dokploy'da → runbook: [`12-deployment-runbook.md`](12-deployment-runbook.md) |
-| Object storage | Self-hosted MinIO (S3 uyumlu SDK) | S3 uyumlu attachment depolama |
-| Email | Resend | Transactional email + digest |
-| Search | MVP: PostgreSQL FTS; ileri: Meilisearch | Önce basitlik, büyüyünce typo-tolerant arama |
-| Observability | Sentry + OpenTelemetry + structured logs | Hata, performans, distributed trace |
-| Test | Vitest, Playwright, React Testing Library | Unit, integration, e2e |
-| Billing | Yok | — |
+| Katman         | Seçim                                              | Sebep (özet)                                                                                                                                            |
+| -------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo                        | Hızlı workspace yönetimi, cache, task orchestration                                                                                                     |
+| Web            | Next.js App Router                                 | Modern React, SSR/RSC, route-level optimizasyon                                                                                                         |
+| Backend HTTP   | Hono                                               | Hafif, hızlı, Web Standard tabanlı HTTP katmanı                                                                                                         |
+| API sözleşmesi | tRPC                                               | Web + mobil arası type-safe API                                                                                                                         |
+| Client cache   | TanStack Query                                     | Optimistic UI, cache invalidation, mutation lifecycle                                                                                                   |
+| Mobil          | Expo + Expo Router                                 | RN geliştirme hızı, OTA + push entegrasyonu                                                                                                             |
+| Database       | PostgreSQL                                         | Transaction, relational model, index, JSONB                                                                                                             |
+| ORM            | Drizzle                                            | Type-safe SQL, migration kontrolü, transaction netliği                                                                                                  |
+| Queue          | BullMQ + Redis                                     | Bildirim, outbox, retry, scheduled job                                                                                                                  |
+| Realtime       | Socket.IO + Redis adapter                          | Board event, presence, room modeli, yatay ölçek                                                                                                         |
+| Push           | Expo Notifications                                 | iOS/Android push token + gönderim                                                                                                                       |
+| Drag-drop      | Atlassian Pragmatic Drag and Drop                  | Trello/Jira hissi, performans odaklı nested taşıma                                                                                                      |
+| Auth           | Better Auth                                        | Self-hosted, TypeScript odaklı kimlik yönetimi                                                                                                          |
+| Web UI         | shadcn/ui (tek standart) + Tailwind + lucide-react | Tek web component sistemi                                                                                                                               |
+| Deployment     | Self-hosted Dokploy ("Docker Compose" servis tipi) | `compose.prod.yml` tek ünite; Traefik + Let's Encrypt + git-push-to-deploy Dokploy'da → runbook: [`12-deployment-runbook.md`](12-deployment-runbook.md) |
+| Object storage | Self-hosted MinIO (S3 uyumlu SDK)                  | S3 uyumlu attachment depolama                                                                                                                           |
+| Email          | Resend                                             | Transactional email + digest                                                                                                                            |
+| Search         | MVP: PostgreSQL FTS; ileri: Meilisearch            | Önce basitlik, büyüyünce typo-tolerant arama                                                                                                            |
+| Observability  | Sentry + OpenTelemetry + structured logs           | Hata, performans, distributed trace                                                                                                                     |
+| Test           | Vitest, Playwright, React Testing Library          | Unit, integration, e2e                                                                                                                                  |
+| Billing        | Yok                                                | —                                                                                                                                                       |

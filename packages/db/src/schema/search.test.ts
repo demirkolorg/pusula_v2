@@ -33,16 +33,22 @@ describe('searchDocuments table', () => {
     const config = getTableConfig(searchDocuments);
     const indexes = config.indexes.map((indexBuilder) => indexBuilder.config);
 
-    expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining([
-      'search_documents_workspace_idx',
-      'search_documents_board_idx',
-      'search_documents_card_idx',
-      'search_documents_entity_uq',
-      'search_documents_active_scope_idx',
-      'search_documents_search_vector_gin_idx',
-    ]));
-    expect(indexes.find((index) => index.name === 'search_documents_search_vector_gin_idx')?.method).toBe('gin');
-    expect(indexes.find((index) => index.name === 'search_documents_active_scope_idx')?.where).toBeDefined();
+    expect(indexes.map((index) => index.name)).toEqual(
+      expect.arrayContaining([
+        'search_documents_workspace_idx',
+        'search_documents_board_idx',
+        'search_documents_card_idx',
+        'search_documents_entity_uq',
+        'search_documents_active_scope_idx',
+        'search_documents_search_vector_gin_idx',
+      ]),
+    );
+    expect(
+      indexes.find((index) => index.name === 'search_documents_search_vector_gin_idx')?.method,
+    ).toBe('gin');
+    expect(
+      indexes.find((index) => index.name === 'search_documents_active_scope_idx')?.where,
+    ).toBeDefined();
   });
 });
 
@@ -56,7 +62,9 @@ describe('DEM-104 migration', () => {
     expect(migration).toContain(
       `ALTER TYPE "public"."search_entity_type" ADD VALUE IF NOT EXISTS 'list'`,
     );
-    expect(migration).toContain(`ALTER TABLE "search_documents" ADD COLUMN IF NOT EXISTS "card_id" text`);
+    expect(migration).toContain(
+      `ALTER TABLE "search_documents" ADD COLUMN IF NOT EXISTS "card_id" text`,
+    );
     expect(migration).toContain(
       `ALTER TABLE "search_documents" ADD COLUMN IF NOT EXISTS "search_vector" "tsvector"`,
     );

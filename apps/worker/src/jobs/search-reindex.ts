@@ -1,4 +1,7 @@
-import type { ReindexSearchDocumentsInput, ReindexSearchDocumentsResult } from '@pusula/db/search-indexer';
+import type {
+  ReindexSearchDocumentsInput,
+  ReindexSearchDocumentsResult,
+} from '@pusula/db/search-indexer';
 import type { Database } from '@pusula/db';
 import { reindexSearchDocuments } from '@pusula/db/search-indexer';
 

@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  CARD_COVER_IMAGE_MAX_BYTES,
-  CARD_COVER_IMAGE_MIME_TYPES,
-} from '../constants';
+import { CARD_COVER_IMAGE_MAX_BYTES, CARD_COVER_IMAGE_MIME_TYPES } from '../constants';
 import { idSchema } from './common';
 
 /** MIME type accepted for card cover image uploads. */

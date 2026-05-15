@@ -32,7 +32,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
   beforeAll(async () => {
     const ownerId = newId('u-compact-owner');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
   });
 
   afterAll(async () => {
@@ -48,7 +50,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
   async function seedBoard(): Promise<{ workspaceId: string; boardId: string; ownerId: string }> {
     const ownerId = newId('u-compact');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
 
     const [ws] = await db()
       .insert(workspaces)
@@ -189,7 +193,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
       .values({ boardId, title: 'Empty', position: 'a0' })
       .returning({ id: lists.id });
     const v0 = await boardVersion(boardId);
-    expect(await processCompactionJob(db(), { scope: { kind: 'list', listId: emptyList!.id } })).toEqual({
+    expect(
+      await processCompactionJob(db(), { scope: { kind: 'list', listId: emptyList!.id } }),
+    ).toEqual({
       rebalanced: 0,
     });
 
@@ -197,7 +203,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
       .insert(lists)
       .values({ boardId, title: 'One', position: 'a1' })
       .returning({ id: lists.id });
-    await db().insert(cards).values({ boardId, listId: oneCardList!.id, title: 'solo', position: 'a0' });
+    await db()
+      .insert(cards)
+      .values({ boardId, listId: oneCardList!.id, title: 'solo', position: 'a0' });
     expect(
       await processCompactionJob(db(), { scope: { kind: 'list', listId: oneCardList!.id } }),
     ).toEqual({ rebalanced: 0 });
@@ -205,7 +213,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0);
 
     // A list id that doesn't exist → no-op.
-    expect(await processCompactionJob(db(), { scope: { kind: 'list', listId: newId('missing') } })).toEqual({
+    expect(
+      await processCompactionJob(db(), { scope: { kind: 'list', listId: newId('missing') } }),
+    ).toEqual({
       rebalanced: 0,
     });
   });
@@ -297,7 +307,9 @@ describe.runIf(dbAvailable)('processCompactionJob (integration)', () => {
     await db().insert(lists).values({ boardId, title: 'legacy-list', position: 'a' });
     const v0 = await boardVersion(boardId);
 
-    await expect(processCompactionJob(db(), { scope: { kind: 'board', boardId } })).resolves.toEqual({
+    await expect(
+      processCompactionJob(db(), { scope: { kind: 'board', boardId } }),
+    ).resolves.toEqual({
       rebalanced: 1,
     });
 

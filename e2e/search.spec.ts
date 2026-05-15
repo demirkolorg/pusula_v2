@@ -60,7 +60,9 @@ test.describe('search', () => {
     await result.click();
 
     await expect(authedPage).toHaveURL(new RegExp(`card=${E2E.cardIds.assignment}`));
-    await expect(authedPage.getByLabel(strings.card.detail.titleLabel)).toHaveValue(E2E.cards[0][0]);
+    await expect(authedPage.getByLabel(strings.card.detail.titleLabel)).toHaveValue(
+      E2E.cards[0][0],
+    );
   });
 
   test('board-scoped search finds a comment result and keeps navigation inside the board', async ({
@@ -83,7 +85,9 @@ test.describe('search', () => {
     await expect(result).toContainText(E2E.search.commentTerm);
     await result.click();
 
-    await expect(authedPage).toHaveURL(new RegExp(`^.*${boardPath.replace(/\//g, '\\/')}\\?card=${E2E.cardIds.watched}$`));
+    await expect(authedPage).toHaveURL(
+      new RegExp(`^.*${boardPath.replace(/\//g, '\\/')}\\?card=${E2E.cardIds.watched}$`),
+    );
   });
 
   test('viewer global search sees accessible board content but not another workspace', async ({

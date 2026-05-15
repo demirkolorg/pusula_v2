@@ -2,11 +2,7 @@
 
 import * as React from 'react';
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
-import {
-  DayPicker,
-  getDefaultClassNames,
-  type DayPickerProps,
-} from 'react-day-picker';
+import { DayPicker, getDefaultClassNames, type DayPickerProps } from 'react-day-picker';
 import { buttonVariants } from './button';
 import { cn } from '../lib/utils';
 
@@ -28,7 +24,10 @@ function Calendar({
         root: cn(defaultClassNames.root),
         months: cn('flex flex-col gap-4 sm:flex-row', defaultClassNames.months),
         month: cn('flex flex-col gap-4', defaultClassNames.month),
-        nav: cn('absolute inset-x-3 top-3 flex items-center justify-between', defaultClassNames.nav),
+        nav: cn(
+          'absolute inset-x-3 top-3 flex items-center justify-between',
+          defaultClassNames.nav,
+        ),
         button_previous: cn(
           buttonVariants({ variant: 'outline' }),
           'size-7 bg-transparent p-0 opacity-60 hover:opacity-100',
@@ -74,7 +73,10 @@ function Calendar({
           '[&>button]:focus:bg-primary [&>button]:focus:text-primary-foreground',
           defaultClassNames.selected,
         ),
-        today: cn('[&>button]:bg-accent [&>button]:text-accent-foreground', defaultClassNames.today),
+        today: cn(
+          '[&>button]:bg-accent [&>button]:text-accent-foreground',
+          defaultClassNames.today,
+        ),
         outside: cn(
           'text-muted-foreground opacity-50 aria-selected:opacity-30',
           defaultClassNames.outside,

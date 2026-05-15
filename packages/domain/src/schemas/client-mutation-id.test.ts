@@ -60,22 +60,38 @@ describe('clientMutationIdSchema', () => {
  * The "minimal input" is the smallest object that satisfies the schema's
  * required keys *other* than `clientMutationId`.
  */
-const cases: Array<{ name: string; schema: { safeParse: (v: unknown) => { success: boolean } }; minimal: Record<string, unknown> }> = [
-  { name: 'createBoardInput',     schema: createBoardInput,     minimal: { workspaceId: 'ws_1', title: 'B' } },
-  { name: 'updateBoardInput',     schema: updateBoardInput,     minimal: { boardId: 'b_1', title: 'B2' } },
-  { name: 'archiveBoardInput',    schema: archiveBoardInput,    minimal: { boardId: 'b_1' } },
-  { name: 'createListInput',      schema: createListInput,      minimal: { boardId: 'b_1', title: 'L' } },
-  { name: 'renameListInput',      schema: renameListInput,      minimal: { listId: 'l_1', title: 'L2' } },
-  { name: 'moveListInput',        schema: moveListInput,        minimal: { boardId: 'b_1', listId: 'l_1' } },
-  { name: 'archiveListInput',     schema: archiveListInput,     minimal: { listId: 'l_1' } },
-  { name: 'createCardInput',      schema: createCardInput,      minimal: { listId: 'l_1', title: 'C' } },
-  { name: 'updateCardInput',      schema: updateCardInput,      minimal: { cardId: 'c_1', title: 'C2' } },
-  { name: 'archiveCardInput',     schema: archiveCardInput,    minimal: { cardId: 'c_1' } },
-  { name: 'completeCardInput',    schema: completeCardInput,    minimal: { cardId: 'c_1' } },
-  { name: 'uncompleteCardInput',  schema: uncompleteCardInput,  minimal: { cardId: 'c_1' } },
-  { name: 'moveCardInput',        schema: moveCardInput,        minimal: { cardId: 'c_1', fromListId: 'l_1', toListId: 'l_2' } },
-  { name: 'moveCardToListInput',  schema: moveCardToListInput,  minimal: { cardId: 'c_1', toListId: 'l_2' } },
-  { name: 'copyCardInput',        schema: copyCardInput,        minimal: { cardId: 'c_1', toListId: 'l_2' } },
+const cases: Array<{
+  name: string;
+  schema: { safeParse: (v: unknown) => { success: boolean } };
+  minimal: Record<string, unknown>;
+}> = [
+  {
+    name: 'createBoardInput',
+    schema: createBoardInput,
+    minimal: { workspaceId: 'ws_1', title: 'B' },
+  },
+  { name: 'updateBoardInput', schema: updateBoardInput, minimal: { boardId: 'b_1', title: 'B2' } },
+  { name: 'archiveBoardInput', schema: archiveBoardInput, minimal: { boardId: 'b_1' } },
+  { name: 'createListInput', schema: createListInput, minimal: { boardId: 'b_1', title: 'L' } },
+  { name: 'renameListInput', schema: renameListInput, minimal: { listId: 'l_1', title: 'L2' } },
+  { name: 'moveListInput', schema: moveListInput, minimal: { boardId: 'b_1', listId: 'l_1' } },
+  { name: 'archiveListInput', schema: archiveListInput, minimal: { listId: 'l_1' } },
+  { name: 'createCardInput', schema: createCardInput, minimal: { listId: 'l_1', title: 'C' } },
+  { name: 'updateCardInput', schema: updateCardInput, minimal: { cardId: 'c_1', title: 'C2' } },
+  { name: 'archiveCardInput', schema: archiveCardInput, minimal: { cardId: 'c_1' } },
+  { name: 'completeCardInput', schema: completeCardInput, minimal: { cardId: 'c_1' } },
+  { name: 'uncompleteCardInput', schema: uncompleteCardInput, minimal: { cardId: 'c_1' } },
+  {
+    name: 'moveCardInput',
+    schema: moveCardInput,
+    minimal: { cardId: 'c_1', fromListId: 'l_1', toListId: 'l_2' },
+  },
+  {
+    name: 'moveCardToListInput',
+    schema: moveCardToListInput,
+    minimal: { cardId: 'c_1', toListId: 'l_2' },
+  },
+  { name: 'copyCardInput', schema: copyCardInput, minimal: { cardId: 'c_1', toListId: 'l_2' } },
 ];
 
 for (const { name, schema, minimal } of cases) {
@@ -90,7 +106,9 @@ for (const { name, schema, minimal } of cases) {
     });
 
     it('rejects a non-UUID clientMutationId', () => {
-      expect(schema.safeParse({ ...minimal, clientMutationId: 'cmid_abcdefghij' }).success).toBe(false);
+      expect(schema.safeParse({ ...minimal, clientMutationId: 'cmid_abcdefghij' }).success).toBe(
+        false,
+      );
       expect(schema.safeParse({ ...minimal, clientMutationId: '' }).success).toBe(false);
       expect(schema.safeParse({ ...minimal, clientMutationId: 'not-a-uuid' }).success).toBe(false);
     });

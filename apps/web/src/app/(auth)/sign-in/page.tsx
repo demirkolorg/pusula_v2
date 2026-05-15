@@ -3,10 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import {
-  Alert,
-  AlertDescription,
-} from '@pusula/ui';
+import { Alert, AlertDescription } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
@@ -79,7 +76,10 @@ function SignInContent() {
       <div className="text-muted-foreground mt-6 flex flex-col items-center gap-2 text-center text-sm">
         <span>
           {copy.noAccount}{' '}
-          <Link href="/sign-up" className="text-foreground font-medium underline-offset-4 hover:underline">
+          <Link
+            href="/sign-up"
+            className="text-foreground font-medium underline-offset-4 hover:underline"
+          >
             {copy.goToSignUp}
           </Link>
         </span>

@@ -96,7 +96,13 @@ describe('<BoardMemberRow>', () => {
   });
 
   it('falls back to the user id when the member has no name', () => {
-    render(<BoardMemberRow member={{ ...explicitMember, name: null }} viewerUserId="u-other" canManage={false} />);
+    render(
+      <BoardMemberRow
+        member={{ ...explicitMember, name: null }}
+        viewerUserId="u-other"
+        canManage={false}
+      />,
+    );
     expect(screen.getByText('u-member')).toBeInTheDocument();
   });
 
@@ -104,7 +110,12 @@ describe('<BoardMemberRow>', () => {
     const user = userEvent.setup();
     const onRoleChange = vi.fn();
     render(
-      <BoardMemberRow member={explicitMember} viewerUserId="u-admin" canManage onRoleChange={onRoleChange} />,
+      <BoardMemberRow
+        member={explicitMember}
+        viewerUserId="u-admin"
+        canManage
+        onRoleChange={onRoleChange}
+      />,
     );
     await user.click(screen.getByRole('combobox', { name: copy.roleLabel }));
     await user.click(screen.getByRole('option', { name: 'İzleyici' }));
@@ -114,7 +125,14 @@ describe('<BoardMemberRow>', () => {
   it('remove → confirm dialog → onConfirm calls onRemove', async () => {
     const user = userEvent.setup();
     const onRemove = vi.fn();
-    render(<BoardMemberRow member={explicitMember} viewerUserId="u-admin" canManage onRemove={onRemove} />);
+    render(
+      <BoardMemberRow
+        member={explicitMember}
+        viewerUserId="u-admin"
+        canManage
+        onRemove={onRemove}
+      />,
+    );
     await user.click(screen.getByRole('button', { name: copy.remove }));
     await user.click(screen.getByRole('button', { name: copy.removeConfirm }));
     expect(onRemove).toHaveBeenCalledTimes(1);

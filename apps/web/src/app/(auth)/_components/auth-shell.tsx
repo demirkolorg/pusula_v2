@@ -29,8 +29,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </main>
 
         <footer className="text-muted-foreground flex items-center justify-between text-xs">
-          <span>© {new Date().getFullYear()} {strings.common.appName}</span>
-          <Link href="/sign-in" className="hover:text-foreground rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          <span>
+            © {new Date().getFullYear()} {strings.common.appName}
+          </span>
+          <Link
+            href="/sign-in"
+            className="hover:text-foreground rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
             Yardım
           </Link>
         </footer>

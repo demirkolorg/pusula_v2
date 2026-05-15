@@ -62,15 +62,16 @@ describe('changePasswordInput', () => {
     expect(
       changePasswordInput.parse({ currentPassword: 'oldsecret', newPassword: 'newsecret1' }),
     ).toEqual({ currentPassword: 'oldsecret', newPassword: 'newsecret1' });
-    expect(changePasswordInput.safeParse({ currentPassword: '', newPassword: 'newsecret1' }).success).toBe(
-      false,
-    );
-    expect(changePasswordInput.safeParse({ currentPassword: 'oldsecret', newPassword: 'short' }).success).toBe(
-      false,
-    );
-    expect(changePasswordInput.safeParse({ currentPassword: 'samesecret', newPassword: 'samesecret' }).success).toBe(
-      false,
-    );
+    expect(
+      changePasswordInput.safeParse({ currentPassword: '', newPassword: 'newsecret1' }).success,
+    ).toBe(false);
+    expect(
+      changePasswordInput.safeParse({ currentPassword: 'oldsecret', newPassword: 'short' }).success,
+    ).toBe(false);
+    expect(
+      changePasswordInput.safeParse({ currentPassword: 'samesecret', newPassword: 'samesecret' })
+        .success,
+    ).toBe(false);
   });
 });
 

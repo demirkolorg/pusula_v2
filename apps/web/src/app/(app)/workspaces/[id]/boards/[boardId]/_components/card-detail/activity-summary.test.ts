@@ -25,9 +25,9 @@ describe('summarizeCardActivity', () => {
   });
 
   it('card.renamed → falls back without payload titles', () => {
-    expect(summarizeCardActivity({ ...base, type: 'card.renamed', payload: {} }, 'Bir kullanıcı')).toBe(
-      'Ada kartı yeniden adlandırdı',
-    );
+    expect(
+      summarizeCardActivity({ ...base, type: 'card.renamed', payload: {} }, 'Bir kullanıcı'),
+    ).toBe('Ada kartı yeniden adlandırdı');
   });
 
   it('card.archived → distinguishes archive vs restore by payload.archived', () => {
@@ -61,7 +61,9 @@ describe('summarizeCardActivity', () => {
   });
 
   it('comment.created / checklist.item_checked / checklist.item_unchecked → readable lines', () => {
-    expect(summarizeCardActivity({ ...base, type: 'comment.created' }, 'X')).toBe('Ada yorum ekledi');
+    expect(summarizeCardActivity({ ...base, type: 'comment.created' }, 'X')).toBe(
+      'Ada yorum ekledi',
+    );
     expect(summarizeCardActivity({ ...base, type: 'checklist.item_checked' }, 'X')).toBe(
       'Ada bir maddeyi tamamladı',
     );
@@ -71,28 +73,35 @@ describe('summarizeCardActivity', () => {
   });
 
   it('board and list events → readable board feed lines', () => {
-    expect(summarizeCardActivity({ ...base, type: 'board.created' }, 'X')).toBe('Ada panoyu oluşturdu');
+    expect(summarizeCardActivity({ ...base, type: 'board.created' }, 'X')).toBe(
+      'Ada panoyu oluşturdu',
+    );
     expect(
       summarizeCardActivity(
         { ...base, type: 'board.renamed', payload: { fromTitle: 'Eski', toTitle: 'Yeni' } },
         'X',
       ),
     ).toBe('Ada panoyu yeniden adlandırdı: “Eski” → “Yeni”');
-    expect(summarizeCardActivity({ ...base, type: 'list.created', payload: { title: 'Backlog' } }, 'X')).toBe(
-      'Ada liste ekledi: “Backlog”',
-    );
-    expect(summarizeCardActivity({ ...base, type: 'list.archived', payload: { archived: false } }, 'X')).toBe(
-      'Ada listeyi geri yükledi',
-    );
+    expect(
+      summarizeCardActivity({ ...base, type: 'list.created', payload: { title: 'Backlog' } }, 'X'),
+    ).toBe('Ada liste ekledi: “Backlog”');
+    expect(
+      summarizeCardActivity({ ...base, type: 'list.archived', payload: { archived: false } }, 'X'),
+    ).toBe('Ada listeyi geri yükledi');
   });
 
   it('falls back to the unknown-actor name when the actor was deleted', () => {
     expect(
-      summarizeCardActivity({ ...base, actorId: null, actorName: null, type: 'comment.created' }, 'Bir kullanıcı'),
+      summarizeCardActivity(
+        { ...base, actorId: null, actorName: null, type: 'comment.created' },
+        'Bir kullanıcı',
+      ),
     ).toBe('Bir kullanıcı yorum ekledi');
   });
 
   it('unknown type → generic line including the type', () => {
-    expect(summarizeCardActivity({ ...base, type: 'card.moved' }, 'X')).toBe('Ada bir işlem yaptı (card.moved)');
+    expect(summarizeCardActivity({ ...base, type: 'card.moved' }, 'X')).toBe(
+      'Ada bir işlem yaptı (card.moved)',
+    );
   });
 });

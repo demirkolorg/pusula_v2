@@ -111,11 +111,17 @@ async function loadAccessibleUsers(
 
   const nameFilter =
     lowerNames.length > 0
-      ? sql`lower(u.name) in (${sql.join(lowerNames.map((name) => sql`${name}`), sql`, `)})`
+      ? sql`lower(u.name) in (${sql.join(
+          lowerNames.map((name) => sql`${name}`),
+          sql`, `,
+        )})`
       : sql`false`;
   const idFilter =
     userIds.length > 0
-      ? sql`u.id in (${sql.join(userIds.map((id) => sql`${id}`), sql`, `)})`
+      ? sql`u.id in (${sql.join(
+          userIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`
       : sql`false`;
 
   const result = await db.execute(sql`
@@ -151,8 +157,12 @@ export async function parseMentions(
   const candidates = collectMentions(commentBody);
   if (candidates.length === 0) return [];
 
-  const lowerNames = candidates.filter((c): c is Extract<MentionCandidate, { kind: 'name' }> => c.kind === 'name').map((c) => c.key);
-  const userIds = candidates.filter((c): c is Extract<MentionCandidate, { kind: 'id' }> => c.kind === 'id').map((c) => c.key);
+  const lowerNames = candidates
+    .filter((c): c is Extract<MentionCandidate, { kind: 'name' }> => c.kind === 'name')
+    .map((c) => c.key);
+  const userIds = candidates
+    .filter((c): c is Extract<MentionCandidate, { kind: 'id' }> => c.kind === 'id')
+    .map((c) => c.key);
   const rows = await loadAccessibleUsers(ctx.db, boardId, lowerNames, userIds);
 
   const byLowerName = new Map<string, UserRow>();
@@ -165,7 +175,8 @@ export async function parseMentions(
   const seenUserIds = new Set<string>();
   const results: MentionParseResult[] = [];
   for (const candidate of candidates) {
-    const row = candidate.kind === 'name' ? byLowerName.get(candidate.key) : byId.get(candidate.key);
+    const row =
+      candidate.kind === 'name' ? byLowerName.get(candidate.key) : byId.get(candidate.key);
     if (!row || seenUserIds.has(row.id)) continue;
     seenUserIds.add(row.id);
     results.push({ mentionedUserId: row.id, mentionText: candidate.mentionText });

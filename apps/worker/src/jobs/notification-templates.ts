@@ -110,21 +110,41 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
     case 'comment_reply':
       return { title: 'Yeni yorum', body: `${actor}, "${subject}" kartına yorum yazdı.`, data };
     case 'due_approaching':
-      return { title: 'Yaklaşan teslim', body: `"${subject}" kartının teslim tarihi yaklaşıyor.`, data };
+      return {
+        title: 'Yaklaşan teslim',
+        body: `"${subject}" kartının teslim tarihi yaklaşıyor.`,
+        data,
+      };
     case 'due_overdue':
       return { title: 'Geciken kart', body: `"${subject}" kartının teslim tarihi geçti.`, data };
     case 'board_invitation':
-      return { title: 'Pano daveti', body: `${actor}, seni "${subject}" panosuna davet etti.`, data };
+      return {
+        title: 'Pano daveti',
+        body: `${actor}, seni "${subject}" panosuna davet etti.`,
+        data,
+      };
     case 'workspace_invitation':
-      return { title: 'Çalışma alanı daveti', body: `${actor}, seni "${subject}" çalışma alanına davet etti.`, data };
+      return {
+        title: 'Çalışma alanı daveti',
+        body: `${actor}, seni "${subject}" çalışma alanına davet etti.`,
+        data,
+      };
     case 'watched_activity':
-      return { title: 'Kart aktivitesi', body: `${actor}, takip ettiğin "${subject}" kartında değişiklik yaptı.`, data };
+      return {
+        title: 'Kart aktivitesi',
+        body: `${actor}, takip ettiğin "${subject}" kartında değişiklik yaptı.`,
+        data,
+      };
     case 'checklist_item_completed':
-      return { title: 'Liste güncellemesi', body: `${actor}, takip ettiğin "${subject}" kartındaki bir maddeyi tamamladı.`, data };
+      return {
+        title: 'Liste güncellemesi',
+        body: `${actor}, takip ettiğin "${subject}" kartındaki bir maddeyi tamamladı.`,
+        data,
+      };
     default: {
       const _exhaustive: never = ctx.type;
       void _exhaustive;
-      return { title: 'Bildirim', body: 'Pusula\'da yeni bir bildirim.', data };
+      return { title: 'Bildirim', body: "Pusula'da yeni bir bildirim.", data };
     }
   }
 }
@@ -171,7 +191,11 @@ function renderMention(ctx: TemplateContext): RenderedEmail {
     ]),
     html: htmlShell(ctx.recipient.name, [
       `<p>${esc(actor)}, <strong>${esc(cardTitle)}</strong> kartındaki bir yorumda senden bahsetti.</p>`,
-      ...(preview ? [`<blockquote style="margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d1d5db; color: #4b5563;">${esc(preview)}</blockquote>`] : []),
+      ...(preview
+        ? [
+            `<blockquote style="margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d1d5db; color: #4b5563;">${esc(preview)}</blockquote>`,
+          ]
+        : []),
       cardLinkBlock(link),
     ]),
   };
@@ -194,7 +218,11 @@ function renderCommentReply(ctx: TemplateContext): RenderedEmail {
     ]),
     html: htmlShell(ctx.recipient.name, [
       `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartına yorum yazdı.</p>`,
-      ...(preview ? [`<blockquote style="margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d1d5db; color: #4b5563;">${esc(preview)}</blockquote>`] : []),
+      ...(preview
+        ? [
+            `<blockquote style="margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d1d5db; color: #4b5563;">${esc(preview)}</blockquote>`,
+          ]
+        : []),
       cardLinkBlock(link),
     ]),
   };
@@ -212,16 +240,8 @@ function renderDueReminder(ctx: TemplateContext): RenderedEmail {
     : `"${cardTitle}" kartının teslim tarihi yaklaşıyor.`;
   return {
     subject,
-    text: textShell(ctx.recipient.name, [
-      body,
-      '',
-      'Karta gitmek için:',
-      link,
-    ]),
-    html: htmlShell(ctx.recipient.name, [
-      `<p>${esc(body)}</p>`,
-      cardLinkBlock(link),
-    ]),
+    text: textShell(ctx.recipient.name, [body, '', 'Karta gitmek için:', link]),
+    html: htmlShell(ctx.recipient.name, [`<p>${esc(body)}</p>`, cardLinkBlock(link)]),
   };
 }
 
@@ -298,8 +318,8 @@ function renderChecklistCompleted(ctx: TemplateContext): RenderedEmail {
 function renderGeneric(ctx: TemplateContext): RenderedEmail {
   const link = cardDeepLink(ctx);
   return {
-    subject: 'Pusula\'da yeni bir bildirim',
-    text: textShell(ctx.recipient.name, ['Pusula\'da yeni bir bildirim var.', '', link]),
+    subject: "Pusula'da yeni bir bildirim",
+    text: textShell(ctx.recipient.name, ["Pusula'da yeni bir bildirim var.", '', link]),
     html: htmlShell(ctx.recipient.name, [
       "<p>Pusula'da yeni bir bildirim var.</p>",
       cardLinkBlock(link),
@@ -377,13 +397,9 @@ function esc(value: string): string {
 }
 
 function textShell(recipientName: string, lines: string[]): string {
-  return [
-    `Merhaba ${recipientName || 'Pusula kullanıcısı'},`,
-    '',
-    ...lines,
-    '',
-    '— Pusula',
-  ].join('\n');
+  return [`Merhaba ${recipientName || 'Pusula kullanıcısı'},`, '', ...lines, '', '— Pusula'].join(
+    '\n',
+  );
 }
 
 function htmlShell(recipientName: string, lines: string[]): string {

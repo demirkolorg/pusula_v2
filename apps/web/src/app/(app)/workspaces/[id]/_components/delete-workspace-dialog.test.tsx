@@ -70,9 +70,7 @@ describe('<DeleteWorkspaceForm>', () => {
   });
 
   it('disables input and shows pending label when pending', () => {
-    render(
-      <DeleteWorkspaceForm workspaceName={WORKSPACE_NAME} onConfirm={vi.fn()} pending />,
-    );
+    render(<DeleteWorkspaceForm workspaceName={WORKSPACE_NAME} onConfirm={vi.fn()} pending />);
     expect(screen.getByLabelText('Workspace adı')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Siliniyor…' })).toBeDisabled();
   });

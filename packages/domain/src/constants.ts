@@ -110,7 +110,13 @@ export const ACTIVITY_EVENT_TYPES = [
  * Postgres enum in `@pusula/db` — same APPEND-ONLY discipline as the activity enum
  * (Postgres can't drop/reorder enum values without a destructive recreation).
  */
-export const INVITATION_STATUSES = ['pending', 'accepted', 'declined', 'revoked', 'expired'] as const;
+export const INVITATION_STATUSES = [
+  'pending',
+  'accepted',
+  'declined',
+  'revoked',
+  'expired',
+] as const;
 
 /** Default lifetime of a workspace invitation, in days. */
 export const WORKSPACE_INVITATION_TTL_DAYS = 7;
@@ -257,8 +263,18 @@ export const DEFAULT_BOARD_ICON = 'layout-grid' satisfies EntityIcon;
  * doesn't depend on `@pusula/domain`).
  */
 export const CARD_COVER_COLORS = [
-  'kirmizi', 'turuncu', 'sari', 'lime', 'yesil', 'sky',
-  'mavi', 'indigo', 'mor', 'pembe', 'gri', 'siyah',
+  'kirmizi',
+  'turuncu',
+  'sari',
+  'lime',
+  'yesil',
+  'sky',
+  'mavi',
+  'indigo',
+  'mor',
+  'pembe',
+  'gri',
+  'siyah',
 ] as const;
 export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
 

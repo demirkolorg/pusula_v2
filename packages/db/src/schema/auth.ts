@@ -9,28 +9,36 @@
  */
 import { boolean, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  name: text().notNull(),
-  email: text().notNull(),
-  emailVerified: boolean().notNull().default(false),
-  image: text(),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('users_email_uq').on(t.email)]);
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    name: text().notNull(),
+    email: text().notNull(),
+    emailVerified: boolean().notNull().default(false),
+    image: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('users_email_uq').on(t.email)],
+);
 
-export const sessions = pgTable('sessions', {
-  id: text('id').primaryKey(),
-  token: text().notNull(),
-  expiresAt: timestamp({ withTimezone: true }).notNull(),
-  ipAddress: text(),
-  userAgent: text(),
-  userId: text()
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('sessions_token_uq').on(t.token)]);
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    token: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    ipAddress: text(),
+    userAgent: text(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('sessions_token_uq').on(t.token)],
+);
 
 export const accounts = pgTable('accounts', {
   id: text('id').primaryKey(),

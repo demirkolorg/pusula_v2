@@ -38,8 +38,8 @@ export const updateListInput = z
       input.icon !== undefined ||
       input.iconColor !== undefined,
     {
-    message: 'At least one list field must be provided',
-    path: ['title'],
+      message: 'At least one list field must be provided',
+      path: ['title'],
     },
   );
 

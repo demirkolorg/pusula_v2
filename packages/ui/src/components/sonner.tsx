@@ -20,15 +20,7 @@ import { Toaster as SonnerToaster, toast as sonnerToast, type ToasterProps } fro
  * `@pusula/ui` so the import surface stays single-sourced.
  */
 export function Toaster(props: ToasterProps) {
-  return (
-    <SonnerToaster
-      position="top-right"
-      richColors
-      closeButton
-      duration={5000}
-      {...props}
-    />
-  );
+  return <SonnerToaster position="top-right" richColors closeButton duration={5000} {...props} />;
 }
 
 export { sonnerToast as toast };

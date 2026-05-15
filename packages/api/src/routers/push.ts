@@ -51,43 +51,41 @@ export const pushRouter = router({
      * token to a new user) — in both cases `user_id` is updated to the
      * caller, `revoked_at` cleared, and `last_used_at` stamped.
      */
-    register: protectedProcedure
-      .input(registerPushTokenInput)
-      .mutation(async ({ ctx, input }) => {
-        const userId = ctx.session.user.id;
-        const now = new Date();
-        const [row] = await ctx.db
-          .insert(pushTokens)
-          .values({
+    register: protectedProcedure.input(registerPushTokenInput).mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const now = new Date();
+      const [row] = await ctx.db
+        .insert(pushTokens)
+        .values({
+          userId,
+          token: input.token,
+          platform: input.platform,
+          deviceName: input.deviceName ?? null,
+          lastUsedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: pushTokens.token,
+          set: {
             userId,
-            token: input.token,
             platform: input.platform,
             deviceName: input.deviceName ?? null,
             lastUsedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: pushTokens.token,
-            set: {
-              userId,
-              platform: input.platform,
-              deviceName: input.deviceName ?? null,
-              lastUsedAt: now,
-              // Bring the row back if it had been revoked (logout or
-              // DeviceNotRegistered). `null` is the active state.
-              revokedAt: null,
-            },
-          })
-          .returning({ id: pushTokens.id, revokedAt: pushTokens.revokedAt });
-        if (!row) {
-          // `RETURNING` always emits a row for INSERT ... ON CONFLICT DO UPDATE
-          // in Postgres; the empty case is a logic bug, not user input.
-          throw new Error('push_tokens insert returned no row');
-        }
-        // We deliberately surface `tokenId` only — see the doc-comment above.
-        // Tests verify the read-back state (`revoked_at = null`, ownership
-        // transfer on cross-user reassign) directly against the table.
-        return { registered: true as const, tokenId: row.id };
-      }),
+            // Bring the row back if it had been revoked (logout or
+            // DeviceNotRegistered). `null` is the active state.
+            revokedAt: null,
+          },
+        })
+        .returning({ id: pushTokens.id, revokedAt: pushTokens.revokedAt });
+      if (!row) {
+        // `RETURNING` always emits a row for INSERT ... ON CONFLICT DO UPDATE
+        // in Postgres; the empty case is a logic bug, not user input.
+        throw new Error('push_tokens insert returned no row');
+      }
+      // We deliberately surface `tokenId` only — see the doc-comment above.
+      // Tests verify the read-back state (`revoked_at = null`, ownership
+      // transfer on cross-user reassign) directly against the table.
+      return { registered: true as const, tokenId: row.id };
+    }),
 
     /**
      * Revoke a token for the caller's account. Idempotent: already-revoked
@@ -100,25 +98,23 @@ export const pushRouter = router({
      * branch on the difference; the boolean is only there for tests +
      * future telemetry.
      */
-    revoke: protectedProcedure
-      .input(revokePushTokenInput)
-      .mutation(async ({ ctx, input }) => {
-        const userId = ctx.session.user.id;
-        const now = new Date();
-        const updated = await ctx.db
-          .update(pushTokens)
-          .set({ revokedAt: now })
-          .where(
-            and(
-              eq(pushTokens.token, input.token),
-              eq(pushTokens.userId, userId),
-              // Only flip rows that are still active — re-revoking is a
-              // no-op so a buggy client can't keep bumping `revoked_at`.
-              sql`${pushTokens.revokedAt} IS NULL`,
-            ),
-          )
-          .returning({ id: pushTokens.id });
-        return { revoked: updated.length > 0 };
-      }),
+    revoke: protectedProcedure.input(revokePushTokenInput).mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const now = new Date();
+      const updated = await ctx.db
+        .update(pushTokens)
+        .set({ revokedAt: now })
+        .where(
+          and(
+            eq(pushTokens.token, input.token),
+            eq(pushTokens.userId, userId),
+            // Only flip rows that are still active — re-revoking is a
+            // no-op so a buggy client can't keep bumping `revoked_at`.
+            sql`${pushTokens.revokedAt} IS NULL`,
+          ),
+        )
+        .returning({ id: pushTokens.id });
+      return { revoked: updated.length > 0 };
+    }),
   }),
 });

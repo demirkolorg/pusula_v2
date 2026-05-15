@@ -13,13 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import type { LucideIcon } from 'lucide-react';
-import {
-  LayoutGridIcon,
-  ListIcon,
-  MessageSquareIcon,
-  SearchIcon,
-  TagsIcon,
-} from 'lucide-react';
+import { LayoutGridIcon, ListIcon, MessageSquareIcon, SearchIcon, TagsIcon } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -87,7 +81,11 @@ function groupResults(items: SearchResult[]) {
 }
 
 function resultContext(item: SearchResult) {
-  return [item.workspaceTitle, item.boardTitle, item.entityType === 'comment' ? item.cardTitle : null]
+  return [
+    item.workspaceTitle,
+    item.boardTitle,
+    item.entityType === 'comment' ? item.cardTitle : null,
+  ]
     .filter(Boolean)
     .join(' / ');
 }
@@ -312,7 +310,9 @@ export function SearchDialog({
         className="top-[18vh] flex max-h-[min(76vh,40rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>{variant === 'board' ? copy.boardDialogTitle : copy.dialogTitle}</DialogTitle>
+          <DialogTitle>
+            {variant === 'board' ? copy.boardDialogTitle : copy.dialogTitle}
+          </DialogTitle>
           <DialogDescription>{copy.dialogDescription}</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 border-b px-4 py-3">

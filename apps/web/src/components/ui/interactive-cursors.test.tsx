@@ -9,13 +9,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@pusula/ui/context-menu';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-  DialogTrigger,
-} from '@pusula/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from '@pusula/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,13 +18,7 @@ import {
 } from '@pusula/ui/dropdown-menu';
 import { MetaChip } from '@pusula/ui/meta-chip';
 import { Popover, PopoverTrigger } from '@pusula/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pusula/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pusula/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@pusula/ui/tabs';
 
 describe('interactive UI cursors', () => {
@@ -53,9 +41,7 @@ describe('interactive UI cursors', () => {
 
     expect(screen.getByRole('button', { name: 'Kaydet' })).toHaveClass('cursor-pointer');
     expect(screen.getByRole('checkbox', { name: 'Tamamlandi' })).toHaveClass('cursor-pointer');
-    expect(screen.getByRole('checkbox', { name: 'Karti tamamla' })).toHaveClass(
-      'cursor-pointer',
-    );
+    expect(screen.getByRole('checkbox', { name: 'Karti tamamla' })).toHaveClass('cursor-pointer');
     expect(screen.getByRole('tab', { name: 'Pano' })).toHaveClass('cursor-pointer');
     expect(screen.getByRole('button', { name: 'Tarih' })).toHaveClass('cursor-pointer');
   });
@@ -119,8 +105,6 @@ describe('interactive UI cursors', () => {
     expect(screen.getByRole('combobox', { name: 'Secim', hidden: true })).toHaveClass(
       'cursor-pointer',
     );
-    expect(screen.getByRole('option', { name: 'Bir', hidden: true })).toHaveClass(
-      'cursor-pointer',
-    );
+    expect(screen.getByRole('option', { name: 'Bir', hidden: true })).toHaveClass('cursor-pointer');
   });
 });

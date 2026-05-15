@@ -28,11 +28,7 @@
  */
 import { and, eq } from '@pusula/db';
 import { activityEvents, boards, cardLabels, labels } from '@pusula/db';
-import {
-  addCardLabelInput,
-  canEditBoardContent,
-  removeCardLabelInput,
-} from '@pusula/domain';
+import { addCardLabelInput, canEditBoardContent, removeCardLabelInput } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';

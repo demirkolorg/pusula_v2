@@ -114,7 +114,9 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
   });
 
   it('get: an unknown workspace is NOT_FOUND', async () => {
-    await expect(callerFor(ownerId).workspace.get({ workspaceId: 'does-not-exist' })).rejects.toMatchObject({
+    await expect(
+      callerFor(ownerId).workspace.get({ workspaceId: 'does-not-exist' }),
+    ).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
   });
@@ -165,7 +167,11 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
-      ownerCaller.workspace.members.remove({ workspaceId, userId: ownerId, clientMutationId: crypto.randomUUID() }),
+      ownerCaller.workspace.members.remove({
+        workspaceId,
+        userId: ownerId,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // A member can remove themselves.
@@ -212,11 +218,16 @@ describe.runIf(dbAvailable)('workspace router (integration)', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const ownerCaller = callerFor(ownerId);
-    const archived = await ownerCaller.workspace.archive({ workspaceId, clientMutationId: crypto.randomUUID() });
+    const archived = await ownerCaller.workspace.archive({
+      workspaceId,
+      clientMutationId: crypto.randomUUID(),
+    });
     expect(archived.id).toBe(workspaceId);
     expect(archived.archivedAt).toBeInstanceOf(Date);
 
-    await expect(ownerCaller.workspace.get({ workspaceId })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(ownerCaller.workspace.get({ workspaceId })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
 
     const list = await ownerCaller.workspace.list();
     expect(list.some((w) => w.id === workspaceId)).toBe(false);
@@ -294,9 +305,7 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
       email: emailOf(otherUserId),
       role: 'owner',
       clientMutationId: crypto.randomUUID(),
-    } as unknown as Parameters<
-      ReturnType<typeof callerFor>['workspace']['members']['invite']
-    >[0];
+    } as unknown as Parameters<ReturnType<typeof callerFor>['workspace']['members']['invite']>[0];
     await expect(callerFor(invOwnerId).workspace.members.invite(badInput)).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
@@ -336,7 +345,9 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
         ((o.payload as { email?: string }).email === inviteeEmail || o.recipientId === inviteeId),
     );
     expect(forInvitee.some((o) => o.channel === 'email')).toBe(true);
-    expect(forInvitee.some((o) => o.channel === 'in_app' && o.recipientId === inviteeId)).toBe(true);
+    expect(forInvitee.some((o) => o.channel === 'in_app' && o.recipientId === inviteeId)).toBe(
+      true,
+    );
     // token only travels in the email row's payload, never the in-app one
     const emailRow = forInvitee.find((o) => o.channel === 'email');
     expect((emailRow?.payload as { token?: string }).token?.length).toBeGreaterThanOrEqual(20);
@@ -423,13 +434,19 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     const raceEmail = `race-${Math.random().toString(36).slice(2, 10)}@example.test`;
     const owner = callerFor(invOwnerId);
     const results = await Promise.allSettled([
-      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: crypto.randomUUID() }),
-      owner.workspace.members.invite({ workspaceId, email: raceEmail, clientMutationId: crypto.randomUUID() }),
+      owner.workspace.members.invite({
+        workspaceId,
+        email: raceEmail,
+        clientMutationId: crypto.randomUUID(),
+      }),
+      owner.workspace.members.invite({
+        workspaceId,
+        email: raceEmail,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ]);
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
-    const rejected = results.filter(
-      (r): r is PromiseRejectedResult => r.status === 'rejected',
-    );
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
     expect(rejected[0]?.reason).toMatchObject({ code: 'CONFLICT' });
@@ -700,7 +717,9 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
         ),
       );
     expect(
-      memberAddedActs.some((a) => (a.payload as { viaInvitation?: string }).viaInvitation === created!.id),
+      memberAddedActs.some(
+        (a) => (a.payload as { viaInvitation?: string }).viaInvitation === created!.id,
+      ),
     ).toBe(false);
   });
 
@@ -779,7 +798,9 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
       clientMutationId: crypto.randomUUID(),
     });
     createdWorkspaceIds.push(ws.id);
-    await db().insert(workspaceMembers).values({ workspaceId: ws.id, userId: delMemberId, role: 'member' });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.id, userId: delMemberId, role: 'member' });
     return ws;
   };
 
@@ -858,9 +879,11 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
 
     // a workspaceProcedure-backed call now 404s (membership row was cascaded away,
     // and the workspace itself is gone)
-    await expect(callerFor(delOwnerId).workspace.get({ workspaceId: ws.id })).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    });
+    await expect(callerFor(delOwnerId).workspace.get({ workspaceId: ws.id })).rejects.toMatchObject(
+      {
+        code: 'NOT_FOUND',
+      },
+    );
   });
 
   it('an unknown workspaceId is NOT_FOUND (workspaceProcedure)', async () => {

@@ -1,18 +1,19 @@
 ---
-title: "06 — Arama Kapsamı"
-description: "Aranabilir içerik ve permission filtreli arama sonuç kuralları."
+title: '06 — Arama Kapsamı'
+description: 'Aranabilir içerik ve permission filtreli arama sonuç kuralları.'
 aliases:
-  - "Arama Kapsamı"
-  - "Search Scope"
+  - 'Arama Kapsamı'
+  - 'Search Scope'
 tags:
-  - "pusula"
-  - "domain/search"
-type: "domain"
-axis: "domain"
-status: "active"
-parent: "[[docs/domain/README|İş / Domain Kuralları]]"
+  - 'pusula'
+  - 'domain/search'
+type: 'domain'
+axis: 'domain'
+status: 'active'
+parent: '[[docs/domain/README|İş / Domain Kuralları]]'
 updated: 2026-05-14
 ---
+
 # 06 — Arama Kapsamı
 
 > Eksen: **iş / domain** — _neler aranabilir, sonuçlar nasıl filtrelenir_. Arama altyapısı
@@ -29,14 +30,14 @@ Kapsam dışı: Meilisearch/OpenSearch, attachment içeriği/OCR, mobil arama UI
 
 ## Aranabilir içerik
 
-| Entity | Aranan alan(lar) | Sonuç hedefi | Varsayılan arşiv davranışı |
-| --- | --- | --- | --- |
-| Workspace | ad | workspace sayfası | Kapsam filtresi; doğrudan sonuç olarak dönmez |
-| Board | başlık | board sayfası | Arşivli board varsayılan dışı |
-| List | başlık | board sayfası + liste bağlamı | Arşivli liste varsayılan dışı |
-| Card | başlık, açıklama | board sayfası + `?card=<cardId>` | Arşivli kart varsayılan dışı |
-| Comment | içerik | ilgili kart modalı | Silinmiş yorum dışı |
-| Label | ad | board sayfası + label bağlamı | Arşivli board/list/card filtresinden geçer |
+| Entity    | Aranan alan(lar) | Sonuç hedefi                     | Varsayılan arşiv davranışı                    |
+| --------- | ---------------- | -------------------------------- | --------------------------------------------- |
+| Workspace | ad               | workspace sayfası                | Kapsam filtresi; doğrudan sonuç olarak dönmez |
+| Board     | başlık           | board sayfası                    | Arşivli board varsayılan dışı                 |
+| List      | başlık           | board sayfası + liste bağlamı    | Arşivli liste varsayılan dışı                 |
+| Card      | başlık, açıklama | board sayfası + `?card=<cardId>` | Arşivli kart varsayılan dışı                  |
+| Comment   | içerik           | ilgili kart modalı               | Silinmiş yorum dışı                           |
+| Label     | ad               | board sayfası + label bağlamı    | Arşivli board/list/card filtresinden geçer    |
 
 `search_documents` tablosu bu metinleri denormalize tutar: `entity_type`, `entity_id`, `workspace_id`, `board_id`, opsiyonel `card_id`, `title`, `body`, `labels`, `search_vector`, `archived_at`, `updated_at`. Bir entity için tek aktif search document bulunur; entity arşivlenirse `archived_at` set edilir, hard-delete veya soft-delete görünmez hale gelirse satır kaldırılır ya da `archived_at` ile filtre dışına alınır.
 

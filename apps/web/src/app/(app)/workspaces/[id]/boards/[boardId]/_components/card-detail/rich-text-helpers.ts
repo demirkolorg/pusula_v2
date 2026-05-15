@@ -9,5 +9,7 @@ import { parseRichTextValue } from '@pusula/ui';
  * (dirtying the activity feed + the "edited" stamp) when a legacy comment /
  * description is opened in the editor and saved without real changes.
  */
-export const isSameRichText = (a: string | null | undefined, b: string | null | undefined): boolean =>
-  JSON.stringify(parseRichTextValue(a)) === JSON.stringify(parseRichTextValue(b));
+export const isSameRichText = (
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean => JSON.stringify(parseRichTextValue(a)) === JSON.stringify(parseRichTextValue(b));

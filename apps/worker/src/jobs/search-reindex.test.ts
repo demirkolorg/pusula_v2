@@ -1,7 +1,11 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
 import { boards, searchDocuments, users, workspaces } from '@pusula/db';
-import { processSearchReindexJob, SEARCH_REINDEX_JOB_NAME, searchReindexJobId } from './search-reindex';
+import {
+  processSearchReindexJob,
+  SEARCH_REINDEX_JOB_NAME,
+  searchReindexJobId,
+} from './search-reindex';
 
 let probe: ReturnType<typeof dbMod.createDb> | undefined;
 try {
@@ -20,7 +24,9 @@ describe('search-reindex job metadata', () => {
   it('uses stable job name and scope-based ids', () => {
     expect(SEARCH_REINDEX_JOB_NAME).toBe('search-reindex');
     expect(searchReindexJobId({ boardId: 'board_1' })).toBe('search-reindex-board-board_1');
-    expect(searchReindexJobId({ workspaceId: 'workspace_1' })).toBe('search-reindex-workspace-workspace_1');
+    expect(searchReindexJobId({ workspaceId: 'workspace_1' })).toBe(
+      'search-reindex-workspace-workspace_1',
+    );
   });
 });
 
@@ -42,7 +48,9 @@ describe.runIf(dbAvailable)('processSearchReindexJob (integration)', () => {
   it('rebuilds search documents for a board scope', async () => {
     const ownerId = newId('u-search-worker');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
     const [ws] = await db()
       .insert(workspaces)
       .values({ name: 'Worker Search Co', slug: newId('worker-search-co'), ownerId })
@@ -66,7 +74,9 @@ describe.runIf(dbAvailable)('processSearchReindexJob (integration)', () => {
   it('is idempotent and removes stale documents in the requested board scope', async () => {
     const ownerId = newId('u-search-worker-stale');
     createdUserIds.push(ownerId);
-    await db().insert(users).values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
+    await db()
+      .insert(users)
+      .values({ id: ownerId, name: ownerId, email: `${ownerId}@example.test` });
     const [ws] = await db()
       .insert(workspaces)
       .values({ name: 'Worker Stale Search Co', slug: newId('worker-stale-search-co'), ownerId })
@@ -78,17 +88,19 @@ describe.runIf(dbAvailable)('processSearchReindexJob (integration)', () => {
       .returning({ id: boards.id });
 
     await processSearchReindexJob(db(), { boardId: board!.id });
-    await db().insert(searchDocuments).values({
-      workspaceId: ws!.id,
-      boardId: board!.id,
-      cardId: null,
-      entityType: 'card',
-      entityId: newId('stale-card'),
-      title: 'Stale worker search document',
-      body: null,
-      labels: [],
-      searchVector: dbMod.sql`to_tsvector('simple', 'stale worker search document')`,
-    });
+    await db()
+      .insert(searchDocuments)
+      .values({
+        workspaceId: ws!.id,
+        boardId: board!.id,
+        cardId: null,
+        entityType: 'card',
+        entityId: newId('stale-card'),
+        title: 'Stale worker search document',
+        body: null,
+        labels: [],
+        searchVector: dbMod.sql`to_tsvector('simple', 'stale worker search document')`,
+      });
 
     const second = await processSearchReindexJob(db(), { boardId: board!.id });
     const third = await processSearchReindexJob(db(), { boardId: board!.id });

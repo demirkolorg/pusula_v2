@@ -116,7 +116,12 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
             <CardDescription>{strings.workspace.manage.settingsDescription}</CardDescription>
           </CardHeader>
           <CardContent>
-            <WorkspaceSettings workspaceId={workspaceId} name={ws.name} slug={ws.slug} icon={ws.icon} />
+            <WorkspaceSettings
+              workspaceId={workspaceId}
+              name={ws.name}
+              slug={ws.slug}
+              icon={ws.icon}
+            />
           </CardContent>
         </Card>
       )}

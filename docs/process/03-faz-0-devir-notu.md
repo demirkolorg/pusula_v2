@@ -1,19 +1,20 @@
 ---
-title: "Pusula v2 — Faz 0 Devir Notu"
-description: "Faz 0 kapanış, kurulum, doğrulama ve sonraki adım notları."
+title: 'Pusula v2 — Faz 0 Devir Notu'
+description: 'Faz 0 kapanış, kurulum, doğrulama ve sonraki adım notları.'
 aliases:
-  - "Faz 0 Devir Notu"
-  - "Phase 0 Handoff"
+  - 'Faz 0 Devir Notu'
+  - 'Phase 0 Handoff'
 tags:
-  - "pusula"
-  - "process/handoff"
-  - "phase-0"
-type: "handoff"
-axis: "process"
-status: "done"
-parent: "[[docs/process/README|Süreç]]"
+  - 'pusula'
+  - 'process/handoff'
+  - 'phase-0'
+type: 'handoff'
+axis: 'process'
+status: 'done'
+parent: '[[docs/process/README|Süreç]]'
 updated: 2026-05-12
 ---
+
 # Pusula v2 — Faz 0 Devir Notu
 
 > Bu dosya bir **anlık durum / handoff** notudur. Yeni işlerde varsayılan başlangıç
@@ -39,21 +40,21 @@ API + web ayağa kalktı, sağlık endpoint'leri 200 döndü, `next build`/`next
 
 ### packages/
 
-| Paket | İçerik |
-| --- | --- |
-| `@pusula/config` | tsconfig presetleri (`base` / `library` / `node` / `nextjs`) + flat ESLint base (`eslint-base.mjs` / `eslint-next.mjs`) |
-| `@pusula/domain` | `constants` (workspace/board/card rolleri, activity tipleri, kanal/mute/outbox/entity literal'ları), `roles` (zod enum + `workspaceRoleAtLeast`/`boardRoleAtLeast`), `permissions` (`canAccessWorkspace`/`canManageWorkspace`/`canViewBoard`/`canEditBoardContent`/`canManageBoard`, `effectiveBoardRole`), `position` (`fractional-indexing` → `positionBetween`/`positionsBetween`/`firstPosition`), `events` (`RealtimeEventEnvelope` + `realtimeEventEnvelopeSchema` + `roomName`), `schemas` (workspace/board/list/card zod input'ları: `createWorkspaceInput`, `moveListInput`, `moveCardInput`, `clientMutationIdSchema` + `withClientMutationId` mixin, `paginationInputSchema`/`paginated`) |
-| `@pusula/db` | Drizzle şeması — **24 tablo**: Better Auth (`users`/`sessions`/`accounts`/`verifications`) + `workspaces`/`workspace_members`, `boards`/`board_members`/`labels`, `lists`, `cards`/`card_members`/`card_labels`/`checklists`/`checklist_items`, `comments`/`attachments`, `activity_events`/`realtime_events`, `notifications`/`notification_preferences`/`notification_outbox`/`push_tokens`, `search_documents`. `casing: 'snake_case'` (TS'te camelCase, DB'de snake_case), `position` kolonları **TEXT** (LexoRank), `realtime_events.sequence` bigserial, `boards.version` int (kaçırılan event tespiti için), pgEnum'lar `@pusula/domain` literal'larından. `client.ts` (`createDb`/`getDb`/`getPool`/`db` proxy, `casing: snake_case`), `drizzle.config.ts`, `migrate.ts`, `seed.ts`. Üretilen migration: `packages/db/drizzle/0000_nasty_rattler.sql` |
-| `@pusula/api` | tRPC init (superjson transformer, zodError formatter), `Context` (session + db + requestId/ip/userAgent), `publicProcedure` / `protectedProcedure` (`enforceAuth` middleware — session'ı non-null daraltır), `appRouter` = `health` (ping / db round-trip) · `auth` (me / requireMe) · `workspace` (list / create — transaction'lı, slug üretimi, conflict kontrolü). `RouterInputs` / `RouterOutputs` export |
-| `@pusula/ui` | shadcn/ui new-york `Button` + `buttonVariants`, `cn`, `components.json` (shadcn CLI için yapılandırıldı), `theme.css` (neutral, Tailwind v4 `@theme inline` token'ları + `.dark` + `@layer base`) |
+| Paket            | İçerik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pusula/config` | tsconfig presetleri (`base` / `library` / `node` / `nextjs`) + flat ESLint base (`eslint-base.mjs` / `eslint-next.mjs`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `@pusula/domain` | `constants` (workspace/board/card rolleri, activity tipleri, kanal/mute/outbox/entity literal'ları), `roles` (zod enum + `workspaceRoleAtLeast`/`boardRoleAtLeast`), `permissions` (`canAccessWorkspace`/`canManageWorkspace`/`canViewBoard`/`canEditBoardContent`/`canManageBoard`, `effectiveBoardRole`), `position` (`fractional-indexing` → `positionBetween`/`positionsBetween`/`firstPosition`), `events` (`RealtimeEventEnvelope` + `realtimeEventEnvelopeSchema` + `roomName`), `schemas` (workspace/board/list/card zod input'ları: `createWorkspaceInput`, `moveListInput`, `moveCardInput`, `clientMutationIdSchema` + `withClientMutationId` mixin, `paginationInputSchema`/`paginated`)                                                                                                                                                          |
+| `@pusula/db`     | Drizzle şeması — **24 tablo**: Better Auth (`users`/`sessions`/`accounts`/`verifications`) + `workspaces`/`workspace_members`, `boards`/`board_members`/`labels`, `lists`, `cards`/`card_members`/`card_labels`/`checklists`/`checklist_items`, `comments`/`attachments`, `activity_events`/`realtime_events`, `notifications`/`notification_preferences`/`notification_outbox`/`push_tokens`, `search_documents`. `casing: 'snake_case'` (TS'te camelCase, DB'de snake_case), `position` kolonları **TEXT** (LexoRank), `realtime_events.sequence` bigserial, `boards.version` int (kaçırılan event tespiti için), pgEnum'lar `@pusula/domain` literal'larından. `client.ts` (`createDb`/`getDb`/`getPool`/`db` proxy, `casing: snake_case`), `drizzle.config.ts`, `migrate.ts`, `seed.ts`. Üretilen migration: `packages/db/drizzle/0000_nasty_rattler.sql` |
+| `@pusula/api`    | tRPC init (superjson transformer, zodError formatter), `Context` (session + db + requestId/ip/userAgent), `publicProcedure` / `protectedProcedure` (`enforceAuth` middleware — session'ı non-null daraltır), `appRouter` = `health` (ping / db round-trip) · `auth` (me / requireMe) · `workspace` (list / create — transaction'lı, slug üretimi, conflict kontrolü). `RouterInputs` / `RouterOutputs` export                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `@pusula/ui`     | shadcn/ui new-york `Button` + `buttonVariants`, `cn`, `components.json` (shadcn CLI için yapılandırıldı), `theme.css` (neutral, Tailwind v4 `@theme inline` token'ları + `.dark` + `@layer base`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### apps/
 
-| App (paket adı) | İçerik |
-| --- | --- |
-| `apps/api` (`@pusula/api-server`) | Hono server — `requestId` + `logger` + `cors` (APP_URL, credentials), Better Auth → `/api/auth/*`, tRPC → `/trpc/*` (`@trpc/server/adapters/fetch`; Hono request'inden Better Auth session çözülüp tRPC context'e konuyor), `/health` + `/`. `env.ts` (zod, port 3001), `auth.ts` (Better Auth + `drizzleAdapter`, e-posta/parola etkin), `tsup.config.ts` (prod build, `@pusula/*` bundle'lanır) |
-| `apps/worker` (`@pusula/worker`) | BullMQ + ioredis (`maxRetriesPerRequest: null`), 3 kuyruk (`pusula:notifications` / `pusula:realtime-publish` / `pusula:scheduled`), worker stub'ları (sadece log), graceful shutdown, `env.ts` (zod), `tsup.config.ts`. **Çalıştırılmadı**, sadece typecheck. Gerçek processor'lar Faz 5–6 |
-| `apps/web` (`@pusula/web`) | Next.js 16 App Router (`src/app`), Tailwind v4 (`globals.css` → `@import "tailwindcss"` + `@import "@pusula/ui/theme.css"` + `@source` ile UI paketini tarama), `next.config.ts` (`transpilePackages`), tRPC client (`@trpc/tanstack-react-query` + superjson + `credentials:'include'`; `src/trpc/query-client.ts` + `src/trpc/client.tsx` → `TRPCReactProvider`/`useTRPC`), Better Auth React client (`src/lib/auth-client.ts`), `ApiStatus` widget'ı (`src/components/api-status.tsx` — `health` router'ını çağırır), `Button` demo'su. `@/*` → `src/*`. `apps/web/env.example` (`NEXT_PUBLIC_API_URL`, kod içinde default `http://localhost:3001`). Port 3000 |
+| App (paket adı)                   | İçerik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api` (`@pusula/api-server`) | Hono server — `requestId` + `logger` + `cors` (APP_URL, credentials), Better Auth → `/api/auth/*`, tRPC → `/trpc/*` (`@trpc/server/adapters/fetch`; Hono request'inden Better Auth session çözülüp tRPC context'e konuyor), `/health` + `/`. `env.ts` (zod, port 3001), `auth.ts` (Better Auth + `drizzleAdapter`, e-posta/parola etkin), `tsup.config.ts` (prod build, `@pusula/*` bundle'lanır)                                                                                                                                                                                                                                                                 |
+| `apps/worker` (`@pusula/worker`)  | BullMQ + ioredis (`maxRetriesPerRequest: null`), 3 kuyruk (`pusula:notifications` / `pusula:realtime-publish` / `pusula:scheduled`), worker stub'ları (sadece log), graceful shutdown, `env.ts` (zod), `tsup.config.ts`. **Çalıştırılmadı**, sadece typecheck. Gerçek processor'lar Faz 5–6                                                                                                                                                                                                                                                                                                                                                                       |
+| `apps/web` (`@pusula/web`)        | Next.js 16 App Router (`src/app`), Tailwind v4 (`globals.css` → `@import "tailwindcss"` + `@import "@pusula/ui/theme.css"` + `@source` ile UI paketini tarama), `next.config.ts` (`transpilePackages`), tRPC client (`@trpc/tanstack-react-query` + superjson + `credentials:'include'`; `src/trpc/query-client.ts` + `src/trpc/client.tsx` → `TRPCReactProvider`/`useTRPC`), Better Auth React client (`src/lib/auth-client.ts`), `ApiStatus` widget'ı (`src/components/api-status.tsx` — `health` router'ını çağırır), `Button` demo'su. `@/*` → `src/*`. `apps/web/env.example` (`NEXT_PUBLIC_API_URL`, kod içinde default `http://localhost:3001`). Port 3000 |
 
 ### Altyapı
 
@@ -139,13 +140,14 @@ Not: `pnpm db:push` (drizzle-kit) **etkileşimli onay** ister → otomasyon/CI i
 > Kanonik faz planı: [`02-mvp-faz-plani.md`](02-mvp-faz-plani.md). Aşağısı kısa özet.
 
 **Faz 1 — Auth + Workspace (sıradaki iş)**
+
 - Better Auth giriş/kayıt/çıkış/parola-sıfırlama akışları (`apps/api` tarafı `/api/auth/*`
   zaten mount'lu; web'de `auth-client.ts` var → `/giris` `/kayit` ekranları)
 - `protectedProcedure` üzerine workspace/board erişim katmanı:
   `@pusula/domain/permissions` helper'larını kullanan `workspaceProcedure`/`boardProcedure`
   middleware zinciri (session → workspace üyeliği → board rolü → card izni)
 - `workspace` router'ını genişlet: get / update / archive, member ekle/çıkar, davet token'ı
-  + e-posta (Resend), `notification_preferences` defaults, ilk `activity_events` yazımı
+  - e-posta (Resend), `notification_preferences` defaults, ilk `activity_events` yazımı
 - Web: workspace listesi + oluşturma ekranı, layout/nav iskeleti
 - Çıktı: kullanıcı login → workspace görür/oluşturur
 

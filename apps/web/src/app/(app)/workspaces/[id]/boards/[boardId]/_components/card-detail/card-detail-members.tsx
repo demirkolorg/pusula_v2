@@ -152,7 +152,11 @@ export function CardDetailMembers({
                   {copy.memberLabel}
                 </label>
                 <Select value={pickUserId} onValueChange={setPickUserId}>
-                  <SelectTrigger id={memberSelectId} aria-label={copy.memberLabel} disabled={pending}>
+                  <SelectTrigger
+                    id={memberSelectId}
+                    aria-label={copy.memberLabel}
+                    disabled={pending}
+                  >
                     <SelectValue placeholder={copy.memberLabel} />
                   </SelectTrigger>
                   <SelectContent>

@@ -6,13 +6,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import {
-  attachments,
-  boardMembers,
-  users,
-  workspaceMembers,
-  workspaces,
-} from '@pusula/db';
+import { attachments, boardMembers, users, workspaceMembers, workspaces } from '@pusula/db';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';

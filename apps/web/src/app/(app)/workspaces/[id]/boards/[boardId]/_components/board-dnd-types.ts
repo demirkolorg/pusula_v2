@@ -44,7 +44,9 @@ export type ListDropData = {
 };
 
 export function isCardDragData(data: Record<string | symbol, unknown>): data is CardDragData {
-  return data.type === 'card' && typeof data.cardId === 'string' && typeof data.fromListId === 'string';
+  return (
+    data.type === 'card' && typeof data.cardId === 'string' && typeof data.fromListId === 'string'
+  );
 }
 
 export function isCardDropData(data: Record<string | symbol, unknown>): data is CardDropData {
@@ -58,11 +60,15 @@ export function isListCardsDropData(
 }
 
 export function isListDragData(data: Record<string | symbol, unknown>): data is ListDragData {
-  return data.type === 'list' && typeof data.listId === 'string' && typeof data.position === 'string';
+  return (
+    data.type === 'list' && typeof data.listId === 'string' && typeof data.position === 'string'
+  );
 }
 
 export function isListDropData(data: Record<string | symbol, unknown>): data is ListDropData {
-  return data.type === 'list' && typeof data.listId === 'string' && typeof data.position === 'string';
+  return (
+    data.type === 'list' && typeof data.listId === 'string' && typeof data.position === 'string'
+  );
 }
 
 export type { Edge };

@@ -590,7 +590,7 @@ export function ListColumn({
                   <CardItem
                     boardId={boardId}
                     card={card}
-                    canEdit={listEditable}
+                    canEdit={listEditable && card.archivedAt == null}
                     allLists={allLists}
                     boardLabels={boardLabels}
                     boardMembers={boardMembers}

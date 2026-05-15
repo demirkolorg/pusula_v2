@@ -13,7 +13,10 @@ type ListWithArchive = { archivedAt: Date | string | null };
  * passes; otherwise the card passes iff it carries at least one of the selected
  * label ids.
  */
-export function cardPassesLabelFilter(card: CardWithLabels, selectedLabelIds: ReadonlySet<string>): boolean {
+export function cardPassesLabelFilter(
+  card: CardWithLabels,
+  selectedLabelIds: ReadonlySet<string>,
+): boolean {
   if (selectedLabelIds.size === 0) return true;
   return card.labels.some((l) => selectedLabelIds.has(l.labelId));
 }
@@ -38,7 +41,10 @@ export function isListArchived(list: ListWithArchive): boolean {
  * Filter the visible lists: when `showArchived` is `false`, archived lists are
  * hidden; otherwise all lists are shown (in their given order).
  */
-export function filterVisibleLists<T extends ListWithArchive>(lists: readonly T[], showArchived: boolean): T[] {
+export function filterVisibleLists<T extends ListWithArchive>(
+  lists: readonly T[],
+  showArchived: boolean,
+): T[] {
   if (showArchived) return [...lists];
   return lists.filter((list) => !isListArchived(list));
 }

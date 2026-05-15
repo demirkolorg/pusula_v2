@@ -68,9 +68,7 @@ vi.mock('@/trpc/client', () => ({
             const readAt = new Date();
             listResult = {
               ...listResult,
-              items: listResult.items.map((item) =>
-                item.id === id ? { ...item, readAt } : item,
-              ),
+              items: listResult.items.map((item) => (item.id === id ? { ...item, readAt } : item)),
             };
             return { id, readAt, changed: true };
           },
@@ -122,7 +120,9 @@ function unreadNotification(overrides: Partial<NotificationRow> = {}): Notificat
 }
 
 function newQueryClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
 }
 
 function renderCenter(queryClient = newQueryClient(), onClose = vi.fn()) {

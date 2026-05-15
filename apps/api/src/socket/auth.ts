@@ -26,9 +26,7 @@ export interface ResolvedSocketSession {
 }
 
 /** Pluggable session resolver — defaults to Better Auth in production wiring. */
-export type SocketSessionResolver = (
-  headers: Headers,
-) => Promise<ResolvedSocketSession | null>;
+export type SocketSessionResolver = (headers: Headers) => Promise<ResolvedSocketSession | null>;
 
 /**
  * Convert Socket.IO's Node.js `IncomingHttpHeaders` (a record of

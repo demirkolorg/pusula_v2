@@ -64,8 +64,7 @@ export function ArchiveBoardDialog({
   const archiveBoard = useOptimisticBoardMutation({
     mutationOptions: trpc.board.archive.mutationOptions,
     boardId,
-    apply: (data, vars) =>
-      applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
+    apply: (data, vars) => applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
     onConflict: () => toast(strings.board.conflict.refreshed),
     onMutationError: () => toast.error(strings.board.optimistic.error),
     onMutationSuccess: () => setOpen(false),
@@ -154,8 +153,7 @@ export function useRestoreBoard(boardId: string) {
   return useOptimisticBoardMutation({
     mutationOptions: trpc.board.archive.mutationOptions,
     boardId,
-    apply: (data, vars) =>
-      applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
+    apply: (data, vars) => applyBoardPatch(data, { archivedAt: vars.archived ? new Date() : null }),
     onConflict: () => toast(strings.board.conflict.refreshed),
     onMutationError: () => toast.error(strings.board.optimistic.error),
   });

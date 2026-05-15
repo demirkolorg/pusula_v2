@@ -108,7 +108,13 @@ export async function bootstrapNewUser(userId: string): Promise<void> {
           cardId: card.id,
           actorId: userId,
           type: 'card.created',
-          payload: { cardId: card.id, listId: list.id, title: card.title, position: cardCursor, onboarding: true },
+          payload: {
+            cardId: card.id,
+            listId: list.id,
+            title: card.title,
+            position: cardCursor,
+            onboarding: true,
+          },
         });
       }
     }

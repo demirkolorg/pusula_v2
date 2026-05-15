@@ -132,10 +132,17 @@ async function resolveTargetListPosition(
   },
 ): Promise<string> {
   const { toListId, beforeCardId, afterCardId, newPosition, excludeCardId } = args;
-  const neighbourIds = [beforeCardId, afterCardId].filter((id): id is string => typeof id === 'string');
+  const neighbourIds = [beforeCardId, afterCardId].filter(
+    (id): id is string => typeof id === 'string',
+  );
   if (neighbourIds.length > 0) {
     const neighbours = await tx
-      .select({ id: cards.id, listId: cards.listId, archivedAt: cards.archivedAt, position: cards.position })
+      .select({
+        id: cards.id,
+        listId: cards.listId,
+        archivedAt: cards.archivedAt,
+        position: cards.position,
+      })
       .from(cards)
       .where(inArray(cards.id, neighbourIds));
     const byId = new Map(neighbours.map((n) => [n.id, n] as const));
@@ -145,7 +152,10 @@ async function resolveTargetListPosition(
       (beforeCardId && (!before || before.listId !== toListId || before.archivedAt !== null)) ||
       (afterCardId && (!after || after.listId !== toListId || after.archivedAt !== null))
     ) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Komşu kartlar hedef listeye ait olmalı.' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Komşu kartlar hedef listeye ait olmalı.',
+      });
     }
     return resolveMovePosition(newPosition, before?.position ?? null, after?.position ?? null);
   }
@@ -187,7 +197,10 @@ async function hasEffectiveBoardAccess(
     .from(boardMembers)
     .where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, userId)))
     .limit(1);
-  return effectiveBoardRole({ workspaceRole: wsMember.role, boardRole: boardMember?.role ?? null }) !== null;
+  return (
+    effectiveBoardRole({ workspaceRole: wsMember.role, boardRole: boardMember?.role ?? null }) !==
+    null
+  );
 }
 
 export const cardRouter = router({
@@ -294,7 +307,11 @@ export const cardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Bu kartı görüntüleme yetkiniz yok.' });
     }
 
-    const [card] = await ctx.db.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
+    const [card] = await ctx.db
+      .select(cardCols)
+      .from(cards)
+      .where(eq(cards.id, ctx.card.id))
+      .limit(1);
     if (!card) {
       // The middleware already loaded it; a race could still delete it.
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
@@ -366,7 +383,11 @@ export const cardRouter = router({
     let realtimeEventId: string | undefined;
     let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
-      const [card] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
+      const [card] = await tx
+        .select(cardCols)
+        .from(cards)
+        .where(eq(cards.id, ctx.card.id))
+        .limit(1);
       if (!card) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
       }
@@ -415,7 +436,10 @@ export const cardRouter = router({
           coverAttachment.boardId !== card.boardId ||
           !coverAttachment.mimeType.startsWith('image/')
         ) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Kapak fotografi bu karta ait olmali.' });
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Kapak fotografi bu karta ait olmali.',
+          });
         }
         nextCoverImage = toCoverImage(coverAttachment);
       }
@@ -445,7 +469,12 @@ export const cardRouter = router({
           cardId: card.id,
           actorId: ctx.session.user.id,
           type: 'card.renamed',
-          payload: { cardId: card.id, fromTitle: card.title, toTitle: updated.title, clientMutationId: ctx.clientMutationId },
+          payload: {
+            cardId: card.id,
+            fromTitle: card.title,
+            toTitle: updated.title,
+            clientMutationId: ctx.clientMutationId,
+          },
         });
       }
       if (descriptionChanged) {
@@ -497,8 +526,16 @@ export const cardRouter = router({
           actorId: ctx.session.user.id,
           type: updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared',
           payload: updated.coverColor
-            ? { cardId: card.id, coverColor: updated.coverColor, clientMutationId: ctx.clientMutationId }
-            : { cardId: card.id, fromCoverColor: card.coverColor, clientMutationId: ctx.clientMutationId },
+            ? {
+                cardId: card.id,
+                coverColor: updated.coverColor,
+                clientMutationId: ctx.clientMutationId,
+              }
+            : {
+                cardId: card.id,
+                fromCoverColor: card.coverColor,
+                clientMutationId: ctx.clientMutationId,
+              },
         });
       }
       if (coverImageChanged) {
@@ -507,7 +544,9 @@ export const cardRouter = router({
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: updated.coverImageAttachmentId ? 'card.cover_image_changed' : 'card.cover_image_cleared',
+          type: updated.coverImageAttachmentId
+            ? 'card.cover_image_changed'
+            : 'card.cover_image_cleared',
           payload: updated.coverImageAttachmentId
             ? {
                 cardId: card.id,
@@ -641,7 +680,11 @@ export const cardRouter = router({
         .returning({ id: cards.id, archivedAt: cards.archivedAt });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      const archivePayload = { cardId: card.id, archived: input.archived, clientMutationId: ctx.clientMutationId };
+      const archivePayload = {
+        cardId: card.id,
+        archived: input.archived,
+        clientMutationId: ctx.clientMutationId,
+      };
       const [archiveActivity] = await tx
         .insert(activityEvents)
         .values({
@@ -822,7 +865,10 @@ export const cardRouter = router({
    */
   uncomplete: cardProcedure.input(uncompleteCardInput).mutation(async ({ ctx }) => {
     if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartın tamamlanmasını geri alma yetkiniz yok.' });
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Kartın tamamlanmasını geri alma yetkiniz yok.',
+      });
     }
 
     let realtimeEventId: string | undefined;
@@ -966,7 +1012,9 @@ export const cardRouter = router({
       // scope serialize. Scope = target list (`toListId`): that is the list whose
       // card positions change. The source list's remaining cards keep their positions
       // on a cross-list move, so one lock on `toListId` is sufficient.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'list', listId: input.toListId })}))`);
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'list', listId: input.toListId })}))`,
+      );
 
       const [card] = await tx
         .select({
@@ -1023,7 +1071,10 @@ export const cardRouter = router({
 
       // A card cannot be positioned relative to itself (degenerate).
       if (input.beforeCardId === card.id || input.afterCardId === card.id) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Bir kart kendisine göre konumlandırılamaz.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Bir kart kendisine göre konumlandırılamaz.',
+        });
       }
 
       // Target neighbours: each must be an *active* card in `toListId`.
@@ -1032,7 +1083,12 @@ export const cardRouter = router({
       );
       const neighbours = neighbourIds.length
         ? await tx
-            .select({ id: cards.id, listId: cards.listId, archivedAt: cards.archivedAt, position: cards.position })
+            .select({
+              id: cards.id,
+              listId: cards.listId,
+              archivedAt: cards.archivedAt,
+              position: cards.position,
+            })
             .from(cards)
             .where(inArray(cards.id, neighbourIds))
         : [];
@@ -1046,7 +1102,10 @@ export const cardRouter = router({
         (input.afterCardId &&
           (!after || after.listId !== input.toListId || after.archivedAt !== null))
       ) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Komşu kartlar hedef listeye ait olmalı.' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Komşu kartlar hedef listeye ait olmalı.',
+        });
       }
 
       const position = resolveMovePosition(
@@ -1056,7 +1115,11 @@ export const cardRouter = router({
       );
 
       if (card.listId === input.toListId && card.position === position) {
-        const [current] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
+        const [current] = await tx
+          .select(cardCols)
+          .from(cards)
+          .where(eq(cards.id, ctx.card.id))
+          .limit(1);
         if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
         return { ...current, changed: false as const };
       }
@@ -1272,14 +1335,22 @@ export const cardRouter = router({
       const crossBoard = card.boardId !== toList.boardId;
 
       if (card.listId === input.toListId && card.position === position) {
-        const [current] = await tx.select(cardCols).from(cards).where(eq(cards.id, ctx.card.id)).limit(1);
+        const [current] = await tx
+          .select(cardCols)
+          .from(cards)
+          .where(eq(cards.id, ctx.card.id))
+          .limit(1);
         if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
         return { ...current, changed: false as const };
       }
 
       const [updated] = await tx
         .update(cards)
-        .set({ listId: input.toListId, position, ...(crossBoard ? { boardId: toList.boardId } : {}) })
+        .set({
+          listId: input.toListId,
+          position,
+          ...(crossBoard ? { boardId: toList.boardId } : {}),
+        })
         .where(eq(cards.id, ctx.card.id))
         .returning(cardCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -1527,7 +1598,9 @@ export const cardRouter = router({
           .from(cardMembers)
           .where(eq(cardMembers.cardId, source.id));
         for (const m of sourceMembers) {
-          if (!(await hasEffectiveBoardAccess(tx, targetBoard.workspaceId, toList.boardId, m.userId))) {
+          if (
+            !(await hasEffectiveBoardAccess(tx, targetBoard.workspaceId, toList.boardId, m.userId))
+          ) {
             continue;
           }
           await tx

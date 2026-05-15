@@ -97,7 +97,9 @@ function Avatar({ name, image, size = 'md', ring = false, className, ...props }:
   const trimmedName = name?.trim() ?? '';
   const hasName = trimmedName.length > 0;
   const initials = hasName ? initialsOf(trimmedName) : '';
-  const colorClass = hasName ? PALETTE_BG[paletteFor(trimmedName)] : 'bg-muted text-muted-foreground';
+  const colorClass = hasName
+    ? PALETTE_BG[paletteFor(trimmedName)]
+    : 'bg-muted text-muted-foreground';
 
   return (
     <span

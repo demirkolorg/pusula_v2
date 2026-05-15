@@ -70,7 +70,9 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
         { boardId, userId: recipientId, role: 'member' },
       ]);
     await db().insert(dbMod.lists).values({ id: listId, boardId, title: 'L', position: 'a0' });
-    await db().insert(dbMod.cards).values({ id: cardId, boardId, listId, title: 'C', position: 'a0' });
+    await db()
+      .insert(dbMod.cards)
+      .values({ id: cardId, boardId, listId, title: 'C', position: 'a0' });
 
     // Persist one activity row to use as `event_id` — `notification_outbox`
     // FKs to `activity_events.id` (`set null` on delete).
@@ -172,9 +174,7 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
   it('dispatchNotificationsForActivity: routes the rule engine + inserts per channel', async () => {
     // Stale rows from earlier failed runs occasionally linger when Vitest is
     // killed mid-suite. Start clean.
-    await db()
-      .delete(notificationOutbox)
-      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.eventId, activityId));
 
     // Add the recipient as an assignee via the activity payload — the rule
     // engine reads `card_members` for watcher branches but for
@@ -200,8 +200,6 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
     expect(rows.map((r) => r.channel).sort()).toEqual(['email', 'in_app', 'push']);
     expect(rows.every((r) => r.type === 'card_assigned')).toBe(true);
 
-    await db()
-      .delete(notificationOutbox)
-      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.eventId, activityId));
   });
 });

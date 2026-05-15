@@ -13,6 +13,8 @@ describe('<NotificationBellPlaceholder>', () => {
     expect(button).toBeDisabled();
 
     await user.hover(button.parentElement ?? button);
-    expect((await screen.findAllByText(strings.shell.notifications.soon)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(strings.shell.notifications.soon)).length).toBeGreaterThan(
+      0,
+    );
   });
 });

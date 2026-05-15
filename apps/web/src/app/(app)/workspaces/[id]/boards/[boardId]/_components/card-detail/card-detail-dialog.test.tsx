@@ -230,9 +230,7 @@ describe('<CardDetailDialog>', () => {
 
     await user.keyboard('{Escape}');
     await user.keyboard('d');
-    expect(
-      screen.getByRole('heading', { name: strings.card.detail.dueTitle }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: strings.card.detail.dueTitle })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     await user.keyboard('m');
@@ -266,9 +264,7 @@ describe('<CardDetailDialog>', () => {
 
     await user.keyboard('?');
 
-    expect(
-      screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle })).toBeInTheDocument();
     expect(screen.getByText(strings.shortcuts.groups.cardModal)).toBeInTheDocument();
   });
 });

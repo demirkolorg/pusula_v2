@@ -2,6 +2,7 @@
 description: Kontrol odası — Faz N epic'ini alt issue'lara böl (Linear + faz planı)
 argument-hint: <faz numarası, örn. 3>
 ---
+
 Bu bir **kontrol odası** tab işidir (bkz. `docs/kontrol-odasi/README.md` — bu tab kod yazmaz; yalnızca `docs/` + Linear + analiz). Bu konuşma bir kod yazma tab'ıysa, "bu kontrol odası işi, doğru tab'ta mıyız?" diye sor; teyit alınca devam et.
 
 Görev: **Faz $1 epic'ini alt issue'lara böl** (`$ARGUMENTS` boşsa hangi fazı böleceğini sor).

@@ -68,14 +68,8 @@ export function ArchivedItemsDropdown({
     trpc.card.listArchived.queryOptions({ boardId }, { enabled: open }),
   );
 
-  const archivedLists = useMemo(
-    () => lists.filter((list) => list.archivedAt != null),
-    [lists],
-  );
-  const activeLists = useMemo(
-    () => lists.filter((list) => list.archivedAt == null),
-    [lists],
-  );
+  const archivedLists = useMemo(() => lists.filter((list) => list.archivedAt != null), [lists]);
+  const activeLists = useMemo(() => lists.filter((list) => list.archivedAt == null), [lists]);
 
   const invalidateArchive = async () => {
     await Promise.all([
@@ -252,9 +246,7 @@ export function ArchivedItemsDropdown({
                 <div key={card.id} className="space-y-3 rounded-md border bg-card px-3 py-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{card.title}</div>
-                    <div className="text-muted-foreground truncate text-xs">
-                      {card.listTitle}
-                    </div>
+                    <div className="text-muted-foreground truncate text-xs">{card.listTitle}</div>
                   </div>
 
                   {canEdit && (
@@ -285,9 +277,7 @@ export function ArchivedItemsDropdown({
                         </>
                       )}
                       {inArchivedList && activeLists.length === 0 ? (
-                        <span className="text-muted-foreground text-xs">
-                          {copy.noActiveLists}
-                        </span>
+                        <span className="text-muted-foreground text-xs">{copy.noActiveLists}</span>
                       ) : (
                         <Button
                           type="button"

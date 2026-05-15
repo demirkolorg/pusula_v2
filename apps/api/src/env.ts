@@ -4,7 +4,11 @@ import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 
 // In dev, inherit the monorepo root `.env`. In production the process env wins.
-loadDotenv({ path: resolve(import.meta.dirname, '../../..', '.env'), override: false, quiet: true });
+loadDotenv({
+  path: resolve(import.meta.dirname, '../../..', '.env'),
+  override: false,
+  quiet: true,
+});
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

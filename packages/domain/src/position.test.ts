@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { POSITION_COMPACTION_MAX_LEN } from './constants';
-import { firstPosition, isValidPosition, positionBetween, positionsBetween, shouldCompact } from './position';
+import {
+  firstPosition,
+  isValidPosition,
+  positionBetween,
+  positionsBetween,
+  shouldCompact,
+} from './position';
 
 /**
  * `position.ts` is a thin wrapper around `fractional-indexing`; the library

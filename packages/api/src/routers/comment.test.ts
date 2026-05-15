@@ -6,7 +6,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, boardMembers, comments, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  comments,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -137,7 +144,9 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
 
     const acts = await actsFor(boardId);
     const createdActs = acts.filter(
-      (a) => a.type === 'comment.created' && (a.payload as { commentId?: string }).commentId === created.id,
+      (a) =>
+        a.type === 'comment.created' &&
+        (a.payload as { commentId?: string }).commentId === created.id,
     );
     expect(createdActs).toHaveLength(1);
     expect(createdActs[0]?.payload).toMatchObject({ commentId: created.id, cardId });
@@ -146,16 +155,32 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     await expect(
-      callerFor(guestId).comment.create({ cardId, body: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).comment.create({
+        cardId,
+        body: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   // ------------------------------------------------------------------ list
 
-  it('list: returns a card\'s comments in ascending created_at order, including soft-deleted (empty-body) rows', async () => {
-    const a = await callerFor(memberId).comment.create({ cardId, body: 'alpha', clientMutationId: crypto.randomUUID() });
-    const b = await callerFor(ownerId).comment.create({ cardId, body: 'bravo', clientMutationId: crypto.randomUUID() });
-    await callerFor(memberId).comment.delete({ cardId, commentId: a.id, clientMutationId: crypto.randomUUID() });
+  it("list: returns a card's comments in ascending created_at order, including soft-deleted (empty-body) rows", async () => {
+    const a = await callerFor(memberId).comment.create({
+      cardId,
+      body: 'alpha',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const b = await callerFor(ownerId).comment.create({
+      cardId,
+      body: 'bravo',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(memberId).comment.delete({
+      cardId,
+      commentId: a.id,
+      clientMutationId: crypto.randomUUID(),
+    });
 
     const list = await callerFor(guestId).comment.list({ cardId });
     const ids = list.map((c) => c.id);
@@ -173,7 +198,11 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
   // ---------------------------------------------------------------- update
 
   it('update: the author edits a comment (comment.updated, version+1); same body is idempotent; a non-author non-admin is FORBIDDEN; a board admin may edit it; a viewer is FORBIDDEN', async () => {
-    const c = await callerFor(memberId).comment.create({ cardId, body: 'editable', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(memberId).comment.create({
+      cardId,
+      body: 'editable',
+      clientMutationId: crypto.randomUUID(),
+    });
 
     const v0 = await boardVersion(boardId);
     const edited = await callerFor(memberId).comment.update({
@@ -199,7 +228,12 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
 
     // a board viewer cannot edit at all
     await expect(
-      callerFor(guestId).comment.update({ cardId, commentId: c.id, body: 'hax', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).comment.update({
+        cardId,
+        commentId: c.id,
+        body: 'hax',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // a plain member who is not the author is FORBIDDEN
@@ -228,22 +262,42 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
 
     const acts = await actsFor(boardId);
     expect(
-      acts.filter((a) => a.type === 'comment.updated' && (a.payload as { commentId?: string }).commentId === c.id),
+      acts.filter(
+        (a) =>
+          a.type === 'comment.updated' && (a.payload as { commentId?: string }).commentId === c.id,
+      ),
     ).toHaveLength(2);
   });
 
   it('update: editing a soft-deleted comment is BAD_REQUEST', async () => {
-    const c = await callerFor(memberId).comment.create({ cardId, body: 'doomed', clientMutationId: crypto.randomUUID() });
-    await callerFor(memberId).comment.delete({ cardId, commentId: c.id, clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(memberId).comment.create({
+      cardId,
+      body: 'doomed',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(memberId).comment.delete({
+      cardId,
+      commentId: c.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
-      callerFor(memberId).comment.update({ cardId, commentId: c.id, body: 'zombie', clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).comment.update({
+        cardId,
+        commentId: c.id,
+        body: 'zombie',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   // ---------------------------------------------------------------- delete
 
   it('delete: the author soft-deletes (deletedAt set, body cleared, comment.deleted, version+1); idempotent; a non-author non-admin is FORBIDDEN; a board admin may delete it', async () => {
-    const c = await callerFor(memberId).comment.create({ cardId, body: 'remove me', clientMutationId: crypto.randomUUID() });
+    const c = await callerFor(memberId).comment.create({
+      cardId,
+      body: 'remove me',
+      clientMutationId: crypto.randomUUID(),
+    });
 
     const v0 = await boardVersion(boardId);
     const deleted = await callerFor(memberId).comment.delete({
@@ -264,13 +318,25 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
     expect(row!.deletedAt).toBeInstanceOf(Date);
 
     // idempotent
-    const noop = await callerFor(memberId).comment.delete({ cardId, commentId: c.id, clientMutationId: crypto.randomUUID() });
+    const noop = await callerFor(memberId).comment.delete({
+      cardId,
+      commentId: c.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     expect(noop).toMatchObject({ id: c.id, changed: false });
 
     // a plain member cannot delete someone else's comment; a board admin can
-    const byAdmin = await callerFor(adminId).comment.create({ cardId, body: 'admin owns this', clientMutationId: crypto.randomUUID() });
+    const byAdmin = await callerFor(adminId).comment.create({
+      cardId,
+      body: 'admin owns this',
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
-      callerFor(memberId).comment.delete({ cardId, commentId: byAdmin.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).comment.delete({
+        cardId,
+        commentId: byAdmin.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     const byAdminDeleted = await callerFor(ownerId).comment.delete({
       cardId,
@@ -281,7 +347,10 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
 
     const acts = await actsFor(boardId);
     expect(
-      acts.filter((a) => a.type === 'comment.deleted' && (a.payload as { commentId?: string }).commentId === c.id),
+      acts.filter(
+        (a) =>
+          a.type === 'comment.deleted' && (a.payload as { commentId?: string }).commentId === c.id,
+      ),
     ).toHaveLength(1);
   });
 
@@ -294,19 +363,34 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
     await expect(
-      callerFor(ownerId).comment.update({ cardId, commentId: onOther.id, body: 'hax', clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).comment.update({
+        cardId,
+        commentId: onOther.id,
+        body: 'hax',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      callerFor(ownerId).comment.delete({ cardId, commentId: onOther.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).comment.delete({
+        cardId,
+        commentId: onOther.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   // -------------------------------------------------------------- outsider
 
   it('an outsider (not a workspace member) can neither list nor create comments (FORBIDDEN)', async () => {
-    await expect(callerFor(outsiderId).comment.list({ cardId })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(callerFor(outsiderId).comment.list({ cardId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
     await expect(
-      callerFor(outsiderId).comment.create({ cardId, body: 'sneaky', clientMutationId: crypto.randomUUID() }),
+      callerFor(outsiderId).comment.create({
+        cardId,
+        body: 'sneaky',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -328,9 +412,16 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
       title: 'Card on other',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: otherBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     await expect(
-      callerFor(ownerId).comment.create({ cardId: cardOnOther.id, body: 'Nope', clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).comment.create({
+        cardId: cardOnOther.id,
+        body: 'Nope',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

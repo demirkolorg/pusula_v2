@@ -180,4 +180,3 @@ export async function dispatchNotificationsForActivity(
   }
   return { inserted, skipped };
 }
-

@@ -52,7 +52,8 @@ export function formatRelativeTime(value: Date | string, now: Date = new Date())
   if (abs < 45) return relativeFormatter.format(0, 'second');
   if (abs < 45 * 60) return relativeFormatter.format(Math.round(diffSeconds / 60), 'minute');
   if (abs < 22 * 60 * 60) return relativeFormatter.format(Math.round(diffSeconds / 3600), 'hour');
-  if (abs < 26 * 24 * 60 * 60) return relativeFormatter.format(Math.round(diffSeconds / 86400), 'day');
+  if (abs < 26 * 24 * 60 * 60)
+    return relativeFormatter.format(Math.round(diffSeconds / 86400), 'day');
   if (abs < 320 * 24 * 60 * 60) {
     return relativeFormatter.format(Math.round(diffSeconds / (30 * 86400)), 'month');
   }

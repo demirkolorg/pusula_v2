@@ -61,7 +61,10 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
         clearRowState();
       },
       onError: (error, variables) => {
-        setRowError({ userId: variables.userId, message: error.message || strings.common.unknownError });
+        setRowError({
+          userId: variables.userId,
+          message: error.message || strings.common.unknownError,
+        });
       },
     }),
   );
@@ -81,7 +84,10 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
         clearRowState();
       },
       onError: (error, variables) => {
-        setRowError({ userId: variables.userId, message: error.message || strings.common.unknownError });
+        setRowError({
+          userId: variables.userId,
+          message: error.message || strings.common.unknownError,
+        });
       },
     }),
   );

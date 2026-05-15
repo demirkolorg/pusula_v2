@@ -6,7 +6,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { activityEvents, boardMembers, cardLabels, users, workspaceMembers, workspaces } from '@pusula/db';
+import {
+  activityEvents,
+  boardMembers,
+  cardLabels,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '@pusula/db';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -130,7 +137,11 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
     expect(acts.some((a) => String(a.type).startsWith('label.'))).toBe(false);
 
     await expect(
-      callerFor(guestId).label.create({ boardId, color: 'red', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).label.create({
+        boardId,
+        color: 'red',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -144,12 +155,21 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
     // same colour + name as the "Bug" label from the previous test → CONFLICT
     await expect(
-      callerFor(memberId).label.create({ boardId, color: 'green', name: 'Bug', clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).label.create({
+        boardId,
+        color: 'green',
+        name: 'Bug',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
 
     // a second colour-only purple label → also CONFLICT (same colour + same empty name)
     await expect(
-      callerFor(memberId).label.create({ boardId, color: 'purple', clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).label.create({
+        boardId,
+        color: 'purple',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
 
     // different colour with the same name → OK
@@ -183,12 +203,21 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
     // empty input
     await expect(
-      callerFor(ownerId).label.update({ boardId, labelId: label.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).label.update({
+        boardId,
+        labelId: label.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 
     // a board viewer cannot update
     await expect(
-      callerFor(guestId).label.update({ boardId, labelId: label.id, name: 'Hax', clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).label.update({
+        boardId,
+        labelId: label.id,
+        name: 'Hax',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     // rename
@@ -199,7 +228,12 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       name: 'Needs triage',
       clientMutationId: crypto.randomUUID(),
     });
-    expect(renamed).toMatchObject({ id: label.id, name: 'Needs triage', color: 'orange', changed: true });
+    expect(renamed).toMatchObject({
+      id: label.id,
+      name: 'Needs triage',
+      color: 'orange',
+      changed: true,
+    });
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     // idempotent no-op (same name + colour)
@@ -237,7 +271,12 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
     // unknown labelId
     await expect(
-      callerFor(memberId).label.update({ boardId, labelId: 'does-not-exist', name: 'X', clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).label.update({
+        boardId,
+        labelId: 'does-not-exist',
+        name: 'X',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
     // no activity from any of this
@@ -255,7 +294,11 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
     // attach it to a card so we can verify the FK cascade
-    await callerFor(ownerId).card.labels.add({ cardId, labelId: label.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).card.labels.add({
+      cardId,
+      labelId: label.id,
+      clientMutationId: crypto.randomUUID(),
+    });
     const beforeLinks = await db()
       .select({ cardId: cardLabels.cardId })
       .from(cardLabels)
@@ -264,7 +307,11 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
     // a board viewer cannot delete
     await expect(
-      callerFor(guestId).label.delete({ boardId, labelId: label.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(guestId).label.delete({
+        boardId,
+        labelId: label.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     const v0 = await boardVersion(boardId);
@@ -284,13 +331,17 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
     // unknown labelId
     await expect(
-      callerFor(memberId).label.delete({ boardId, labelId: 'does-not-exist', clientMutationId: crypto.randomUUID() }),
+      callerFor(memberId).label.delete({
+        boardId,
+        labelId: 'does-not-exist',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   // ------------------------------------------------------------------ list
 
-  it('list: returns the board\'s labels (id, name, color), deterministically ordered; a board viewer may read it', async () => {
+  it("list: returns the board's labels (id, name, color), deterministically ordered; a board viewer may read it", async () => {
     const rows = await callerFor(guestId).label.list({ boardId });
     expect(rows.length).toBeGreaterThan(0);
     // the "Bug" green label created at the top of this suite is among them
@@ -303,9 +354,15 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
   // ----------------------------------------------------------- outsider/archived
 
   it('an outsider (not a workspace member) can neither list nor create labels (FORBIDDEN)', async () => {
-    await expect(callerFor(outsiderId).label.list({ boardId })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(callerFor(outsiderId).label.list({ boardId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
     await expect(
-      callerFor(outsiderId).label.create({ boardId, color: 'lime', clientMutationId: crypto.randomUUID() }),
+      callerFor(outsiderId).label.create({
+        boardId,
+        color: 'lime',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -322,10 +379,17 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       name: 'Pre-archive',
       clientMutationId: crypto.randomUUID(),
     });
-    await callerFor(ownerId).board.archive({ boardId: otherBoard.id, clientMutationId: crypto.randomUUID() });
+    await callerFor(ownerId).board.archive({
+      boardId: otherBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
 
     await expect(
-      callerFor(ownerId).label.create({ boardId: otherBoard.id, color: 'lime', clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).label.create({
+        boardId: otherBoard.id,
+        color: 'lime',
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
       callerFor(ownerId).label.update({
@@ -336,7 +400,11 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
-      callerFor(ownerId).label.delete({ boardId: otherBoard.id, labelId: label.id, clientMutationId: crypto.randomUUID() }),
+      callerFor(ownerId).label.delete({
+        boardId: otherBoard.id,
+        labelId: label.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });

@@ -25,24 +25,26 @@ describe('parseMentions', () => {
   it('matches @username text and returns the board-accessible user id', async () => {
     const ctx = ctxWithRows([{ id: 'user-bob', name: 'bob' }]);
 
-    await expect(parseMentions(tiptapDoc('Merhaba @bob bakar misin?'), 'board-1', ctx)).resolves.toEqual([
-      { mentionedUserId: 'user-bob', mentionText: 'bob' },
-    ]);
+    await expect(
+      parseMentions(tiptapDoc('Merhaba @bob bakar misin?'), 'board-1', ctx),
+    ).resolves.toEqual([{ mentionedUserId: 'user-bob', mentionText: 'bob' }]);
     expect(ctx.db.execute).toHaveBeenCalledTimes(1);
   });
 
   it('parses Tiptap JSON stored as a string by the web comment composer', async () => {
     const ctx = ctxWithRows([{ id: 'user-bob', name: 'bob' }]);
 
-    await expect(parseMentions(JSON.stringify(tiptapDoc('@bob please review this')), 'board-1', ctx)).resolves.toEqual([
-      { mentionedUserId: 'user-bob', mentionText: 'bob' },
-    ]);
+    await expect(
+      parseMentions(JSON.stringify(tiptapDoc('@bob please review this')), 'board-1', ctx),
+    ).resolves.toEqual([{ mentionedUserId: 'user-bob', mentionText: 'bob' }]);
   });
 
   it('skips email-like text', async () => {
     const ctx = ctxWithRows([{ id: 'user-example', name: 'example.test' }]);
 
-    await expect(parseMentions(tiptapDoc('mail bob@example.test'), 'board-1', ctx)).resolves.toEqual([]);
+    await expect(
+      parseMentions(tiptapDoc('mail bob@example.test'), 'board-1', ctx),
+    ).resolves.toEqual([]);
     expect(ctx.db.execute).not.toHaveBeenCalled();
   });
 
@@ -124,7 +126,12 @@ describe('parseMentions', () => {
     const ctx = ctxWithRows([{ id: 'user-123', name: 'Robert' }]);
     const body = {
       type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { id: 'user-123', label: 'bob' } }] }],
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'mention', attrs: { id: 'user-123', label: 'bob' } }],
+        },
+      ],
     };
 
     await expect(parseMentions(body, 'board-1', ctx)).resolves.toEqual([

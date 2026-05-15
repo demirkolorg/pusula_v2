@@ -2,6 +2,7 @@
 description: Kontrol odası — gelen istek/karar mevcut docs ile çelişiyor mu kontrol et, netleştir
 argument-hint: <kontrol edilecek istek/karar>
 ---
+
 Bu bir **kontrol odası** tab işidir (bkz. `docs/kontrol-odasi/README.md` — bu tab kod yazmaz; yalnızca `docs/` + Linear + analiz). Bu konuşma bir kod yazma tab'ıysa, yine bu kontrolü yapabilirsin (bu kural her tab için geçerli — `CLAUDE.md` §5).
 
 Görev: **çelişki kontrolü** — şu istek/karar: "$ARGUMENTS" (`$ARGUMENTS` boşsa neyi kontrol edeceğini sor).

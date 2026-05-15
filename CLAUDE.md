@@ -1,23 +1,24 @@
 ---
-title: "Pusula — Çalışma Protokolü"
-description: "Claude Code için Pusula çalışma protokolü ve dokümantasyon yönlendiricisi."
+title: 'Pusula — Çalışma Protokolü'
+description: 'Claude Code için Pusula çalışma protokolü ve dokümantasyon yönlendiricisi.'
 aliases:
-  - "Çalışma Protokolü"
-  - "Claude Code Protokolü"
+  - 'Çalışma Protokolü'
+  - 'Claude Code Protokolü'
 tags:
-  - "pusula"
-  - "process/protocol"
-  - "ai-agent"
-type: "protocol"
-axis: "process"
-status: "active"
-parent: "[[docs/README|Pusula Belgeleri]]"
+  - 'pusula'
+  - 'process/protocol'
+  - 'ai-agent'
+type: 'protocol'
+axis: 'process'
+status: 'active'
+parent: '[[docs/README|Pusula Belgeleri]]'
 related:
-  - "[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]"
-  - "[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]"
-  - "[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]"
+  - '[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]'
+  - '[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]'
+  - '[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]'
 updated: 2026-05-13
 ---
+
 # Pusula — Çalışma Protokolü (Claude Code)
 
 Sen Pusula için çalışan otonom bir Full-Stack Mimar ve proje yöneticisisin. Hedef:
@@ -30,11 +31,11 @@ yönlendirici**dir; ayrıntılı kurallar `docs/` altında, eksenlerine ve katma
 Pusula belgeleri üç eksende ayrılmıştır. Yeni bir kural eklerken **doğru eksene** yaz;
 aynı dosyada tasarım + iş kuralı karıştırma.
 
-| Eksen | "Sorduğu soru" | Nerede | Örnek |
-| --- | --- | --- | --- |
-| **Tasarım / teknik** (`docs/architecture/`) | _Nasıl inşa ediyoruz?_ | stack, monorepo, pattern, altyapı, transport, deployment | "Realtime için Socket.IO + Redis adapter" |
-| **İş / domain** (`docs/domain/`) | _Ürün ne yapıyor, kim ne yapabilir?_ | domain modeli, invariant'lar, yetkilendirme, bildirim/sıralama/aktivite kuralları | "Bir kart aynı anda tek bir listeye aittir" |
-| **Süreç** (`docs/process/`) | _Nasıl çalışıyoruz?_ | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı | "Yeni işe `00-calisma-baslangic-rehberi.md` ile başla" |
+| Eksen                                       | "Sorduğu soru"                       | Nerede                                                                                                  | Örnek                                                  |
+| ------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Tasarım / teknik** (`docs/architecture/`) | _Nasıl inşa ediyoruz?_               | stack, monorepo, pattern, altyapı, transport, deployment                                                | "Realtime için Socket.IO + Redis adapter"              |
+| **İş / domain** (`docs/domain/`)            | _Ürün ne yapıyor, kim ne yapabilir?_ | domain modeli, invariant'lar, yetkilendirme, bildirim/sıralama/aktivite kuralları                       | "Bir kart aynı anda tek bir listeye aittir"            |
+| **Süreç** (`docs/process/`)                 | _Nasıl çalışıyoruz?_                 | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı | "Yeni işe `00-calisma-baslangic-rehberi.md` ile başla" |
 
 Giriş noktaları: [`docs/README.md`](docs/README.md) · [`docs/architecture/README.md`](docs/architecture/README.md) · [`docs/domain/README.md`](docs/domain/README.md) · [`docs/process/README.md`](docs/process/README.md)
 Yeni iş/oturum başlangıcı: [`docs/process/00-calisma-baslangic-rehberi.md`](docs/process/00-calisma-baslangic-rehberi.md)
@@ -72,17 +73,17 @@ Soğuk/uzun dosyaları (`docs/architecture/12-deployment-runbook.md`, `docs/proc
 
 Monorepo `apps/*` ve `packages/*` ile Turborepo üzerinde koşar. Bir kod parçası **doğru katmana** ait olmalı:
 
-| Paket | Adı | BURAYA | BURAYA DEĞİL | İlgili belge |
-| --- | --- | --- | --- | --- |
-| `packages/domain` | `@pusula/domain` | Saf domain: Zod şema, rol/permission helper, position helper, domain/event tipleri — **framework-bağımsız** | DB erişimi, tRPC, React, env okuma | `docs/domain/*` |
-| `packages/db` | `@pusula/db` | Drizzle schema (snake_case), migration, transaction helper, seed; Better Auth tabloları | İş mantığı, permission kontrolü, HTTP | `docs/architecture/04-veri-katmani.md` |
-| `packages/api` | `@pusula/api` | tRPC router/procedure/context; `protectedProcedure` session garantiler; workspace/board/card permission enforcement (domain helper'larıyla) | Hono HTTP concerns, doğrudan şema değişikliği, Hono RPC | `docs/architecture/03-backend.md` + `docs/domain/02-yetkilendirme-kurallari.md` |
-| `packages/ui` | `@pusula/ui` | shadcn/ui tabanlı web component'leri + design token (`theme.css`) | İş mantığı, veri çekme, ikinci UI library | `docs/architecture/08-web-ve-mobil.md` |
-| `packages/config` | `@pusula/config` | Ortak tsconfig + eslint config | Runtime kod | — |
-| `apps/api` | `@pusula/api-server` | Hono HTTP kabuğu: CORS, request id, log, rate limit, auth context, healthcheck, metrics, webhook, tRPC mount, Better Auth `/api/auth/*`, Socket.IO | Ana API mantığı (o `@pusula/api`'de), Hono RPC contract | `docs/architecture/03-backend.md`, `07-auth.md` |
-| `apps/web` | `@pusula/web` | Next.js App Router; board ekranı (client-heavy), optimistic UI, realtime reconciliation, notification center; route handler yalnızca web-BFF/callback | Ana API, push/email gönderimi, başka UI library | `docs/architecture/05-board-mekanigi.md`, `08-web-ve-mobil.md` |
-| `apps/worker` | `@pusula/worker` | BullMQ + Redis: notification outbox, realtime event publish, search index, due-date scheduler, position compaction, email/push teslimi | HTTP endpoint, request-path işler | `docs/architecture/06-bildirim-altyapisi.md`, `10-platform.md` |
-| `apps/mobile` | — | (ileri faz — **henüz yok**) | Kullanıcı istemeden oluşturma | `docs/architecture/08-web-ve-mobil.md` |
+| Paket             | Adı                  | BURAYA                                                                                                                                                | BURAYA DEĞİL                                            | İlgili belge                                                                    |
+| ----------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `packages/domain` | `@pusula/domain`     | Saf domain: Zod şema, rol/permission helper, position helper, domain/event tipleri — **framework-bağımsız**                                           | DB erişimi, tRPC, React, env okuma                      | `docs/domain/*`                                                                 |
+| `packages/db`     | `@pusula/db`         | Drizzle schema (snake_case), migration, transaction helper, seed; Better Auth tabloları                                                               | İş mantığı, permission kontrolü, HTTP                   | `docs/architecture/04-veri-katmani.md`                                          |
+| `packages/api`    | `@pusula/api`        | tRPC router/procedure/context; `protectedProcedure` session garantiler; workspace/board/card permission enforcement (domain helper'larıyla)           | Hono HTTP concerns, doğrudan şema değişikliği, Hono RPC | `docs/architecture/03-backend.md` + `docs/domain/02-yetkilendirme-kurallari.md` |
+| `packages/ui`     | `@pusula/ui`         | shadcn/ui tabanlı web component'leri + design token (`theme.css`)                                                                                     | İş mantığı, veri çekme, ikinci UI library               | `docs/architecture/08-web-ve-mobil.md`                                          |
+| `packages/config` | `@pusula/config`     | Ortak tsconfig + eslint config                                                                                                                        | Runtime kod                                             | —                                                                               |
+| `apps/api`        | `@pusula/api-server` | Hono HTTP kabuğu: CORS, request id, log, rate limit, auth context, healthcheck, metrics, webhook, tRPC mount, Better Auth `/api/auth/*`, Socket.IO    | Ana API mantığı (o `@pusula/api`'de), Hono RPC contract | `docs/architecture/03-backend.md`, `07-auth.md`                                 |
+| `apps/web`        | `@pusula/web`        | Next.js App Router; board ekranı (client-heavy), optimistic UI, realtime reconciliation, notification center; route handler yalnızca web-BFF/callback | Ana API, push/email gönderimi, başka UI library         | `docs/architecture/05-board-mekanigi.md`, `08-web-ve-mobil.md`                  |
+| `apps/worker`     | `@pusula/worker`     | BullMQ + Redis: notification outbox, realtime event publish, search index, due-date scheduler, position compaction, email/push teslimi                | HTTP endpoint, request-path işler                       | `docs/architecture/06-bildirim-altyapisi.md`, `10-platform.md`                  |
+| `apps/mobile`     | —                    | (ileri faz — **henüz yok**)                                                                                                                           | Kullanıcı istemeden oluşturma                           | `docs/architecture/08-web-ve-mobil.md`                                          |
 
 Çekirdek invariant: bir kart aynı anda tek listeye, bir liste tek board'a aittir; kart, listesiyle aynı board'tadır; arşivli liste aktif kart taşıması almaz; permission her procedure'de server-side; activity + outbox + realtime event + domain mutasyonu mümkünse aynı transaction'da. Ayrıntı: `docs/domain/01-urun-modeli.md`.
 

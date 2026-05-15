@@ -47,14 +47,7 @@ describe('<WorkspaceSettingsForm>', () => {
   it('calls onSubmit with the trimmed values when valid', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    render(
-      <WorkspaceSettingsForm
-        name="Ekip"
-        slug="ekip"
-        icon="briefcase"
-        onSubmit={onSubmit}
-      />,
-    );
+    render(<WorkspaceSettingsForm name="Ekip" slug="ekip" icon="briefcase" onSubmit={onSubmit} />);
 
     const adInput = screen.getByLabelText('Workspace adı');
     await user.clear(adInput);

@@ -17,7 +17,10 @@ export const workspaces = pgTable(
     archivedAt: archivedAt(),
     ...timestamps,
   },
-  (t) => [uniqueIndex('workspaces_slug_uq').on(t.slug), index('workspaces_owner_idx').on(t.ownerId)],
+  (t) => [
+    uniqueIndex('workspaces_slug_uq').on(t.slug),
+    index('workspaces_owner_idx').on(t.ownerId),
+  ],
 );
 
 export const workspaceMembers = pgTable(

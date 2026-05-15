@@ -64,7 +64,9 @@ export function BoardLabelRow({
   const controlsDisabled = disabled || pending;
 
   const [editing, setEditing] = useState(false);
-  const [editColor, setEditColor] = useState<LabelColor>((label.color as LabelColor) ?? LABEL_COLORS[0]);
+  const [editColor, setEditColor] = useState<LabelColor>(
+    (label.color as LabelColor) ?? LABEL_COLORS[0],
+  );
   const [editName, setEditName] = useState(label.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -102,7 +104,13 @@ export function BoardLabelRow({
         </span>
         {canEdit && !editing && (
           <div className="flex shrink-0 items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" disabled={controlsDisabled} onClick={startEditing}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={controlsDisabled}
+              onClick={startEditing}
+            >
               {pending ? copy.labelSaving : copy.labelEdit}
             </Button>
             <Dialog

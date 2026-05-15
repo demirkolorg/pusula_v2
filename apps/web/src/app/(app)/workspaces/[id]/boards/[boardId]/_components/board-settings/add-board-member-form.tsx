@@ -36,7 +36,12 @@ type AddBoardMemberFormProps = {
  * to `notice`. Validation uses the shared `@pusula/domain` `emailSchema` so the
  * rule matches the server (which also normalizes the address).
  */
-export function AddBoardMemberForm({ onSubmit, pending = false, error, notice }: AddBoardMemberFormProps) {
+export function AddBoardMemberForm({
+  onSubmit,
+  pending = false,
+  error,
+  notice,
+}: AddBoardMemberFormProps) {
   const emailId = useId();
   const roleId = useId();
   const copy = strings.board.settings;
@@ -76,7 +81,11 @@ export function AddBoardMemberForm({ onSubmit, pending = false, error, notice }:
         </div>
         <div className="space-y-2">
           <Label htmlFor={roleId}>{copy.addRoleLabel}</Label>
-          <Select value={role} onValueChange={(value) => setRole(value as BoardRole)} disabled={pending}>
+          <Select
+            value={role}
+            onValueChange={(value) => setRole(value as BoardRole)}
+            disabled={pending}
+          >
             <SelectTrigger id={roleId} aria-label={copy.addRoleLabel}>
               <SelectValue />
             </SelectTrigger>

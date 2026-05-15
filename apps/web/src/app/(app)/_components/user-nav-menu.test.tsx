@@ -35,7 +35,9 @@ describe('<UserNavMenu>', () => {
 
     expect(await screen.findByText('Aria Chen')).toBeInTheDocument();
     expect(screen.getByText('aria@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: strings.shell.userMenu.account })).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: strings.shell.userMenu.account }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: strings.shell.signOut })).toBeInTheDocument();
   });
 

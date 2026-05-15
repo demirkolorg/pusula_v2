@@ -1,19 +1,20 @@
 ---
-title: "05 — Board Mekaniği"
-description: "Drag-drop, optimistic UI ve realtime board senkronizasyonu."
+title: '05 — Board Mekaniği'
+description: 'Drag-drop, optimistic UI ve realtime board senkronizasyonu.'
 aliases:
-  - "Board Mekaniği"
-  - "Drag Drop Optimistic Realtime"
+  - 'Board Mekaniği'
+  - 'Drag Drop Optimistic Realtime'
 tags:
-  - "pusula"
-  - "architecture/board"
-  - "realtime"
-type: "architecture"
-axis: "architecture"
-status: "active"
-parent: "[[docs/architecture/README|Tasarım / Teknik Mimari]]"
+  - 'pusula'
+  - 'architecture/board'
+  - 'realtime'
+type: 'architecture'
+axis: 'architecture'
+status: 'active'
+parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 updated: 2026-05-14
 ---
+
 # 05 — Board Mekaniği (Drag-Drop · Optimistic UI · Realtime)
 
 > Eksen: **tasarım / teknik**. Bunlar board ekranının çalışma mekanikleridir ve sıkı
@@ -108,13 +109,13 @@ Tipler tRPC output tiplerinden türetilir (`trpc.board.get`'in dönüşü); tek 
 
 ### Query key konvansiyonu
 
-| Key                            | Anlamı                                | Doldurma                            |
-| ------------------------------ | ------------------------------------- | ----------------------------------- |
-| `['board', boardId]`           | Tek board (lists + cards dahil)       | `trpc.board.get({ boardId })`       |
-| `['boards', workspaceId]`      | Workspace board listesi (özetli)      | `trpc.board.list({ workspaceId })`  |
-| `['card', cardId]`             | Kart detayı (yorumlar/checklist/üye)  | `trpc.card.get({ cardId })`         |
-| `['workspace', workspaceId]`   | Workspace meta + üye listesi          | mevcut Faz 1 query                  |
-| `['notifications']`            | Bildirim merkezi                      | Faz 6 ([DEM-29](https://linear.app/demirkol/issue/DEM-29)) |
+| Key                          | Anlamı                               | Doldurma                                                   |
+| ---------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| `['board', boardId]`         | Tek board (lists + cards dahil)      | `trpc.board.get({ boardId })`                              |
+| `['boards', workspaceId]`    | Workspace board listesi (özetli)     | `trpc.board.list({ workspaceId })`                         |
+| `['card', cardId]`           | Kart detayı (yorumlar/checklist/üye) | `trpc.card.get({ cardId })`                                |
+| `['workspace', workspaceId]` | Workspace meta + üye listesi         | mevcut Faz 1 query                                         |
+| `['notifications']`          | Bildirim merkezi                     | Faz 6 ([DEM-29](https://linear.app/demirkol/issue/DEM-29)) |
 
 `apps/web/src/lib/board-cache/keys.ts` factory'si tek kaynaktır; component'lar literal array yazmaz. tRPC'nin kendi query key'leri (procedure path + input) ile manuel key'ler **karıştırılmaz** — `board-cache` modülü `trpc.board.get` / `card.get` / `board.list` için tRPC'nin ürettiği key'lere referans verir, manuel `['board', boardId]` formu helper'ların imzasında yer alır.
 
@@ -224,16 +225,16 @@ Faz 5'te aktif: **`board:{boardId}` + `user:{userId}`**. Client board sayfasınd
 
 ```ts
 type RealtimeEventEnvelope<TPayload = unknown> = {
-  id: string;                    // realtime_events.id (UUID — idempotent dedupe için)
-  type: string;                  // 'card.moved' | 'list.archived' | 'board.updated' | ...
+  id: string; // realtime_events.id (UUID — idempotent dedupe için)
+  type: string; // 'card.moved' | 'list.archived' | 'board.updated' | ...
   workspaceId: string;
-  boardId?: string;              // board-scoped event'ler için
-  cardId?: string;               // card detail event'leri için (Faz 6+)
-  actorUserId: string;           // mutation'ı yapan kullanıcı
-  clientMutationId?: string;     // echo ayıklama (Faz 4A altyapısı; opsiyonel — server-initiated event'ler için yok)
-  seq: number;                   // boards.version (board-scoped) — gap tespiti için
-  payload: TPayload;             // event-spesifik veri (ör. card.moved için { cardId, fromListId, toListId, position })
-  createdAt: string;             // ISO-8601, server-side
+  boardId?: string; // board-scoped event'ler için
+  cardId?: string; // card detail event'leri için (Faz 6+)
+  actorUserId: string; // mutation'ı yapan kullanıcı
+  clientMutationId?: string; // echo ayıklama (Faz 4A altyapısı; opsiyonel — server-initiated event'ler için yok)
+  seq: number; // boards.version (board-scoped) — gap tespiti için
+  payload: TPayload; // event-spesifik veri (ör. card.moved için { cardId, fromListId, toListId, position })
+  createdAt: string; // ISO-8601, server-side
 };
 ```
 

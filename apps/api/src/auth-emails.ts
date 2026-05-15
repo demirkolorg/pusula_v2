@@ -109,10 +109,7 @@ export function resetPasswordEmailHtml(url: string): string {
  * Send the password-reset email. Best-effort: with no Resend key it logs the
  * link and returns; on a Resend error it logs and returns. Never throws.
  */
-export async function sendResetPasswordEmail(params: {
-  to: string;
-  url: string;
-}): Promise<void> {
+export async function sendResetPasswordEmail(params: { to: string; url: string }): Promise<void> {
   const { to, url } = params;
   const resend = getResend();
 
@@ -123,7 +120,9 @@ export async function sendResetPasswordEmail(params: {
     // it so a developer can follow the link; in production we only note that the
     // email could not be sent — without the token.
     if (env.NODE_ENV === 'production') {
-      console.warn('[auth] RESEND_API_KEY tanımlı değil — şifre sıfırlama e-postası gönderilemedi.');
+      console.warn(
+        '[auth] RESEND_API_KEY tanımlı değil — şifre sıfırlama e-postası gönderilemedi.',
+      );
     } else {
       console.warn(
         '[auth] RESEND_API_KEY tanımlı değil — şifre sıfırlama e-postası gönderilmiyor. Sıfırlama bağlantısı (yalnızca dev):',

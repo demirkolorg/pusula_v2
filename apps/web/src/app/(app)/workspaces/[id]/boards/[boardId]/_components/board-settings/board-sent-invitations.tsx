@@ -49,7 +49,9 @@ export function BoardSentInvitations({ boardId, canManage }: BoardSentInvitation
     return (
       <Alert variant="destructive">
         <AlertTitle>{copy.invitationsLoadErrorTitle}</AlertTitle>
-        <AlertDescription>{invitations.error.message || strings.common.unknownError}</AlertDescription>
+        <AlertDescription>
+          {invitations.error.message || strings.common.unknownError}
+        </AlertDescription>
       </Alert>
     );
   }

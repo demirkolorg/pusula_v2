@@ -487,9 +487,7 @@ export function CardDetailDialog({
               archived={archived}
               canArchive={canArchive}
               archivePending={archiveCard.isPending}
-              onArchiveToggle={(toArchived) =>
-                archiveCard.mutate({ cardId, archived: toArchived })
-              }
+              onArchiveToggle={(toArchived) => archiveCard.mutate({ cardId, archived: toArchived })}
               onClose={onClose}
             />
 
@@ -508,9 +506,7 @@ export function CardDetailDialog({
                           : detailCopy.modal.completeToggle
                       }
                       onCheckedChange={(next) =>
-                        next
-                          ? completeCard.mutate({ cardId })
-                          : uncompleteCard.mutate({ cardId })
+                        next ? completeCard.mutate({ cardId }) : uncompleteCard.mutate({ cardId })
                       }
                       className="mt-1.5"
                     />
@@ -590,9 +586,7 @@ export function CardDetailDialog({
                         coverColor={coverColor}
                         coverImage={card.coverImage ?? null}
                         canEdit={canEdit}
-                        onSelect={(next) =>
-                          updateCoverColor.mutate({ cardId, coverColor: next })
-                        }
+                        onSelect={(next) => updateCoverColor.mutate({ cardId, coverColor: next })}
                         onImageSelect={uploadCoverImage}
                         onClearImage={clearCoverImage}
                         pending={updateCoverColor.isPending}
@@ -627,9 +621,7 @@ export function CardDetailDialog({
                   <CardDetailDescription
                     description={card.description}
                     canEdit={canEdit}
-                    onSave={(description) =>
-                      updateDescription.mutate({ cardId, description })
-                    }
+                    onSave={(description) => updateDescription.mutate({ cardId, description })}
                     pending={updateDescription.isPending}
                     error={errOf(updateDescription)}
                   />

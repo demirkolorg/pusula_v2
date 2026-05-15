@@ -2,11 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
-import {
-  CardCommentComposer,
-  CardDetailComments,
-  type CommentView,
-} from './card-detail-comments';
+import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
 
 const copy = strings.card.comments;
 const detailCopy = strings.card.detail;

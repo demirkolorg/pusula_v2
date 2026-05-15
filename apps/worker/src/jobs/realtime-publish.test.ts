@@ -234,9 +234,9 @@ describe.runIf(dbAvailable)('processRealtimePublishJob (integration)', () => {
         throw new Error('redis down');
       },
     };
-    await expect(
-      processRealtimePublishJob(db() as never, failingPub, { eventId }),
-    ).rejects.toThrow('redis down');
+    await expect(processRealtimePublishJob(db() as never, failingPub, { eventId })).rejects.toThrow(
+      'redis down',
+    );
 
     // Transaction rolled back → row is still pending. Sweeper will pick it up.
     const [row] = await db()

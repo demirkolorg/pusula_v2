@@ -72,6 +72,8 @@ describe('<CardDetailRoute>', () => {
     h.routerPush.mockReset();
     render(<CardDetailRoute boardId="b1" />);
     await user.click(screen.getByRole('button', { name: 'close' }));
-    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?filter=open', { scroll: false });
+    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?filter=open', {
+      scroll: false,
+    });
   });
 });

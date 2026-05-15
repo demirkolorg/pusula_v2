@@ -37,10 +37,7 @@ export interface BoardJoinPayload {
  * Called from inside the `connection` handler — by then `socket.data.userId`
  * has been set by the auth middleware.
  */
-export function attachRoomHandlers(
-  socket: Socket,
-  resolveBoardAccess: BoardAccessResolver,
-): void {
+export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAccessResolver): void {
   const userId = socket.data.userId as string | undefined;
   if (!userId) {
     // Defensive: the auth middleware should have already rejected this connection.
@@ -91,10 +88,7 @@ export function attachRoomHandlers(
  * `attachRoomHandlers` so a host can replace it (e.g. tests) without
  * re-wiring the auth middleware too.
  */
-export function attachConnectionHandler(
-  io: Server,
-  resolveBoardAccess: BoardAccessResolver,
-): void {
+export function attachConnectionHandler(io: Server, resolveBoardAccess: BoardAccessResolver): void {
   io.on('connection', (socket) => {
     attachRoomHandlers(socket, resolveBoardAccess);
   });

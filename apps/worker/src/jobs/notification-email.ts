@@ -34,11 +34,7 @@
  * push procedure'leri".
  */
 import { and, eq, isNull, sql } from '@pusula/db';
-import {
-  notificationOutbox,
-  notificationPreferences,
-  users,
-} from '@pusula/db';
+import { notificationOutbox, notificationPreferences, users } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import type { NotificationType } from '@pusula/domain';
 import type * as ResendSdk from 'resend';

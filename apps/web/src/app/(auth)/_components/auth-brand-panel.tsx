@@ -27,8 +27,8 @@ export function AuthBrandPanel({ className }: { className?: string }) {
             <span className="italic opacity-90">tek yönde</span> toplayın.
           </h2>
           <p className="max-w-md text-sm/relaxed opacity-80 xl:text-base/relaxed">
-            Workspace, pano ve kart akışlarını tek ekranda yönetin. Yetki, takip
-            ve bildirimler her ekip için açık, hızlı ve tutarlı kalsın.
+            Workspace, pano ve kart akışlarını tek ekranda yönetin. Yetki, takip ve bildirimler her
+            ekip için açık, hızlı ve tutarlı kalsın.
           </p>
           <ul className="flex flex-col gap-2 text-sm opacity-90">
             {ADVANTAGES.map((advantage) => (

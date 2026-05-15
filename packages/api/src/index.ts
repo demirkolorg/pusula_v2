@@ -14,10 +14,7 @@ export {
   type RealtimePayloadEnvelope,
   type RealtimeEmit,
 } from './context';
-export {
-  insertRealtimeEvent,
-  maybeEnqueueRealtimePublish,
-} from './lib/realtime-publish';
+export { insertRealtimeEvent, maybeEnqueueRealtimePublish } from './lib/realtime-publish';
 export {
   insertNotificationOutbox,
   maybeEnqueueNotificationPublish,

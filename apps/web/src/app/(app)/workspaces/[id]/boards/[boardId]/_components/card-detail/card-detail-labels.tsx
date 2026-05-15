@@ -151,7 +151,9 @@ export function CardDetailLabels({
           <form onSubmit={handleCreate} className="space-y-2 border-t pt-3">
             <p className="text-muted-foreground text-xs font-medium">{copy.createTitle}</p>
             <div>
-              <span className="text-muted-foreground mb-1 block text-xs">{copy.createColorLabel}</span>
+              <span className="text-muted-foreground mb-1 block text-xs">
+                {copy.createColorLabel}
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {LABEL_COLORS.map((color) => (
                   <button

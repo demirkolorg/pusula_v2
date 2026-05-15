@@ -1,18 +1,19 @@
 ---
-title: "01 — Linear İş Akışı"
-description: "Linear issue lifecycle, pre-dev/post-dev akışı ve issue şablonu."
+title: '01 — Linear İş Akışı'
+description: 'Linear issue lifecycle, pre-dev/post-dev akışı ve issue şablonu.'
 aliases:
-  - "Linear İş Akışı"
-  - "Otonom Yönetim"
+  - 'Linear İş Akışı'
+  - 'Otonom Yönetim'
 tags:
-  - "pusula"
-  - "process/linear"
-type: "process"
-axis: "process"
-status: "active"
-parent: "[[docs/process/README|Süreç]]"
+  - 'pusula'
+  - 'process/linear'
+type: 'process'
+axis: 'process'
+status: 'active'
+parent: '[[docs/process/README|Süreç]]'
 updated: 2026-05-12
 ---
+
 # 01 — Linear İş Akışı (Otonom Yönetim)
 
 > Eksen: **süreç**. Her özellik / refactor / bug fix isteği için uygulanır.

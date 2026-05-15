@@ -18,9 +18,7 @@
 import { shouldCompact } from '@pusula/domain';
 
 /** Which scope a compaction run covers — mirrors `apps/worker` `CompactionScope`. */
-export type CompactionScope =
-  | { kind: 'list'; listId: string }
-  | { kind: 'board'; boardId: string };
+export type CompactionScope = { kind: 'list'; listId: string } | { kind: 'board'; boardId: string };
 
 /**
  * Build the advisory-lock key for a compaction scope.
@@ -32,7 +30,9 @@ export type CompactionScope =
  * share code — this comment is the safety net.
  */
 export function compactionScopeKey(scope: CompactionScope): string {
-  return scope.kind === 'list' ? `compaction:list:${scope.listId}` : `compaction:board:${scope.boardId}`;
+  return scope.kind === 'list'
+    ? `compaction:list:${scope.listId}`
+    : `compaction:board:${scope.boardId}`;
 }
 
 /** Host-supplied, best-effort enqueue hook (Redis errors must be swallowed by the host). */

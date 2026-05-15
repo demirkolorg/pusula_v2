@@ -22,7 +22,11 @@ describe('workspace icon inputs', () => {
   });
 
   it('rejects unknown workspace icons instead of silently stripping them', () => {
-    expect(createWorkspaceInput.safeParse({ name: 'Pazarlama', icon: 'unknown' }).success).toBe(false);
-    expect(updateWorkspaceInput.safeParse({ workspaceId: 'workspace_1', icon: 'unknown' }).success).toBe(false);
+    expect(createWorkspaceInput.safeParse({ name: 'Pazarlama', icon: 'unknown' }).success).toBe(
+      false,
+    );
+    expect(
+      updateWorkspaceInput.safeParse({ workspaceId: 'workspace_1', icon: 'unknown' }).success,
+    ).toBe(false);
   });
 });

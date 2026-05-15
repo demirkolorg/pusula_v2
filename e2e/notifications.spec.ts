@@ -38,11 +38,9 @@ function seedBobNotifications(count: number): void {
 }
 
 async function waitForUserSocket(page: Page): Promise<void> {
-  await page.waitForFunction(
-    'globalThis.__pusulaE2eSocketIoConnected === true',
-    undefined,
-    { timeout: NOTIFICATION_TIMEOUT_MS },
-  );
+  await page.waitForFunction('globalThis.__pusulaE2eSocketIoConnected === true', undefined, {
+    timeout: NOTIFICATION_TIMEOUT_MS,
+  });
 }
 
 async function installRealtimeProbe(page: Page): Promise<void> {
@@ -96,7 +94,9 @@ async function createComment(page: Page, cardId: string, body: string): Promise<
   await openCard(page, cardId);
   const editor = page.locator('[contenteditable="true"]').first();
   await editor.fill(body);
-  await page.getByRole('button', { name: strings.card.detail.composer.submit, exact: true }).click();
+  await page
+    .getByRole('button', { name: strings.card.detail.composer.submit, exact: true })
+    .click();
 }
 
 function notificationRows(page: Page) {
@@ -125,15 +125,9 @@ test.describe.configure({ mode: 'serial' });
 test.describe('notifications', () => {
   test.beforeEach(async ({ alicePeer, bobPeer }) => {
     reseed();
-    await Promise.all([
-      installRealtimeProbe(alicePeer.page),
-      installRealtimeProbe(bobPeer.page),
-    ]);
+    await Promise.all([installRealtimeProbe(alicePeer.page), installRealtimeProbe(bobPeer.page)]);
     await Promise.all([alicePeer.context.clearCookies(), bobPeer.context.clearCookies()]);
-    await Promise.all([
-      signIn(alicePeer.page, E2E.alice),
-      signIn(bobPeer.page, E2E.bob),
-    ]);
+    await Promise.all([signIn(alicePeer.page, E2E.alice), signIn(bobPeer.page, E2E.bob)]);
   });
 
   test('assignment notification: bob receives it live and row click opens the card', async ({

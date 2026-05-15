@@ -50,11 +50,7 @@ import {
   workspaceMembers,
   workspaces,
 } from '@pusula/db';
-import type {
-  ActivityEventType,
-  NotificationChannel,
-  NotificationType,
-} from '@pusula/domain';
+import type { ActivityEventType, NotificationChannel, NotificationType } from '@pusula/domain';
 
 /** Minimal slice of an `activity_events` row this layer needs. */
 export interface ActivityEventForRules {
@@ -131,9 +127,7 @@ export async function computeNotifications(
  * under one "kart üzerinde aktivite" badge. The activity *type* is carried in
  * the payload (`activityType`) so the worker still picks a precise i18n key.
  */
-function mapEventToNotificationType(
-  event: ActivityEventForRules,
-): NotificationType | null {
+function mapEventToNotificationType(event: ActivityEventForRules): NotificationType | null {
   switch (event.type) {
     case 'card.member_added':
       return 'card_assigned';

@@ -21,11 +21,7 @@
  * move / create / archive / update. The hook is generic over its builder
  * so testing the lifecycle for these five covers the other 12 in scope.
  */
-import {
-  QueryClient,
-  QueryClientProvider,
-  type UseMutationOptions,
-} from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, type UseMutationOptions } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -113,9 +109,7 @@ const VALID_UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[
  * and injects the test's `mutationFn`. The `TVars` generic is the channel
  * `useOptimisticBoardMutation` uses to infer the mutation's variable shape.
  */
-function makeMutationOptions<TVars, TData = unknown>(
-  mutationFn: (vars: TVars) => Promise<TData>,
-) {
+function makeMutationOptions<TVars, TData = unknown>(mutationFn: (vars: TVars) => Promise<TData>) {
   return (opts: UseMutationOptions<TData, unknown, TVars, unknown>) =>
     ({ ...opts, mutationFn }) as UseMutationOptions<TData, unknown, TVars, unknown>;
 }
@@ -228,7 +222,10 @@ describe('useOptimisticBoardMutation — failure modes (Phase 4D / DEM-81)', () 
             cardId: 'c1',
             apply: (data, vars) =>
               vars.archived
-                ? (applyCardArchive(data as unknown as FixCache, vars.cardId) as unknown as typeof data)
+                ? (applyCardArchive(
+                    data as unknown as FixCache,
+                    vars.cardId,
+                  ) as unknown as typeof data)
                 : data,
           }),
         { wrapper: wrap(queryClient) },
@@ -409,7 +406,10 @@ describe('useOptimisticBoardMutation — failure modes (Phase 4D / DEM-81)', () 
             boardId: 'b1',
             apply: (data, vars) =>
               vars.archived
-                ? (applyCardArchive(data as unknown as FixCache, vars.cardId) as unknown as typeof data)
+                ? (applyCardArchive(
+                    data as unknown as FixCache,
+                    vars.cardId,
+                  ) as unknown as typeof data)
                 : data,
             onMutationError,
           }),

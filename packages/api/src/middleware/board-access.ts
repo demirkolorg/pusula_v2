@@ -68,10 +68,7 @@ export async function resolveBoardAccess(
     .select({ role: workspaceMembers.role })
     .from(workspaceMembers)
     .where(
-      and(
-        eq(workspaceMembers.workspaceId, board.workspaceId),
-        eq(workspaceMembers.userId, userId),
-      ),
+      and(eq(workspaceMembers.workspaceId, board.workspaceId), eq(workspaceMembers.userId, userId)),
     )
     .limit(1);
   if (!workspaceMembership) {

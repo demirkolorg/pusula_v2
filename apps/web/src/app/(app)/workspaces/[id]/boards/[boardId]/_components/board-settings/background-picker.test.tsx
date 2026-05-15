@@ -6,7 +6,9 @@ import { BoardBackgroundPicker } from './background-picker';
 
 const h = vi.hoisted(() => ({
   mutate: vi.fn(),
-  capturedArgs: undefined as undefined | { apply: (data: unknown, vars: { background?: string | null }) => unknown },
+  capturedArgs: undefined as
+    | undefined
+    | { apply: (data: unknown, vars: { background?: string | null }) => unknown },
   mutationState: {
     mutate: vi.fn(),
     isPending: false,

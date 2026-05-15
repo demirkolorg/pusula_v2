@@ -169,7 +169,11 @@ async function dispatchOutboxRow(
       // them dead-letter so the sweeper doesn't re-pick them.
       await tx
         .update(notificationOutbox)
-        .set({ processedAt: new Date(), status: 'dead', lastError: 'in_app row missing recipient_id' })
+        .set({
+          processedAt: new Date(),
+          status: 'dead',
+          lastError: 'in_app row missing recipient_id',
+        })
         .where(eq(notificationOutbox.id, row.id));
       return 'skipped';
     }

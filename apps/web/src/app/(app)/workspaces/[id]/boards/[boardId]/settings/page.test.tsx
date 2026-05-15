@@ -131,8 +131,6 @@ describe('<BoardSettingsPage>', () => {
       '/workspaces/w1/boards/b1',
     );
     expect(screen.getByTestId('board-icon-picker')).toHaveTextContent('rocket:true:true');
-    expect(screen.getByTestId('board-background-picker')).toHaveTextContent(
-      'solid:mavi:true:true',
-    );
+    expect(screen.getByTestId('board-background-picker')).toHaveTextContent('solid:mavi:true:true');
   });
 });

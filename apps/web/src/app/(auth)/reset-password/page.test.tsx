@@ -76,7 +76,10 @@ describe('<ResetPasswordPage>', () => {
     await user.click(screen.getByRole('button', { name: copy.submit }));
 
     await waitFor(() =>
-      expect(h.resetPassword).toHaveBeenCalledWith({ newPassword: 'newsecret123', token: 'tok_abc' }),
+      expect(h.resetPassword).toHaveBeenCalledWith({
+        newPassword: 'newsecret123',
+        token: 'tok_abc',
+      }),
     );
     await waitFor(() => expect(h.routerPush).toHaveBeenCalledWith('/sign-in?reset=1'));
   });

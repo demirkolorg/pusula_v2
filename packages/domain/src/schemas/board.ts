@@ -19,10 +19,7 @@ const boardBackgroundPattern = new RegExp(
   `^(?:gradient:(?:${BOARD_BACKGROUND_GRADIENTS.join('|')})|solid:(?:${BOARD_BACKGROUND_SOLID_COLORS.join('|')}))$`,
 );
 
-export const boardBackgroundSchema = z.union([
-  z.null(),
-  z.string().regex(boardBackgroundPattern),
-]);
+export const boardBackgroundSchema = z.union([z.null(), z.string().regex(boardBackgroundPattern)]);
 
 export const createBoardInput = z.object({
   workspaceId: idSchema,

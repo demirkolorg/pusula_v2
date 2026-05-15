@@ -27,7 +27,9 @@ export type BoardCacheData<TBoard, TList extends ListLike, TCard extends CardLik
 };
 
 function sortByPosition<T extends { position: string }>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
+  return [...items].sort((a, b) =>
+    a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
+  );
 }
 
 /**
@@ -216,7 +218,10 @@ type ChecklistLike<TItem extends RowWithId & { position: string }> = {
 type ChecklistItemOf<TChecklist extends ChecklistLike<RowWithId & { position: string }>> =
   TChecklist['items'][number];
 
-export function applyCommentAdd<T extends RowWithId>(comments: readonly T[], comment: T): readonly T[] {
+export function applyCommentAdd<T extends RowWithId>(
+  comments: readonly T[],
+  comment: T,
+): readonly T[] {
   if (comments.some((c) => c.id === comment.id)) return comments;
   return [comment, ...comments];
 }
@@ -264,7 +269,9 @@ export function applyChecklistRemove<T extends RowWithId>(
   return checklists.filter((c) => c.id !== checklistId);
 }
 
-export function applyChecklistItemAdd<TChecklist extends ChecklistLike<RowWithId & { position: string }>>(
+export function applyChecklistItemAdd<
+  TChecklist extends ChecklistLike<RowWithId & { position: string }>,
+>(
   checklists: readonly TChecklist[],
   checklistId: string,
   item: ChecklistItemOf<TChecklist>,
@@ -276,7 +283,9 @@ export function applyChecklistItemAdd<TChecklist extends ChecklistLike<RowWithId
   );
 }
 
-export function applyChecklistItemPatch<TChecklist extends ChecklistLike<RowWithId & { position: string }>>(
+export function applyChecklistItemPatch<
+  TChecklist extends ChecklistLike<RowWithId & { position: string }>,
+>(
   checklists: readonly TChecklist[],
   checklistId: string,
   itemId: string,
@@ -292,7 +301,9 @@ export function applyChecklistItemPatch<TChecklist extends ChecklistLike<RowWith
   });
 }
 
-export function applyChecklistItemToggle<TChecklist extends ChecklistLike<RowWithId & { position: string }>>(
+export function applyChecklistItemToggle<
+  TChecklist extends ChecklistLike<RowWithId & { position: string }>,
+>(
   checklists: readonly TChecklist[],
   checklistId: string,
   itemId: string,
@@ -301,19 +312,22 @@ export function applyChecklistItemToggle<TChecklist extends ChecklistLike<RowWit
   return applyChecklistItemPatch(checklists, checklistId, itemId, patch);
 }
 
-export function applyChecklistItemRemove<TChecklist extends ChecklistLike<RowWithId & { position: string }>>(
-  checklists: readonly TChecklist[],
-  checklistId: string,
-  itemId: string,
-): readonly TChecklist[] {
+export function applyChecklistItemRemove<
+  TChecklist extends ChecklistLike<RowWithId & { position: string }>,
+>(checklists: readonly TChecklist[], checklistId: string, itemId: string): readonly TChecklist[] {
   const current = checklists.find((c) => c.id === checklistId);
   if (!current || !current.items.some((i) => i.id === itemId)) return checklists;
   return checklists.map((c) =>
-    c.id === checklistId ? ({ ...c, items: c.items.filter((i) => i.id !== itemId) } as TChecklist) : c,
+    c.id === checklistId
+      ? ({ ...c, items: c.items.filter((i) => i.id !== itemId) } as TChecklist)
+      : c,
   );
 }
 
-export function applyCardLabelAdd<T extends RowWithLabelId>(labels: readonly T[], label: T): readonly T[] {
+export function applyCardLabelAdd<T extends RowWithLabelId>(
+  labels: readonly T[],
+  label: T,
+): readonly T[] {
   if (labels.some((l) => l.labelId === label.labelId)) return labels;
   return [...labels, label];
 }
@@ -326,14 +340,21 @@ export function applyCardLabelRemove<T extends RowWithLabelId>(
   return labels.filter((l) => l.labelId !== labelId);
 }
 
-function sameCardMember<T extends RowWithUserId>(member: T, userId: string, role?: unknown): boolean {
+function sameCardMember<T extends RowWithUserId>(
+  member: T,
+  userId: string,
+  role?: unknown,
+): boolean {
   if (role !== undefined && 'role' in member) {
     return member.userId === userId && (member as RowWithOptionalRole).role === role;
   }
   return member.userId === userId;
 }
 
-export function applyCardMemberAdd<T extends RowWithUserId>(members: readonly T[], member: T): readonly T[] {
+export function applyCardMemberAdd<T extends RowWithUserId>(
+  members: readonly T[],
+  member: T,
+): readonly T[] {
   const role = 'role' in member ? (member as RowWithOptionalRole).role : undefined;
   if (members.some((m) => sameCardMember(m, member.userId, role))) return members;
   return [...members, member];
@@ -348,7 +369,10 @@ export function applyCardMemberRemove<T extends RowWithUserId>(
   return members.filter((m) => !sameCardMember(m, userId, role));
 }
 
-export function applyBoardLabelAdd<T extends RowWithId>(labels: readonly T[], label: T): readonly T[] {
+export function applyBoardLabelAdd<T extends RowWithId>(
+  labels: readonly T[],
+  label: T,
+): readonly T[] {
   if (labels.some((l) => l.id === label.id)) return labels;
   return [...labels, label];
 }
@@ -362,12 +386,18 @@ export function applyBoardLabelPatch<T extends RowWithId>(
   return labels.map((l) => (l.id === labelId ? { ...l, ...patch } : l));
 }
 
-export function applyBoardLabelRemove<T extends RowWithId>(labels: readonly T[], labelId: string): readonly T[] {
+export function applyBoardLabelRemove<T extends RowWithId>(
+  labels: readonly T[],
+  labelId: string,
+): readonly T[] {
   if (!labels.some((l) => l.id === labelId)) return labels;
   return labels.filter((l) => l.id !== labelId);
 }
 
-export function applyBoardMemberAdd<T extends RowWithUserId>(members: readonly T[], member: T): readonly T[] {
+export function applyBoardMemberAdd<T extends RowWithUserId>(
+  members: readonly T[],
+  member: T,
+): readonly T[] {
   if (members.some((m) => m.userId === member.userId)) return members;
   return [...members, member];
 }

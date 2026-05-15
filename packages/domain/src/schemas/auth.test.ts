@@ -35,7 +35,9 @@ describe('signInInput', () => {
       password: 'secret12',
     });
     expect(signInInput.safeParse({ email: 'bad', password: 'secret12' }).success).toBe(false);
-    expect(signInInput.safeParse({ email: 'user@test.com', password: 'short' }).success).toBe(false);
+    expect(signInInput.safeParse({ email: 'user@test.com', password: 'short' }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -44,9 +46,9 @@ describe('signUpInput', () => {
     expect(
       signUpInput.parse({ name: '  Aria  ', email: 'Aria@Test.com', password: 'secret12' }),
     ).toEqual({ name: 'Aria', email: 'aria@test.com', password: 'secret12' });
-    expect(signUpInput.safeParse({ name: '', email: 'a@b.com', password: 'secret12' }).success).toBe(
-      false,
-    );
+    expect(
+      signUpInput.safeParse({ name: '', email: 'a@b.com', password: 'secret12' }).success,
+    ).toBe(false);
   });
 });
 
