@@ -67,6 +67,32 @@ export const strings = {
     passwordPlaceholder: '••••••••',
     nameLabel: 'Ad',
     namePlaceholder: 'Adınız',
+    brandPanel: {
+      eyebrow: 'Pusula · Görev ve Pano Yönetimi',
+      headline: {
+        prefix: 'Ekibinizin işlerini',
+        emphasis: 'tek yönde',
+        suffix: 'toplayın.',
+      },
+      description:
+        'Workspace, pano ve kart akışlarını tek ekranda yönetin. Yetki, takip ve bildirimler her ekip için açık, hızlı ve tutarlı kalsın.',
+      advantages: [
+        'Workspace bazlı yetki ve ekip düzeni',
+        'Mobil uyumlu kanban panoları',
+        'Bildirimler ve aktivite geçmişiyle görünür takip',
+      ],
+      footer: 'Pusula ekiplerin plan, takip ve karar akışını aynı yerde toplar.',
+      summary: {
+        label: 'Aktif Pano',
+        title: 'Ürün Yol Haritası',
+        status: 'Devam ediyor',
+        metrics: [
+          { title: 'Açık kart', value: '24' },
+          { title: 'Bu hafta', value: '7' },
+          { title: 'Ekip', value: '12' },
+        ],
+      },
+    },
     signIn: {
       title: 'Tekrar hoş geldiniz',
       description: 'Hesabınızla giriş yapın ve panolarınıza kaldığınız yerden devam edin.',
