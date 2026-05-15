@@ -182,7 +182,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 ### Kolon (liste)
 
 ```
-<section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-bg)]">
+<section class="w-72 shrink-0 flex max-h-full flex-col rounded-lg bg-[color:var(--board-list-bg)]">
   <header class="flex shrink-0 items-center justify-between gap-1 p-2">
     <div> liste adı (text-sm font-semibold truncate) · kart sayısı (text-muted-foreground text-xs) </div>
     <div> ShieldIcon (→ board üyeleri) · PanelLeftCloseIcon (daralt — ileri faz) · ⋮ DropdownMenu (yeniden adlandır / liste rengini değiştir / arşivle) </div>
@@ -192,14 +192,14 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 </section>
 ```
 
-- Arşivli liste: `bg-muted/20 border-dashed`, başlıkta arşiv ikonu; içi salt-okunur (yeni kart eklenemez — backend kapısı + UI).
+- Arşivli liste: `--board-list-archived-bg` (yarı saydam, kolon yüzeyinin söndürülmüş hâli), başlıkta arşiv ikonu; içi salt-okunur (yeni kart eklenemez — backend kapısı + UI). Aktif kolonlar görünür kenarlık taşımadığı için arşivli kolonun ayrımı yalnız zemin tonu + ikon ile verilir.
 - Sona: "+ Liste ekle" — `w-72 shrink-0 rounded-lg border border-dashed border-[color:var(--board-list-border)] bg-[color:var(--board-list-add-bg)] p-2` içinde ghost buton / inline form; hover `--board-list-add-bg-hover` kullanır.
 - Drag (Faz 3 — placeholder spec): sürüklenen kolon `shadow-drag`, bırakılacak yer `w-72 h-32 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5`.
 - **Scroll & scrollbar ([DEM-88](https://linear.app/demirkol/issue/DEM-88) — 2026-05-13):** kolon `max-h-full` (parent strip yüksekliği kadar; içerik az ise içeriği kadar kompakt durur — `h-full` değil) + 3-segment (header `shrink-0` / cards area `flex min-h-0 overflow-y-auto pusula-scrollbar` / footer `shrink-0`); cards area `flex-1` taşımaz (boş kolonlar viewport-tall görünmesin). Strip `items-start` ile kolonlar top-aligned; strip kendisi `overflow-x-auto overflow-y-hidden` (yatay scroll yalnız). Custom scrollbar utility `.pusula-scrollbar` (`packages/ui/src/styles/theme.css` `@layer utilities` — 6px thin, transparent track, soft OKLCH thumb); token'lar `--scrollbar-thumb` + `--scrollbar-thumb-hover` (light + dark). Wired chain → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.4 "Layout & scroll davranışı".
 
 #### Renkli kolon (DEM-98)
 
-- **Model:** `lists.color` nullable. `null` ve renkli listeler aynı stabil kolon yüzeyini kullanır: container `bg-[color:var(--board-list-bg)] border-[color:var(--board-list-border)]`, arşivli liste `--board-list-archived-bg`, hover yüzeyleri `--board-list-bg-hover`. Renk seçilince tüm kolon solid `bg-palet-{ad}` olmaz; renk yalnız üstteki `data-list-accent` şeridi ve varsayılan ikon accent'i olarak görünür. Başlık/metin `text-card-foreground`, ikincil metinler `text-muted-foreground` kalır. Kartlar içeride opak `--board-card-bg` token'ıyla kalır (kenarlık yok — Trello görünümü; kart `bg + shadow` ile yüzer); kart içeriği liste rengine karışmaz.
+- **Model:** `lists.color` nullable. `null` ve renkli listeler aynı stabil kolon yüzeyini kullanır: container `bg-[color:var(--board-list-bg)]` (görünür kenarlık yok — Trello görünümü; kolon `bg` ile yüzer), arşivli liste `--board-list-archived-bg`, hover yüzeyleri `--board-list-bg-hover`. Renk seçilince tüm kolon solid `bg-palet-{ad}` olmaz; renk yalnız üstteki `data-list-accent` şeridi ve varsayılan ikon accent'i olarak görünür. Başlık/metin `text-card-foreground`, ikincil metinler `text-muted-foreground` kalır. Kartlar içeride opak `--board-card-bg` token'ıyla kalır (kenarlık yok — Trello görünümü; kart `bg + shadow` ile yüzer); kart içeriği liste rengine karışmaz.
 - **Picker:** liste header ⋮ menüsünde `PaletteIcon` + "Liste rengini değiştir" `DropdownMenuSub` tetikleyicisi. İçerik shadcn `Popover`/submenu içinde 2×5 grid (`grid-cols-5 gap-1.5`): 10 `LIST_COLORS` (`yesil/sari/turuncu/kirmizi/mor/mavi/sky/lime/pembe/gri`) swatch butonu `size-9 rounded-md bg-palet-{ad} border border-border/30 hover:ring-2 ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring`; seçili renkte `CheckIcon size-4 text-palet-{ad}-foreground`.
 - **Clear:** grid altında ghost `Button` (`w-full justify-center`) "Rengi kaldır"; mevcut renk `null` ise disabled. Tüm metinler `apps/web/src/lib/strings.ts` (`board.list.colorPicker.*`) üzerinden gelir; hardcode yok.
 - **Mutation:** swatch click `useOptimisticBoardListMutation(api.list.update)` ile `{ listId, color, clientMutationId }`; clear `{ listId, color: null, clientMutationId }`. Aynı renge tıklama UI tarafında no-op olabilir; backend de idempotent no-op'tur. Realtime `list.updated` `color` payload'ı ikinci tarayıcı cache'ine işler.

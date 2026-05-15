@@ -351,9 +351,8 @@ export function ListColumn({
     <section
       ref={columnRef}
       className={cn(
-        'group/list relative flex max-h-full shrink-0 flex-col rounded-lg border border-[color:var(--board-list-border)] bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
+        'group/list relative flex max-h-full shrink-0 flex-col rounded-lg bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
         collapsed ? 'h-52 w-10 overflow-hidden' : 'w-72',
-        listArchived && 'border-dashed',
         listArchived
           ? '[--board-list-current-bg:var(--board-list-archived-bg)]'
           : listColor && LIST_COLUMN_BG[listColor],
