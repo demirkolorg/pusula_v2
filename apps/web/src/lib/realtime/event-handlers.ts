@@ -26,8 +26,6 @@
  */
 import type { QueryClient, QueryFilters } from '@tanstack/react-query';
 import {
-  cardCompletedPayloadSchema,
-  cardUncompletedPayloadSchema,
   hasRealtimeEventPayloadSchema,
   parseRealtimeEventPayload,
   type RealtimeEventEnvelope,
@@ -430,7 +428,9 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'card.updated': {
-      const { cardId, patch } = payload as { cardId: string; patch: Partial<CardCache> };
+      const cardId = stringField(payload, 'cardId');
+      const patch = recordField(payload, 'patch') as Partial<CardCache> | undefined;
+      if (!cardId || !patch) return;
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
       return;
@@ -446,32 +446,24 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'card.completed': {
-      // Faz 5 review (5C.1): payload sözleşmesi @pusula/domain üzerinden Zod ile
-      // doğrulanıyor — server (insertRealtimeEvent çağrıları) ve client aynı tipi
-      // paylaşır; bozuk payload sessizce cache'i bozmaz, parse hatası warn ile düşer.
-      const parsed = cardCompletedPayloadSchema.safeParse(payload);
-      if (!parsed.success) {
-        console.warn('[realtime] card.completed payload parse failed:', parsed.error.message);
-        return;
-      }
-      const { cardId, completedAt, completedBy } = parsed.data;
+      const cardId = stringField(payload, 'cardId');
+      const completedAt = stringField(payload, 'completedAt');
+      if (!cardId || !completedAt) return;
+      const completedAtDate = new Date(completedAt);
+      if (Number.isNaN(completedAtDate.getTime())) return;
       // `CardCache.completedAt` is `Date` (superjson reifies it client-side);
       // wire format is ISO-8601 from the producer. Convert here.
       const patch: Partial<CardCache> = {
-        completedAt: new Date(completedAt),
-        completedBy,
+        completedAt: completedAtDate,
+        completedBy: nullableStringField(payload, 'completedBy') ?? null,
       };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
       return;
     }
     case 'card.uncompleted': {
-      const parsed = cardUncompletedPayloadSchema.safeParse(payload);
-      if (!parsed.success) {
-        console.warn('[realtime] card.uncompleted payload parse failed:', parsed.error.message);
-        return;
-      }
-      const { cardId } = parsed.data;
+      const cardId = stringField(payload, 'cardId');
+      if (!cardId) return;
       const patch: Partial<CardCache> = { completedAt: null, completedBy: null };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
@@ -491,20 +483,20 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'list.updated': {
-      const { listId, patch, toTitle, color, icon, iconColor } = payload as {
-        listId: string;
-        patch?: Partial<ListCache>;
-        toTitle?: string;
-        color?: ListCache['color'];
-        icon?: ListCache['icon'];
-        iconColor?: ListCache['iconColor'];
-      };
-      const nextPatch: Partial<ListCache> = { ...(patch ?? {}) };
+      const listId = stringField(payload, 'listId');
+      if (!listId) return;
+      const nextPatch: Partial<ListCache> = { ...(recordField(payload, 'patch') ?? {}) };
+      const toTitle = stringField(payload, 'toTitle');
       if (toTitle !== undefined) nextPatch.title = toTitle;
-      if (Object.prototype.hasOwnProperty.call(payload, 'color')) nextPatch.color = color ?? null;
-      if (Object.prototype.hasOwnProperty.call(payload, 'icon')) nextPatch.icon = icon ?? null;
+      if (Object.prototype.hasOwnProperty.call(payload, 'color')) {
+        nextPatch.color = (nullableStringField(payload, 'color') ?? null) as ListCache['color'];
+      }
+      if (Object.prototype.hasOwnProperty.call(payload, 'icon')) {
+        nextPatch.icon = (nullableStringField(payload, 'icon') ?? null) as ListCache['icon'];
+      }
       if (Object.prototype.hasOwnProperty.call(payload, 'iconColor')) {
-        nextPatch.iconColor = iconColor ?? null;
+        nextPatch.iconColor = (nullableStringField(payload, 'iconColor') ??
+          null) as ListCache['iconColor'];
       }
       if (Object.keys(nextPatch).length === 0) return;
       setBoard(qc, filters, (data) => applyListPatch(data, listId, nextPatch));
@@ -518,7 +510,8 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'board.updated': {
-      const { patch } = payload as { patch: Partial<BoardCache['board']> };
+      const patch = recordField(payload, 'patch') as Partial<BoardCache['board']> | undefined;
+      if (!patch) return;
       setBoard(qc, filters, (data) => applyBoardPatch(data, patch));
       return;
     }
