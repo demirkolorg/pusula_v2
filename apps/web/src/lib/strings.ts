@@ -1086,6 +1086,240 @@ export const strings = {
     pageDescription: 'Profilini, parolanı ve hesabını yönet.',
     loading: 'Hesap bilgileri yükleniyor…',
     backToWorkspaces: 'Çalışma alanlarına dön',
+    tabs: {
+      profile: 'Profil',
+      security: 'Güvenlik',
+      notifications: 'Bildirimler',
+    },
+    notifications: {
+      loading: 'Bildirim tercihleri yükleniyor…',
+      channels: {
+        title: 'Genel kanallar',
+        description:
+          'Workspace, pano veya kart için ayrıca tercih oluşturmadığın her bildirim bu ayarları kullanır.',
+        inApp: 'Uygulama içi bildirim',
+        email: 'E-posta',
+        push: 'Push (mobil)',
+        alwaysOn: 'her zaman açık',
+        alwaysOnTooltip:
+          'Uygulama içi bildirim merkezindeki çan rozeti her zaman çalışır; bu kanal kapatılamaz.',
+      },
+      mute: {
+        title: 'Susturma seviyesi',
+        none: 'Tüm bildirimleri al',
+        mentionsOnly: 'Sadece sözedildiğimde',
+        all: 'Tamamen sustur',
+        bypassNote: 'Sözedilme (@) ve davetler her zaman geçer.',
+      },
+      matrix: {
+        title: 'Bildirim tipleri',
+        bulkAll: 'Hepsini aç',
+        bulkNone: 'Hepsini kapat',
+        bulkNoEmail: 'Sadece e-postayı kapat',
+        muteBypassTooltip: 'Bu bildirim her zaman gönderilir — mute-bypass.',
+        disabledByGlobalEmail: 'Önce genel e-postayı aç.',
+        disabledByGlobalPush: 'Önce genel push bildirimini aç.',
+        unavailable: 'Bu kanal bu bildirim tipi için mevcut değil.',
+        typeToggleHint:
+          'Şu an global kanal toggle’ı geçerli; tip-bazlı ayar yakında.',
+        groups: {
+          mentions: 'Atama & sözedilme',
+          comment: 'Yorum',
+          dueDate: 'Bitiş tarihi',
+          lifecycle: 'Kart yaşam döngüsü',
+          membership: 'Üyelik',
+          invitations: 'Davet',
+        },
+        types: {
+          cardAssigned: 'Bana atanma',
+          mention: 'Sözedilme (@)',
+          commentReply: 'Takipteki kartta yorum',
+          dueApproaching: 'Yaklaşan bitiş',
+          dueOverdue: 'Geciken kart',
+          watchedActivity: 'Takipteki kart hareketi',
+          checklistItemCompleted: 'Checklist maddesi tamamlandı',
+          memberRemoved: 'Üyelikten çıkarıldım',
+          memberRoleChanged: 'Rolüm değişti',
+          boardInvitation: 'Pano daveti',
+          workspaceInvitation: 'Çalışma alanı daveti',
+        },
+      },
+      scopes: {
+        title: 'Özelleştirilmiş kapsamlar',
+        narrowestWins:
+          'Daha dar kapsam (kart > pano > çalışma alanı) daha geniş olanı ezer. Burada listelenen her satır kendi kapsamı için "Genel kanallar" ayarlarını geçersiz kılar.',
+        addNew: 'Yeni kapsam ekle',
+        empty:
+          'Henüz özel kapsam yok. Belirli bir çalışma alanı veya pano için ayrı tercih oluşturmak istersen aşağıdaki butonu kullan.',
+        loading: 'Kapsam tercihleri yükleniyor…',
+        loadFailed: 'Kapsam tercihleri yüklenemedi.',
+        cardOverrideNote:
+          'Kart bazlı sustur tercihleri kart detay menüsünden eklenir; burada düzenlenebilir veya kaldırılabilir.',
+        scopeKind: {
+          workspace: 'Çalışma alanı',
+          board: 'Pano',
+          card: 'Kart',
+        },
+        muteSummary: {
+          none: 'Tüm bildirimler açık',
+          mentionsOnly: 'Sadece sözedilme',
+          all: 'Tamamen sustur',
+        },
+        emailOn: 'E-posta açık',
+        emailOff: 'E-posta kapalı',
+        pushOn: 'Push açık',
+        pushOff: 'Push kapalı',
+        removeOverride: 'Kaldır',
+        removeOverrideAriaLabel: '{scope} için özel tercihi kaldır',
+        removing: 'Kaldırılıyor…',
+        edit: 'Düzenle',
+        editDialogTitle: 'Kapsamı düzenle',
+        editDialogDescription:
+          'Bu kapsam için bildirim tercihlerini güncelle. Değişiklik bu kapsam ve altındakileri etkiler.',
+      },
+      addDialog: {
+        title: 'Yeni kapsam ekle',
+        description:
+          'Bir çalışma alanı veya pano için ayrı bildirim tercihi oluştur. Kart bazlı tercihler kart detayından eklenir.',
+        scopeKindLabel: 'Kapsam türü',
+        scopeKindWorkspace: 'Çalışma alanı',
+        scopeKindBoard: 'Pano',
+        workspaceLabel: 'Çalışma alanı',
+        workspacePlaceholder: 'Çalışma alanı seç…',
+        boardLabel: 'Pano',
+        boardPlaceholder: 'Pano seç…',
+        boardDisabledHint: 'Önce çalışma alanı seç.',
+        workspacesLoading: 'Çalışma alanları yükleniyor…',
+        workspacesEmpty: 'Henüz çalışma alanı yok.',
+        boardsLoading: 'Panolar yükleniyor…',
+        boardsEmpty: 'Bu çalışma alanında pano yok.',
+        preferenceTitle: 'Tercih',
+        cancel: 'İptal',
+        submit: 'Oluştur',
+        submitting: 'Oluşturuluyor…',
+        duplicateError: 'Bu kapsam için zaten bir tercih var.',
+      },
+      /**
+       * Section 4 — push token cihaz listesi (Faz 10E / DEM-139). UI:
+       * `notifications-devices-list.tsx`. Backend: `push.tokens.list` +
+       * `push.tokens.revokeById`. Faz 7 mobile aktivasyonu olmadan veri
+       * boş gelir → `empty*` metinleri devreye girer.
+       */
+      devices: {
+        title: 'Push bildirim cihazları',
+        description:
+          'Mobil uygulamada giriş yaptığında cihaz buraya otomatik eklenir. Kullanmadığın bir cihazı listeden çıkarabilirsin.',
+        loading: 'Cihazlar yükleniyor…',
+        loadFailed: 'Cihazlar yüklenemedi.',
+        emptyTitle: 'Henüz kayıtlı cihaz yok',
+        emptyBody:
+          'Mobil uygulamada giriş yaptığında otomatik eklenir. Şimdilik buradan yapacak bir şey yok.',
+        remove: 'Çıkar',
+        removing: 'Çıkarılıyor…',
+        removeAriaLabel: '{device} cihazını listeden çıkar',
+        unnamedDevice: {
+          ios: 'iOS cihazı',
+          android: 'Android cihazı',
+          web: 'Web tarayıcı',
+        },
+        platform: {
+          ios: 'iOS',
+          android: 'Android',
+          web: 'Web',
+        },
+        lastUsed: 'Son: {time}',
+        registeredAt: 'Eklendi: {time}',
+        revokeError: 'Cihaz kaldırılamadı. Lütfen tekrar deneyin.',
+      },
+      /**
+       * Section 5 — sessiz saatler (Faz 10F / DEM-140). UI:
+       * `notifications-quiet-hours-form.tsx`. Backend:
+       * `notifications.preferences.upsert` (`quietFrom`/`quietTo`/`quietTimezone`).
+       * Mute-bypass tipler (`mention`, davetler) pencerede de geçer.
+       */
+      quiet: {
+        title: 'Sessiz saatler',
+        description:
+          'Belirlediğin aralıkta push ve e-posta gönderilmez. Uygulama içi bildirim her zaman çalışır.',
+        toggleLabel: 'Sessiz saatleri aç',
+        toggleHint:
+          'Açıkken aşağıdaki saatler ve zaman dilimi geçerli olur; kapatınca pencere kaldırılır.',
+        from: 'Başlangıç',
+        to: 'Bitiş',
+        timezone: 'Zaman dilimi',
+        timezonePlaceholder: 'Zaman dilimi seç…',
+        preview: 'Bildirimler {from}–{to} ({tz}) arasında push/e-posta göndermez.',
+        bypassNote: 'Sözedilme (@) ve davetler her zaman anlık gelir.',
+        invalidWindow: 'Başlangıç ve bitiş saatleri aynı olamaz.',
+        savedAt: 'Son kaydedildi: {time}',
+      },
+      /**
+       * Section 7 — Snooze (Faz 10H / DEM-142). Aksiyon kart detay
+       * dropdown'ında alınır; AccountTabs Bildirimler sekmesinde sadece
+       * "Aktif susturmalar" listesi gösterilir. Mute-bypass tipler
+       * (mention + davet) snooze sırasında da geçer — `bypassNote` bunu
+       * kullanıcıya bildirir.
+       */
+      snooze: {
+        title: 'Aktif susturmalar',
+        description:
+          'Kart detayından geçici olarak susturduğun kartlar burada görünür. Süre dolduğunda otomatik açılır.',
+        empty:
+          'Aktif susturma yok. Bir kartı geçici olarak susturmak için kart detayındaki "Bildirimleri sustur" menüsünü kullan.',
+        loading: 'Susturmalar yükleniyor…',
+        loadFailed: 'Susturmalar yüklenemedi.',
+        bypassNote: 'Sözedilme (@) ve davetler susturma sırasında da geçer.',
+        cardLabel: 'Kart',
+        remainingPrefix: 'Kalan: ',
+        remove: 'Kaldır',
+        removing: 'Kaldırılıyor…',
+        removeAriaLabel: '{card} susturmasını kaldır',
+        removeError: 'Susturma kaldırılamadı. Lütfen tekrar deneyin.',
+        button: 'Bildirimleri sustur',
+        active: 'Susturuldu · Kalan {remaining}',
+        durations: {
+          '1h': '1 saatlik',
+          '4h': '4 saatlik',
+          '1d': '1 günlük',
+          '1w': '1 haftalık',
+          untilDate: 'Belirli tarihe kadar…',
+        },
+        unsnooze: 'Susturmayı kaldır',
+        snoozeError: 'Kart susturulamadı. Lütfen tekrar deneyin.',
+        unsnoozeError: 'Susturma kaldırılamadı. Lütfen tekrar deneyin.',
+        untilDateDialogTitle: 'Belirli bir tarihe kadar sustur',
+        untilDateDialogDescription:
+          'Susturmanın biteceği tarihi seç. Maksimum 1 yıl sonrasına kadar bir tarih seçebilirsin.',
+        untilDateLabel: 'Bitiş tarihi',
+        untilDateSubmit: 'Sustur',
+        untilDateCancel: 'İptal',
+        untilDateInvalid: 'Tarih gelecekte olmalı ve 1 yıldan uzak olmamalı.',
+      },
+      /**
+       * Section 6 — e-posta sıklığı / digest (Faz 10G — DEM-141). UI:
+       * `notifications-digest-form.tsx`. Backend: `notifications.preferences.upsert`
+       * `emailMode` alanı (`instant`/`hourly_digest`/`daily_digest`/`off`).
+       * Mute-bypass tipler (mention + davet) her zaman anlık gönderilir —
+       * `bypassNote` bu disiplini açıklar.
+       */
+      digest: {
+        title: 'E-posta sıklığı',
+        description:
+          'E-posta bildirimleri ayrı ayrı gelsin mi yoksa belirli aralıklarla özet mi gelsin? Uygulama içi bildirimleri etkilemez.',
+        instant: 'Anlık (her bildirim için ayrı mail)',
+        hourly: 'Saatlik özet',
+        daily: 'Günlük özet (sabah 08:00 UTC)',
+        off: 'Hiç gönderme',
+        bypassNote: 'Sözedilme (@) ve davetler her zaman anlık gönderilir.',
+      },
+      errors: {
+        saveFailed: 'Tercihler kaydedilemedi. Lütfen tekrar deneyin.',
+        loadFailed: 'Tercihler yüklenemedi.',
+        deleteFailed: 'Kapsam kaldırılamadı. Lütfen tekrar deneyin.',
+        permissionDenied: 'Bu tercihi düzenleme yetkin yok.',
+        revokeFailed: 'Cihaz kaldırılamadı. Lütfen tekrar deneyin.',
+      },
+    },
     profile: {
       title: 'Profil',
       description: 'Adını ve avatarını güncelle.',
@@ -1112,6 +1346,27 @@ export const strings = {
       save: 'Parolayı değiştir',
       saving: 'Değiştiriliyor…',
       saved: 'Parolan değiştirildi. Diğer oturumların kapatıldı.',
+    },
+    security: {
+      devices: {
+        title: 'Bilinen cihazlar',
+        description:
+          'Bu cihazlardan oturum açtınız. Tanımadığınız bir cihaz varsa "Çıkış yap" diyerek o oturumu kapatın.',
+        loading: 'Cihazlar yükleniyor…',
+        loadFailed: 'Cihazlar yüklenemedi.',
+        emptyTitle: 'Henüz bilinen cihaz yok',
+        emptyBody:
+          'Yeni bir tarayıcı veya cihazdan giriş yaptığınızda otomatik olarak burada listelenir.',
+        signOut: 'Çıkış yap',
+        signingOut: 'Çıkış yapılıyor…',
+        signOutAriaLabel: '{device} cihazından çıkış yap',
+        currentBadge: 'Bu oturum',
+        location: 'Yaklaşık ağ',
+        firstSeen: 'İlk: {date}',
+        lastSeen: 'Son: {date}',
+        revokeError: 'Cihaz kapatılamadı. Lütfen tekrar deneyin.',
+        revokeSuccess: '{count} oturum kapatıldı.',
+      },
     },
     danger: {
       title: 'Tehlikeli bölge',
@@ -1185,6 +1440,7 @@ export const strings = {
         'Bu sayfa canlı güncellenmez. Yeni içeriği görmek için sayfayı yenileyin.',
       labelsHeading: 'Etiketler',
       membersHeading: 'Kart üyeleri',
+      descriptionHeading: 'Açıklama',
       checklistsHeading: 'Kontrol listeleri',
       commentsHeading: 'Yorumlar',
       attachmentsHeading: 'Ekler',

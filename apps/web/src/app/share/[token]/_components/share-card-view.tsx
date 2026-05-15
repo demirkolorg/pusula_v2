@@ -1,12 +1,23 @@
 /**
- * Faz 9D (DEM-130) — misafir kart snapshot görünümü. Tek-kolon read-only.
- * `apps/api` `GET /share/:token` cevabını tüketir. Tiptap rich render Faz 11
- * iyileştirme listesinde; şimdi açıklama düz string (`whitespace-pre-wrap`).
+ * Faz 9D (DEM-130) — misafir kart görünümü. Trello-vari kart detay anatomisi:
+ * cover banner (palet rengi) + başlık + label/üye chip'leri + meta row +
+ * açıklama + checklist + yorumlar + misafir yorum form. Sade tek-kolon,
+ * `max-w-3xl` center. App-shell DEĞİL (sade public layout).
  *
  * Misafir görmediği şeyler ([`docs/domain/08-paylasim-linki-kurallari.md`](docs/domain/08-paylasim-linki-kurallari.md)):
  * board adı dışı içerik, diğer kartlar, activity feed, e-posta, diğer paylaşım
- * linkleri.
+ * linkleri. Kapak görseli (`coverImageAttachmentId`) snapshot'ta dönmez —
+ * misafir attachment presigned URL endpoint Faz 11 backlog.
  */
+import {
+  CalendarIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  ListChecksIcon,
+  MessageSquareIcon,
+  UsersIcon,
+} from 'lucide-react';
+import { Avatar, MetaChip, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ShareCommentForm } from './share-comment-form';
 
@@ -54,155 +65,268 @@ type ShareCardViewProps = {
   apiUrl: string;
 };
 
+/** `card.coverColor` → `bg-palet-*` Tailwind class. `@pusula/ui` `theme.css`. */
+const COVER_PALETTE: Record<string, string> = {
+  kirmizi: 'bg-palet-kirmizi',
+  turuncu: 'bg-palet-turuncu',
+  sari: 'bg-palet-sari',
+  lime: 'bg-palet-lime',
+  yesil: 'bg-palet-yesil',
+  sky: 'bg-palet-sky',
+  mavi: 'bg-palet-mavi',
+  indigo: 'bg-palet-indigo',
+  mor: 'bg-palet-mor',
+  pembe: 'bg-palet-pembe',
+  gri: 'bg-palet-gri',
+  siyah: 'bg-palet-siyah',
+};
+
+/** Label `color` → Tailwind class (LABEL_COLORS palette — İngilizce isim seti). */
+const LABEL_PALETTE: Record<string, string> = {
+  green: 'bg-green-500 text-white',
+  yellow: 'bg-yellow-400 text-yellow-950',
+  orange: 'bg-orange-500 text-white',
+  red: 'bg-red-500 text-white',
+  purple: 'bg-purple-500 text-white',
+  blue: 'bg-blue-500 text-white',
+  sky: 'bg-sky-500 text-white',
+  lime: 'bg-lime-500 text-lime-950',
+  pink: 'bg-pink-500 text-white',
+  black: 'bg-zinc-800 text-white',
+};
+
 export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
   const copy = strings.share.guest;
   const { workspace, sharedBy, card, labels, members, checklists, comments } = snapshot;
 
+  const coverClass = card.coverColor ? COVER_PALETTE[card.coverColor] ?? 'bg-muted' : null;
+
+  // Checklist progress (tüm checklist'lerin toplam tamamlanan/toplam item).
+  const totalItems = checklists.reduce((acc, cl) => acc + cl.items.length, 0);
+  const doneItems = checklists.reduce(
+    (acc, cl) => acc + cl.items.filter((i) => i.completed).length,
+    0,
+  );
+
   return (
-    <div className="space-y-6">
-      <header className="space-y-2 border-b pb-4">
-        <p className="text-muted-foreground text-xs uppercase tracking-wide">
-          {copy.sharedWithYou}
-        </p>
-        <p className="text-sm">
-          <span className="text-muted-foreground">{copy.workspaceLabel}</span>{' '}
-          <span className="font-medium">{workspace.name}</span>
+    <div className="space-y-4">
+      {/* Üst breadcrumb — workspace + paylaşan */}
+      <header className="text-muted-foreground space-y-0.5 text-xs">
+        <p className="font-medium uppercase tracking-wide">{copy.sharedWithYou}</p>
+        <p>
+          <span>{workspace.name}</span>
           {sharedBy && (
             <>
-              {' · '}
-              <span className="text-muted-foreground">{copy.sharedByLabel}</span>{' '}
-              <span className="font-medium">{sharedBy.name ?? copy.unknownSharer}</span>
+              <span className="px-1.5">·</span>
+              <span>
+                {sharedBy.name ?? copy.unknownSharer} {copy.sharedByLabel.replace(':', '')}
+              </span>
             </>
           )}
         </p>
       </header>
 
-      <section className="space-y-3">
-        <h1 className={`text-2xl font-semibold ${card.completed ? 'line-through opacity-70' : ''}`}>
-          {card.title}
-        </h1>
-        {card.completed && (
-          <p className="text-muted-foreground text-xs">{copy.completed}</p>
-        )}
-        {card.dueAt && (
-          <p className="text-muted-foreground text-sm">
-            {copy.due} {formatDate(card.dueAt)}
-          </p>
-        )}
-        {card.description && (
-          <p className="text-sm whitespace-pre-wrap">{card.description}</p>
-        )}
-      </section>
+      {/* Trello-vari kart kabı: cover banner + body */}
+      <article className="bg-card overflow-hidden rounded-xl border shadow-sm">
+        {coverClass && <div className={cn('h-28 w-full', coverClass)} aria-hidden />}
 
-      {labels.length > 0 && (
-        <section>
-          <h2 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-            {copy.labelsHeading}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {labels.map((label) => (
-              <span
-                key={label.id}
-                className="rounded bg-secondary px-2 py-0.5 text-xs"
-                data-color={label.color}
-              >
-                {label.name}
-              </span>
-            ))}
+        <div className="space-y-5 p-5 sm:p-6">
+          {/* Başlık + completed */}
+          <div className="flex items-start gap-3">
+            {card.completed && (
+              <CheckCircle2Icon
+                className="mt-1.5 size-5 shrink-0 text-emerald-600"
+                aria-label={copy.completed}
+              />
+            )}
+            <h1
+              className={cn(
+                'text-2xl font-semibold leading-tight',
+                card.completed && 'text-muted-foreground line-through',
+              )}
+            >
+              {card.title}
+            </h1>
           </div>
-        </section>
-      )}
 
-      {members.length > 0 && (
-        <section>
-          <h2 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-            {copy.membersHeading}
-          </h2>
-          <ul className="flex flex-wrap gap-2 text-sm">
-            {members.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center gap-2 rounded-full border px-2 py-1"
-              >
-                <span className="bg-muted inline-flex size-6 items-center justify-center rounded-full text-xs">
-                  {(m.name ?? '?').slice(0, 1).toUpperCase()}
+          {/* Label chips */}
+          {labels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {labels.map((label) => (
+                <span
+                  key={label.id}
+                  className={cn(
+                    'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                    LABEL_PALETTE[label.color] ?? 'bg-secondary text-secondary-foreground',
+                  )}
+                >
+                  {label.name}
                 </span>
-                <span>{m.name ?? copy.unknownSharer}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+              ))}
+            </div>
+          )}
 
-      {checklists.length > 0 && (
-        <section>
-          <h2 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-            {copy.checklistsHeading}
-          </h2>
-          <div className="space-y-3">
-            {checklists.map((cl) => (
-              <div key={cl.id}>
-                <p className="text-sm font-medium">{cl.title}</p>
-                <ul className="mt-1 space-y-1 text-sm">
-                  {cl.items.map((item) => (
-                    <li key={item.id} className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={item.completed}
-                        readOnly
-                        disabled
-                        className="mt-1"
-                      />
-                      <span className={item.completed ? 'line-through opacity-70' : ''}>
-                        {item.content}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+          {/* Meta row — due + üye sayısı + checklist progress + yorum sayısı */}
+          {(card.dueAt || members.length > 0 || totalItems > 0 || comments.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {card.dueAt && (
+                <MetaChip icon={<CalendarIcon className="size-3" />}>
+                  {copy.due} {formatDate(card.dueAt)}
+                </MetaChip>
+              )}
+              {members.length > 0 && (
+                <MetaChip icon={<UsersIcon className="size-3" />}>
+                  {members.length}
+                </MetaChip>
+              )}
+              {totalItems > 0 && (
+                <MetaChip icon={<ListChecksIcon className="size-3" />}>
+                  {doneItems}/{totalItems}
+                </MetaChip>
+              )}
+              {comments.length > 0 && (
+                <MetaChip icon={<MessageSquareIcon className="size-3" />}>
+                  {comments.length}
+                </MetaChip>
+              )}
+            </div>
+          )}
+
+          {/* Üyeler — Avatar chip'ler */}
+          {members.length > 0 && (
+            <Section title={copy.membersHeading}>
+              <ul className="flex flex-wrap gap-1.5">
+                {members.map((m) => (
+                  <li
+                    key={m.id}
+                    className="bg-muted/50 inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm"
+                  >
+                    <Avatar name={m.name ?? copy.unknownSharer} image={m.image} size="sm" />
+                    <span className="leading-none">{m.name ?? copy.unknownSharer}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {/* Açıklama */}
+          {card.description && (
+            <Section title={copy.descriptionHeading}>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{card.description}</p>
+            </Section>
+          )}
+
+          {/* Checklist'ler */}
+          {checklists.length > 0 && (
+            <Section title={copy.checklistsHeading}>
+              <div className="space-y-3">
+                {checklists.map((cl) => {
+                  const clDone = cl.items.filter((i) => i.completed).length;
+                  return (
+                    <div key={cl.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{cl.title}</p>
+                        <span className="text-muted-foreground text-xs">
+                          {clDone}/{cl.items.length}
+                        </span>
+                      </div>
+                      <ul className="space-y-1">
+                        {cl.items.map((item) => (
+                          <li key={item.id} className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              readOnly
+                              disabled
+                              aria-label={item.content}
+                              className="border-input mt-1 size-3.5 rounded"
+                            />
+                            <span
+                              className={cn(
+                                'flex-1',
+                                item.completed &&
+                                  'text-muted-foreground line-through',
+                              )}
+                            >
+                              {item.content}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </Section>
+          )}
+        </div>
+      </article>
 
-      <section>
-        <h2 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-          {copy.commentsHeading}
-        </h2>
-        {comments.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{copy.emptyCommentsHint}</p>
-        ) : (
-          <ul className="space-y-3 text-sm">
-            {comments.map((c) => (
-              <li
-                key={c.id}
-                className="rounded-md border p-3"
-                data-guest={c.isGuest ? 'true' : 'false'}
-              >
-                <p className="font-medium">
-                  {c.isGuest
-                    ? copy.guestAuthorLabel
-                    : (c.authorName ?? copy.deletedUserLabel)}
-                  <span className="text-muted-foreground ml-2 text-xs font-normal">
-                    {formatDate(c.createdAt)}
-                  </span>
-                </p>
-                <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Yorumlar — ayrı kart */}
+      <article className="bg-card space-y-5 rounded-xl border p-5 shadow-sm sm:p-6">
+        <Section title={copy.commentsHeading}>
+          {comments.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{copy.emptyCommentsHint}</p>
+          ) : (
+            <ul className="space-y-4">
+              {comments.map((c) => {
+                const authorName = c.isGuest
+                  ? copy.guestAuthorLabel
+                  : (c.authorName ?? copy.deletedUserLabel);
+                return (
+                  <li
+                    key={c.id}
+                    className="flex gap-3"
+                    data-guest={c.isGuest ? 'true' : 'false'}
+                  >
+                    <Avatar name={authorName} image={c.authorImage} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium">{authorName}</span>
+                        {c.isGuest && (
+                          <span className="bg-muted text-muted-foreground rounded px-1.5 text-[10px] font-medium uppercase tracking-wide">
+                            {copy.guestAuthorLabel}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                          <ClockIcon className="size-3" />
+                          {formatDate(c.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">
+                        {c.body}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Section>
 
-      <section className="space-y-2 border-t pt-4">
-        <ShareCommentForm token={token} apiUrl={apiUrl} />
-      </section>
+        {/* Misafir yorum form — yorumlar listesinin altında, aynı kart içinde */}
+        <div className="border-t pt-5">
+          <ShareCommentForm token={token} apiUrl={apiUrl} />
+        </div>
+      </article>
 
-      <p className="text-muted-foreground text-xs">{copy.noRealtimeNotice}</p>
-      {snapshot.attachments.length > 0 && (
-        <p className="text-muted-foreground text-xs">{copy.attachmentsDownloadNotice}</p>
-      )}
+      {/* Footer info */}
+      <footer className="text-muted-foreground space-y-1 text-xs">
+        <p>{copy.noRealtimeNotice}</p>
+        {snapshot.attachments.length > 0 && <p>{copy.attachmentsDownloadNotice}</p>}
+      </footer>
     </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h2 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
+        {title}
+      </h2>
+      {children}
+    </section>
   );
 }
 
