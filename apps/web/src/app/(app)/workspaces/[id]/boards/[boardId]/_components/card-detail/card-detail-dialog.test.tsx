@@ -130,6 +130,10 @@ vi.mock('@/trpc/client', () => ({
     },
     comment: { list: deepProxy, create: deepProxy, update: deepProxy, delete: deepProxy },
     attachment: { createUpload: deepProxy, getDownloadUrl: deepProxy },
+    // Faz 9D (DEM-130) — share endpoint mock (ShareDialog `useQuery(share.list)`
+    // + `useMutation(share.create/revoke)` çağrıları için; dialog kapalı iken
+    // query `enabled: false`, fakat hooks yine mount edilir).
+    share: { list: deepProxy, create: deepProxy, revoke: deepProxy },
   }),
 }));
 
