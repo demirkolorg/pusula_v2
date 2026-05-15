@@ -270,6 +270,21 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
       position: 'b1',
     });
   });
+  it('card.created with a malformed nested card payload leaves the cache untouched', () => {
+    const before = qc.getQueryData<FixCache>(boardKey('b1'));
+
+    expect(() =>
+      dispatchRealtimeEvent(
+        qc,
+        { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+        envelope('card.created', {
+          card: { id: 'c4' },
+        }),
+      ),
+    ).not.toThrow();
+
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))).toBe(before);
+  });
 
   it('card.updated → shallow-patches the card by id', () => {
     dispatchRealtimeEvent(
@@ -282,6 +297,26 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     );
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.cards.find((c) => c.id === 'c1')!.title).toBe('birinci (yeni)');
+  });
+  it('card.updated with a malformed patch payload leaves board and card caches untouched', () => {
+    qc.setQueryData(cardKey('c1'), { id: 'c1', title: 'bir', description: '' });
+    const beforeBoard = qc.getQueryData<FixCache>(boardKey('b1'));
+    const beforeDetail = qc.getQueryData<{ id: string; title: string; description: string }>(
+      cardKey('c1'),
+    );
+
+    expect(() =>
+      dispatchRealtimeEvent(
+        qc,
+        { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+        envelope('card.updated', {
+          cardId: 'c1',
+        }),
+      ),
+    ).not.toThrow();
+
+    expect(qc.getQueryData<FixCache>(boardKey('b1'))).toBe(beforeBoard);
+    expect(qc.getQueryData(cardKey('c1'))).toBe(beforeDetail);
   });
 
   it('card.archived → removes the card from the active set', () => {

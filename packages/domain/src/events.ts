@@ -91,7 +91,43 @@ export const cardUncompletedPayloadSchema = z.object({
   cardId: z.string().min(1),
 });
 
+const payloadObjectSchema = z.record(z.string(), z.unknown());
+
+function hasPositionField(payload: { position?: unknown; toPosition?: unknown }): boolean {
+  return typeof payload.position === 'string' || typeof payload.toPosition === 'string';
+}
+
+const cardCreatedRowSchema = z
+  .object({
+    id: z.string().min(1),
+    listId: z.string().min(1),
+    title: z.string(),
+  })
+  .passthrough()
+  .refine(hasPositionField);
+
+const cardCreatedPayloadSchema = z.union([
+  z.object({ card: cardCreatedRowSchema }).passthrough(),
+  z
+    .object({
+      cardId: z.string().min(1),
+      listId: z.string().min(1),
+      title: z.string(),
+    })
+    .passthrough()
+    .refine(hasPositionField),
+]);
+
+const cardUpdatedPayloadSchema = z
+  .object({
+    cardId: z.string().min(1),
+    patch: payloadObjectSchema,
+  })
+  .passthrough();
+
 export const realtimeEventPayloadSchemas = {
+  'card.created': cardCreatedPayloadSchema,
+  'card.updated': cardUpdatedPayloadSchema,
   'card.completed': cardCompletedPayloadSchema,
   'card.uncompleted': cardUncompletedPayloadSchema,
 } satisfies Record<string, z.ZodType<unknown>>;

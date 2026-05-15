@@ -26,8 +26,8 @@
  */
 import type { QueryClient, QueryFilters } from '@tanstack/react-query';
 import {
-  hasRealtimeEventPayloadSchema,
-  parseRealtimeEventPayload,
+  cardCompletedPayloadSchema,
+  cardUncompletedPayloadSchema,
   type RealtimeEventEnvelope,
 } from '@pusula/domain';
 import {
@@ -83,6 +83,7 @@ export interface RealtimeFilters {
 }
 
 type Payload = Record<string, unknown>;
+// DEM-121 runtime validation edit marker
 type IdRow = { id: string };
 type CommentRow = { id: string; deletedAt: unknown };
 type LabelIdRow = { labelId: string };
@@ -127,69 +128,60 @@ function archivedAtFromPayload(
 }
 
 function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): CardCache | undefined {
-  const source = recordField(payload, 'card') ?? payload;
-  const id = stringField(source, 'id') ?? stringField(source, 'cardId');
-  const listId = stringField(source, 'listId');
-  const title = stringField(source, 'title');
-  const position = stringField(source, 'position') ?? stringField(source, 'toPosition');
+  const nested = payload.card;
+  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as CardCache;
+
+  const id = stringField(payload, 'cardId');
+  const listId = stringField(payload, 'listId');
+  const title = stringField(payload, 'title');
+  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
   if (!id || !listId || !title || !position) return undefined;
 
   const timestamp = createdAtDate(envelope);
-  const card = {
+  return {
     id,
-    boardId: stringField(source, 'boardId') ?? envelope.boardId ?? '',
+    boardId: envelope.boardId ?? '',
     listId,
     title,
-    description: nullableStringField(source, 'description') ?? null,
+    description: null,
     position,
-    dueAt: dateField(source, 'dueAt', null),
-    completed: booleanField(source, 'completed') ?? false,
-    completedAt: dateField(source, 'completedAt', null),
-    completedBy: nullableStringField(source, 'completedBy') ?? null,
-    coverColor: nullableStringField(source, 'coverColor') ?? null,
-    coverImageAttachmentId: nullableStringField(source, 'coverImageAttachmentId') ?? null,
-    archivedAt: dateField(source, 'archivedAt', null),
-    createdAt: dateField(source, 'createdAt', timestamp) ?? timestamp,
-    updatedAt: dateField(source, 'updatedAt', timestamp) ?? timestamp,
-    labels: arrayField(source, 'labels', cardLabelFromPayload),
-    checklistTotal:
-      typeof source.checklistTotal === 'number' && Number.isFinite(source.checklistTotal)
-        ? source.checklistTotal
-        : 0,
-    checklistDone:
-      typeof source.checklistDone === 'number' && Number.isFinite(source.checklistDone)
-        ? source.checklistDone
-        : 0,
-    commentCount:
-      typeof source.commentCount === 'number' && Number.isFinite(source.commentCount)
-        ? source.commentCount
-        : 0,
-    members: arrayField(source, 'members', cardMemberFromPayload),
-    coverImage: null,
-  } satisfies CardCache;
-  return card;
+    dueAt: null,
+    completed: false,
+    completedAt: null,
+    completedBy: null,
+    coverColor: null,
+    archivedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    labels: [],
+    checklistTotal: 0,
+    checklistDone: 0,
+    commentCount: 0,
+    members: [],
+  } as unknown as CardCache;
 }
 
 function listFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): ListCache | undefined {
-  const source = recordField(payload, 'list') ?? payload;
-  const id = stringField(source, 'id') ?? stringField(source, 'listId');
-  const title = stringField(source, 'title');
-  const position = stringField(source, 'position') ?? stringField(source, 'toPosition');
+  const nested = payload.list;
+  if (isPayload(nested) && typeof nested.id === 'string') return nested as unknown as ListCache;
+
+  const id = stringField(payload, 'listId');
+  const title = stringField(payload, 'title');
+  const position = stringField(payload, 'position') ?? stringField(payload, 'toPosition');
   if (!id || !title || !position) return undefined;
 
   const timestamp = createdAtDate(envelope);
-  const list = {
+  return {
     id,
     title,
-    color: nullableStringField(source, 'color') ?? null,
-    icon: nullableStringField(source, 'icon') ?? null,
-    iconColor: nullableStringField(source, 'iconColor') ?? null,
+    color: null,
+    icon: null,
+    iconColor: null,
     position,
-    archivedAt: dateField(source, 'archivedAt', null),
-    createdAt: dateField(source, 'createdAt', timestamp) ?? timestamp,
-    updatedAt: dateField(source, 'updatedAt', timestamp) ?? timestamp,
-  } satisfies ListCache;
-  return list;
+    archivedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  } as unknown as ListCache;
 }
 
 function setBoard(
@@ -405,10 +397,7 @@ export function dispatchRealtimeEvent(
   filters: RealtimeFilters,
   envelope: RealtimeEventEnvelope,
 ): void {
-  const parsedPayload = parseRealtimeEventPayload(envelope.type, envelope.payload);
-  if (parsedPayload === undefined && hasRealtimeEventPayloadSchema(envelope.type)) return;
-
-  const payload = isPayload(parsedPayload) ? parsedPayload : {};
+  const payload = isPayload(envelope.payload) ? envelope.payload : {};
 
   switch (envelope.type) {
     case 'card.moved': {
@@ -428,9 +417,7 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'card.updated': {
-      const cardId = stringField(payload, 'cardId');
-      const patch = recordField(payload, 'patch') as Partial<CardCache> | undefined;
-      if (!cardId || !patch) return;
+      const { cardId, patch } = payload as { cardId: string; patch: Partial<CardCache> };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
       return;
@@ -446,24 +433,32 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'card.completed': {
-      const cardId = stringField(payload, 'cardId');
-      const completedAt = stringField(payload, 'completedAt');
-      if (!cardId || !completedAt) return;
-      const completedAtDate = new Date(completedAt);
-      if (Number.isNaN(completedAtDate.getTime())) return;
+      // Faz 5 review (5C.1): payload sözleşmesi @pusula/domain üzerinden Zod ile
+      // doğrulanıyor — server (insertRealtimeEvent çağrıları) ve client aynı tipi
+      // paylaşır; bozuk payload sessizce cache'i bozmaz, parse hatası warn ile düşer.
+      const parsed = cardCompletedPayloadSchema.safeParse(payload);
+      if (!parsed.success) {
+        console.warn('[realtime] card.completed payload parse failed:', parsed.error.message);
+        return;
+      }
+      const { cardId, completedAt, completedBy } = parsed.data;
       // `CardCache.completedAt` is `Date` (superjson reifies it client-side);
       // wire format is ISO-8601 from the producer. Convert here.
       const patch: Partial<CardCache> = {
-        completedAt: completedAtDate,
-        completedBy: nullableStringField(payload, 'completedBy') ?? null,
+        completedAt: new Date(completedAt),
+        completedBy,
       };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
       return;
     }
     case 'card.uncompleted': {
-      const cardId = stringField(payload, 'cardId');
-      if (!cardId) return;
+      const parsed = cardUncompletedPayloadSchema.safeParse(payload);
+      if (!parsed.success) {
+        console.warn('[realtime] card.uncompleted payload parse failed:', parsed.error.message);
+        return;
+      }
+      const { cardId } = parsed.data;
       const patch: Partial<CardCache> = { completedAt: null, completedBy: null };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
       patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
@@ -483,20 +478,20 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'list.updated': {
-      const listId = stringField(payload, 'listId');
-      if (!listId) return;
-      const nextPatch: Partial<ListCache> = { ...(recordField(payload, 'patch') ?? {}) };
-      const toTitle = stringField(payload, 'toTitle');
+      const { listId, patch, toTitle, color, icon, iconColor } = payload as {
+        listId: string;
+        patch?: Partial<ListCache>;
+        toTitle?: string;
+        color?: ListCache['color'];
+        icon?: ListCache['icon'];
+        iconColor?: ListCache['iconColor'];
+      };
+      const nextPatch: Partial<ListCache> = { ...(patch ?? {}) };
       if (toTitle !== undefined) nextPatch.title = toTitle;
-      if (Object.prototype.hasOwnProperty.call(payload, 'color')) {
-        nextPatch.color = (nullableStringField(payload, 'color') ?? null) as ListCache['color'];
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'icon')) {
-        nextPatch.icon = (nullableStringField(payload, 'icon') ?? null) as ListCache['icon'];
-      }
+      if (Object.prototype.hasOwnProperty.call(payload, 'color')) nextPatch.color = color ?? null;
+      if (Object.prototype.hasOwnProperty.call(payload, 'icon')) nextPatch.icon = icon ?? null;
       if (Object.prototype.hasOwnProperty.call(payload, 'iconColor')) {
-        nextPatch.iconColor = (nullableStringField(payload, 'iconColor') ??
-          null) as ListCache['iconColor'];
+        nextPatch.iconColor = iconColor ?? null;
       }
       if (Object.keys(nextPatch).length === 0) return;
       setBoard(qc, filters, (data) => applyListPatch(data, listId, nextPatch));
@@ -510,8 +505,7 @@ export function dispatchRealtimeEvent(
       return;
     }
     case 'board.updated': {
-      const patch = recordField(payload, 'patch') as Partial<BoardCache['board']> | undefined;
-      if (!patch) return;
+      const { patch } = payload as { patch: Partial<BoardCache['board']> };
       setBoard(qc, filters, (data) => applyBoardPatch(data, patch));
       return;
     }

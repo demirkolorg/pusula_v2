@@ -20,6 +20,7 @@
 import { and, isNull, lt, sql } from '@pusula/db';
 import { notificationOutbox } from '@pusula/db';
 import type { Database } from '@pusula/db';
+import { extractRawSqlRows } from './raw-sql-rows';
 
 /** Repeatable job name registered against `pusula-notifications` queue. */
 export const NOTIFICATION_PUBLISH_SWEEPER_JOB_NAME = 'notification-publish-sweeper';
@@ -68,7 +69,7 @@ export async function sweepStaleNotificationEvents(
     LIMIT ${NOTIFICATION_PUBLISH_SWEEPER_BATCH}
   `);
 
-  const eventIds = (rows as unknown as { rows: Array<{ event_id: string | null }> }).rows
+  const eventIds = extractRawSqlRows<{ event_id: string | null }>(rows)
     .map((r) => r.event_id)
     .filter((id): id is string => typeof id === 'string');
 
