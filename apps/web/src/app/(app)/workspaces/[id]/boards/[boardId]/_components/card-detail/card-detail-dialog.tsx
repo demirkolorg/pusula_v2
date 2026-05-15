@@ -47,6 +47,7 @@ import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
 import { CardModalHeader } from './card-modal-header';
+import { ShareDialog } from './share-dialog';
 import { CardModalMetaChips, type CardModalMetaMenu } from './card-modal-meta-chips';
 import { CardModalSidebar } from './card-modal-sidebar';
 
@@ -553,6 +554,9 @@ export function CardDetailDialog({
                         focusEditToken={titleFocusToken}
                       />
                     </div>
+                    {/* Faz 9D (DEM-130) — kart paylaşım dialogu. Board admin/member
+                        görür; viewer için `disabled` (server ayrıca FORBIDDEN döner). */}
+                    <ShareDialog cardId={cardId} canShare={canEdit} />
                   </div>
 
                   {/* Meta chip row — members / due / labels / cover-colour each
