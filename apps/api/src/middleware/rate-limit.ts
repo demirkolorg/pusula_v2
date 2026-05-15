@@ -27,7 +27,25 @@ interface RateLimitOptions {
 
 const buckets = new Map<string, Bucket>();
 
+/**
+ * Periyodik cleanup: expired bucket'ları (resetAt geçmiş) çöp toplar. Aksi
+ * halde her IP yeni bir Map entry yapar, sınırsız bellek büyür (security
+ * review P1 — Faz 9C 2026-05-15). Lazy cleanup: her rateLimit çağrısında
+ * O(N) süpürme pahalı; bunun yerine sayaç bazlı tetik (1000 yeni bucket
+ * sonrası). Production'da Redis token bucket'a göç edilecek (Faz 8).
+ */
+let bucketsAdded = 0;
+function sweepExpiredBuckets(now: number): void {
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt <= now) buckets.delete(key);
+  }
+}
+
 function resolveClientIp(c: Parameters<MiddlewareHandler>[0]): string {
+  // Production reverse proxy (nginx/Cloudflare/Dokploy) `x-forwarded-for`'u
+  // override etmeli; aksi halde istemci spoofable. Production deploy
+  // runbook'ta bu garantisi belgelenir (security review P1 — Faz 8 hardening
+  // notunda `TRUSTED_PROXY_IPS` env kontrolü eklenir).
   const forwarded = c.req.header('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0]!.trim();
   const realIp = c.req.header('x-real-ip');
@@ -44,6 +62,11 @@ export function rateLimit(opts: RateLimitOptions): MiddlewareHandler {
     if (!bucket || bucket.resetAt <= now) {
       bucket = { count: 0, resetAt: now + opts.windowMs };
       buckets.set(key, bucket);
+      bucketsAdded += 1;
+      if (bucketsAdded >= 1000) {
+        sweepExpiredBuckets(now);
+        bucketsAdded = 0;
+      }
     }
     if (bucket.count >= opts.max) {
       const retryAfterSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));

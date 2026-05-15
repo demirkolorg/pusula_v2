@@ -332,6 +332,12 @@ function renderGeneric(ctx: TemplateContext): RenderedEmail {
 // ───────────────────────────────────────────────────────────────────────────
 
 function pickActorName(payload: Record<string, unknown>): string {
+  // Misafir (anonim) yorum payload'ı `shareLinkId` taşır + `actor_id` NULL.
+  // Faz 9C (DEM-129) — sabit "Misafir" etiketi
+  // (`docs/domain/08-paylasim-linki-kurallari.md`).
+  if (typeof payload.shareLinkId === 'string' && payload.shareLinkId.length > 0) {
+    return 'Misafir';
+  }
   return stringOr(payload, 'actorName', 'Birisi');
 }
 

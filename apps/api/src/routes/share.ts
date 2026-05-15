@@ -184,13 +184,18 @@ async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof 
     .where(and(eq(comments.cardId, card.id), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
 
+  // Attachment listesi: yalnız metadata (kimliği + ad + mime + boyut). Raw
+  // `storage_key` döndürülmez (security review P1 — S3 direct access
+  // engellenir). Misafir indirme presigned URL ayrı endpoint'ten servis
+  // edilir (9D/V2 — `GET /share/:token/attachments/:id` → kısa süreli
+  // presigned URL). Bkz. `docs/domain/08-paylasim-linki-kurallari.md`
+  // "Attachment indirme".
   const attachmentRows = await db
     .select({
       id: attachments.id,
       fileName: attachments.fileName,
       mimeType: attachments.mimeType,
       size: attachments.size,
-      storageKey: attachments.storageKey,
       createdAt: attachments.createdAt,
     })
     .from(attachments)
@@ -236,7 +241,6 @@ async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof 
       fileName: a.fileName,
       mimeType: a.mimeType,
       size: a.size,
-      storageKey: a.storageKey,
       createdAt: a.createdAt,
     })),
   };
