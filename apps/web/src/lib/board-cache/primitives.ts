@@ -11,6 +11,8 @@
  * primitives themselves stay queryClient-free on purpose.
  */
 
+import { comparePosition } from '@pusula/domain';
+
 /** Minimum shape the card transforms touch. The real `BoardCard` is a superset. */
 type CardLike = { id: string; listId: string; position: string };
 /** Minimum shape the list transforms touch. */
@@ -27,9 +29,7 @@ export type BoardCacheData<TBoard, TList extends ListLike, TCard extends CardLik
 };
 
 function sortByPosition<T extends { position: string }>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) =>
-    a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
-  );
+  return [...items].sort((a, b) => comparePosition(a.position, b.position));
 }
 
 /**

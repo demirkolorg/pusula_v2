@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGridIcon } from 'lucide-react';
 import type { RouterOutputs } from '@pusula/api';
-import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
+import { boardRoleAtLeast, comparePosition, type BoardRole } from '@pusula/domain';
 import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
@@ -129,7 +129,7 @@ export function BoardColumns({
       .filter(
         (card) => assignedToMeUserId == null || cardAssignedToUser(card, assignedToMeUserId),
       )
-      .sort((a, b) => a.position.localeCompare(b.position));
+      .sort((a, b) => comparePosition(a.position, b.position));
     const map = new Map<string, BoardCard[]>();
     for (const card of filtered) {
       const bucket = map.get(card.listId);

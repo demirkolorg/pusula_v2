@@ -12,7 +12,7 @@
  * See `docs/architecture/08-web-ve-mobil.md` §8.1.8 and
  * `docs/architecture/05-board-mekanigi.md` §5.1.
  */
-import { positionBetween } from '@pusula/domain';
+import { comparePosition, positionBetween } from '@pusula/domain';
 
 /** Closest edge of a *card* drop target (vertical list). */
 export type CardEdge = 'top' | 'bottom';
@@ -48,9 +48,7 @@ export type ListMovePlan = {
 
 /** Cards sorted ascending by `position` (a stable copy). */
 function byPosition<T extends HasPosition>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) =>
-    a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
-  );
+  return [...items].sort((a, b) => comparePosition(a.position, b.position));
 }
 
 /**

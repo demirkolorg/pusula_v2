@@ -31,6 +31,19 @@ export function firstPosition(): string {
   return generateKeyBetween(null, null);
 }
 
+/**
+ * Comparator for two position keys, ascending.
+ *
+ * `fractional-indexing` keys are ONLY valid under code-point (`<`/`>`) ordering
+ * — the digit set (`0-9A-Za-z`) and `generateKeyBetween` assume it. NEVER sort
+ * positions with `String.prototype.localeCompare`: locale collation folds case
+ * (`aZ` vs `an`) and diverges from code-point order, which silently corrupts
+ * drag-drop neighbour selection. Use this helper everywhere positions are sorted.
+ */
+export function comparePosition(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /** True when `position` is a valid `fractional-indexing` order key. */
 export function isValidPosition(position: string): boolean {
   try {
