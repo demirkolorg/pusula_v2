@@ -57,6 +57,9 @@ services:
       - 'traefik.http.routers.pusula-api.entrypoints=websecure'
       - 'traefik.http.routers.pusula-api.tls.certresolver=letsencrypt'
       - 'traefik.http.services.pusula-api.loadbalancer.server.port=3001'
+    networks:
+      - default # iç ağ — postgres / redis / minio
+      - dokploy-network # Dokploy Traefik bu ağ üzerinden yönlendirir
 
   # --- BullMQ worker (notifications / realtime publish / cleanup / etc.) --
   worker:
@@ -108,6 +111,9 @@ services:
       - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.regex=^https?://www\.(.+)'
       - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.replacement=https://$${1}'
       - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.permanent=true'
+    networks:
+      - default # iç ağ — api ile iletişim
+      - dokploy-network # Dokploy Traefik bu ağ üzerinden yönlendirir
 
   # --- PostgreSQL — transactional source of truth -------------------------
   postgres:
@@ -166,3 +172,10 @@ volumes:
   pg_data:
   redis_data:
   minio_data:
+
+networks:
+  # `default` — compose'un kendi iç ağı (servisler arası iletişim).
+  # `dokploy-network` — Dokploy'un Traefik'inin bulunduğu external ağ;
+  # web + api yalnız bu ağa bağlıyken HTTPS trafiği alır.
+  dokploy-network:
+    external: true
