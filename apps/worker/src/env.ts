@@ -61,6 +61,12 @@ function assertProductionHardening(value: z.infer<typeof envSchema>): void {
   if (value.REDIS_URL === 'redis://localhost:6379') {
     issues.push('REDIS_URL must not point at localhost in production');
   }
+  // APP_URL e-posta/push şablonlarındaki derin bağlantıların tabanıdır; prod'da
+  // localhost'a düşerse davet/bildirim maillerindeki linkler bozulur (DEM —
+  // worker servisine APP_URL geçilmediğinde yaşanan papercut).
+  if (value.APP_URL.includes('localhost')) {
+    issues.push('APP_URL must not point at localhost in production');
+  }
   if (issues.length > 0) {
     throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);
   }

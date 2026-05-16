@@ -70,6 +70,11 @@ function assertProductionHardening(value: z.infer<typeof envSchema>): void {
   if (value.AUTH_SECRET.length < 32) {
     issues.push('AUTH_SECRET must be at least 32 chars in production');
   }
+  // APP_URL paylaşım linki / auth e-posta callback'lerinin tabanıdır; prod'da
+  // localhost'a düşerse maillerdeki ve /share linkleri bozulur.
+  if (value.APP_URL.includes('localhost')) {
+    issues.push('APP_URL must not point at localhost in production');
+  }
   if (issues.length > 0) {
     throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);
   }
