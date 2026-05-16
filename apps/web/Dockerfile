@@ -2,7 +2,7 @@
 # Production image for @pusula/web (DEM-60) — Next.js standalone output.
 # `next.config.ts` sets `output: 'standalone'` + `outputFileTracingRoot` (repo
 # root) so the build emits a self-contained `apps/web/server.js`.
-# `NEXT_PUBLIC_API_URL` is inlined at BUILD time → passed as a build arg.
+# `NEXT_PUBLIC_*` vars (API_URL, SENTRY_DSN) are inlined at BUILD time → build args.
 # Build context = repo root.
 
 FROM node:22-alpine AS base
@@ -14,10 +14,12 @@ FROM base AS pruner
 COPY . .
 RUN pnpm dlx turbo@2 prune @pusula/web --docker
 
-# --- builder: install + build (NEXT_PUBLIC_API_URL inlined here) ---
+# --- builder: install + build (NEXT_PUBLIC_* inlined here) ---
 FROM base AS builder
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .

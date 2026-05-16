@@ -45,7 +45,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
-      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_DSN_API: ${SENTRY_DSN_API}
     depends_on:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
@@ -74,7 +74,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
-      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_DSN_WORKER: ${SENTRY_DSN_WORKER}
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -88,6 +88,8 @@ services:
       args:
         # Inlined at build time → must equal https://api.${ROOT_DOMAIN}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        # Sentry pusula-web DSN — build zamanında bundle'a inline edilir.
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
     image: pusula-web:latest
     restart: unless-stopped
     environment:
