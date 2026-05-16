@@ -11,6 +11,7 @@ import {
   activityEvents,
   boardAccessRequests,
   boardMembers,
+  notificationOutbox,
   users,
   workspaceMembers,
   workspaces,
@@ -140,6 +141,34 @@ describe.runIf(dbAvailable)('board access requests router (integration)', () => 
         ),
       );
     expect(pending).toHaveLength(1);
+  });
+
+  it('request: emits a board.access_requested activity and notifies board admins, not the requester (DEM-154)', async () => {
+    // Önceki test `requesterId` için bir talep yarattı — idempotent ikinci
+    // çağrı activity üretmez, dolayısıyla tam bir `board.access_requested`
+    // satırı beklenir.
+    const activity = await db()
+      .select()
+      .from(activityEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(activityEvents.boardId, boardId),
+          dbMod.eq(activityEvents.type, 'board.access_requested'),
+        ),
+      );
+    expect(activity).toHaveLength(1);
+    expect(activity[0]?.actorId).toBe(requesterId);
+
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.type, 'board_access_requested'));
+    const recipients = new Set(outbox.map((row) => row.recipientId));
+    // Board admin + workspace owner (effective board admin) bildirim alır.
+    expect(recipients.has(boardAdminId)).toBe(true);
+    expect(recipients.has(ownerId)).toBe(true);
+    // Talep sahibi (actor) self-skip ile düşer.
+    expect(recipients.has(requesterId)).toBe(false);
   });
 
   it('approve: provisions a missing workspace guest and selected board role in one transaction', async () => {

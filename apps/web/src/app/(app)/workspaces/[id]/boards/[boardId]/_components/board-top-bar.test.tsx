@@ -76,10 +76,6 @@ vi.mock('./board-settings/board-invitations-section', () => ({
   BoardInvitationsSection: () => <div>Davetler paneli</div>,
 }));
 
-vi.mock('./board-settings/board-labels-section', () => ({
-  BoardLabelsSection: () => <div>Etiketler paneli</div>,
-}));
-
 vi.mock('./board-settings/background-picker', () => ({
   BoardBackgroundPicker: () => <div>Arka plan paneli</div>,
 }));
@@ -90,9 +86,10 @@ vi.mock('./board-settings/board-icon-picker', () => ({
   ),
 }));
 
-vi.mock('./board-activity-drawer', () => ({
-  BoardActivityDrawer: ({ open }: { open?: boolean }) =>
-    open ? <div role="dialog" aria-label={strings.board.activity.title} /> : null,
+vi.mock('./board-activity-dropdown', () => ({
+  BoardActivityDropdown: () => (
+    <button type="button">{strings.board.topBar.activity}</button>
+  ),
 }));
 
 // DEM-154 — üyelik bağlamı ayrı `BoardMembersDropdown`'a taşındı. Top bar testi
@@ -100,6 +97,14 @@ vi.mock('./board-activity-drawer', () => ({
 vi.mock('./board-settings/board-members-dropdown', () => ({
   BoardMembersDropdown: () => (
     <button type="button">{strings.board.topBar.members}</button>
+  ),
+}));
+
+// Etiket paleti ayrı `BoardLabelsDropdown` ikon-butonuna taşındı — iç davranışı
+// kendi test dosyasında doğrulanır.
+vi.mock('./board-settings/board-labels-dropdown', () => ({
+  BoardLabelsDropdown: () => (
+    <button type="button">{strings.board.topBar.labels}</button>
   ),
 }));
 
@@ -132,12 +137,13 @@ vi.mock('@/trpc/client', () => ({
 import { BoardTopBar } from './board-top-bar';
 
 const topCopy = strings.board.topBar;
+const iconMenuLabel = strings.board.settings.iconTitle;
 const filterCopy = strings.board.filter;
 const oldInviteShareCopy = 'Davet et / paylaş';
 const actionCopy = {
   invite: 'Davet et',
   share: 'Paylaş',
-  settings: 'Pano ayarları',
+  settings: 'Ayarlar',
   settingsMembers: 'Üyeler',
   settingsInvitations: 'Davetler',
   settingsLabels: 'Etiketler',
@@ -187,7 +193,7 @@ describe('<BoardTopBar>', () => {
     h.clipboardWriteText = vi.spyOn(clipboard, 'writeText').mockResolvedValue(undefined);
   });
 
-  it('renders the view menu before the board title without the old workspace identity or favorite action', () => {
+  it('renders the board icon menu before the board title without the old workspace identity or favorite action', () => {
     const { container } = render(
       <BoardTopBar
         boardId="b1"
@@ -199,10 +205,10 @@ describe('<BoardTopBar>', () => {
         filter={filterProps}
       />,
     );
-    const viewMenuButton = screen.getByRole('button', { name: topCopy.viewMenu });
+    const iconMenuButton = screen.getByRole('button', { name: iconMenuLabel });
     const title = screen.getByRole('heading', { name: 'Sprint Panosu' });
     expect(title).toHaveClass('text-base');
-    expect(viewMenuButton.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(iconMenuButton.compareDocumentPosition(title)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(container.querySelector('.uppercase')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: strings.board.detail.backToWorkspace }),
@@ -264,7 +270,7 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('heading', { name: 'Sprint' })).toHaveClass('text-base');
   });
 
-  it('uses an icon button dropdown for board views instead of an inline tablist', async () => {
+  it('opens an icon-only picker dropdown from the board icon button', async () => {
     const user = userEvent.setup();
     render(
       <BoardTopBar
@@ -279,18 +285,8 @@ describe('<BoardTopBar>', () => {
     );
 
     expect(screen.queryByRole('tablist', { name: topCopy.eyebrow })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: topCopy.viewMenu }));
-    expect(
-      await screen.findByRole('menuitemcheckbox', { name: topCopy.viewBoard }),
-    ).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('menuitem', { name: topCopy.viewList })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
-    expect(screen.getByRole('menuitem', { name: topCopy.viewLabels })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    await user.click(screen.getByRole('button', { name: iconMenuLabel }));
+    expect(await screen.findByTestId('board-icon-picker')).toBeInTheDocument();
   });
 
   it('opens filters from the top bar action area', async () => {
@@ -316,6 +312,63 @@ describe('<BoardTopBar>', () => {
     expect(filterProps.onToggleLabel).toHaveBeenCalledWith('l2');
     expect(
       screen.queryByRole('menuitemcheckbox', { name: filterCopy.archivedListsToggle }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the "assigned to me" toggle and reports its pressed state', async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+        assignedToMe={{ active: false, onToggle }}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', { name: topCopy.assignedToMe });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(toggle);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+        assignedToMe={{ active: true, onToggle }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: topCopy.assignedToMe })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('omits the "assigned to me" toggle when the prop is not provided', () => {
+    render(
+      <BoardTopBar
+        boardId="b1"
+        workspaceId="w1"
+        title="Sprint"
+        background={null}
+        archived={false}
+        isBoardAdmin
+        filter={filterProps}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: topCopy.assignedToMe }),
     ).not.toBeInTheDocument();
   });
 
@@ -377,16 +430,18 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('button', { name: actionCopy.share })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: actionCopy.settings })).toBeInTheDocument();
 
-    // DEM-154 — üyelik bağlamı ayrı "Üyeler" butonunda; ayarlar dropdown'u
-    // yalnız etiket / arka plan / pano işlemleri sekmelerini taşır.
+    // Üyelik bağlamı ayrı "Üyeler" butonunda, etiket paleti ayrı "Etiketler"
+    // ikon-butonunda; ayarlar dropdown'u yalnız arka plan / pano işlemleri
+    // sekmelerini taşır.
     expect(screen.getByRole('button', { name: actionCopy.settingsMembers })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: actionCopy.settingsLabels })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: actionCopy.settings }));
     expect(
-      await screen.findByRole('tab', { name: actionCopy.settingsLabels }),
+      await screen.findByRole('tab', { name: actionCopy.settingsBackground }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: actionCopy.settingsBackground })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsActions })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: actionCopy.settingsLabels })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: actionCopy.settingsMembers })).not.toBeInTheDocument();
     expect(
       screen.queryByRole('tab', { name: actionCopy.settingsInvitations }),
@@ -587,8 +642,7 @@ describe('<BoardTopBar>', () => {
     });
   });
 
-  it('activity action opens the board activity drawer', async () => {
-    const user = userEvent.setup();
+  it('renders the board activity dropdown trigger', () => {
     render(
       <BoardTopBar
         boardId="b1"
@@ -600,9 +654,7 @@ describe('<BoardTopBar>', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: topCopy.activity }));
-
-    expect(screen.getByRole('dialog', { name: strings.board.activity.title })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: topCopy.activity })).toBeInTheDocument();
   });
 
   it('opens archived items as a dropdown and exposes list and card board toggles', async () => {

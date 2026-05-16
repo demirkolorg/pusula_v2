@@ -5,6 +5,7 @@ import { CARD_ROLES, type CardRole } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
+  Avatar,
   Badge,
   Button,
   Select,
@@ -16,8 +17,19 @@ import {
 import { InfoTooltipButton } from '@/components/info-tooltip-button';
 import { cardRoleLabels, strings } from '@/lib/strings';
 
-export type CardMember = { userId: string; role: CardRole; name: string | null };
-export type BoardMemberOption = { userId: string; name: string | null };
+export type CardMember = {
+  userId: string;
+  role: CardRole;
+  name: string | null;
+  /** Account avatar URL (`null` until the user uploads one — DEM-160). */
+  image: string | null;
+};
+export type BoardMemberOption = {
+  userId: string;
+  name: string | null;
+  /** Account avatar URL (`null` until the user uploads one — DEM-160). */
+  image: string | null;
+};
 
 type CardDetailMembersProps = {
   /** The card's members (`assignee` / `watcher` rows). */
@@ -117,6 +129,11 @@ export function CardDetailMembers({
               className="flex items-center justify-between gap-2 text-sm"
             >
               <span className="flex items-center gap-2">
+                <Avatar
+                  name={member.name?.trim() || member.userId}
+                  image={member.image}
+                  size="xs"
+                />
                 <span className="break-words">{member.name?.trim() || member.userId}</span>
                 <Badge variant="secondary">{cardRoleLabels[member.role]}</Badge>
                 {member.userId === viewerUserId && (
@@ -166,7 +183,14 @@ export function CardDetailMembers({
                   <SelectContent>
                     {addableBoardMembers.map((bm) => (
                       <SelectItem key={bm.userId} value={bm.userId}>
-                        {bm.name?.trim() || bm.userId}
+                        <span className="flex items-center gap-2">
+                          <Avatar
+                            name={bm.name?.trim() || bm.userId}
+                            image={bm.image}
+                            size="xs"
+                          />
+                          {bm.name?.trim() || bm.userId}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

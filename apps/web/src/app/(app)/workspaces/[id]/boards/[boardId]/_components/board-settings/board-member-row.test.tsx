@@ -9,18 +9,24 @@ const copy = strings.board.settings;
 const explicitAdmin: BoardMemberRowMember = {
   userId: 'u-admin',
   name: 'Ada Yönetici',
+  email: 'ada@example.test',
+  image: null,
   role: 'admin',
   inherited: false,
 };
 const explicitMember: BoardMemberRowMember = {
   userId: 'u-member',
   name: 'Bora Üye',
+  email: 'bora@example.test',
+  image: null,
   role: 'member',
   inherited: false,
 };
 const inheritedAdmin: BoardMemberRowMember = {
   userId: 'u-ws-owner',
   name: 'Cem Workspace Sahibi',
+  email: 'cem@example.test',
+  image: null,
   role: 'admin',
   inherited: true,
 };
@@ -95,10 +101,29 @@ describe('<BoardMemberRow>', () => {
     expect(screen.getByText('Üye')).toBeInTheDocument();
   });
 
-  it('falls back to the user id when the member has no name', () => {
+  it('shows the member email under the name (DEM-157)', () => {
+    render(
+      <BoardMemberRow member={explicitMember} viewerUserId="u-other" canManage={false} />,
+    );
+    expect(screen.getByText('Bora Üye')).toBeInTheDocument();
+    expect(screen.getByText('bora@example.test')).toBeInTheDocument();
+  });
+
+  it('falls back to the email when the member has no name', () => {
     render(
       <BoardMemberRow
         member={{ ...explicitMember, name: null }}
+        viewerUserId="u-other"
+        canManage={false}
+      />,
+    );
+    expect(screen.getByText('bora@example.test')).toBeInTheDocument();
+  });
+
+  it('falls back to the user id when the member has neither name nor email', () => {
+    render(
+      <BoardMemberRow
+        member={{ ...explicitMember, name: null, email: null }}
         viewerUserId="u-other"
         canManage={false}
       />,

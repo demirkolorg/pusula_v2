@@ -9,6 +9,7 @@ import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardDndProvider } from './board-dnd-context';
 import {
+  cardAssignedToUser,
   cardPassesDueDateFilter,
   filterCardsByLabels,
   filterVisibleLists,
@@ -32,6 +33,12 @@ type BoardColumnsProps = {
   selectedLabelIds: ReadonlySet<string>;
   /** Due-date filter selected in the board top-bar filter menu. */
   dueDateFilter?: DueDateFilter;
+  /**
+   * When non-null, only cards assigned to this user id are shown — driven by the
+   * board top-bar "assigned to me" toggle. `null` disables the filter (toggle off
+   * or the viewer's identity not yet resolved).
+   */
+  assignedToMeUserId?: string | null;
   /** Whether archived lists are visible in the board strip. */
   showArchivedLists: boolean;
   /** Whether archived cards are visible inside currently visible lists. */
@@ -91,6 +98,7 @@ export function BoardColumns({
   archivedCards = [],
   selectedLabelIds,
   dueDateFilter = 'all',
+  assignedToMeUserId = null,
   showArchivedLists,
   showArchivedCards = false,
   boardLabels = [],
@@ -118,6 +126,9 @@ export function BoardColumns({
       ...filterCardsByLabels(normalizedArchivedCards, selectedLabelIds),
     ]
       .filter((card) => cardPassesDueDateFilter(card, dueDateFilter, nowMs))
+      .filter(
+        (card) => assignedToMeUserId == null || cardAssignedToUser(card, assignedToMeUserId),
+      )
       .sort((a, b) => a.position.localeCompare(b.position));
     const map = new Map<string, BoardCard[]>();
     for (const card of filtered) {
@@ -126,7 +137,7 @@ export function BoardColumns({
       else map.set(card.listId, [card]);
     }
     return map;
-  }, [cards, normalizedArchivedCards, selectedLabelIds, dueDateFilter]);
+  }, [cards, normalizedArchivedCards, selectedLabelIds, dueDateFilter, assignedToMeUserId]);
 
   // --- Drag-and-drop (Phase 3B — DEM-43) -----------------------------------
   // Enabled only when the viewer may edit and the board is active; the hook

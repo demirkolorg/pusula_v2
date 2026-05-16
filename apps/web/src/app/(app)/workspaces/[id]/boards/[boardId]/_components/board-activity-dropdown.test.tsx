@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
-import { BoardActivityDrawer } from './board-activity-drawer';
+import { BoardActivityDropdown } from './board-activity-dropdown';
 
 const h = vi.hoisted(() => ({
   fetchQuery: vi.fn(),
@@ -27,6 +27,7 @@ vi.mock('@/trpc/client', () => ({
 }));
 
 const copy = strings.board.activity;
+const triggerName = strings.board.topBar.activity;
 
 const events = [
   {
@@ -47,8 +48,8 @@ const events = [
   },
 ];
 
-describe('<BoardActivityDrawer>', () => {
-  it('renders readable board activity rows and the pagination action', async () => {
+describe('<BoardActivityDropdown>', () => {
+  it('opens from the top-bar trigger and renders readable activity rows', async () => {
     const user = userEvent.setup();
     h.fetchQuery.mockResolvedValue({ items: [], nextCursor: null });
     h.useQuery.mockReturnValue({
@@ -59,9 +60,11 @@ describe('<BoardActivityDrawer>', () => {
       isFetching: false,
     });
 
-    render(<BoardActivityDrawer boardId="b1" open onOpenChange={vi.fn()} />);
+    render(<BoardActivityDropdown boardId="b1" />);
 
-    expect(screen.getByRole('dialog', { name: copy.title })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: triggerName }));
+
+    expect(screen.getByText(copy.title)).toBeInTheDocument();
     expect(screen.getByText('Ada panoyu oluşturdu')).toBeInTheDocument();
     expect(screen.getByText('Bora liste ekledi: “Backlog”')).toBeInTheDocument();
 
@@ -69,7 +72,30 @@ describe('<BoardActivityDrawer>', () => {
     expect(h.fetchQuery).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the empty state when there are no events', () => {
+  it('opens the activity detail modal from a row info button', async () => {
+    const user = userEvent.setup();
+    h.useQuery.mockReturnValue({
+      data: { items: events, nextCursor: null },
+      isPending: false,
+      isError: false,
+      error: null,
+      isFetching: false,
+    });
+
+    render(<BoardActivityDropdown boardId="b1" />);
+    await user.click(screen.getByRole('button', { name: triggerName }));
+
+    const infoButtons = screen.getAllByRole('button', {
+      name: strings.activityDetail.infoLabel,
+    });
+    await user.click(infoButtons[0]!);
+
+    expect(screen.getByText(strings.activityDetail.title)).toBeInTheDocument();
+    expect(screen.getByText('board.created')).toBeInTheDocument();
+  });
+
+  it('renders the empty state when there are no events', async () => {
+    const user = userEvent.setup();
     h.useQuery.mockReturnValue({
       data: { items: [], nextCursor: null },
       isPending: false,
@@ -78,7 +104,8 @@ describe('<BoardActivityDrawer>', () => {
       isFetching: false,
     });
 
-    render(<BoardActivityDrawer boardId="b1" open onOpenChange={vi.fn()} />);
+    render(<BoardActivityDropdown boardId="b1" />);
+    await user.click(screen.getByRole('button', { name: triggerName }));
 
     expect(screen.getByText(copy.empty)).toBeInTheDocument();
   });

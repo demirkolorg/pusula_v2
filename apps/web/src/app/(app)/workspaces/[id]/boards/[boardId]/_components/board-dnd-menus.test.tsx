@@ -12,6 +12,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
   useMutation: () => ({
     mutate: vi.fn(),
     reset: vi.fn(),
@@ -56,6 +57,12 @@ vi.mock('@/trpc/client', () => ({
       update: { mutationOptions: (o: unknown) => o },
       delete: { mutationOptions: (o: unknown) => o },
       getDownloadUrl: { queryOptions: () => ({}) },
+    },
+    // Faz 9D (DEM-130) — card-item context menüsü ShareDialog'u render ediyor.
+    share: {
+      list: { queryOptions: () => ({}), queryKey: () => ['share', 'list'] },
+      create: { mutationOptions: (o: unknown) => o },
+      revoke: { mutationOptions: (o: unknown) => o },
     },
   }),
 }));

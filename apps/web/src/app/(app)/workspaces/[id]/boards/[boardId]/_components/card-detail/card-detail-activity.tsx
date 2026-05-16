@@ -1,10 +1,11 @@
 'use client';
 
-import { ActivityIcon, InfoIcon } from 'lucide-react';
-import { Avatar, EmptyState } from '@pusula/ui';
-import { formatDate } from '@/lib/format';
+import { useState } from 'react';
+import { ActivityIcon } from 'lucide-react';
+import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { summarizeCardActivity, type CardActivityEvent } from './activity-summary';
+import { ActivityDetailDialog, ActivityRow } from './activity-feed';
+import type { CardActivityEvent } from './activity-summary';
 
 type CardDetailActivityProps = {
   events: CardActivityEvent[];
@@ -13,19 +14,21 @@ type CardDetailActivityProps = {
 };
 
 /**
- * Card activity feed: newest-first list of readable summary lines (built by the
- * pure `summarizeCardActivity` helper) — actor avatar + summary + date. Read-only.
- * Rendered inside the modal's right-panel "Aktivite" tab.
+ * Card activity feed: newest-first list of readable summary rows (each built by
+ * the pure `summarizeCardActivity` helper) — actor avatar + summary + relative
+ * time. The per-row info button opens the shared activity detail modal.
+ * Rendered inside the modal's right-panel "İşlemler" tab.
  */
 export function CardDetailActivity({ events, pending = false, error }: CardDetailActivityProps) {
   const copy = strings.card.activity;
+  const [detailEvent, setDetailEvent] = useState<CardActivityEvent | null>(null);
 
   if (pending) {
     return (
       <ul className="space-y-2" aria-busy>
         {[0, 1, 2].map((i) => (
-          <li key={i} className="flex items-center gap-2">
-            <span className="bg-muted size-4 shrink-0 animate-pulse rounded-full" />
+          <li key={i} className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2">
+            <span className="bg-muted size-5 shrink-0 animate-pulse rounded-full" />
             <span className="bg-muted h-3 flex-1 animate-pulse rounded" />
           </li>
         ))}
@@ -42,17 +45,25 @@ export function CardDetailActivity({ events, pending = false, error }: CardDetai
   }
 
   return (
-    <ul className="space-y-2.5">
-      {events.map((event) => (
-        <li key={event.id} className="flex items-start gap-2 text-xs">
-          <Avatar name={event.actorName} size="xs" />
-          <span className="min-w-0 flex-1 break-words">
-            {summarizeCardActivity(event, copy.unknownActor)}{' '}
-            <span className="text-muted-foreground">· {formatDate(event.createdAt)}</span>
-          </span>
-          <InfoIcon className="text-muted-foreground mt-0.5 size-3 shrink-0" aria-hidden />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="space-y-1.5">
+        {events.map((event) => (
+          <ActivityRow
+            key={event.id}
+            event={event}
+            unknownActor={copy.unknownActor}
+            onShowDetail={(next) => setDetailEvent(next)}
+          />
+        ))}
+      </ul>
+      <ActivityDetailDialog
+        event={detailEvent}
+        open={detailEvent != null}
+        onOpenChange={(next) => {
+          if (!next) setDetailEvent(null);
+        }}
+        unknownActor={copy.unknownActor}
+      />
+    </>
   );
 }

@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
-import { strings } from '@/lib/strings';
+import { boardRoleLabels, strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
 type WorkspaceMineInvitation = {
@@ -129,7 +129,9 @@ function WorkspaceInvitationRow({ invitation }: { invitation: WorkspaceMineInvit
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">{invitation.workspaceName}</span>
-          <Badge variant="secondary">{invitation.role}</Badge>
+          <Badge variant="secondary">
+            {(workspaceRoleLabels as Record<string, string>)[invitation.role] ?? invitation.role}
+          </Badge>
         </div>
         <p className="text-muted-foreground text-sm">
           {copy.invitedBy}: {invitation.invitedByName ?? '—'} · {copy.expiresAt}:{' '}
@@ -209,7 +211,9 @@ function BoardInvitationRow({ invitation }: { invitation: BoardMineInvitation })
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">{invitation.boardTitle}</span>
-          <Badge variant="secondary">{invitation.role}</Badge>
+          <Badge variant="secondary">
+            {(boardRoleLabels as Record<string, string>)[invitation.role] ?? invitation.role}
+          </Badge>
         </div>
         <p className="text-muted-foreground text-sm">
           {invitation.workspaceName} · {copy.invitedBy}: {invitation.invitedByName ?? '—'} ·{' '}

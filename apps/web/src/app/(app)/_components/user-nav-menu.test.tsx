@@ -41,6 +41,24 @@ describe('<UserNavMenu>', () => {
     expect(screen.getByRole('menuitem', { name: strings.shell.signOut })).toBeInTheDocument();
   });
 
+  it('renders the avatar image when one is provided', () => {
+    render(
+      <UserNavMenu
+        userName="Aria Chen"
+        userEmail="aria@example.com"
+        userImage="https://cdn.example/avatar.png"
+      />,
+    );
+
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('src', 'https://cdn.example/avatar.png');
+  });
+
+  it('falls back to initials when no avatar image is provided', () => {
+    render(<UserNavMenu userName="Aria Chen" userEmail="aria@example.com" />);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
   it('signs out and redirects to sign-in', async () => {
     const user = userEvent.setup();
     render(<UserNavMenu userName="Aria Chen" userEmail="aria@example.com" />);

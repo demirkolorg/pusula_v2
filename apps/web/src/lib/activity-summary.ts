@@ -52,6 +52,10 @@ export function activitySummary(type: string, payload: unknown): string {
       return copy.workspaceMemberInvited(
         text(p, 'workspaceName') ?? strings.notifications.fallbackWorkspaceName,
       );
+    // DEM-154 — board erişim talebi bildirimi (alıcı board admin'i).
+    case 'board_access_requested':
+    case 'board.access_requested':
+      return copy.boardAccessRequested(boardName(p));
     // DEM-152 — granular kart-aktivite tipleri. Her tip kendi özet metniyle;
     // iki activity tipi tek bildirim tipini paylaştığında (`card_completed`,
     // `card_due_changed`) `activityType` payload alanı doğru fiili seçer.
@@ -76,6 +80,38 @@ export function activitySummary(type: string, payload: unknown): string {
     case 'attachment_added':
     case 'attachment.added':
       return copy.attachmentAdded(cardTitle(p));
+    // DEM-153 — kartla ilgili kalan granular tipler (notification tipi +
+    // activity-type alias'ı eski payload'lar için birlikte tutulur).
+    case 'card_renamed':
+    case 'card.renamed':
+      return copy.cardRenamed(cardTitle(p));
+    case 'card_description_changed':
+    case 'card.description_changed':
+      return copy.cardDescriptionChanged(cardTitle(p));
+    case 'card_label_added':
+    case 'card.label_added':
+      return copy.cardLabelAdded(cardTitle(p));
+    case 'card_label_removed':
+    case 'card.label_removed':
+      return copy.cardLabelRemoved(cardTitle(p));
+    case 'comment_updated':
+    case 'comment.updated':
+      return copy.commentUpdated(cardTitle(p));
+    case 'comment_deleted':
+    case 'comment.deleted':
+      return copy.commentDeleted(cardTitle(p));
+    case 'checklist_created':
+    case 'checklist.created':
+      return copy.checklistCreated(cardTitle(p));
+    case 'checklist_item_added':
+    case 'checklist.item_added':
+      return copy.checklistItemAdded(cardTitle(p));
+    case 'checklist_item_removed':
+    case 'checklist.item_removed':
+      return copy.checklistItemRemoved(cardTitle(p));
+    case 'attachment_removed':
+    case 'attachment.removed':
+      return copy.attachmentRemoved(cardTitle(p));
     // `watched_activity` artık üretilmiyor (DEM-152) ama eski satırlar için
     // fallback olarak korunur — `activityType`'a göre çözer.
     case 'watched_activity':

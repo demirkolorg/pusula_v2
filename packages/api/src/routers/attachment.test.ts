@@ -72,6 +72,7 @@ function fakeObjectStorage() {
       }),
     ),
     createPresignedGetUrl: vi.fn(async () => 'https://storage.test/get'),
+    publicUrl: vi.fn((key: string) => `https://storage.test/public/${key}`),
   };
 }
 
@@ -1034,12 +1035,14 @@ describe.runIf(dbAvailable)('attachment router (integration)', () => {
         return payload.data?.attachmentId === row.id;
       });
       expect(myRt).toHaveLength(1);
-      // `attachment.removed` is NOT a notification type → zero outbox rows.
+      // DEM-153 — `attachment.removed` artık `attachment_removed` bildirim
+      // tipine route edilir; kart watcher'larına in-app outbox satırı yazılır
+      // (actor self-skip). Üretilen tüm satırlar bu tipte olmalı.
       const removedOutbox = await db()
-        .select({ id: notificationOutbox.id })
+        .select({ id: notificationOutbox.id, type: notificationOutbox.type })
         .from(notificationOutbox)
         .where(dbMod.eq(notificationOutbox.eventId, myActs[0]!.id));
-      expect(removedOutbox).toHaveLength(0);
+      expect(removedOutbox.every((r) => r.type === 'attachment_removed')).toBe(true);
       const vAfter =
         (
           await db()

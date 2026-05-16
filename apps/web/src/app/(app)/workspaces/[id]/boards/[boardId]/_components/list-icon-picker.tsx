@@ -69,7 +69,7 @@ export function ListIconPicker({ boardId, listId, value, color }: ListIconPicker
 
   return (
     <div role="group" aria-label={copy.title} className="w-[15rem] space-y-3 p-1">
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid max-h-56 grid-cols-4 gap-1.5 overflow-y-auto p-0.5">
         {LIST_ICONS.map((icon) => {
           const Icon = LIST_ICON_COMPONENTS[icon];
           const selected = value === icon;

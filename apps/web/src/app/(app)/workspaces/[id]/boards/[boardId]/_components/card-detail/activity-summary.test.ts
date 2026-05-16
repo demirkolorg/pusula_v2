@@ -6,6 +6,7 @@ const base: CardActivityEvent = {
   type: 'card.created',
   actorId: 'u1',
   actorName: 'Ada',
+  actorImage: null,
   payload: {},
   createdAt: new Date('2026-01-01'),
 };

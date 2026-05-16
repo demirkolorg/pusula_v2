@@ -6,8 +6,8 @@
  *
  * Misafir görmediği şeyler ([`docs/domain/08-paylasim-linki-kurallari.md`](docs/domain/08-paylasim-linki-kurallari.md)):
  * board adı dışı içerik, diğer kartlar, activity feed, e-posta, diğer paylaşım
- * linkleri. Kapak görseli (`coverImageAttachmentId`) snapshot'ta dönmez —
- * misafir attachment presigned URL endpoint Faz 11 backlog.
+ * linkleri. Kapak görseli artık snapshot'ta `card.coverImageUrl` (kısa süreli
+ * presigned GET URL) ile döner; genel attachment indirme hâlâ backlog.
  */
 import {
   CalendarIcon,
@@ -17,7 +17,7 @@ import {
   MessageSquareIcon,
   UsersIcon,
 } from 'lucide-react';
-import { Avatar, MetaChip, cn } from '@pusula/ui';
+import { Avatar, MetaChip, RichTextContent, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ShareCommentForm } from './share-comment-form';
 
@@ -33,6 +33,8 @@ export type ShareSnapshot = {
     completed: boolean;
     coverColor: string | null;
     coverImageAttachmentId: string | null;
+    /** Kapak eki için kısa süreli presigned GET URL (snapshot anında üretilir). */
+    coverImageUrl: string | null;
   };
   labels: Array<{ id: string; name: string; color: string }>;
   members: Array<{ id: string; name: string | null; image: string | null; role: string }>;
@@ -126,9 +128,21 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
         </p>
       </header>
 
-      {/* Trello-vari kart kabı: cover banner + body */}
+      {/* Trello-vari kart kabı: cover banner + body. Kapak görseli varsa
+          öncelikli (presigned URL ile); yoksa palet rengi şeridi. */}
       <article className="bg-card overflow-hidden rounded-xl border shadow-sm">
-        {coverClass && <div className={cn('h-28 w-full', coverClass)} aria-hidden />}
+        {card.coverImageUrl ? (
+          <div className="bg-muted h-44 w-full overflow-hidden">
+            <img
+              src={card.coverImageUrl}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        ) : coverClass ? (
+          <div className={cn('h-28 w-full', coverClass)} aria-hidden />
+        ) : null}
 
         <div className="space-y-5 p-5 sm:p-6">
           {/* Başlık + completed */}
@@ -209,10 +223,10 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
             </Section>
           )}
 
-          {/* Açıklama */}
+          {/* Açıklama — Tiptap JSON; ham metin değil, kontrollü read-only renderer */}
           {card.description && (
             <Section title={copy.descriptionHeading}>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{card.description}</p>
+              <RichTextContent value={card.description} />
             </Section>
           )}
 
@@ -293,9 +307,10 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
                           {formatDate(c.createdAt)}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed">
-                        {c.body}
-                      </p>
+                      {/* Yorum gövdesi Tiptap JSON taşır — RichTextContent
+                          ile render edilir; legacy düz metin tek paragrafa
+                          parse edilir (parseRichTextValue fallback). */}
+                      <RichTextContent value={c.body} className="mt-1" />
                     </div>
                   </li>
                 );

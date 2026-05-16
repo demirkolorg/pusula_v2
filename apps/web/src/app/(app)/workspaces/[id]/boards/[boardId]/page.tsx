@@ -7,6 +7,7 @@ import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { boardRoleAtLeast } from '@pusula/domain';
 import { Alert, AlertDescription, AlertTitle, boardBackgroundClass, cn } from '@pusula/ui';
+import { useSession } from '@/lib/auth-client';
 import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -112,8 +113,13 @@ export default function BoardDetailPage({
   // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner;
   // `joined` marks deterministic room readiness for e2e sync tests.
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
+  // Viewer identity drives the per-viewer "assigned to me" filter; it is not
+  // needed for authorization (that stays server-side).
+  const session = useSession();
+  const currentUserId = session.data?.user?.id ?? null;
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
   const [dueDateFilter, setDueDateFilter] = useState<DueDateFilter>('all');
+  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
   const [showArchivedLists, setShowArchivedLists] = useState(false);
   const [showArchivedCards, setShowArchivedCards] = useState(false);
   const [boardSearchOpen, setBoardSearchOpen] = useState(false);
@@ -264,6 +270,10 @@ export default function BoardDetailPage({
           dueDateFilter,
           onDueDateFilterChange: setDueDateFilter,
         }}
+        assignedToMe={{
+          active: assignedToMeOnly,
+          onToggle: () => setAssignedToMeOnly((value) => !value),
+        }}
         archive={{
           lists,
           canEdit: canEditBoardContent,
@@ -294,6 +304,7 @@ export default function BoardDetailPage({
           archivedCards={showArchivedCards ? (archivedCards.data ?? []) : []}
           selectedLabelIds={liveSelectedLabelIds}
           dueDateFilter={dueDateFilter}
+          assignedToMeUserId={assignedToMeOnly ? currentUserId : null}
           showArchivedLists={showArchivedLists}
           showArchivedCards={showArchivedCards}
           boardLabels={labelList.data ?? boardLabels}

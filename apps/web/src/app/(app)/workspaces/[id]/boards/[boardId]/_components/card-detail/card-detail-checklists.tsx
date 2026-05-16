@@ -5,7 +5,12 @@ import { Alert, AlertDescription, EmptyState, Progress, SectionHeader } from '@p
 import { strings } from '@/lib/strings';
 import { AddChecklistForm } from './checklist-add-forms';
 import { ChecklistBlock } from './checklist-block';
-import type { ChecklistHandlers, ChecklistView, NameResolver } from './checklist-types';
+import type {
+  ChecklistHandlers,
+  ChecklistView,
+  ImageResolver,
+  NameResolver,
+} from './checklist-types';
 
 export type { ChecklistItemView, ChecklistView } from './checklist-types';
 
@@ -15,6 +20,8 @@ type CardDetailChecklistsProps = ChecklistHandlers & {
   canEdit: boolean;
   /** Resolve a user id to a display name (for the "completed by" avatars). */
   nameOf?: NameResolver;
+  /** Resolve a user id to an avatar URL (for the "completed by" avatars). */
+  imageOf?: ImageResolver;
   pending?: boolean;
   error?: string | null;
 };
@@ -32,6 +39,7 @@ export function CardDetailChecklists({
   checklists,
   canEdit,
   nameOf,
+  imageOf,
   pending = false,
   error,
   ...handlers
@@ -88,6 +96,7 @@ export function CardDetailChecklists({
               pending={pending}
               handlers={handlers}
               nameOf={nameOf}
+              imageOf={imageOf}
             />
           ))}
         </div>

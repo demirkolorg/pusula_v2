@@ -6,18 +6,21 @@ const owner: MemberRowMember = {
   userId: 'u-owner',
   name: 'Ayşe Sahip',
   email: 'ayse@example.com',
+  image: null,
   role: 'owner',
 };
 const admin: MemberRowMember = {
   userId: 'u-admin',
   name: 'Mehmet Yönetici',
   email: 'mehmet@example.com',
+  image: null,
   role: 'admin',
 };
 const member: MemberRowMember = {
   userId: 'u-member',
   name: 'Zeynep Üye',
   email: 'zeynep@example.com',
+  image: null,
   role: 'member',
 };
 

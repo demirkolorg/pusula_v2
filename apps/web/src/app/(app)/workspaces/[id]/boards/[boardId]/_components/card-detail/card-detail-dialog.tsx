@@ -330,7 +330,19 @@ export function CardDetailDialog({
     for (const m of cardMembers) if (!map.has(m.userId)) map.set(m.userId, m.name);
     return (userId: string) => map.get(userId);
   }, [boardMembers, cardMembers]);
+  // Avatar URL resolver — mirrors `nameOf`, sourced from the same board/card
+  // member lists (both queries now select `image`). Used by the comment rows,
+  // checklist completer avatars and activity actor fallback.
+  const imageOf = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const m of boardMembers) map.set(m.userId, m.image);
+    for (const m of cardMembers) if (!map.has(m.userId)) map.set(m.userId, m.image);
+    return (userId: string) => map.get(userId) ?? null;
+  }, [boardMembers, cardMembers]);
   const viewerName = nameOf(viewerUserId) ?? null;
+  // Viewer avatar — resolved from the board/card member lists (the viewer is
+  // always a board member, so this carries the uploaded avatar when present).
+  const viewerImage = imageOf(viewerUserId);
 
   // @-mention picker source: board members (incl. workspace-inherited admins),
   // filtered by query — self is excluded so users can't mention themselves.
@@ -640,6 +652,7 @@ export function CardDetailDialog({
                         boardMembers={boardMembers.map((m) => ({
                           userId: m.userId,
                           name: m.name,
+                          image: m.image,
                         }))}
                         viewerUserId={viewerUserId}
                         canEdit={canEdit}
@@ -738,6 +751,7 @@ export function CardDetailDialog({
                     checklists={(checklistsQ.data ?? []) as ChecklistView[]}
                     canEdit={canEdit}
                     nameOf={nameOf}
+                    imageOf={imageOf}
                     onCreateChecklist={(title) =>
                       createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
                     }
@@ -809,8 +823,10 @@ export function CardDetailDialog({
                   activityQ.isError ? activityQ.error?.message || strings.common.unknownError : null
                 }
                 nameOf={nameOf}
+                imageOf={imageOf}
                 viewerUserId={viewerUserId}
                 viewerName={viewerName}
+                viewerImage={viewerImage}
                 isBoardAdmin={isBoardAdmin}
                 canComment={canEdit}
                 onCreateComment={(body) =>

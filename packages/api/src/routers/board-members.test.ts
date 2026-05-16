@@ -135,7 +135,7 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
 
   // ------------------------------------------------------------------ list
 
-  it('list: returns explicit board_members rows + inherited workspace owner/admins (inherited flag); no e-mail; a board viewer may call it', async () => {
+  it('list: returns explicit board_members rows + inherited workspace owner/admins (inherited flag) with e-mail; a board viewer may call it', async () => {
     const rows = await callerFor(boardViewerId).board.members.list({ boardId });
 
     // explicit rows: ownerId (creator → admin), boardAdminId (admin), boardViewerId (viewer)
@@ -159,8 +159,10 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     // a plain workspace member that has no explicit board row does NOT appear in `list`
     expect(rows.some((r) => r.userId === memberId)).toBe(false);
 
-    // privacy: no e-mail field
-    expect(rows.every((r) => !('email' in r))).toBe(true);
+    // DEM-157 — kimlik netleştirme: her satır account e-postasını taşır
+    // (adlar çakışabilir). `boardViewerId` çağırabilir.
+    expect(owner?.email).toBe(emailOf(ownerId));
+    expect(rows.every((r) => typeof r.email === 'string' && r.email.length > 0)).toBe(true);
   });
 
   // ------------------------------------------------------------------- add

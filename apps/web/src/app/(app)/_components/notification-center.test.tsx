@@ -338,6 +338,19 @@ describe('<NotificationCenter>', () => {
     expect(markAllReadCalls).toEqual([undefined]);
   });
 
+  it('settings butonu bildirim ayarları sayfasına yönlendirir', async () => {
+    const user = userEvent.setup();
+    const queryClient = newQueryClient();
+    listResult = { items: [unreadNotification({ id: 'n1' })], nextCursor: null };
+
+    renderCenter(queryClient);
+    await screen.findByTestId('notification-row-n1');
+
+    await user.click(screen.getByRole('button', { name: strings.notifications.openSettings }));
+
+    expect(routerPush).toHaveBeenCalledWith('/account?tab=notifications');
+  });
+
   it('mark-read optimistically updates list and unread-count caches while the mutation is pending', async () => {
     const user = userEvent.setup();
     const queryClient = newQueryClient();

@@ -29,6 +29,10 @@ import type { BoardRole, WorkspaceRole } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import type { Queryable } from '../middleware/board-access';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { protectedProcedure, router } from '../trpc';
 
 type PendingRequest = {
@@ -150,7 +154,12 @@ export const boardAccessRequestsRouter = router({
    * while one is pending return the existing row.
    */
   request: protectedProcedure.input(requestBoardAccessInput).mutation(async ({ ctx, input }) => {
-    return ctx.db.transaction(async (tx) => {
+    // DEM-154 — yeni bir talep yaratıldığında board admin'lerine bildirim
+    // fan-out edilir. Enqueue tx COMMIT *sonrası* yapılmalı; eventId'yi dışarı
+    // taşı. Idempotent dallarda (zaten üye / zaten bekleyen talep) `undefined`
+    // kalır — gürültü yok.
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const resolved = await loadBoardRequestContext(tx, input.boardId, ctx.session.user.id);
       if (resolved.role) {
         return {
@@ -187,7 +196,38 @@ export const boardAccessRequestsRouter = router({
           message: boardAccessRequests.message,
           createdAt: boardAccessRequests.createdAt,
         });
-      if (created) return created;
+      if (created) {
+        // DEM-154 — yalnız genuinely yeni talep activity + bildirim üretir.
+        // Activity actor'ı talep sahibidir; rule engine `collectRecipients`
+        // board admin'lerini toplar, actor self-skip ile düşer.
+        const [activity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: resolved.target.workspaceId,
+            boardId: resolved.target.boardId,
+            actorId: ctx.session.user.id,
+            type: 'board.access_requested',
+            payload: {
+              accessRequestId: created.id,
+              requesterUserId: ctx.session.user.id,
+              clientMutationId: input.clientMutationId,
+            },
+          })
+          .returning({ id: activityEvents.id });
+        if (activity) {
+          const dispatched = await dispatchNotificationsForActivity(tx, {
+            id: activity.id,
+            type: 'board.access_requested',
+            workspaceId: resolved.target.workspaceId,
+            boardId: resolved.target.boardId,
+            cardId: null,
+            actorId: ctx.session.user.id,
+            payload: { accessRequestId: created.id },
+          });
+          if (dispatched.inserted > 0) notificationEventId = activity.id;
+        }
+        return created;
+      }
 
       const [pending] = await tx
         .select({
@@ -210,6 +250,9 @@ export const boardAccessRequestsRouter = router({
       if (!pending) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
       return pending;
     });
+    // tx COMMIT sonrası best-effort enqueue — sweeper kaçanı yakalar.
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /** Board admins can see pending requests. */
@@ -225,6 +268,7 @@ export const boardAccessRequestsRouter = router({
         requesterId: boardAccessRequests.requesterId,
         requesterName: users.name,
         requesterEmail: users.email,
+        requesterImage: users.image,
         message: boardAccessRequests.message,
         status: boardAccessRequests.status,
         createdAt: boardAccessRequests.createdAt,

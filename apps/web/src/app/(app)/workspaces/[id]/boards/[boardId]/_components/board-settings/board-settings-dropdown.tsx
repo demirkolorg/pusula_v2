@@ -4,14 +4,10 @@ import type { ReactNode } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  KeyRoundIcon,
-  MailIcon,
   PaletteIcon,
   PencilIcon,
   Settings2Icon,
   ShapesIcon,
-  TagsIcon,
-  UsersIcon,
   WrenchIcon,
 } from 'lucide-react';
 import type { EntityIcon } from '@pusula/domain';
@@ -30,22 +26,17 @@ import {
   TabsTrigger,
   cn,
 } from '@pusula/ui';
-import { InfoTooltipButton } from '@/components/info-tooltip-button';
 import { strings } from '@/lib/strings';
-import { BoardAccessRequestsSection } from './board-access-requests-section';
-import { BoardInvitationsSection } from './board-invitations-section';
 import { BoardBackgroundPicker } from './background-picker';
 import { BoardIconPicker } from './board-icon-picker';
-import { BoardLabelsSection } from './board-labels-section';
-import { BoardMembersSection } from './board-members-section';
 
-export type BoardSettingsTab =
-  | 'members'
-  | 'invitations'
-  | 'accessRequests'
-  | 'labels'
-  | 'background'
-  | 'actions';
+/**
+ * DEM-154 — üyelik bağlamı sekmeleri (`members` / `invitations` /
+ * `accessRequests`) ayrı `BoardMembersDropdown`'a taşındı. Etiket paleti de
+ * kendi ikon-butonuna (`BoardLabelsDropdown`) ayrıldı. Bu dropdown yalnız
+ * "ayar" işini taşır: arka plan / pano işlemleri.
+ */
+export type BoardSettingsTab = 'background' | 'actions';
 
 type BoardSettingsDropdownProps = {
   boardId: string;
@@ -72,24 +63,19 @@ function SettingsPanel({
   icon,
   title,
   description,
-  info,
   children,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
-  info?: { label: string; content: string };
   children: ReactNode;
 }) {
   return (
     <section className="space-y-3">
       <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
-          <SectionHeader icon={icon} className="mb-0">
-            {title}
-          </SectionHeader>
-          {info && <InfoTooltipButton label={info.label} content={info.content} />}
-        </div>
+        <SectionHeader icon={icon} className="mb-0">
+          {title}
+        </SectionHeader>
         <p className="text-muted-foreground text-sm">{description}</p>
       </div>
       {children}
@@ -120,7 +106,6 @@ export function BoardSettingsDropdown({
 }: BoardSettingsDropdownProps) {
   const settingsCopy = strings.board.settings;
   const topCopy = strings.board.topBar;
-  const canEditLabels = canManage && boardActive;
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
@@ -130,7 +115,7 @@ export function BoardSettingsDropdown({
           variant="ghost"
           size="sm"
           className={cn('font-semibold', boardChromeButtonClass)}
-          onClick={() => onActiveTabChange('members')}
+          onClick={() => onActiveTabChange('background')}
         >
           <Settings2Icon className="size-4" />
           {topCopy.settings}
@@ -153,22 +138,6 @@ export function BoardSettingsDropdown({
         >
           <div className="max-w-full overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsList className="flex h-auto min-w-full w-max justify-start gap-1">
-              <TabsTrigger value="members" className="h-8 shrink-0 flex-none px-3">
-                <UsersIcon className="size-3.5" />
-                {settingsCopy.tabMembers}
-              </TabsTrigger>
-              <TabsTrigger value="invitations" className="h-8 shrink-0 flex-none px-3">
-                <MailIcon className="size-3.5" />
-                {settingsCopy.tabInvitations}
-              </TabsTrigger>
-              <TabsTrigger value="accessRequests" className="h-8 shrink-0 flex-none px-3">
-                <KeyRoundIcon className="size-3.5" />
-                {settingsCopy.tabAccessRequests}
-              </TabsTrigger>
-              <TabsTrigger value="labels" className="h-8 shrink-0 flex-none px-3">
-                <TagsIcon className="size-3.5" />
-                {settingsCopy.tabLabels}
-              </TabsTrigger>
               <TabsTrigger value="background" className="h-8 shrink-0 flex-none px-3">
                 <PaletteIcon className="size-3.5" />
                 {settingsCopy.tabBackground}
@@ -179,59 +148,6 @@ export function BoardSettingsDropdown({
               </TabsTrigger>
             </TabsList>
           </div>
-
-          <TabsContent value="members" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
-            <SettingsPanel
-              icon={<UsersIcon className="size-3.5" />}
-              title={settingsCopy.membersTitle}
-              description={settingsCopy.membersDescription}
-              info={{ label: settingsCopy.membersInfoLabel, content: settingsCopy.membersInfo }}
-            >
-              <BoardMembersSection
-                boardId={boardId}
-                workspaceId={workspaceId}
-                canManage={canManage}
-              />
-            </SettingsPanel>
-          </TabsContent>
-
-          <TabsContent value="invitations" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
-            <SettingsPanel
-              icon={<MailIcon className="size-3.5" />}
-              title={settingsCopy.sentInvitationsTitle}
-              description={settingsCopy.sentInvitationsDescription}
-              info={{
-                label: settingsCopy.invitationsInfoLabel,
-                content: settingsCopy.invitationsInfo,
-              }}
-            >
-              <BoardInvitationsSection boardId={boardId} canManage={canManage} />
-            </SettingsPanel>
-          </TabsContent>
-
-          <TabsContent value="accessRequests" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
-            <SettingsPanel
-              icon={<KeyRoundIcon className="size-3.5" />}
-              title={settingsCopy.accessRequestsTitle}
-              description={settingsCopy.accessRequestsDescription}
-              info={{
-                label: settingsCopy.accessRequestsInfoLabel,
-                content: settingsCopy.accessRequestsInfo,
-              }}
-            >
-              <BoardAccessRequestsSection boardId={boardId} canManage={canManage} />
-            </SettingsPanel>
-          </TabsContent>
-
-          <TabsContent value="labels" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
-            <SettingsPanel
-              icon={<TagsIcon className="size-3.5" />}
-              title={settingsCopy.labelsTitle}
-              description={settingsCopy.labelsDescription}
-            >
-              <BoardLabelsSection boardId={boardId} canEdit={canEditLabels} />
-            </SettingsPanel>
-          </TabsContent>
 
           <TabsContent value="background" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
             <SettingsPanel

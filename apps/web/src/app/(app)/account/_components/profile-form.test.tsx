@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { AVATAR_IMAGE_MAX_BYTES } from '@pusula/domain';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
@@ -6,19 +7,30 @@ import { ProfileForm } from './profile-form';
 
 const copy = strings.account.profile;
 
+type ProfileFormUpload = React.ComponentProps<typeof ProfileForm>['onUploadAvatar'];
+
 function renderForm(overrides: Partial<React.ComponentProps<typeof ProfileForm>> = {}) {
   const onSubmit = vi.fn();
-  render(
+  const onUploadAvatar = vi.fn<ProfileFormUpload>(async () => 'https://cdn.example/uploaded.png');
+  const view = render(
     <ProfileForm
       initialName="Aria Chen"
       initialImage={null}
       email="aria@example.com"
       pending={false}
       onSubmit={onSubmit}
+      onUploadAvatar={onUploadAvatar}
       {...overrides}
     />,
   );
-  return { onSubmit };
+  return { onSubmit, onUploadAvatar, view };
+}
+
+/** The avatar `<input type="file">` is `sr-only` (a button proxies the click). */
+function fileInput(container: HTMLElement): HTMLInputElement {
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+  if (!input) throw new Error('file input not found');
+  return input;
 }
 
 describe('<ProfileForm>', () => {
@@ -98,5 +110,90 @@ describe('<ProfileForm>', () => {
   it('shows the saved notice on success', () => {
     renderForm({ success: true });
     expect(screen.getByText(copy.saved)).toBeInTheDocument();
+  });
+
+  // --- Avatar upload (DEM-160) ----------------------------------------------
+
+  it('renders the upload button', () => {
+    renderForm();
+    expect(screen.getByRole('button', { name: copy.avatarUploadButton })).toBeInTheDocument();
+  });
+
+  it('rejects a non-image file without calling onUploadAvatar', async () => {
+    const { onUploadAvatar, view } = renderForm();
+
+    // `userEvent.upload` filters files by the input's `accept` attribute, so a
+    // raw `change` event is fired to exercise the component's own MIME guard
+    // (the defensive check still matters — `accept` is only a hint).
+    const file = new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput(view.container), { target: { files: [file] } });
+
+    expect(onUploadAvatar).not.toHaveBeenCalled();
+    expect(await screen.findByText(copy.avatarTypeError)).toBeInTheDocument();
+  });
+
+  it('rejects a file over the size limit without calling onUploadAvatar', async () => {
+    const user = userEvent.setup();
+    const { onUploadAvatar, view } = renderForm();
+
+    const tooBig = new File([new Uint8Array(AVATAR_IMAGE_MAX_BYTES + 1)], 'big.png', {
+      type: 'image/png',
+    });
+    await user.upload(fileInput(view.container), tooBig);
+
+    expect(onUploadAvatar).not.toHaveBeenCalled();
+    expect(await screen.findByText(copy.avatarSizeError)).toBeInTheDocument();
+  });
+
+  it('uploads a valid image and fills the avatar URL with the public URL', async () => {
+    const user = userEvent.setup();
+    const { onUploadAvatar, view } = renderForm();
+
+    const file = new File(['img'], 'me.png', { type: 'image/png' });
+    await user.upload(fileInput(view.container), file);
+
+    await waitFor(() => expect(onUploadAvatar).toHaveBeenCalledTimes(1));
+    expect(onUploadAvatar.mock.calls[0]![0]).toBe(file);
+    await waitFor(() =>
+      expect(screen.getByLabelText(copy.imageLabel)).toHaveValue(
+        'https://cdn.example/uploaded.png',
+      ),
+    );
+    // After an upload the button flips to "change".
+    expect(screen.getByRole('button', { name: copy.avatarChangeButton })).toBeInTheDocument();
+  });
+
+  it('submits the uploaded avatar URL after a successful upload', async () => {
+    const user = userEvent.setup();
+    const { onSubmit, onUploadAvatar, view } = renderForm();
+
+    const file = new File(['img'], 'me.png', { type: 'image/png' });
+    await user.upload(fileInput(view.container), file);
+    await waitFor(() => expect(onUploadAvatar).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByLabelText(copy.imageLabel)).toHaveValue(
+        'https://cdn.example/uploaded.png',
+      ),
+    );
+
+    await user.click(screen.getByRole('button', { name: copy.save }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: 'Aria Chen',
+      image: 'https://cdn.example/uploaded.png',
+    });
+  });
+
+  it('shows an error when the upload fails', async () => {
+    const user = userEvent.setup();
+    const onUploadAvatar = vi.fn<ProfileFormUpload>(async () => {
+      throw new Error('network');
+    });
+    const { view } = renderForm({ onUploadAvatar });
+
+    const file = new File(['img'], 'me.png', { type: 'image/png' });
+    await user.upload(fileInput(view.container), file);
+
+    expect(await screen.findByText(copy.avatarUploadError)).toBeInTheDocument();
   });
 });

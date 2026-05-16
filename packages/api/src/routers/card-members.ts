@@ -75,6 +75,7 @@ export const cardMembersRouter = router({
         userId: cardMembers.userId,
         role: cardMembers.role,
         name: users.name,
+        image: users.image,
       })
       .from(cardMembers)
       .leftJoin(users, eq(users.id, cardMembers.userId))

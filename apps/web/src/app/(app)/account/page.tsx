@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import type { AvatarImageMimeType } from '@pusula/domain';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
+import { uploadWithProgress } from '@/lib/upload-with-progress';
 import { useTRPC } from '@/trpc/client';
 import { AccountTabs } from './_components/account-tabs';
 import { ChangePasswordForm } from './_components/change-password-form';
@@ -28,8 +30,10 @@ import { SecurityActivitySection } from './_components/security-activity-section
  * hesap yönetimi" and `docs/architecture/08-web-ve-mobil.md` §8.1.7). The
  * `(app)` shell already guarantees a session; this is a safety net.
  *
- * Avatar is a plain URL for now — no upload yet (karar 2026-05-12). Account
- * deletion is blocked while the user owns a workspace; the server enforces it
+ * Avatar can be uploaded as a file (DEM-160 — tRPC `user.initiateAvatarUpload`
+ * → presigned PUT to MinIO → `updateUser` with the public URL) or set via a
+ * plain URL. Account deletion is blocked while the user owns a workspace; the
+ * server enforces it
  * (`@pusula/domain` `canDeleteOwnAccount` in Better Auth's `beforeDelete` hook),
  * and we surface the count here as a hint.
  */
@@ -38,6 +42,7 @@ export default function AccountPage() {
   const trpc = useTRPC();
   const { data: session, isPending, refetch } = authClient.useSession();
   const workspaces = useQuery(trpc.workspace.list.queryOptions());
+  const initiateAvatarUpload = useMutation(trpc.user.initiateAvatarUpload.mutationOptions());
 
   const [profilePending, setProfilePending] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -82,6 +87,28 @@ export default function AccountPage() {
     } finally {
       setProfilePending(false);
     }
+  };
+
+  /**
+   * Avatar upload (DEM-160): presign via tRPC → direct PUT to MinIO → return
+   * the public URL. The caller (`ProfileForm`) puts the URL into `image`; the
+   * actual `users.image` write happens on form submit via `updateUser`. The
+   * file is already MIME/size-validated by the form, so `file.type` is a known
+   * avatar MIME — the server re-validates regardless.
+   */
+  const handleUploadAvatar = async (file: File, onProgress: (percent: number) => void) => {
+    const initiated = await initiateAvatarUpload.mutateAsync({
+      mimeType: file.type as AvatarImageMimeType,
+      size: file.size,
+    });
+    const handle = uploadWithProgress(
+      initiated.upload.url,
+      initiated.upload.headers,
+      file,
+      onProgress,
+    );
+    await handle.promise;
+    return initiated.publicUrl;
   };
 
   const handlePasswordSubmit = async (values: { currentPassword: string; newPassword: string }) => {
@@ -148,6 +175,7 @@ export default function AccountPage() {
             error={profileError}
             success={profileSuccess}
             onSubmit={handleProfileSubmit}
+            onUploadAvatar={handleUploadAvatar}
           />
         }
         security={

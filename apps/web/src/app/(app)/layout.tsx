@@ -39,6 +39,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <AppShell
       userName={session.user.name || session.user.email}
       userEmail={session.user.email}
+      userImage={session.user.image ?? null}
       emailVerified={session.user.emailVerified}
     >
       {children}

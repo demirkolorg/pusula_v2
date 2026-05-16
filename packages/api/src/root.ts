@@ -12,11 +12,13 @@ import { notificationsRouter } from './routers/notifications';
 import { pushRouter } from './routers/push';
 import { searchRouter } from './routers/search';
 import { shareRouter } from './routers/share';
+import { userRouter } from './routers/user';
 import { workspaceRouter } from './routers/workspace';
 
 export const appRouter = router({
   health: healthRouter,
   auth: authRouter,
+  user: userRouter,
   attachment: attachmentRouter,
   workspace: workspaceRouter,
   board: boardRouter,

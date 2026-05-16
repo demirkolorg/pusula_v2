@@ -217,7 +217,9 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     });
   });
 
-  it('attachment.removed → no rules emitted (mapEventToNotificationType returns null)', async () => {
+  it('attachment.removed → watchers get attachment_removed in_app rows (DEM-153)', async () => {
+    // DEM-153 — `attachment.removed` artık bildirim üretir (eskiden
+    // `mapEventToNotificationType` null dönüyordu). Kart watcher pool, in-app only.
     const event: ActivityEventForRules = {
       id: newId('ae-att-removed'),
       type: 'attachment.removed',
@@ -228,7 +230,60 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { attachmentId: newId('att'), fileName: 'rapor.pdf' },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules).toEqual([]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'attachment_removed')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
+  it('card.renamed → watchers get card_renamed in_app rows (DEM-153)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-renamed'),
+      type: 'card.renamed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, fromTitle: 'Eski', toTitle: 'Yeni' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'card_renamed')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
+  it('checklist.item_added → watchers get checklist_item_added in_app rows (DEM-153)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-cli-added'),
+      type: 'checklist.item_added',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { checklistId: newId('cl'), itemId: newId('ci'), cardId },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'checklist_item_added')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
+  it('checklist.item_unchecked → maps to checklist_item_completed (DEM-153)', async () => {
+    // DEM-153 — `checklist.item_unchecked` yeni tip açmaz; `card.completed`/
+    // `uncompleted` → `card_completed` paterniyle aynı şekilde mevcut
+    // `checklist_item_completed` tipine bağlanır (`activityType` ayırır).
+    const event: ActivityEventForRules = {
+      id: newId('ae-cli-unchecked'),
+      type: 'checklist.item_unchecked',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { checklistId: newId('cl'), itemId: newId('ci'), cardId },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'checklist_item_completed')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
   });
 
   it('card.cover_image_changed → watchers get card_cover_changed in_app rows', async () => {

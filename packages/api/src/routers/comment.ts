@@ -299,6 +299,7 @@ export const commentRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [comment] = await tx
         .select(commentCols)
@@ -340,14 +341,30 @@ export const commentRouter = router({
         .returning(commentCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'comment.updated',
+          payload: { commentId: comment.id, cardId: ctx.card.id },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — yorum düzenleme kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'comment.updated',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'comment.updated',
         payload: { commentId: comment.id, cardId: ctx.card.id },
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -370,6 +387,7 @@ export const commentRouter = router({
 
       return { ...updated, changed: true as const };
     });
+    if (notificationEventId) maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublishes(ctx, realtimeEventId ? [realtimeEventId] : []);
     return result;
   }),
@@ -387,6 +405,7 @@ export const commentRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [comment] = await tx
         .select({
@@ -429,14 +448,30 @@ export const commentRouter = router({
         .returning({ id: comments.id, deletedAt: comments.deletedAt });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'comment.deleted',
+          payload: { commentId: comment.id, cardId: ctx.card.id },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — yorum silme kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'comment.deleted',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'comment.deleted',
         payload: { commentId: comment.id, cardId: ctx.card.id },
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -454,6 +489,7 @@ export const commentRouter = router({
 
       return { id: updated.id, deletedAt: updated.deletedAt, changed: true as const };
     });
+    if (notificationEventId) maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublishes(ctx, realtimeEventId ? [realtimeEventId] : []);
     return result;
   }),

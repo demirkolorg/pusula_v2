@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { AVATAR_IMAGE_MAX_BYTES } from '../constants';
 import {
+  avatarUploadInitiateInput,
   changePasswordInput,
   deleteAccountInput,
   updateProfileInput,
@@ -54,6 +56,48 @@ describe('updateProfileInput', () => {
       false,
     );
     expect(updateProfileInput.safeParse({ name: '', image: null }).success).toBe(false);
+  });
+});
+
+describe('avatarUploadInitiateInput', () => {
+  it('accepts an allowed MIME type with a size within the limit', () => {
+    expect(avatarUploadInitiateInput.parse({ mimeType: 'image/png', size: 1024 })).toEqual({
+      mimeType: 'image/png',
+      size: 1024,
+    });
+    expect(
+      avatarUploadInitiateInput.parse({ mimeType: 'image/webp', size: AVATAR_IMAGE_MAX_BYTES }),
+    ).toEqual({ mimeType: 'image/webp', size: AVATAR_IMAGE_MAX_BYTES });
+  });
+
+  it('rejects MIME types outside the avatar allowlist', () => {
+    expect(avatarUploadInitiateInput.safeParse({ mimeType: 'image/gif', size: 1024 }).success).toBe(
+      false,
+    );
+    expect(
+      avatarUploadInitiateInput.safeParse({ mimeType: 'application/pdf', size: 1024 }).success,
+    ).toBe(false);
+    expect(
+      avatarUploadInitiateInput.safeParse({ mimeType: 'image/svg+xml', size: 1024 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a non-positive or oversized file', () => {
+    expect(avatarUploadInitiateInput.safeParse({ mimeType: 'image/png', size: 0 }).success).toBe(
+      false,
+    );
+    expect(avatarUploadInitiateInput.safeParse({ mimeType: 'image/png', size: -1 }).success).toBe(
+      false,
+    );
+    expect(
+      avatarUploadInitiateInput.safeParse({
+        mimeType: 'image/png',
+        size: AVATAR_IMAGE_MAX_BYTES + 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      avatarUploadInitiateInput.safeParse({ mimeType: 'image/png', size: 10.5 }).success,
+    ).toBe(false);
   });
 });
 

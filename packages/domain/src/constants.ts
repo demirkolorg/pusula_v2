@@ -103,6 +103,12 @@ export const ACTIVITY_EVENT_TYPES = [
   // DEM-109 (List icon + icon colour). Appended to keep the Postgres enum append-only.
   'list.icon_changed',
   'list.icon_cleared',
+  // DEM-154 (Board access request notification). A signed-in user requesting
+  // access to a board from its shared link emits this; the rule engine fans it
+  // out to board admins as a `board_access_requested` notification. Appended to
+  // keep the Postgres enum append-only. See `docs/domain/04-bildirim-kurallari.md`
+  // "DEM-154 — board erişim talebi bildirimi".
+  'board.access_requested',
 ] as const;
 
 /**
@@ -417,25 +423,77 @@ export type ListColor = (typeof LIST_COLORS)[number];
 
 /**
  * Curated list icon set. Stored verbatim in `lists.icon`; `null` = no icon.
- * UI maps these stable tokens to lucide-react components.
+ * UI maps these stable tokens to lucide-react components (see
+ * `apps/web/.../list-icon-presentation.ts` `LIST_ICON_COMPONENTS`).
+ *
+ * Ordered by theme (status → flow → emphasis → time → people → comms →
+ * work → files → alerts/tools) so the picker grid reads as grouped rows.
+ * `lists.icon` is plain `text` (no DB enum), so entries may be freely
+ * reordered/extended — keep the component map + `strings` labels in sync.
  */
 export const LIST_ICONS = [
+  // status / shape
   'circle',
+  'circle-dot',
+  'circle-dashed',
+  'circle-check',
+  'circle-alert',
   'check',
+  'square-check',
+  // flow
+  'list',
+  'list-todo',
+  'list-checks',
+  'layers',
+  'play',
+  'pause',
+  'hourglass',
+  'timer',
+  'alarm-clock',
+  // emphasis
   'star',
   'flag',
   'bookmark',
   'tag',
+  'pin',
+  'sparkles',
+  'lightbulb',
+  'heart',
+  'thumbs-up',
+  // time
   'clock',
   'calendar',
+  // people
   'user',
   'users',
+  // comms
+  'bell',
+  'message-square',
+  'mail',
+  // work
   'briefcase',
-  'zap',
   'target',
   'rocket',
+  'zap',
+  'trophy',
+  'award',
+  'trending-up',
+  'activity',
+  // files
+  'folder',
+  'file-text',
+  'paperclip',
   'inbox',
   'archive',
+  'package',
+  // alerts / tools
+  'triangle-alert',
+  'lock',
+  'bug',
+  'wrench',
+  'hammer',
+  'gift',
+  'coffee',
 ] as const;
 export type ListIcon = (typeof LIST_ICONS)[number];
 
@@ -461,26 +519,82 @@ export type ListIconColor = (typeof LIST_ICON_COLORS)[number];
 
 /**
  * Curated workspace/board icon set. Stored verbatim in `workspaces.icon` and
- * `boards.icon`; UI maps these stable tokens to lucide-react components.
+ * `boards.icon`; UI maps these stable tokens to lucide-react components (see
+ * `apps/web/src/components/entity-icon.tsx` `ENTITY_ICON_COMPONENTS`).
+ *
+ * Ordered by theme (layout → organisation → people → goals → emphasis →
+ * time → places → knowledge → tech → creative → nature → comms) so the
+ * picker grid reads as grouped rows. Both columns are plain `text` (no DB
+ * enum); entries may be freely reordered/extended — keep the component map +
+ * `strings.entityIcons` labels in sync. `DEFAULT_WORKSPACE_ICON` /
+ * `DEFAULT_BOARD_ICON` must always remain members of this set.
  */
 export const ENTITY_ICONS = [
+  // layout
   'layout-grid',
+  'layout-dashboard',
+  'layout-list',
+  // organisation
   'briefcase',
   'folder',
+  'folder-open',
   'building',
+  'factory',
+  'store',
+  'home',
+  'archive',
+  'inbox',
+  'package',
+  'boxes',
+  // people
   'users',
+  'user',
+  'network',
+  // goals
   'target',
   'rocket',
   'flag',
+  'trophy',
+  'award',
+  'crown',
+  'gem',
+  'zap',
+  'trending-up',
+  // emphasis
   'star',
   'bookmark',
+  'heart',
+  'sparkles',
+  'lightbulb',
+  // time
   'calendar',
   'clock',
+  // places
   'map',
   'compass',
-  'inbox',
-  'zap',
-  'archive',
+  'globe',
+  // knowledge
+  'book-open',
+  'clipboard-list',
+  'graduation-cap',
+  'puzzle',
+  // tech
+  'code',
+  'terminal',
+  'database',
+  'server',
+  // creative
+  'palette',
+  'camera',
+  'music',
+  // nature
+  'leaf',
+  'sun',
+  // comms / misc
+  'shield',
+  'bell',
+  'megaphone',
+  'shopping-cart',
 ] as const;
 export type EntityIcon = (typeof ENTITY_ICONS)[number];
 export const DEFAULT_WORKSPACE_ICON = 'briefcase' satisfies EntityIcon;
@@ -517,6 +631,24 @@ export type CardCoverImageMimeType = (typeof CARD_COVER_IMAGE_MIME_TYPES)[number
 
 /** Maximum card cover image upload size: 5 MiB. */
 export const CARD_COVER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Allowed MIME types for avatar uploads (DEM-160). Narrower than the general
+ * attachment allowlist — only raster images that browsers render reliably as
+ * `<img src>`; no GIF (animated avatars are out of V1), no SVG (script sink).
+ */
+export const AVATAR_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type AvatarImageMimeType = (typeof AVATAR_IMAGE_MIME_TYPES)[number];
+
+/** Maximum avatar upload size: 10 MiB. */
+export const AVATAR_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+/** File extension stored in the avatar object key, keyed by allowed MIME type. */
+export const AVATAR_IMAGE_EXTENSIONS: Record<AvatarImageMimeType, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
 
 /**
  * Faz 11 (DEM-147) — V1 allowlist for general card attachment uploads. Eight
@@ -676,6 +808,30 @@ export const NOTIFICATION_TYPES = [
   'card_cover_changed',
   'card_member_removed',
   'attachment_added',
+  // DEM-153 — kart aksiyonlarının tamamı bildirim üretir. DEM-152 sonrası bile
+  // kartla ilgili birçok aksiyon (başlık/açıklama değişimi, etiket ekle/kaldır,
+  // yorum düzenle/sil, checklist oluştur/madde ekle-sil, ek kaldırma) hiç
+  // bildirim üretmiyordu. 10 yeni granular tip: hepsi in-app only, kart watcher
+  // pool, 60 sn cooldown. Ayar matrisi "tam ayrıntılı" (her aksiyon kendi
+  // satırı). `checklist.item_unchecked` yeni tip açmaz — mevcut
+  // `checklist_item_completed`'a bağlanır (`payload.activityType` ayırır).
+  // Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-153".
+  'card_renamed',
+  'card_description_changed',
+  'card_label_added',
+  'card_label_removed',
+  'comment_updated',
+  'comment_deleted',
+  'checklist_created',
+  'checklist_item_added',
+  'checklist_item_removed',
+  'attachment_removed',
+  // DEM-154 — board erişim talebi. Biri paylaşılan board linkinden erişim
+  // talep edince (`board.access_requested` activity) board admin'lerine düşer.
+  // in-app + email (opt-in); cooldown-bypass (her talep ayrı kişi/aksiyon).
+  // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı.
+  // Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-154".
+  'board_access_requested',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */

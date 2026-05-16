@@ -80,6 +80,16 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
     case 'card_cover_changed':
     case 'card_member_removed':
     case 'attachment_added':
+    case 'card_renamed':
+    case 'card_description_changed':
+    case 'card_label_added':
+    case 'card_label_removed':
+    case 'comment_updated':
+    case 'comment_deleted':
+    case 'checklist_created':
+    case 'checklist_item_added':
+    case 'checklist_item_removed':
+    case 'attachment_removed':
       return renderWatchedActivity(ctx);
     case 'checklist_item_completed':
       return renderChecklistCompleted(ctx);
@@ -87,6 +97,9 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
       return renderMemberRemoved(ctx);
     case 'member_role_changed':
       return renderMemberRoleChanged(ctx);
+    case 'board_access_requested':
+      // DEM-154 — board admin'ine "X erişim istedi" e-postası (email opt-in).
+      return renderAccessRequest(ctx);
     default: {
       // Exhaustiveness check — every new NotificationType must be wired here.
       const _exhaustive: never = ctx.type;
@@ -210,6 +223,69 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         data,
       };
     }
+    // DEM-153 — kartla ilgili kalan granular tipler. Rule engine bu tipler için
+    // push satırı yazmaz (in-app only); case'ler `never` exhaustiveness için
+    // tam tutulur — ileride biri push kanalını açarsa anlamlı metin döner.
+    case 'card_renamed':
+      return {
+        title: 'Kart başlığı değişti',
+        body: `${actor}, takip ettiğin "${subject}" kartının başlığını değiştirdi.`,
+        data,
+      };
+    case 'card_description_changed':
+      return {
+        title: 'Kart açıklaması değişti',
+        body: `${actor}, takip ettiğin "${subject}" kartının açıklamasını güncelledi.`,
+        data,
+      };
+    case 'card_label_added':
+      return {
+        title: 'Etiket eklendi',
+        body: `${actor}, takip ettiğin "${subject}" kartına etiket ekledi.`,
+        data,
+      };
+    case 'card_label_removed':
+      return {
+        title: 'Etiket kaldırıldı',
+        body: `${actor}, takip ettiğin "${subject}" kartından etiket kaldırdı.`,
+        data,
+      };
+    case 'comment_updated':
+      return {
+        title: 'Yorum düzenlendi',
+        body: `${actor}, takip ettiğin "${subject}" kartındaki bir yorumu düzenledi.`,
+        data,
+      };
+    case 'comment_deleted':
+      return {
+        title: 'Yorum silindi',
+        body: `${actor}, takip ettiğin "${subject}" kartındaki bir yorumu sildi.`,
+        data,
+      };
+    case 'checklist_created':
+      return {
+        title: 'Yapılacaklar listesi eklendi',
+        body: `${actor}, takip ettiğin "${subject}" kartına yapılacaklar listesi ekledi.`,
+        data,
+      };
+    case 'checklist_item_added':
+      return {
+        title: 'Yapılacaklar maddesi eklendi',
+        body: `${actor}, takip ettiğin "${subject}" kartına yapılacaklar maddesi ekledi.`,
+        data,
+      };
+    case 'checklist_item_removed':
+      return {
+        title: 'Yapılacaklar maddesi silindi',
+        body: `${actor}, takip ettiğin "${subject}" kartından yapılacaklar maddesi sildi.`,
+        data,
+      };
+    case 'attachment_removed':
+      return {
+        title: 'Dosya kaldırıldı',
+        body: `${actor}, takip ettiğin "${subject}" kartından bir dosya kaldırdı.`,
+        data,
+      };
     case 'checklist_item_completed':
       return {
         title: 'Liste güncellemesi',
@@ -250,6 +326,14 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         data,
       };
     }
+    case 'board_access_requested':
+      // DEM-154 — rule engine `board_access_requested` için push satırı yazmaz
+      // (kanal in_app + email); case `never` exhaustiveness için tam tutulur.
+      return {
+        title: 'Erişim talebi',
+        body: `${actor}, "${subject}" panosuna erişim istedi.`,
+        data,
+      };
     default: {
       const _exhaustive: never = ctx.type;
       void _exhaustive;
@@ -378,6 +462,33 @@ function renderInvitation(ctx: TemplateContext): RenderedEmail {
       `<p>${esc(actor)}, seni <strong>${esc(targetTitle)}</strong> ${esc(scopeLabel)} davet etti.</p>`,
       `<p><a href="${esc(link)}" style="display: inline-block; padding: 8px 16px; background: #1f2937; color: #ffffff; text-decoration: none; border-radius: 6px;">Daveti incele</a></p>`,
       `<p style="color: #6b7280; font-size: 13px;">Buton çalışmazsa şu bağlantıyı tarayıcına kopyala:<br /><span style="color: #1f2937;">${esc(link)}</span></p>`,
+    ]),
+  };
+}
+
+/**
+ * DEM-154 — "X panonuza erişim istedi" e-postası. Alıcı board admin'i; biri
+ * paylaşılan board linkinden erişim talep edince gönderilir. Davet
+ * (`renderInvitation`) ile simetrik ama yön ters: burada *talep eden*
+ * dışarıdadır, alıcı talebi onaylar/reddeder.
+ */
+function renderAccessRequest(ctx: TemplateContext): RenderedEmail {
+  const actor = pickActorName(ctx.payload);
+  const boardName = stringOr(ctx.payload, 'boardName', 'panonuz');
+  const link = boardDeepLink(ctx);
+  const subject = `${actor}, "${boardName}" panosuna erişim istedi`;
+  return {
+    subject,
+    text: textShell(ctx.recipient.name, [
+      `${actor}, "${boardName}" panosuna erişim talebinde bulundu.`,
+      '',
+      'Talebi panoyu açıp "Üyeler → Talepler" sekmesinden onaylayabilir veya reddedebilirsin:',
+      link,
+    ]),
+    html: htmlShell(ctx.recipient.name, [
+      `<p>${esc(actor)}, <strong>${esc(boardName)}</strong> panosuna erişim talebinde bulundu.</p>`,
+      `<p><a href="${esc(link)}" style="display: inline-block; padding: 8px 16px; background: #1f2937; color: #ffffff; text-decoration: none; border-radius: 6px;">Panoyu aç</a></p>`,
+      `<p style="color: #6b7280; font-size: 13px;">Talebi panodaki <strong>Üyeler → Talepler</strong> sekmesinden onaylayabilir veya reddedebilirsin.</p>`,
     ]),
   };
 }
@@ -651,12 +762,36 @@ function digestGroupBaseTitle(type: NotificationType): string {
       return 'Karttan çıkarılma';
     case 'attachment_added':
       return 'Eklenen dosyalar';
+    // DEM-153 — kartla ilgili kalan granular tipler (digest pratikte hiç
+    // toplamaz — in-app only; `never` exhaustiveness için tam).
+    case 'card_renamed':
+      return 'Başlık değişiklikleri';
+    case 'card_description_changed':
+      return 'Açıklama değişiklikleri';
+    case 'card_label_added':
+      return 'Eklenen etiketler';
+    case 'card_label_removed':
+      return 'Kaldırılan etiketler';
+    case 'comment_updated':
+      return 'Düzenlenen yorumlar';
+    case 'comment_deleted':
+      return 'Silinen yorumlar';
+    case 'checklist_created':
+      return 'Eklenen yapılacaklar listeleri';
+    case 'checklist_item_added':
+      return 'Eklenen yapılacaklar maddeleri';
+    case 'checklist_item_removed':
+      return 'Silinen yapılacaklar maddeleri';
+    case 'attachment_removed':
+      return 'Kaldırılan dosyalar';
     case 'checklist_item_completed':
       return 'Yapılacaklar güncellemeleri';
     case 'member_removed':
       return 'Üyelik değişiklikleri';
     case 'member_role_changed':
       return 'Rol değişiklikleri';
+    case 'board_access_requested':
+      return 'Erişim talepleri';
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -713,12 +848,36 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       return `${actor} seni "${subject}" kartından çıkardı`;
     case 'attachment_added':
       return `${actor} → "${subject}" kartına dosya ekledi`;
+    // DEM-153 — kartla ilgili kalan granular tipler (digest pratikte hiç
+    // çağrılmaz — in-app only; `never` exhaustiveness için tam).
+    case 'card_renamed':
+      return `${actor} → "${subject}" kartının başlığını değiştirdi`;
+    case 'card_description_changed':
+      return `${actor} → "${subject}" kartının açıklamasını güncelledi`;
+    case 'card_label_added':
+      return `${actor} → "${subject}" kartına etiket ekledi`;
+    case 'card_label_removed':
+      return `${actor} → "${subject}" kartından etiket kaldırdı`;
+    case 'comment_updated':
+      return `${actor} → "${subject}" kartında bir yorumu düzenledi`;
+    case 'comment_deleted':
+      return `${actor} → "${subject}" kartında bir yorumu sildi`;
+    case 'checklist_created':
+      return `${actor} → "${subject}" kartına yapılacaklar listesi ekledi`;
+    case 'checklist_item_added':
+      return `${actor} → "${subject}" kartına yapılacaklar maddesi ekledi`;
+    case 'checklist_item_removed':
+      return `${actor} → "${subject}" kartından yapılacaklar maddesi sildi`;
+    case 'attachment_removed':
+      return `${actor} → "${subject}" kartından dosya kaldırdı`;
     case 'checklist_item_completed':
       return `${actor} → "${subject}" kartında yapılacaklar maddesi tamamlandı`;
     case 'member_removed':
       return `${actor} seni "${subject}" üyeliğinden çıkardı`;
     case 'member_role_changed':
       return `${actor} → "${subject}" rolünü değiştirdi`;
+    case 'board_access_requested':
+      return `${actor} → "${subject}" panosuna erişim istedi`;
     default: {
       const _exhaustive: never = type;
       void _exhaustive;

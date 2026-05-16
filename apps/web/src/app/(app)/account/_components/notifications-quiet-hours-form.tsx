@@ -46,21 +46,15 @@ import { PREFERENCE_DEFAULTS, type PreferenceGetData } from './notifications-sha
 
 /**
  * Section'da göstereceğimiz timezone seçenekleri. Tam IANA listesi çok büyük
- * ve UI için gereksiz; başlangıçta Türkiye + sık kullanılan bölgeler. UI dili
- * Türkçe — `display` zaten lokalize. ICU `Intl.DateTimeFormat` kabul ettiği
- * IANA id'leri `value` alanında tutulur; tRPC `ianaTimezoneSchema` doğrular.
+ * ve UI için gereksiz; başlangıçta Türkiye + sık kullanılan bölgeler. ICU
+ * `Intl.DateTimeFormat` kabul ettiği IANA id'leri `value` alanında tutulur;
+ * tRPC `ianaTimezoneSchema` doğrular. Kullanıcıya görünen `display` etiketleri
+ * `strings.account.notifications.quiet.timezoneOptions`'tan okunur.
  */
-const TIMEZONE_OPTIONS: ReadonlyArray<{ value: string; display: string }> = [
-  { value: 'Europe/Istanbul', display: 'Türkiye (Europe/Istanbul)' },
-  { value: 'Europe/London', display: 'Londra (Europe/London)' },
-  { value: 'Europe/Berlin', display: 'Berlin (Europe/Berlin)' },
-  { value: 'Europe/Paris', display: 'Paris (Europe/Paris)' },
-  { value: 'America/New_York', display: 'New York (America/New_York)' },
-  { value: 'America/Los_Angeles', display: 'Los Angeles (America/Los_Angeles)' },
-  { value: 'Asia/Tokyo', display: 'Tokyo (Asia/Tokyo)' },
-  { value: 'Asia/Dubai', display: 'Dubai (Asia/Dubai)' },
-  { value: 'Etc/UTC', display: 'UTC (Etc/UTC)' },
-];
+const TIMEZONE_OPTIONS: ReadonlyArray<{ value: string; display: string }> =
+  Object.entries(strings.account.notifications.quiet.timezoneOptions).map(
+    ([value, display]) => ({ value, display }),
+  );
 
 const DEFAULT_FROM = '23:00';
 const DEFAULT_TO = '07:00';

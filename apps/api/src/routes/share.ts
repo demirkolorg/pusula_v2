@@ -16,7 +16,7 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, eq, inArray, isNull, sql } from '@pusula/db';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from '@pusula/db';
 import {
   activityEvents,
   attachments,
@@ -41,6 +41,7 @@ import {
   maybeEnqueueRealtimePublish,
 } from '@pusula/api';
 import { GUEST_AUTHOR_LABEL } from '@pusula/domain';
+import { objectStorage } from '../object-storage';
 import { rateLimit } from '../middleware/rate-limit';
 import { enqueueNotificationPublish } from '../notification-queue';
 import { enqueueRealtimePublish } from '../realtime-publish-queue';
@@ -201,6 +202,31 @@ async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof 
     .from(attachments)
     .where(eq(attachments.cardId, card.id));
 
+  // Kapak görseli: kart `coverImageAttachmentId` taşıyorsa o eke ait kısa
+  // süreli (10 dk) presigned GET URL üret. Misafir, kartın doğal parçası olan
+  // kapağı görür (`docs/domain/08-paylasim-linki-kurallari.md` "Misafir görme
+  // yetkisi"). Yalnız bu karta ait + commit edilmiş ek; raw `storage_key`
+  // sızdırılmaz. Presign hatası snapshot'ı bozmaz → `null` döner.
+  let coverImageUrl: string | null = null;
+  if (card.coverImageAttachmentId) {
+    const [coverRow] = await db
+      .select({ storageKey: attachments.storageKey })
+      .from(attachments)
+      .where(
+        and(
+          eq(attachments.id, card.coverImageAttachmentId),
+          eq(attachments.cardId, card.id),
+          isNotNull(attachments.committedAt),
+        ),
+      )
+      .limit(1);
+    if (coverRow) {
+      coverImageUrl = await objectStorage
+        .createPresignedGetUrl({ key: coverRow.storageKey })
+        .catch(() => null);
+    }
+  }
+
   return {
     workspace: { name: workspace.name },
     sharedBy: sharedBy ? { name: sharedBy.name } : null,
@@ -213,6 +239,7 @@ async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof 
       completed: card.completed,
       coverColor: card.coverColor,
       coverImageAttachmentId: card.coverImageAttachmentId,
+      coverImageUrl,
     },
     labels: labelRows,
     members: memberRows.map((m) => ({

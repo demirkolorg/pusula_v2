@@ -64,6 +64,19 @@ vi.mock('@/trpc/client', () => ({
       },
     },
     board: { get: { queryFilter: () => ({}) } },
+    // Faz 9D (DEM-130) — kart context menüsü artık ShareDialog'u render ediyor;
+    // dialog kapalı iken `share.list` query `enabled: false` olsa da hooks mount edilir.
+    share: {
+      list: {
+        queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
+          input,
+          ...(options ?? {}),
+        }),
+        queryKey: (input: unknown) => ['share', 'list', input],
+      },
+      create: { mutationOptions: (o: unknown) => o },
+      revoke: { mutationOptions: (o: unknown) => o },
+    },
   }),
 }));
 
@@ -225,7 +238,7 @@ describe('<CardItem>', () => {
 
     expect(await screen.findByRole('menuitem', { name: /^kapak$/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /etiketler/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /üyeler/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /sorumlular/i })).toBeInTheDocument();
     expect(screen.queryByText(/yetkililer/i)).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /son tarih/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /taşı/i })).toBeInTheDocument();
@@ -397,17 +410,20 @@ describe('<CardItem>', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
-  it('shows up to three member avatars plus a "+N" badge for the rest', () => {
+  it('shows up to three assignee avatars plus a "+N" badge, excluding watchers', () => {
     const members = [
       { userId: 'u1', name: 'Ada Lovelace', image: null, role: 'assignee' as const },
-      { userId: 'u2', name: 'Alan Turing', image: null, role: 'watcher' as const },
-      { userId: 'u3', name: 'Grace Hopper', image: null, role: 'watcher' as const },
-      { userId: 'u4', name: 'Edsger Dijkstra', image: null, role: 'watcher' as const },
+      { userId: 'u2', name: 'Alan Turing', image: null, role: 'assignee' as const },
+      { userId: 'u3', name: 'Grace Hopper', image: null, role: 'assignee' as const },
+      { userId: 'u4', name: 'Edsger Dijkstra', image: null, role: 'assignee' as const },
+      { userId: 'u5', name: 'Margaret Hamilton', image: null, role: 'watcher' as const },
     ];
     render(<CardItem boardId="b1" card={card({ members })} canEdit={false} />);
-    // Three avatars rendered (initials), and a "+1" overflow badge.
+    // Four assignees → three avatars rendered (initials) plus a "+1" overflow badge.
     expect(screen.getByText('+1')).toBeInTheDocument();
     expect(screen.getByText('AL')).toBeInTheDocument(); // Ada Lovelace
+    // The watcher is a card relationship, not a card-face avatar.
+    expect(screen.queryByText('MH')).not.toBeInTheDocument(); // Margaret Hamilton
   });
 
   it('renders the cover-colour stripe at the same height as the list accent', () => {

@@ -91,6 +91,15 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 
 const copy = strings.shell.workspaceSwitcher;
 
+/**
+ * Matches a workspace *row* menu item by its label while excluding the per-row
+ * "Ayarlar" / "Üyeler" action items added by DEM-155 — their accessible names
+ * end with those suffixes, so a plain substring query would be ambiguous.
+ */
+const rowItem = (label: string) => ({
+  name: (name: string) => name.includes(label) && !/ (ayarları|üyeleri)$/.test(name),
+});
+
 describe('<WorkspaceSwitcher>', () => {
   beforeEach(() => {
     h.push.mockReset();
@@ -130,7 +139,7 @@ describe('<WorkspaceSwitcher>', () => {
     render(<WorkspaceSwitcher />);
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    await user.click(await screen.findByRole('menuitem', { name: /Beta Workspace/ }));
+    await user.click(await screen.findByRole('menuitem', rowItem('Beta Workspace')));
 
     await waitFor(() => {
       expect(h.push).toHaveBeenCalledWith('/workspaces/w2/boards/b2');
@@ -145,7 +154,7 @@ describe('<WorkspaceSwitcher>', () => {
     render(<WorkspaceSwitcher />);
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    await user.click(await screen.findByRole('menuitem', { name: /Beta Workspace/ }));
+    await user.click(await screen.findByRole('menuitem', rowItem('Beta Workspace')));
 
     await waitFor(() => {
       expect(h.push).toHaveBeenCalledWith('/workspaces/w2');
@@ -180,7 +189,7 @@ describe('<WorkspaceSwitcher>', () => {
     render(<WorkspaceSwitcher />);
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    const activeItem = await screen.findByRole('menuitem', { name: /Alpha Workspace/ });
+    const activeItem = await screen.findByRole('menuitem', rowItem('Alpha Workspace'));
 
     expect(activeItem).toHaveAttribute('data-active', 'true');
     expect(activeItem.querySelector('svg.text-primary')).toBeInTheDocument();
@@ -203,7 +212,7 @@ describe('<WorkspaceSwitcher>', () => {
     render(<WorkspaceSwitcher />);
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    await user.click(await screen.findByRole('menuitem', { name: /Alpha Workspace/ }));
+    await user.click(await screen.findByRole('menuitem', rowItem('Alpha Workspace')));
 
     expect(h.fetchQuery).not.toHaveBeenCalled();
     expect(h.push).not.toHaveBeenCalled();
@@ -252,7 +261,7 @@ describe('<WorkspaceSwitcher>', () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    const beta = await screen.findByRole('menuitem', { name: /Beta Workspace/ });
+    const beta = await screen.findByRole('menuitem', rowItem('Beta Workspace'));
     expect(beta.querySelector('[data-entity-icon="rocket"]')).toBeInTheDocument();
   });
 });

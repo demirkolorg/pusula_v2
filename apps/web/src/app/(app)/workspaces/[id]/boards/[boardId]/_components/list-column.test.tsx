@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
@@ -13,6 +13,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
   useMutation: () => ({
     mutate: h.mutate,
     reset: vi.fn(),
@@ -58,6 +59,12 @@ vi.mock('@/trpc/client', () => ({
       update: { mutationOptions: (o: unknown) => o },
       delete: { mutationOptions: (o: unknown) => o },
       getDownloadUrl: { queryOptions: () => ({}) },
+    },
+    // Faz 9D (DEM-130) — card-item context menüsü ShareDialog'u render ediyor.
+    share: {
+      list: { queryOptions: () => ({}), queryKey: () => ['share', 'list'] },
+      create: { mutationOptions: (o: unknown) => o },
+      revoke: { mutationOptions: (o: unknown) => o },
     },
   }),
 }));
@@ -176,6 +183,28 @@ describe('<ListColumn>', () => {
       screen.getByRole('menuitem', { name: strings.board.list.iconPicker.title }),
     ).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
+  });
+
+  it('editor: right-clicking the list header opens the same menu as the "⋮" button', async () => {
+    render(<ListColumn boardId="b1" list={list} cards={[]} canEdit />);
+    const header = screen.getByRole('region', { name: list.title }).querySelector('header');
+    expect(header).not.toBeNull();
+    fireEvent.contextMenu(header as HTMLElement);
+    expect(
+      await screen.findByRole('menuitem', { name: columnCopy.menuRename }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: strings.board.list.colorPicker.title }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: columnCopy.menuArchive })).toBeInTheDocument();
+  });
+
+  it('viewer (canEdit=false): right-clicking the header opens no context menu', () => {
+    render(<ListColumn boardId="b1" list={list} cards={[]} canEdit={false} />);
+    const header = screen.getByRole('region', { name: list.title }).querySelector('header');
+    expect(header).not.toBeNull();
+    fireEvent.contextMenu(header as HTMLElement);
+    expect(screen.queryByRole('menuitem', { name: columnCopy.menuRename })).not.toBeInTheDocument();
   });
 
   it('renders a list icon with the selected icon colour', () => {

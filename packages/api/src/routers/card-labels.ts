@@ -34,6 +34,10 @@ import { upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
+import {
   bumpBoardVersionForRealtime,
   insertRealtimeEvent,
   maybeEnqueueRealtimePublish,
@@ -67,6 +71,7 @@ export const cardLabelsRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -101,14 +106,30 @@ export const cardLabelsRouter = router({
         return { cardId: ctx.card.id, labelId: input.labelId, changed: false as const };
       }
 
-      await tx.insert(activityEvents).values({
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.label_added',
+          payload: { cardId: ctx.card.id, labelId: input.labelId },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — etiket ekleme kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'card.label_added',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'card.label_added',
         payload: { cardId: ctx.card.id, labelId: input.labelId },
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -130,6 +151,7 @@ export const cardLabelsRouter = router({
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
+    if (notificationEventId) maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
@@ -147,6 +169,7 @@ export const cardLabelsRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -168,14 +191,30 @@ export const cardLabelsRouter = router({
         return { cardId: ctx.card.id, labelId: input.labelId, changed: false as const };
       }
 
-      await tx.insert(activityEvents).values({
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.label_removed',
+          payload: { cardId: ctx.card.id, labelId: input.labelId },
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — etiket kaldırma kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'card.label_removed',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'card.label_removed',
         payload: { cardId: ctx.card.id, labelId: input.labelId },
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -193,6 +232,7 @@ export const cardLabelsRouter = router({
 
       return { cardId: ctx.card.id, labelId: input.labelId, changed: true as const };
     });
+    if (notificationEventId) maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),

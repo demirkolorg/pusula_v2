@@ -49,4 +49,35 @@ describe('activitySummary', () => {
     expect(activitySummary('card_member_removed', { cardTitle: 'Çıkış' })).toContain('çıkardı');
     expect(activitySummary('attachment_added', { cardTitle: 'Dosya' })).toContain('dosya ekledi');
   });
+
+  it('DEM-153 — renders the remaining granular card-action notification types', () => {
+    expect(activitySummary('card_renamed', { cardTitle: 'Başlık' })).toContain(
+      'başlığını değiştirdi',
+    );
+    expect(activitySummary('card_description_changed', { cardTitle: 'Açıklama' })).toContain(
+      'açıklamasını güncelledi',
+    );
+    expect(activitySummary('card_label_added', { cardTitle: 'Etiket' })).toContain('etiket ekledi');
+    expect(activitySummary('card_label_removed', { cardTitle: 'Etiket' })).toContain(
+      'etiket kaldırdı',
+    );
+    expect(activitySummary('comment_updated', { cardTitle: 'Yorum' })).toContain(
+      'yorumu düzenledi',
+    );
+    expect(activitySummary('comment_deleted', { cardTitle: 'Yorum' })).toContain('yorumu sildi');
+    expect(activitySummary('checklist_created', { cardTitle: 'Liste' })).toContain(
+      'yapılacaklar listesi ekledi',
+    );
+    expect(activitySummary('checklist_item_added', { cardTitle: 'Madde' })).toContain(
+      'yapılacaklar maddesi ekledi',
+    );
+    expect(activitySummary('checklist_item_removed', { cardTitle: 'Madde' })).toContain(
+      'yapılacaklar maddesi sildi',
+    );
+    expect(activitySummary('attachment_removed', { cardTitle: 'Dosya' })).toContain(
+      'dosya kaldırdı',
+    );
+    // activity-type alias'ları (eski payload uyumu)
+    expect(activitySummary('card.renamed', { cardTitle: 'Eski' })).toContain('Eski');
+  });
 });

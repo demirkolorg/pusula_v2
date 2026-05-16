@@ -24,6 +24,9 @@ import {
   DialogTitle,
   DialogTrigger,
   EmptyState,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   cn,
 } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
@@ -302,9 +305,20 @@ export function SearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <TriggerButton mode={triggerMode} label={label} className={triggerClassName} />
-      </DialogTrigger>
+      {triggerMode === 'icon' ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <TriggerButton mode={triggerMode} label={label} className={triggerClassName} />
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <DialogTrigger asChild>
+          <TriggerButton mode={triggerMode} label={label} className={triggerClassName} />
+        </DialogTrigger>
+      )}
       <DialogContent
         closeLabel={strings.common.close}
         className="top-[18vh] flex max-h-[min(76vh,40rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"

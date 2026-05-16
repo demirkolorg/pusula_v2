@@ -33,4 +33,21 @@ describe('CardCompleteToggle', () => {
     const toggle = screen.getByRole('checkbox', { name: 'Tamamla' });
     expect(toggle.className).not.toContain('opacity-0');
   });
+
+  it('plays the completion action when checked flips false -> true', () => {
+    const { rerender } = render(<CardCompleteToggle checked={false} aria-label="Tamamla" />);
+    const toggle = screen.getByRole('checkbox', { name: 'Tamamla' });
+    expect(toggle.className).not.toContain('animate-card-complete-pop');
+
+    rerender(<CardCompleteToggle checked aria-label="Tamamla" />);
+    expect(toggle.className).toContain('animate-card-complete-pop');
+    expect(toggle.querySelector('[data-slot="card-complete-burst"]')).toBeInTheDocument();
+  });
+
+  it('does not animate a card that is already complete on mount', () => {
+    render(<CardCompleteToggle checked aria-label="Tamamla" />);
+    const toggle = screen.getByRole('checkbox', { name: 'Tamamla' });
+    expect(toggle.className).not.toContain('animate-card-complete-pop');
+    expect(toggle.querySelector('[data-slot="card-complete-burst"]')).not.toBeInTheDocument();
+  });
 });

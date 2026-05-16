@@ -41,13 +41,15 @@ export type CommentView = {
 const richTextLabels = strings.card.detail.richText;
 
 // ---------------------------------------------------------------------------
-// Composer — a mini rich-text editor + "send" button. Lives in the modal's
-// right-panel header (above the tabs), independent of the active tab.
+// Composer — a mini rich-text editor + "send" button in a self-contained card.
+// Lives at the top of the sidebar's "Yorumlar" tab (above the comment list).
 // ---------------------------------------------------------------------------
 
 type CardCommentComposerProps = {
   /** Display name of the viewer (for the avatar). */
   viewerName: string | null;
+  /** Avatar URL of the viewer (`null` when unset — falls back to initials). */
+  viewerImage?: string | null;
   onSubmit: (body: string) => void;
   pending?: boolean;
   error?: string | null;
@@ -57,6 +59,7 @@ type CardCommentComposerProps = {
 
 export function CardCommentComposer({
   viewerName,
+  viewerImage = null,
   onSubmit,
   pending = false,
   error,
@@ -80,8 +83,8 @@ export function CardCommentComposer({
   };
 
   return (
-    <div className="flex items-start gap-2">
-      <Avatar name={viewerName} size="sm" />
+    <div className="bg-card focus-within:border-ring/45 flex items-start gap-2 rounded-lg border p-2.5 shadow-xs transition-colors">
+      <Avatar name={viewerName} image={viewerImage} size="sm" />
       <div className="min-w-0 flex-1 space-y-1.5">
         <div
           onKeyDownCapture={(e) => {
@@ -146,6 +149,7 @@ export function CardCommentComposer({
 function CommentRow({
   comment,
   authorName,
+  authorImage,
   canEdit,
   pending,
   onEdit,
@@ -154,6 +158,7 @@ function CommentRow({
 }: {
   comment: CommentView;
   authorName: string;
+  authorImage: string | null;
   canEdit: boolean;
   pending: boolean;
   onEdit: (body: string) => void;
@@ -170,8 +175,8 @@ function CommentRow({
   const deleted = comment.deletedAt != null;
 
   return (
-    <li className="flex items-start gap-2">
-      <Avatar name={authorName} size="sm" />
+    <li className="group bg-card/55 hover:bg-accent/35 flex items-start gap-2 rounded-lg border p-2.5 transition-colors">
+      <Avatar name={authorName} image={authorImage} size="sm" />
       <div className="min-w-0 flex-1 space-y-1 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{authorName}</span>
@@ -232,7 +237,7 @@ function CommentRow({
         )}
 
         {!deleted && canEdit && !editing && (
-          <div className="flex items-center gap-0.5 pt-0.5">
+          <div className="flex items-center gap-0.5 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -312,6 +317,8 @@ type CardDetailCommentsProps = {
   comments: CommentView[];
   /** Resolve a user id to a display name (board/card members); falls back inside. */
   nameOf: (userId: string) => string | null | undefined;
+  /** Resolve a user id to an avatar URL (board/card members; `null` when unset). */
+  imageOf?: (userId: string) => string | null;
   /** The viewer's own user id. */
   viewerUserId: string;
   /** Whether the viewer is a board `admin` (may edit/delete others' comments). */
@@ -328,14 +335,16 @@ type CardDetailCommentsProps = {
 
 /**
  * Card comments — newest-first list of rows (author avatar + name + time + the
- * rich-text body, or a "deleted" placeholder). The author (or a board `admin`)
- * may edit / delete (confirmed) their own. The composer lives separately in the
- * modal sidebar header — see {@link CardCommentComposer}. Presentational; the
+ * rich-text body, or a "deleted" placeholder). Each row is a hover-highlighted
+ * card; the author (or a board `admin`) may edit / delete (confirmed) their own
+ * via actions that surface on hover. The composer sits above the list in the
+ * "Yorumlar" tab — see {@link CardCommentComposer}. Presentational; the
  * dialog wires the mutations.
  */
 export function CardDetailComments({
   comments,
   nameOf,
+  imageOf,
   viewerUserId,
   isBoardAdmin,
   canComment,
@@ -370,11 +379,16 @@ export function CardDetailComments({
               (comment.authorId &&
                 (nameOf(comment.authorId)?.toString().trim() || comment.authorId)) ||
               copy.unknownAuthor;
+            // Misafir yorumda (authorId null) avatar yok — initials fallback.
+            const authorImage = comment.authorId
+              ? (imageOf?.(comment.authorId) ?? null)
+              : null;
             return (
               <CommentRow
                 key={comment.id}
                 comment={comment}
                 authorName={authorName}
+                authorImage={authorImage}
                 canEdit={canEditThis}
                 pending={pending}
                 onEdit={(body) => onEdit({ commentId: comment.id, body })}

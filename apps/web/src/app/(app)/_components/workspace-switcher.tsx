@@ -19,6 +19,8 @@ import { EntityIconBadge } from '@/components/entity-icon';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
+import { SwitcherRowActions } from './switcher-row-actions';
+import { WorkspaceMembersDialog } from './workspace-members-dialog';
 
 type WorkspaceRow = {
   id: string;
@@ -54,6 +56,8 @@ export function WorkspaceSwitcher() {
   const onBoardChrome = Boolean(boardId);
   const copy = strings.shell.workspaceSwitcher;
   const [createOpen, setCreateOpen] = useState(false);
+  // The workspace whose member-management modal is currently open (null = closed).
+  const [membersTarget, setMembersTarget] = useState<WorkspaceRow | null>(null);
 
   const workspaceList = useQuery(trpc.workspace.list.queryOptions());
   const list = (workspaceList.data ?? []) as WorkspaceRow[];
@@ -157,24 +161,31 @@ export function WorkspaceSwitcher() {
           list.map((workspace) => {
             const active = workspace.id === workspaceId;
             return (
-              <DropdownMenuItem
-                key={workspace.id}
-                data-active={active ? 'true' : undefined}
-                onSelect={() => handleSelectWorkspace(workspace.id)}
-                className="gap-2"
-              >
-                <EntityIconBadge
-                  icon={workspace.icon ?? DEFAULT_WORKSPACE_ICON}
-                  className={active ? 'bg-primary/10 text-primary' : undefined}
-                />
-                <span className="grid min-w-0 flex-1 leading-tight">
-                  <span className="truncate text-sm font-medium">{workspace.name}</span>
-                  <span className="text-muted-foreground truncate text-[10px]">
-                    {workspaceRoleLabels[workspace.role]}
+              <div key={workspace.id} className="group/row relative">
+                <DropdownMenuItem
+                  data-active={active ? 'true' : undefined}
+                  onSelect={() => handleSelectWorkspace(workspace.id)}
+                  className="gap-2 pr-16"
+                >
+                  <EntityIconBadge
+                    icon={workspace.icon ?? DEFAULT_WORKSPACE_ICON}
+                    className={active ? 'bg-primary/10 text-primary' : undefined}
+                  />
+                  <span className="grid min-w-0 flex-1 leading-tight">
+                    <span className="truncate text-sm font-medium">{workspace.name}</span>
+                    <span className="text-muted-foreground truncate text-[10px]">
+                      {workspaceRoleLabels[workspace.role]}
+                    </span>
                   </span>
-                </span>
-                {active && <CheckIcon className="text-primary ml-auto size-3.5" aria-hidden />}
-              </DropdownMenuItem>
+                  {active && <CheckIcon className="text-primary ml-auto size-3.5" aria-hidden />}
+                </DropdownMenuItem>
+                <SwitcherRowActions
+                  settingsLabel={copy.rowSettingsFor(workspace.name)}
+                  membersLabel={copy.rowMembersFor(workspace.name)}
+                  onSettings={() => router.push(`/workspaces/${workspace.id}`)}
+                  onMembers={() => setMembersTarget(workspace)}
+                />
+              </div>
             );
           })
         )}
@@ -189,6 +200,18 @@ export function WorkspaceSwitcher() {
         </DropdownMenuItem>
       </DropdownMenuContent>
       <CreateWorkspaceDialog hideTrigger open={createOpen} onOpenChange={setCreateOpen} />
+      {membersTarget && (
+        <WorkspaceMembersDialog
+          key={membersTarget.id}
+          workspaceId={membersTarget.id}
+          workspaceName={membersTarget.name}
+          role={membersTarget.role}
+          open
+          onOpenChange={(open) => {
+            if (!open) setMembersTarget(null);
+          }}
+        />
+      )}
     </DropdownMenu>
   );
 }

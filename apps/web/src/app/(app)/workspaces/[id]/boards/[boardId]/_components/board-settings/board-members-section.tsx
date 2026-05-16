@@ -137,6 +137,8 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
                   member={{
                     userId: member.userId,
                     name: member.name,
+                    email: member.email,
+                    image: member.image,
                     role: member.role as BoardRole,
                     inherited: member.inherited,
                   }}

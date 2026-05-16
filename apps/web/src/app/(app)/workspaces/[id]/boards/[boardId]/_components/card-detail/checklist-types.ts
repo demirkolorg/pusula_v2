@@ -35,3 +35,6 @@ export type ChecklistHandlers = {
 
 /** Resolve a user id to a display name (board/card members). */
 export type NameResolver = (userId: string) => string | null | undefined;
+
+/** Resolve a user id to an avatar URL (board/card members; `null` when unset). */
+export type ImageResolver = (userId: string) => string | null;

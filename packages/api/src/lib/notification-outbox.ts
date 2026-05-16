@@ -65,6 +65,10 @@ const COOLDOWN_BYPASS = new Set<NotificationType>([
   'workspace_invitation',
   'due_approaching',
   'due_overdue',
+  // DEM-154 — her board erişim talebi ayrı bir kişi + ayrı bir aksiyon;
+  // 60 s içinde gelen ikinci talep sahibi collapse edilirse admin'den
+  // gizlenir. `board_invitation` ile aynı gerekçe.
+  'board_access_requested',
 ]);
 
 /**

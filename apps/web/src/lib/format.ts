@@ -5,6 +5,10 @@
  */
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium' });
+const dateTimeFormatter = new Intl.DateTimeFormat('tr-TR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 const relativeFormatter = new Intl.RelativeTimeFormat('tr-TR', { numeric: 'auto' });
 
 /** Format a date for display (medium, Turkish locale). Accepts a `Date` or ISO string. */
@@ -12,6 +16,13 @@ export function formatDate(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return dateFormatter.format(date);
+}
+
+/** Format a date with time for detail views (medium date + short time, Turkish locale). */
+export function formatDateTime(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return dateTimeFormatter.format(date);
 }
 
 /**

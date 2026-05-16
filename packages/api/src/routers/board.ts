@@ -473,6 +473,7 @@ export const boardRouter = router({
           type: activityEvents.type,
           actorId: activityEvents.actorId,
           actorName: users.name,
+          actorImage: users.image,
           payload: activityEvents.payload,
           createdAt: activityEvents.createdAt,
         })

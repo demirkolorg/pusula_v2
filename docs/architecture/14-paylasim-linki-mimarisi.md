@@ -13,7 +13,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'draft'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-15
+updated: 2026-05-16
 ---
 
 # 14 — Kart Paylaşım Linki Mimarisi
@@ -131,6 +131,7 @@ GET /share/:token
   → access_count++ (best-effort, async; lookup'ı bloklamaz)
   → last_accessed_at güncellenir
   → response: kart snapshot'ı (kart, checklist, yorumlar, etiketler, üyeler — okuma listesi)
+       kart kapak eki varsa `card.coverImageUrl` = kısa süreli (10 dk) presigned GET URL
 
 POST /share/:token/comments
   → token hash'le, share_links lookup, geçerlilik kontrolü

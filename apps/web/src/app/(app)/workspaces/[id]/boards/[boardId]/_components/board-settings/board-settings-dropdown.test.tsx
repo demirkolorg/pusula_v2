@@ -1,18 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { BoardSettingsDropdown } from './board-settings-dropdown';
-
-vi.mock('./board-members-section', () => ({
-  BoardMembersSection: () => <div>board members section</div>,
-}));
-
-vi.mock('./board-invitations-section', () => ({
-  BoardInvitationsSection: () => <div>board invitations section</div>,
-}));
-
-vi.mock('./board-access-requests-section', () => ({
-  BoardAccessRequestsSection: () => <div>board access requests section</div>,
-}));
+import { BoardSettingsDropdown, type BoardSettingsTab } from './board-settings-dropdown';
 
 vi.mock('./background-picker', () => ({
   BoardBackgroundPicker: () => <div>background picker</div>,
@@ -22,11 +10,7 @@ vi.mock('./board-icon-picker', () => ({
   BoardIconPicker: () => <div>board icon picker</div>,
 }));
 
-vi.mock('./board-labels-section', () => ({
-  BoardLabelsSection: () => <div>board labels section</div>,
-}));
-
-function renderDropdown(activeTab: 'members' | 'invitations' | 'accessRequests') {
+function renderDropdown(activeTab: BoardSettingsTab) {
   render(
     <BoardSettingsDropdown
       boardId="b1"
@@ -48,19 +32,27 @@ function renderDropdown(activeTab: 'members' | 'invitations' | 'accessRequests')
   );
 }
 
+/**
+ * DEM-154 — bu dropdown artık yalnız "ayar" sekmelerini taşır (arka plan / pano
+ * işlemleri). Üyelik bağlamı `BoardMembersDropdown`'a, etiket paleti
+ * `BoardLabelsDropdown`'a taşındı.
+ */
 describe('<BoardSettingsDropdown>', () => {
-  it('shows the board member role info button on the members tab', () => {
-    renderDropdown('members');
-    expect(screen.getByRole('button', { name: 'Pano rol bilgisi' })).toBeInTheDocument();
+  it('renders the background picker on the background tab', () => {
+    renderDropdown('background');
+    expect(screen.getByText('background picker')).toBeInTheDocument();
   });
 
-  it('shows the board invitation info button on the invitations tab', () => {
-    renderDropdown('invitations');
-    expect(screen.getByRole('button', { name: 'Pano davet bilgisi' })).toBeInTheDocument();
+  it('renders the board icon picker on the actions tab', () => {
+    renderDropdown('actions');
+    expect(screen.getByText('board icon picker')).toBeInTheDocument();
   });
 
-  it('shows the board access request info button on the access requests tab', () => {
-    renderDropdown('accessRequests');
-    expect(screen.getByRole('button', { name: 'Pano erişim talebi bilgisi' })).toBeInTheDocument();
+  it('no longer exposes the membership or labels tabs', () => {
+    renderDropdown('background');
+    expect(screen.queryByRole('tab', { name: /Üyeler/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Davetler/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Talepler/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Etiketler/ })).not.toBeInTheDocument();
   });
 });

@@ -45,4 +45,19 @@ export const objectStorage: ObjectStorage = {
     });
     return getSignedUrl(s3, command, { expiresIn: 10 * 60 });
   },
+
+  publicUrl(key) {
+    // Path-style URL (the client uses `forcePathStyle`): `{base}/{bucket}/{key}`.
+    // Each `/`-separated key segment is encoded individually so the slashes
+    // stay as path separators while stray bytes in a segment are escaped.
+    const encodedKey = key
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    // `S3_PUBLIC_URL` is the browser-facing origin; `S3_ENDPOINT` is the
+    // server-internal one (an unreachable Docker hostname in prod). Fall back
+    // to `S3_ENDPOINT` only for local dev, where it is already host-mapped.
+    const base = (env.S3_PUBLIC_URL ?? env.S3_ENDPOINT).replace(/\/+$/, '');
+    return `${base}/${env.S3_BUCKET}/${encodedKey}`;
+  },
 };

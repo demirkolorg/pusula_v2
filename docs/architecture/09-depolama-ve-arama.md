@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-15
+updated: 2026-05-16
 ---
 
 # 09 — Depolama ve Arama
@@ -84,6 +84,44 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
 ### Env değişkenleri (mevcut + Faz 11)
 
 `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — `apps/api/src/env.ts`'te local dev için MinIO default'larıyla zaten tanımlı. Faz 11 yeni env eklemez; bucket policy + CORS (web origin'inden direct PUT için) `compose.prod.yml` / Dokploy attach edilirken kontrol edilir.
+
+---
+
+## 9.1.1 Avatar yükleme (DEM-160 — karar 2026-05-16)
+
+Kart eki **permission-scoped private** objedir (presigned GET, 10 dk TTL). Kullanıcı **avatarı** ise farklıdır: `users.image` her yerde (board üyeleri, yorumlar, bildirimler, üst-bar) render edilen **kalıcı** bir kolondur — süreli presigned URL buraya yazılamaz. Bu yüzden avatar objesi ayrı kurallarla servis edilir.
+
+- **Servis stratejisi — public-read prefix:** MinIO'da `avatars/*` prefix'i anonim okumaya açılır; `users.image` doğrudan **public URL** (`{S3_PUBLIC_URL}/{S3_BUCKET}/{key}`, path-style) tutar. Avatar hassas veri değildir (board/workspace paylaşanlara zaten görünür); presigned-GET-her-render yaklaşımı tüm UI'yi değiştirirdi. Karar gerekçesi → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-16.
+- **`S3_PUBLIC_URL` (tarayıcıya açık origin):** `users.image` her tarayıcıda `<img src>` olarak çözülür; API'nin S3 client'ı için kullandığı `S3_ENDPOINT` ise Docker/üretimde **internal** bir hostname'dir (`http://minio:9000`) ve tarayıcıdan erişilemez. Bu yüzden public URL ayrı bir `S3_PUBLIC_URL` env'inden üretilir; tanımlı değilse `S3_ENDPOINT`'e düşer (yerel dev'de `S3_ENDPOINT` zaten host-mapped `http://localhost:9100`, doğru çalışır). Üretimde `S3_PUBLIC_URL` public MinIO subdomain'ine ayarlanır → [`12-deployment-runbook.md`](12-deployment-runbook.md) §12.6 env tablosu.
+- **Depolama anahtarı:** `avatars/{userId}/{uuid}.{ext}` — server üretir; kullanıcı yalnız kendi avatar yoluna yazabilir.
+- **İş kuralları:** `AVATAR_IMAGE_MIME_TYPES` (`image/jpeg`, `image/png`, `image/webp`) + `AVATAR_IMAGE_MAX_BYTES` (10 MiB) — `@pusula/domain`. URL ile avatar girme (`userImageUrlSchema`) opsiyonel olarak korunur.
+
+### Direct presigned PUT akışı
+
+Kart ekinin two-phase `initiate → PUT → commit` paterninden **commit fazı yoktur** — avatar objesinin activity/realtime/notification yan etkisi yoktur; "commit" mevcut Better Auth `updateUser` yoludur.
+
+```txt
+1. Client → API: `user.initiateAvatarUpload({ mimeType, size })`
+   - protectedProcedure; MIME allowlist + size ≤ 10 MiB validasyon; per-user rate limit
+     (`attachment.initiate` paternindeki in-memory token bucket)
+   - storageKey = `avatars/{session.user.id}/{uuid}.{ext}`
+   - Presigned PUT URL üret (TTL 10 dk; Content-Type + Content-Length imzalı)
+   - Response: `{ upload: { url, headers }, publicUrl, objectKey, expiresAt }`
+2. Client → MinIO: PUT `<presigned URL>` (binary body)
+3. Client → Better Auth: `authClient.updateUser({ image: publicUrl })`
+   - `databaseHooks.user.update.before` `userImageUrlSchema` ile public URL'i doğrular
+   - `users.image` = publicUrl
+```
+
+DB satırı (kart ekindeki `attachments` gibi) **yoktur** — avatar metadata `users.image` kolonudur. Presigned PUT URL'i, `Content-Length`'in imzalı header'da olması sayesinde 10 MiB limitini storage katmanında da bağlayıcı kılar (kart ekiyle aynı sertleştirme — security H1).
+
+**Orphan:** kullanıcı yeni avatar yüklediğinde eski obje MinIO'da kalır. V1'de kabul edilir (avatarlar küçük); `avatars/` için cleanup worker job ileri bir tur follow-up'tır.
+
+### MinIO bucket policy
+
+`avatars/*` prefix'i public-read yapılır — local `docker-compose.yml` `minio-setup` servisinde `mc anonymous set download local/pusula/avatars`; üretimde `compose.prod.yml` MinIO init adımında aynı policy uygulanır. Bucket'ın geri kalanı (kart ekleri) **private** kalır.
+
+**Sertleştirme:** presigned PUT `Content-Type`'ı imzalar ve MIME allowlist SVG'yi dışlar; yine de `avatars/*` servis eden katmanın yanıtlarında `X-Content-Type-Options: nosniff` bulunması, kötü amaçlı bir objenin tarayıcıda HTML/JS olarak yorumlanmasını tamamen kapatır. MinIO objeyi kayıtlı `Content-Type` ile servis eder; nosniff bir reverse-proxy (Traefik) header'ı olarak eklenebilir — üretim sertleştirme follow-up'ı.
 
 ---
 

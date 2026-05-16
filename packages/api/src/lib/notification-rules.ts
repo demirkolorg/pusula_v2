@@ -158,7 +158,34 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
     case 'attachment.added': // Faz 11B (DEM-148) — kart eki commit; push opt-in default
       return 'attachment_added';
     case 'checklist.item_checked':
+    case 'checklist.item_unchecked':
+      // DEM-153 — madde işaretleme/geri alma tek bildirim tipinde toplanır
+      // (`card.completed`/`uncompleted` → `card_completed` paterniyle aynı;
+      // `payload.activityType` checked/unchecked'i UI'da ayırır).
       return 'checklist_item_completed';
+    // DEM-153 — kartla ilgili kalan tüm aksiyonlar da bildirim üretir. Hepsi
+    // in-app only (`pickChannels` push/email opt-in listelerine eklenmez),
+    // alıcı kart watcher pool. Detay → `docs/domain/04-bildirim-kurallari.md`.
+    case 'card.renamed':
+      return 'card_renamed';
+    case 'card.description_changed':
+      return 'card_description_changed';
+    case 'card.label_added':
+      return 'card_label_added';
+    case 'card.label_removed':
+      return 'card_label_removed';
+    case 'comment.updated':
+      return 'comment_updated';
+    case 'comment.deleted':
+      return 'comment_deleted';
+    case 'checklist.created':
+      return 'checklist_created';
+    case 'checklist.item_added':
+      return 'checklist_item_added';
+    case 'checklist.item_removed':
+      return 'checklist_item_removed';
+    case 'attachment.removed':
+      return 'attachment_removed';
     case 'board.member_added':
       // Direct-add (account already exists) — Faz 2.5 `board-members.add (a)`
       // also writes an `email` outbox row inline. We layer an in-app row on
@@ -180,6 +207,11 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
       // Faz 10A (DEM-135) — alıcı **rolü değişen kullanıcı**; in-app.
       // Alıcı hâlâ üye olduğu için normal permission filter geçer.
       return 'member_role_changed';
+    case 'board.access_requested':
+      // DEM-154 — biri board linkinden erişim talep etti; alıcı board
+      // admin'leri (`collectRecipients` özel branch). Talep sahibi actor
+      // self-skip ile düşer.
+      return 'board_access_requested';
     default:
       return null;
   }
@@ -295,6 +327,17 @@ async function collectRecipients(
     case 'card.cover_cleared':
     case 'checklist.item_checked':
     case 'attachment.added': // Faz 11B (DEM-148) — kart eki watcher pool
+    case 'checklist.item_unchecked': // DEM-153 — kartla ilgili kalan tüm aksiyonlar da kart watcher pool'una gider.
+    case 'card.renamed':
+    case 'card.description_changed':
+    case 'card.label_added':
+    case 'card.label_removed':
+    case 'comment.updated':
+    case 'comment.deleted':
+    case 'checklist.created':
+    case 'checklist.item_added':
+    case 'checklist.item_removed':
+    case 'attachment.removed':
       // The card's watcher pool — assignees + watchers. The actor is removed
       // below.
       for (const userId of ctx.cardMemberIds) candidates.add(userId);
@@ -327,6 +370,34 @@ async function collectRecipients(
       if (userId) candidates.add(userId);
       break;
     }
+    case 'board.access_requested': {
+      // DEM-154 — alıcı board admin'leri: explicit `board_members.role='admin'`
+      // ∪ workspace `owner`/`admin` (effectiveBoardRole onları board admin
+      // yapar; explicit board satırları olmayabilir). Talep sahibi actor
+      // (request mutation `protectedProcedure`) board üyesi değildir; self-skip
+      // yine de aşağıda uygulanır. Bu branch erken döner — admin set'i zaten
+      // yetkili, generic guest/board permission filter'a gerek yok.
+      if (event.boardId) {
+        const adminRows = await tx
+          .select({ userId: boardMembers.userId })
+          .from(boardMembers)
+          .where(
+            and(eq(boardMembers.boardId, event.boardId), eq(boardMembers.role, 'admin')),
+          );
+        for (const r of adminRows) candidates.add(r.userId);
+      }
+      const wsAdminRows = await tx
+        .select({ userId: workspaceMembers.userId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, event.workspaceId),
+            or(eq(workspaceMembers.role, 'owner'), eq(workspaceMembers.role, 'admin')),
+          ),
+        );
+      for (const r of wsAdminRows) candidates.add(r.userId);
+      break;
+    }
     default:
       return candidates;
   }
@@ -344,6 +415,14 @@ async function collectRecipients(
     event.type === 'board.member_removed' ||
     event.type === 'workspace.member_removed'
   ) {
+    return candidates;
+  }
+
+  // DEM-154 — `board.access_requested` alıcıları `board_members.role='admin'`
+  // ∪ workspace owner/admin sorgusundan geldi; hepsi tanım gereği board'a
+  // erişebilir. Generic permission filter'ı atla (gereksiz sorgu + guest
+  // mantığı admin'leri zaten düşürmez).
+  if (event.type === 'board.access_requested') {
     return candidates;
   }
 
@@ -473,14 +552,17 @@ async function pickChannels(
   // in-app/push. Faz 10A (DEM-135): `member_removed` (board/workspace üyeliği
   // sona erdi) e-postayla da gönderilir — alıcı "bir daha içeride değil"
   // sinyalini posta kutusunda görebilmeli; `member_role_changed` sadece in-app
-  // (kullanıcı zaten üye, gürültü olmasın).
+  // (kullanıcı zaten üye, gürültü olmasın). DEM-154: `board_access_requested`
+  // e-posta opt-in default — admin posta kutusunda da görsün (`board_invitation`
+  // ile aynı seviye).
   const emailByType =
     notificationType === 'card_assigned' ||
     notificationType === 'mention' ||
     notificationType === 'due_overdue' ||
     notificationType === 'board_invitation' ||
     notificationType === 'workspace_invitation' ||
-    notificationType === 'member_removed';
+    notificationType === 'member_removed' ||
+    notificationType === 'board_access_requested';
   if (emailByType && emailEnabled) channels.push('email');
 
   return channels;
@@ -602,6 +684,9 @@ function buildPayload(
     'mentionText',
     'checklistId',
     'itemId',
+    // DEM-153 — `card.label_added/removed` payload'ında etiket kimliği; UI
+    // bildirimi ilgili etikete bağlamak için kullanır.
+    'labelId',
     'fromListId',
     'toListId',
     'fromBoardId',
@@ -610,6 +695,9 @@ function buildPayload(
     'role',
     'title',
     'dueAt',
+    // DEM-154 — board erişim talebi: bildirime tıklayınca / talebi yönetmek
+    // için ilgili `board_access_requests` satırının id'si.
+    'accessRequestId',
     // Faz 10A (DEM-135) — member_removed / member_role_changed bildirimleri
     // için rol + alıcı bilgisi: email/push template'leri "X kişiyi
     // çıkardı / rolünü Y yaptı" mesajını payload üzerinden render eder.

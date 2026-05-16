@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AVATAR_IMAGE_MAX_BYTES, AVATAR_IMAGE_MIME_TYPES } from '../constants';
 import { nameSchema, passwordSchema } from './auth';
 
 /**
@@ -16,10 +17,12 @@ import { nameSchema, passwordSchema } from './auth';
 export const userNameSchema = nameSchema;
 
 /**
- * Avatar URL. For now the avatar is a plain URL — there's no upload yet (MinIO
- * attachment infra lands in Faz 8 and the avatar can hook into it later; karar
- * kaydı 2026-05-12). An empty value clears the avatar; the screen sends `null`
- * for "no avatar", so the schema itself only validates a non-empty URL.
+ * Avatar URL. Two ways to set an avatar: a direct file upload (DEM-160 — see
+ * `avatarUploadInitiateInput` below) or pasting a plain `http(s)` URL, which
+ * stays an optional fallback. Either way `users.image` ends up holding an
+ * `http(s)` URL — for an upload it's the public MinIO object URL, which still
+ * satisfies this schema. An empty value clears the avatar; the screen sends
+ * `null` for "no avatar", so the schema itself only validates a non-empty URL.
  *
  * Only `http(s)` is allowed — `javascript:` / `data:` / `file:` etc. are
  * rejected so a stored value can't turn into a script sink once it's rendered as
@@ -43,6 +46,25 @@ export const userImageUrlSchema = z
 export const updateProfileInput = z.object({
   name: userNameSchema,
   image: userImageUrlSchema.nullable(),
+});
+
+/** MIME type accepted for an avatar upload (DEM-160 — `image/jpeg|png|webp`). */
+export const avatarImageMimeTypeSchema = z.enum(AVATAR_IMAGE_MIME_TYPES);
+
+/**
+ * Input for `user.initiateAvatarUpload` (DEM-160). The client declares the
+ * file's MIME type + byte size; the server validates against the avatar
+ * allowlist, mints a presigned PUT URL for an `avatars/{userId}/{uuid}.{ext}`
+ * key and returns the eventual public URL. There is no second "commit" call —
+ * once the PUT succeeds the client writes the public URL via Better Auth's
+ * `updateUser` (see `docs/architecture/09-depolama-ve-arama.md` §9.1.1).
+ *
+ * `size` is bounded here *and* re-bound by the presigned `Content-Length`
+ * signature so a caller can't request a tiny presign then PUT a huge body.
+ */
+export const avatarUploadInitiateInput = z.object({
+  mimeType: avatarImageMimeTypeSchema,
+  size: z.number().int().positive().max(AVATAR_IMAGE_MAX_BYTES),
 });
 
 /**
@@ -70,5 +92,6 @@ export const deleteAccountInput = z.object({
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileInput>;
+export type AvatarUploadInitiateInput = z.infer<typeof avatarUploadInitiateInput>;
 export type ChangePasswordInput = z.infer<typeof changePasswordInput>;
 export type DeleteAccountInput = z.infer<typeof deleteAccountInput>;

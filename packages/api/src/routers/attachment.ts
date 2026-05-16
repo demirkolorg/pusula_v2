@@ -471,9 +471,9 @@ export const attachmentRouter = router({
    * the cover. Post-commit, `ctx.enqueueAttachmentCleanup` (Faz 11C) drops
    * the storage object; the 60-min sweeper is the safety net.
    *
-   * `attachment.removed` is intentionally NOT routed through
-   * `mapEventToNotificationType` (it returns `null` for the type), so no
-   * notification fan-out fires.
+   * DEM-153 — `attachment.removed` artık `mapEventToNotificationType` ile
+   * `attachment_removed` bildirim tipine route edilir; kart watcher'larına
+   * in-app bildirim fan-out edilir (actor self-skip; 60 sn cooldown).
    */
   delete: protectedProcedure.input(attachmentDeleteInput).mutation(async ({ ctx, input }) => {
     const [existing] = await ctx.db
@@ -500,6 +500,7 @@ export const attachmentRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     await ctx.db.transaction(async (tx) => {
       const seq = await bumpBoardVersionForRealtime(tx, existing.boardId);
 
@@ -512,14 +513,30 @@ export const attachmentRouter = router({
         fileName: existing.fileName,
       };
       if (ctx.clientMutationId) payload.clientMutationId = ctx.clientMutationId;
-      await tx.insert(activityEvents).values({
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: board.workspaceId,
+          boardId: existing.boardId,
+          cardId: existing.cardId,
+          actorId: ctx.session.user.id,
+          type: 'attachment.removed',
+          payload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — dosya kaldırma kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'attachment.removed',
         workspaceId: board.workspaceId,
         boardId: existing.boardId,
         cardId: existing.cardId,
         actorId: ctx.session.user.id,
-        type: 'attachment.removed',
         payload,
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'attachment.removed',
@@ -533,6 +550,7 @@ export const attachmentRouter = router({
       });
     });
 
+    if (notificationEventId) maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     maybeEnqueueAttachmentCleanup(ctx, {
       attachmentId: existing.id,

@@ -124,6 +124,8 @@ export const boardMembersRouter = router({
         userId: boardMembers.userId,
         role: boardMembers.role,
         name: users.name,
+        email: users.email,
+        image: users.image,
         createdAt: boardMembers.createdAt,
       })
       .from(boardMembers)
@@ -138,6 +140,8 @@ export const boardMembersRouter = router({
       .select({
         userId: workspaceMembers.userId,
         name: users.name,
+        email: users.email,
+        image: users.image,
         createdAt: workspaceMembers.createdAt,
       })
       .from(workspaceMembers)
@@ -155,6 +159,8 @@ export const boardMembersRouter = router({
         userId: r.userId,
         role: r.role,
         name: r.name,
+        email: r.email,
+        image: r.image,
         inherited: false as const,
       })),
       ...inheritedAdmins
@@ -163,6 +169,8 @@ export const boardMembersRouter = router({
           userId: r.userId,
           role: 'admin' as const,
           name: r.name,
+          email: r.email,
+          image: r.image,
           inherited: true as const,
         })),
     ];

@@ -7,8 +7,8 @@ import { CardDetailMembers, type BoardMemberOption, type CardMember } from './ca
 const copy = strings.card.members;
 
 const boardMembers: BoardMemberOption[] = [
-  { userId: 'u1', name: 'Ada' },
-  { userId: 'u2', name: 'Bora' },
+  { userId: 'u1', name: 'Ada', image: null },
+  { userId: 'u2', name: 'Bora', image: null },
 ];
 
 describe('<CardDetailMembers>', () => {
@@ -26,7 +26,9 @@ describe('<CardDetailMembers>', () => {
     expect(screen.getByText(copy.empty)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kart üyesi bilgisi' })).toBeInTheDocument();
 
-    const members: CardMember[] = [{ userId: 'u2', name: 'Bora', role: 'assignee' }];
+    const members: CardMember[] = [
+      { userId: 'u2', name: 'Bora', image: null, role: 'assignee' },
+    ];
     rerender(
       <CardDetailMembers
         members={members}
@@ -61,7 +63,7 @@ describe('<CardDetailMembers>', () => {
     const onRemove = vi.fn();
     render(
       <CardDetailMembers
-        members={[{ userId: 'u1', name: 'Ada', role: 'watcher' }]}
+        members={[{ userId: 'u1', name: 'Ada', image: null, role: 'watcher' }]}
         boardMembers={boardMembers}
         viewerUserId="u1"
         canEdit={false}
@@ -78,7 +80,7 @@ describe('<CardDetailMembers>', () => {
     const onRemove = vi.fn();
     render(
       <CardDetailMembers
-        members={[{ userId: 'u2', name: 'Bora', role: 'assignee' }]}
+        members={[{ userId: 'u2', name: 'Bora', image: null, role: 'assignee' }]}
         boardMembers={boardMembers}
         viewerUserId="u1"
         canEdit

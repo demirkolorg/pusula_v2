@@ -7,6 +7,7 @@
 
 type CardWithLabels = { labels: { labelId: string }[] };
 type CardWithDue = { dueAt: Date | string | null };
+type CardWithMembers = { members: { userId: string; role: 'assignee' | 'watcher' }[] };
 type ListWithArchive = { archivedAt: Date | string | null };
 
 /**
@@ -31,6 +32,29 @@ export function filterCardsByLabels<T extends CardWithLabels>(
 ): T[] {
   if (selectedLabelIds.size === 0) return [...cards];
   return cards.filter((card) => cardPassesLabelFilter(card, selectedLabelIds));
+}
+
+/**
+ * Whether `card` is assigned to `userId` — i.e. it carries a member entry with
+ * that user id and the `assignee` role. Watchers do **not** count as assignees,
+ * so a card someone only watches never passes this filter.
+ */
+export function cardAssignedToUser(card: CardWithMembers, userId: string): boolean {
+  return card.members.some((m) => m.userId === userId && m.role === 'assignee');
+}
+
+/**
+ * Filter a list of cards down to those assigned to `userId` (see
+ * {@link cardAssignedToUser}). A `null` `userId` disables the filter and returns
+ * a copy of every card — the board screen passes `null` whenever the
+ * "assigned to me" toggle is off or the viewer's identity is not yet known.
+ */
+export function filterCardsByAssignee<T extends CardWithMembers>(
+  cards: readonly T[],
+  userId: string | null,
+): T[] {
+  if (userId == null) return [...cards];
+  return cards.filter((card) => cardAssignedToUser(card, userId));
 }
 
 /**

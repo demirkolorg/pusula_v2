@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon, Settings2Icon } from 'lucide-react';
-import { DEFAULT_BOARD_ICON, type EntityIcon } from '@pusula/domain';
+import { DEFAULT_BOARD_ICON, type BoardRole, type EntityIcon } from '@pusula/domain';
 import {
   Button,
   DropdownMenu,
@@ -22,11 +22,15 @@ import { EntityIconBadge } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { CreateBoardDialog } from '../workspaces/[id]/_components/create-board-dialog';
+import { BoardMembersDialog } from '../workspaces/[id]/boards/[boardId]/_components/board-settings/board-members-dialog';
+import { SwitcherRowActions } from './switcher-row-actions';
 
 type BoardRow = {
   id: string;
   title: string;
   icon?: EntityIcon | string | null;
+  /** The viewer's effective role on this board — `board.list`/`board.get` both return it. */
+  role: BoardRole;
   archived?: boolean;
   archivedAt?: Date | null;
 };
@@ -56,6 +60,8 @@ export function BoardSwitcher() {
   const onBoardChrome = Boolean(boardId);
   const copy = strings.shell.boardSwitcher;
   const [createOpen, setCreateOpen] = useState(false);
+  // The board whose member-management modal is currently open (null = closed).
+  const [membersTarget, setMembersTarget] = useState<BoardRow | null>(null);
 
   const workspaceList = useQuery(trpc.workspace.list.queryOptions());
   const workspaces = (workspaceList.data ?? []) as WorkspaceRow[];
@@ -136,18 +142,28 @@ export function BoardSwitcher() {
             const active = board.id === boardId;
             const displayBoard = active && activeBoard ? activeBoard : board;
             return (
-              <DropdownMenuItem
-                key={board.id}
-                data-active={active ? 'true' : undefined}
-                onSelect={() => router.push(`/workspaces/${workspaceId}/boards/${board.id}`)}
-              >
-                <EntityIconBadge
-                  icon={displayBoard.icon ?? DEFAULT_BOARD_ICON}
-                  className={cn('size-7 rounded-md', active && 'bg-primary/10 text-primary')}
+              <div key={board.id} className="group/row relative">
+                <DropdownMenuItem
+                  data-active={active ? 'true' : undefined}
+                  onSelect={() => router.push(`/workspaces/${workspaceId}/boards/${board.id}`)}
+                  className="pr-16"
+                >
+                  <EntityIconBadge
+                    icon={displayBoard.icon ?? DEFAULT_BOARD_ICON}
+                    className={cn('size-7 rounded-md', active && 'bg-primary/10 text-primary')}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{displayBoard.title}</span>
+                  {active && <CheckIcon className="text-primary ml-auto size-3.5" aria-hidden />}
+                </DropdownMenuItem>
+                <SwitcherRowActions
+                  settingsLabel={copy.rowSettingsFor(displayBoard.title)}
+                  membersLabel={copy.rowMembersFor(displayBoard.title)}
+                  onSettings={() =>
+                    router.push(`/workspaces/${workspaceId}/boards/${board.id}/settings`)
+                  }
+                  onMembers={() => setMembersTarget(displayBoard)}
                 />
-                <span className="min-w-0 flex-1 truncate">{displayBoard.title}</span>
-                {active && <CheckIcon className="text-primary ml-auto size-3.5" aria-hidden />}
-              </DropdownMenuItem>
+              </div>
             );
           })
         )}
@@ -167,6 +183,19 @@ export function BoardSwitcher() {
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
+      {membersTarget && (
+        <BoardMembersDialog
+          key={membersTarget.id}
+          boardId={membersTarget.id}
+          workspaceId={workspaceId}
+          boardTitle={membersTarget.title}
+          role={membersTarget.role}
+          open
+          onOpenChange={(open) => {
+            if (!open) setMembersTarget(null);
+          }}
+        />
+      )}
     </DropdownMenu>
   );
 }

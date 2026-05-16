@@ -1,4 +1,5 @@
 import {
+  AlignLeftIcon,
   ArchiveIcon,
   ArrowLeftRightIcon,
   AtSignIcon,
@@ -6,9 +7,15 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ImageIcon,
+  KeyRoundIcon,
+  ListChecksIcon,
+  ListPlusIcon,
+  ListXIcon,
   MailIcon,
   MessageSquareIcon,
   PaperclipIcon,
+  PencilIcon,
+  TagIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from 'lucide-react';
@@ -65,8 +72,42 @@ export function notificationTypeIcon(type: string, className?: string) {
     case 'attachment_added':
     case 'attachment.added':
       return <PaperclipIcon className={cn(iconClass, 'text-sky-500')} aria-hidden />;
+    // DEM-153 — kartla ilgili kalan granular tipler.
+    case 'card_renamed':
+    case 'card.renamed':
+      return <PencilIcon className={cn(iconClass, 'text-violet-500')} aria-hidden />;
+    case 'card_description_changed':
+    case 'card.description_changed':
+      return <AlignLeftIcon className={cn(iconClass, 'text-violet-500')} aria-hidden />;
+    case 'card_label_added':
+    case 'card.label_added':
+      return <TagIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
+    case 'card_label_removed':
+    case 'card.label_removed':
+      return <TagIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    case 'comment_updated':
+    case 'comment.updated':
+    case 'comment_deleted':
+    case 'comment.deleted':
+      return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    case 'checklist_created':
+    case 'checklist.created':
+      return <ListChecksIcon className={cn(iconClass, 'text-green-600')} aria-hidden />;
+    case 'checklist_item_added':
+    case 'checklist.item_added':
+      return <ListPlusIcon className={cn(iconClass, 'text-green-600')} aria-hidden />;
+    case 'checklist_item_removed':
+    case 'checklist.item_removed':
+      return <ListXIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    case 'attachment_removed':
+    case 'attachment.removed':
+      return <PaperclipIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
     case 'watched_activity':
       return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    // DEM-154 — board erişim talebi bildirimi.
+    case 'board_access_requested':
+    case 'board.access_requested':
+      return <KeyRoundIcon className={cn(iconClass, 'text-cyan-500')} aria-hidden />;
     default:
       return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
   }

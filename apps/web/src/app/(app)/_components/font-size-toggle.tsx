@@ -9,6 +9,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   cn,
 } from '@pusula/ui';
 import { useFontScalePreference } from '../../_components/font-size-provider';
@@ -20,18 +23,22 @@ export function FontSizeToggle({ className }: { className?: string }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={labels.trigger}
-          title={labels.trigger}
-          className={cn('size-9', className)}
-        >
-          <ALargeSmallIcon className="size-4" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={labels.trigger}
+              className={cn('size-9', className)}
+            >
+              <ALargeSmallIcon className="size-4" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{labels.trigger}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuLabel className="flex items-center justify-between gap-3">
           <span>{labels.label}</span>

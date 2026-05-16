@@ -50,7 +50,7 @@ services:
     volumes:
       - pusula_v2_minio:/data
 
-  # Creates the default bucket on startup, then exits.
+  # Creates the default bucket + the public-read avatars/ prefix, then exits.
   minio-setup:
     image: minio/mc:latest
     depends_on:
@@ -61,6 +61,7 @@ services:
       - >
         until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
         mc mb --ignore-existing local/pusula;
+        mc anonymous set download local/pusula/avatars;
         exit 0;
 
 volumes:

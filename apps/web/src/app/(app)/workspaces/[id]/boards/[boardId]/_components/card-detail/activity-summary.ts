@@ -10,6 +10,8 @@ export type CardActivityEvent = {
   type: string;
   actorId: string | null;
   actorName: string | null;
+  /** Actor avatar URL (`null` when unset or the actor was deleted — DEM-160). */
+  actorImage: string | null;
   payload: unknown;
   createdAt: Date | string;
 };

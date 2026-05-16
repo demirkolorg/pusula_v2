@@ -62,10 +62,12 @@ describe('notifications-shared MATRIX_ROWS', () => {
     }
   });
 
-  it('exposes 17 rows (one per produced NotificationType)', () => {
+  it('exposes 27 rows (one per produced NotificationType)', () => {
     // DEM-152 — 11 → 17: `watched_activity` çıkarıldı (artık üretilmiyor,
     // enum'da fallback), 7 granular kart-aktivite tipi eklendi.
-    expect(MATRIX_ROWS).toHaveLength(17);
+    // DEM-153 — 17 → 27: kartla ilgili kalan 10 granular aksiyon tipi eklendi
+    // (başlık/açıklama/etiket/yorum düzenle-sil/checklist/ek kaldırma).
+    expect(MATRIX_ROWS).toHaveLength(27);
   });
 
   it('every row carries a valid group + i18nKey + channel state set', () => {

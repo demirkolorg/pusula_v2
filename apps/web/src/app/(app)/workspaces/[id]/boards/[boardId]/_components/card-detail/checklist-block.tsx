@@ -21,7 +21,12 @@ import {
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
 import { ChecklistItemRow } from './checklist-item-row';
-import type { ChecklistHandlers, ChecklistView, NameResolver } from './checklist-types';
+import type {
+  ChecklistHandlers,
+  ChecklistView,
+  ImageResolver,
+  NameResolver,
+} from './checklist-types';
 
 /**
  * One checklist card: header (inline rename + confirmed delete for board
@@ -34,12 +39,14 @@ export function ChecklistBlock({
   pending,
   handlers,
   nameOf,
+  imageOf,
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
   pending: boolean;
   handlers: ChecklistHandlers;
   nameOf?: NameResolver;
+  imageOf?: ImageResolver;
 }) {
   const copy = strings.card.checklist;
   const [renaming, setRenaming] = useState(false);
@@ -198,6 +205,7 @@ export function ChecklistBlock({
               canEdit={canEdit}
               pending={pending}
               nameOf={nameOf}
+              imageOf={imageOf}
               onToggle={(completed) =>
                 handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
               }

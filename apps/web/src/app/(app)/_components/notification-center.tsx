@@ -3,7 +3,7 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { BellIcon, CheckIcon } from 'lucide-react';
+import { BellIcon, CheckIcon, SettingsIcon } from 'lucide-react';
 import {
   Avatar,
   Button,
@@ -200,16 +200,38 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
                     : strings.notifications.allCaughtUp}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 shrink-0 text-xs"
-              onClick={() => markAllRead.mutate()}
-              disabled={markAllRead.isPending || allRead}
-            >
-              {strings.notifications.markAllRead}
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => markAllRead.mutate()}
+                disabled={markAllRead.isPending || allRead}
+              >
+                {strings.notifications.markAllRead}
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    aria-label={strings.notifications.openSettings}
+                    onClick={() => {
+                      router.push('/account?tab=notifications');
+                      onClose();
+                    }}
+                  >
+                    <SettingsIcon className="size-4" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {strings.notifications.openSettings}
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
 

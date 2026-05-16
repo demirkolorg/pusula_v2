@@ -127,6 +127,7 @@ export function MemberList({ workspaceId, canManage }: MemberListProps) {
                 userId: member.userId,
                 name: member.name,
                 email: member.email,
+                image: member.image,
                 role: member.role,
               }}
               viewerUserId={viewerUserId}

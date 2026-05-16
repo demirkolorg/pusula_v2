@@ -5,6 +5,7 @@ import { assignableWorkspaceRoleSchema, type WorkspaceRole } from '@pusula/domai
 import {
   Alert,
   AlertDescription,
+  Avatar,
   Badge,
   Button,
   Dialog,
@@ -33,6 +34,8 @@ export type MemberRowMember = {
   userId: string;
   name: string | null;
   email: string;
+  /** Account avatar URL (`null` until the user uploads one — DEM-160). */
+  image: string | null;
   role: WorkspaceRole;
 };
 
@@ -93,17 +96,20 @@ export function MemberRow({
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate font-medium">{displayName}</span>
-          {isSelf && <Badge variant="outline">{strings.members.youBadge}</Badge>}
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar name={displayName} image={member.image} size="sm" />
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate font-medium">{displayName}</span>
+            {isSelf && <Badge variant="outline">{strings.members.youBadge}</Badge>}
+          </div>
+          <p className="text-muted-foreground truncate text-sm">{member.email}</p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
-        <p className="text-muted-foreground truncate text-sm">{member.email}</p>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">

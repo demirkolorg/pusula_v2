@@ -79,6 +79,15 @@ import { BoardSwitcher } from './board-switcher';
 
 const copy = strings.shell.boardSwitcher;
 
+/**
+ * Matches a board *row* menu item by its label while excluding the per-row
+ * "Ayarlar" / "Üyeler" action items added by DEM-155 — their accessible names
+ * end with those suffixes, so a plain substring query would be ambiguous.
+ */
+const rowItem = (label: string) => ({
+  name: (name: string) => name.includes(label) && !/ (ayarları|üyeleri)$/.test(name),
+});
+
 describe('<BoardSwitcher>', () => {
   beforeEach(() => {
     h.push.mockReset();
@@ -133,11 +142,11 @@ describe('<BoardSwitcher>', () => {
     render(<BoardSwitcher />);
 
     await user.click(screen.getByRole('button', { name: copy.ariaLabel }));
-    expect(await screen.findByRole('menuitem', { name: /Roadmap/ })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', rowItem('Roadmap'))).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: copy.create })).toBeInTheDocument();
     expect(screen.queryByText('Archived Board')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('menuitem', { name: /Roadmap/ }));
+    await user.click(screen.getByRole('menuitem', rowItem('Roadmap')));
     expect(h.push).toHaveBeenCalledWith('/workspaces/w1/boards/b1');
   });
 

@@ -1,10 +1,16 @@
 'use client';
 
-import { useId, useState } from 'react';
-import { userImageUrlSchema, userNameSchema } from '@pusula/domain';
+import { useId, useRef, useState } from 'react';
+import {
+  AVATAR_IMAGE_MAX_BYTES,
+  AVATAR_IMAGE_MIME_TYPES,
+  userImageUrlSchema,
+  userNameSchema,
+} from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
+  Avatar,
   Button,
   Card,
   CardContent,
@@ -15,6 +21,9 @@ import {
   Label,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+
+/** `accept` attribute for the avatar file input — the shared MIME allowlist. */
+const AVATAR_ACCEPT = AVATAR_IMAGE_MIME_TYPES.join(',');
 
 type ProfileFormProps = {
   initialName: string;
@@ -27,13 +36,23 @@ type ProfileFormProps = {
   success?: boolean;
   /** Called with validated values. `image: null` clears the avatar. */
   onSubmit: (values: { name: string; image: string | null }) => void;
+  /**
+   * Uploads `file` to object storage and resolves with the public avatar URL
+   * to use as `image`. `onProgress` receives 0..100. Wired by
+   * `account/page.tsx` (tRPC `user.initiateAvatarUpload` → presigned PUT).
+   */
+  onUploadAvatar: (file: File, onProgress: (percent: number) => void) => Promise<string>;
 };
 
 /**
- * Presentational profile form (display name + avatar URL). No auth-client
+ * Presentational profile form (display name + avatar). No auth-client
  * dependency — `account/page.tsx` wires that in. Validation uses the shared
- * `@pusula/domain` schemas so the rules match the server. The avatar is a plain
- * URL for now (no upload yet — karar 2026-05-12); an empty value clears it.
+ * `@pusula/domain` schemas so the rules match the server.
+ *
+ * The avatar can be set two ways (DEM-160): a file upload (`onUploadAvatar` →
+ * MinIO, public URL) or pasting a plain `http(s)` URL, which stays an optional
+ * fallback. Either way `image` ends up an `http(s)` URL; an empty value clears
+ * the avatar.
  */
 export function ProfileForm({
   initialName,
@@ -43,17 +62,63 @@ export function ProfileForm({
   error,
   success,
   onSubmit,
+  onUploadAvatar,
 }: ProfileFormProps) {
   const copy = strings.account.profile;
   const emailId = useId();
   const nameId = useId();
   const imageId = useId();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [name, setName] = useState(initialName);
   const [image, setImage] = useState(initialImage ?? '');
   const [nameError, setNameError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [noChange, setNoChange] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const busy = pending || uploading;
+  const hasImage = image.trim() !== '';
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so picking the *same* file again still fires `change`.
+    event.target.value = '';
+    if (!file) return;
+
+    setImageError(null);
+    setNoChange(false);
+
+    // Client-side gate — the server re-validates (MIME + size are signed into
+    // the presigned PUT), this is just fast UX feedback.
+    if (!(AVATAR_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+      setImageError(copy.avatarTypeError);
+      return;
+    }
+    if (file.size <= 0 || file.size > AVATAR_IMAGE_MAX_BYTES) {
+      setImageError(copy.avatarSizeError);
+      return;
+    }
+
+    setUploading(true);
+    setProgress(0);
+    try {
+      const url = await onUploadAvatar(file, setProgress);
+      setImage(url);
+    } catch {
+      setImageError(copy.avatarUploadError);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setImage('');
+    setImageError(null);
+    setNoChange(false);
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -123,7 +188,7 @@ export function ProfileForm({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={copy.namePlaceholder}
-              disabled={pending}
+              disabled={busy}
               autoComplete="name"
               aria-invalid={nameError ? true : undefined}
               aria-describedby={nameError ? `${nameId}-error` : undefined}
@@ -136,6 +201,55 @@ export function ProfileForm({
           </div>
 
           <div className="space-y-2">
+            <Label>{copy.avatarLabel}</Label>
+            <div className="flex items-center gap-4">
+              <Avatar
+                name={name}
+                image={hasImage ? image.trim() : null}
+                size="lg"
+                className="size-16 text-lg"
+              />
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={AVATAR_ACCEPT}
+                    className="sr-only"
+                    onChange={handleFileSelect}
+                    disabled={busy}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={busy}
+                  >
+                    {uploading
+                      ? `${copy.avatarUploading} %${progress}`
+                      : hasImage
+                        ? copy.avatarChangeButton
+                        : copy.avatarUploadButton}
+                  </Button>
+                  {hasImage && !uploading && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveAvatar}
+                      disabled={pending}
+                    >
+                      {copy.avatarRemoveButton}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-muted-foreground text-sm">{copy.avatarUploadHelp}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor={imageId}>{copy.imageLabel}</Label>
             <Input
               id={imageId}
@@ -144,7 +258,7 @@ export function ProfileForm({
               value={image}
               onChange={(event) => setImage(event.target.value)}
               placeholder={copy.imagePlaceholder}
-              disabled={pending}
+              disabled={busy}
               autoComplete="off"
               aria-invalid={imageError ? true : undefined}
               aria-describedby={imageError ? `${imageId}-error` : `${imageId}-help`}
@@ -172,7 +286,7 @@ export function ProfileForm({
           )}
           {noChange && <p className="text-muted-foreground text-sm">{copy.noChange}</p>}
 
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={busy}>
             {pending ? copy.saving : copy.save}
           </Button>
         </form>

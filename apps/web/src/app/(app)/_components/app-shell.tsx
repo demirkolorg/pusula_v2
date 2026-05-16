@@ -21,6 +21,8 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 type AppShellProps = {
   userName: string;
   userEmail: string;
+  /** Avatar image URL; omitted/`null` falls back to initials. */
+  userImage?: string | null;
   emailVerified: boolean;
   children: ReactNode;
 };
@@ -44,7 +46,13 @@ const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+\/?$/;
  * board surface can reach the viewport edges); all other screens get a centred
  * `max-w-5xl` container with comfortable padding.
  */
-export function AppShell({ userName, userEmail, emailVerified, children }: AppShellProps) {
+export function AppShell({
+  userName,
+  userEmail,
+  userImage,
+  emailVerified,
+  children,
+}: AppShellProps) {
   const pathname = usePathname();
   const params = useParams<{ boardId?: string }>();
   const trpc = useTRPC();
@@ -97,13 +105,23 @@ export function AppShell({ userName, userEmail, emailVerified, children }: AppSh
             <BoardSwitcher />
           </div>
           <div className="hidden min-w-0 flex-[0.8] justify-center md:flex">
-            <SearchDialog enableShortcut triggerClassName="max-w-sm" />
+            <SearchDialog
+              enableShortcut
+              triggerClassName={cn(
+                // Trigger blends into the header instead of reading as a bright
+                // white field: a translucent variation of the chrome background.
+                'max-w-sm shadow-none',
+                fullBleed
+                  ? 'border-white/10 bg-white/10 text-[color:var(--board-chrome-fg)] hover:bg-white/15 hover:text-[color:var(--board-chrome-fg)]'
+                  : 'border-transparent bg-muted hover:bg-muted/70',
+              )}
+            />
           </div>
           <div className="flex flex-1 shrink-0 items-center justify-end gap-1">
             <NotificationBell />
             <ThemeToggle />
             <FontSizeToggle />
-            <UserNavMenu userName={userName} userEmail={userEmail} />
+            <UserNavMenu userName={userName} userEmail={userEmail} userImage={userImage} />
           </div>
         </div>
       </header>

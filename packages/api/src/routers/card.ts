@@ -463,29 +463,63 @@ export const cardRouter = router({
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       if (titleChanged) {
-        await tx.insert(activityEvents).values({
+        const renamePayload = {
+          cardId: card.id,
+          fromTitle: card.title,
+          toTitle: updated.title,
+          clientMutationId: ctx.clientMutationId,
+        };
+        const [renameActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: card.boardId,
+            cardId: card.id,
+            actorId: ctx.session.user.id,
+            type: 'card.renamed',
+            payload: renamePayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!renameActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // DEM-153 — kart başlığı değişimi watcher'lara in-app bildirim üretir.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: renameActivity.id,
+          type: 'card.renamed',
           workspaceId: ctx.card.workspaceId,
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: 'card.renamed',
-          payload: {
-            cardId: card.id,
-            fromTitle: card.title,
-            toTitle: updated.title,
-            clientMutationId: ctx.clientMutationId,
-          },
+          payload: renamePayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = renameActivity.id;
       }
       if (descriptionChanged) {
-        await tx.insert(activityEvents).values({
+        const descriptionPayload = { cardId: card.id, clientMutationId: ctx.clientMutationId };
+        const [descriptionActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: card.boardId,
+            cardId: card.id,
+            actorId: ctx.session.user.id,
+            type: 'card.description_changed',
+            payload: descriptionPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!descriptionActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // DEM-153 — kart açıklaması değişimi watcher'lara in-app bildirim üretir.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: descriptionActivity.id,
+          type: 'card.description_changed',
           workspaceId: ctx.card.workspaceId,
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: 'card.description_changed',
-          payload: { cardId: card.id, clientMutationId: ctx.clientMutationId },
+          payload: descriptionPayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = descriptionActivity.id;
       }
       if (dueAtChanged) {
         const dueType = updated.dueAt ? 'card.due_set' : 'card.due_cleared';
@@ -1735,6 +1769,7 @@ export const cardRouter = router({
           type: activityEvents.type,
           actorId: activityEvents.actorId,
           actorName: users.name,
+          actorImage: users.image,
           payload: activityEvents.payload,
           createdAt: activityEvents.createdAt,
         })

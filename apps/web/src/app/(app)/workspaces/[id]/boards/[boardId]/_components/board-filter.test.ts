@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cardAssignedToUser,
   cardPassesDueDateFilter,
   cardPassesLabelFilter,
   countArchivedLists,
+  filterCardsByAssignee,
   filterCardsByDueDate,
   filterCardsByLabels,
   filterVisibleLists,
@@ -98,6 +100,41 @@ describe('board-filter helpers', () => {
       const out = filterCardsByDueDate(dueCards, 'all', nowMs);
       expect(out).toEqual(dueCards);
       expect(out).not.toBe(dueCards);
+    });
+  });
+
+  describe('assignee filter', () => {
+    const me = 'u-me';
+    const memberCards = [
+      {
+        id: 'assigned',
+        members: [
+          { userId: me, role: 'assignee' as const },
+          { userId: 'u-other', role: 'watcher' as const },
+        ],
+      },
+      // The viewer only watches this card — watching is not an assignment.
+      { id: 'watched', members: [{ userId: me, role: 'watcher' as const }] },
+      // Assigned, but to someone else.
+      { id: 'others', members: [{ userId: 'u-other', role: 'assignee' as const }] },
+      { id: 'empty', members: [] },
+    ];
+
+    it('cardAssignedToUser passes only cards the user is an assignee on', () => {
+      expect(cardAssignedToUser(memberCards[0]!, me)).toBe(true);
+      expect(cardAssignedToUser(memberCards[1]!, me)).toBe(false);
+      expect(cardAssignedToUser(memberCards[2]!, me)).toBe(false);
+      expect(cardAssignedToUser(memberCards[3]!, me)).toBe(false);
+    });
+
+    it('filterCardsByAssignee keeps only the viewer\'s assigned cards', () => {
+      expect(filterCardsByAssignee(memberCards, me).map((c) => c.id)).toEqual(['assigned']);
+    });
+
+    it('filterCardsByAssignee with a null user id is a no-op returning a fresh copy', () => {
+      const out = filterCardsByAssignee(memberCards, null);
+      expect(out).toEqual(memberCards);
+      expect(out).not.toBe(memberCards);
     });
   });
 

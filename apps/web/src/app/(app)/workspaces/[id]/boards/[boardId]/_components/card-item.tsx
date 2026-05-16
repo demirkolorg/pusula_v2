@@ -9,6 +9,7 @@ import {
   CircleOffIcon,
   ImageIcon,
   MoveIcon,
+  Share2Icon,
   TagIcon,
   UploadIcon,
   UsersIcon,
@@ -58,6 +59,7 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
 import { CardCoverImage, type CoverImage } from './card-cover-image';
+import { ShareDialog } from './card-detail/share-dialog';
 import { CardMetaRow, type CardMember } from './card-meta-row';
 import { LABEL_SWATCH } from './label-colors';
 import type { BoardList } from './list-column';
@@ -230,6 +232,7 @@ export function CardItem({
   const dnd = useBoardDndContext();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
@@ -521,7 +524,7 @@ export function CardItem({
           labelCount={card.labels.length}
           commentCount={card.commentCount}
           attachmentCount={card.attachmentCount}
-          members={card.members}
+          members={card.members.filter((m) => m.role === 'assignee')}
         />
       </div>
     </article>
@@ -685,6 +688,10 @@ export function CardItem({
               {menuCopy.members}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-56">
+              <ContextMenuLabel className="text-muted-foreground text-xs font-normal">
+                {menuCopy.membersHint}
+              </ContextMenuLabel>
+              <ContextMenuSeparator />
               {boardMembers.length === 0 ? (
                 <ContextMenuItem disabled>{menuCopy.noMembers}</ContextMenuItem>
               ) : (
@@ -771,12 +778,25 @@ export function CardItem({
           </ContextMenuSub>
 
           <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => setShareOpen(true)}>
+            <Share2Icon className="size-4" aria-hidden />
+            {strings.share.action}
+          </ContextMenuItem>
           <ContextMenuItem onSelect={() => setArchiveOpen(true)}>
             <ArchiveIcon className="size-4" aria-hidden />
             {copy.archive}
           </ContextMenuItem>
         </ContextMenuContent>
         {archiveDialog}
+        {/* Faz 9D (DEM-130) — kart context menüsünden paylaşım yönetimi.
+            Kontrollü mod: tetik düğmesi gizli, açma context menü öğesinde. */}
+        <ShareDialog
+          cardId={card.id}
+          canShare={canEdit}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          hideTrigger
+        />
       </ContextMenu>
     </>
   );

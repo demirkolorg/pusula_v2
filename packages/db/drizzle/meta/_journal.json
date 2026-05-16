@@ -204,6 +204,20 @@
       "when": 1779531600000,
       "tag": "0028_dem152_notification_types_granular",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779618000000,
+      "tag": "0029_dem153_notification_types_card_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779704400000,
+      "tag": "0030_dem154_board_access_requested",
+      "breakpoints": true
     }
   ]
 }

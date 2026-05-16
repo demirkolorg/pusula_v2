@@ -130,6 +130,19 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     group: 'comment',
     channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
   },
+  // DEM-153 — yorum düzenleme / silme bildirimleri (in-app only).
+  {
+    type: 'comment_updated',
+    i18nKey: 'commentUpdated',
+    group: 'comment',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'comment_deleted',
+    i18nKey: 'commentDeleted',
+    group: 'comment',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
   {
     type: 'due_approaching',
     i18nKey: 'dueApproaching',
@@ -181,6 +194,55 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     i18nKey: 'attachmentAdded',
     group: 'lifecycle',
     channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  // DEM-153 — kartla ilgili kalan granular tipler (hepsi in-app only).
+  {
+    type: 'card_renamed',
+    i18nKey: 'cardRenamed',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'card_description_changed',
+    i18nKey: 'cardDescriptionChanged',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'card_label_added',
+    i18nKey: 'cardLabelAdded',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'card_label_removed',
+    i18nKey: 'cardLabelRemoved',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'checklist_created',
+    i18nKey: 'checklistCreated',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'checklist_item_added',
+    i18nKey: 'checklistItemAdded',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'checklist_item_removed',
+    i18nKey: 'checklistItemRemoved',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+  },
+  {
+    type: 'attachment_removed',
+    i18nKey: 'attachmentRemoved',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
   },
   {
     type: 'checklist_item_completed',

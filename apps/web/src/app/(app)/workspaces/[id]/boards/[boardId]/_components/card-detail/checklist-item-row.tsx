@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import type { ChecklistItemView, NameResolver } from './checklist-types';
+import type { ChecklistItemView, ImageResolver, NameResolver } from './checklist-types';
 
 /**
  * One checklist item: a `Checkbox` + content, with inline edit/delete for board
@@ -25,6 +25,7 @@ export function ChecklistItemRow({
   canEdit,
   pending,
   nameOf,
+  imageOf,
   onToggle,
   onEdit,
   onDelete,
@@ -33,6 +34,7 @@ export function ChecklistItemRow({
   canEdit: boolean;
   pending: boolean;
   nameOf?: NameResolver;
+  imageOf?: ImageResolver;
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
@@ -46,6 +48,8 @@ export function ChecklistItemRow({
     item.completed && item.completedBy
       ? nameOf?.(item.completedBy)?.toString().trim() || null
       : null;
+  const completerImage =
+    item.completed && item.completedBy ? (imageOf?.(item.completedBy) ?? null) : null;
 
   return (
     <li className="group/item flex items-start gap-2 text-sm">
@@ -112,7 +116,14 @@ export function ChecklistItemRow({
           >
             {item.content}
           </span>
-          {completerName && <Avatar name={completerName} size="xs" className="shrink-0" />}
+          {completerName && (
+            <Avatar
+              name={completerName}
+              image={completerImage}
+              size="xs"
+              className="shrink-0"
+            />
+          )}
           {canEdit && (
             <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100">
               <Tooltip>

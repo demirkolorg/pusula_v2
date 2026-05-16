@@ -154,6 +154,7 @@ const itemRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
@@ -172,19 +173,36 @@ const itemRouter = router({
         .returning(itemCols);
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const itemAddedPayload = {
+        checklistId: input.checklistId,
+        itemId: created.id,
+        cardId: ctx.card.id,
+        content: created.content,
+      };
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'checklist.item_added',
+          payload: itemAddedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — madde ekleme kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'checklist.item_added',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'checklist.item_added',
-        payload: {
-          checklistId: input.checklistId,
-          itemId: created.id,
-          cardId: ctx.card.id,
-          content: created.content,
-        },
+        payload: itemAddedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersion(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -205,6 +223,7 @@ const itemRouter = router({
       });
       return created;
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
@@ -283,21 +302,20 @@ const itemRouter = router({
         },
       });
 
-      // Faz 6A (DEM-90) — only `checked` produces a watcher notification (the
-      // domain rules map `checklist.item_checked` → `checklist_item_completed`;
-      // un-checking is silent — too low-signal to fan out).
-      if (input.completed) {
-        const dispatched = await dispatchNotificationsForActivity(tx, {
-          id: activity.id,
-          type: 'checklist.item_checked',
-          workspaceId: ctx.card.workspaceId,
-          boardId: ctx.card.boardId,
-          cardId: ctx.card.id,
-          actorId: ctx.session.user.id,
-          payload: togglePayload,
-        });
-        if (dispatched.inserted > 0) notificationEventId = activity.id;
-      }
+      // DEM-153 — hem işaretleme hem geri alma kart watcher'larına bildirim
+      // üretir. `mapEventToNotificationType` `checklist.item_checked` ve
+      // `checklist.item_unchecked`'i tek `checklist_item_completed` tipine
+      // bağlar; `payload.activityType` UI'da checked/unchecked'i ayırır.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: toggleType,
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        payload: togglePayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       return { ...updated, changed: true as const };
     });
@@ -367,20 +385,42 @@ const itemRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
       await tx.delete(checklistItems).where(eq(checklistItems.id, item.id));
 
-      await tx.insert(activityEvents).values({
+      const itemRemovedPayload = {
+        checklistId: input.checklistId,
+        itemId: item.id,
+        cardId: ctx.card.id,
+      };
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'checklist.item_removed',
+          payload: itemRemovedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — madde silme kart watcher'larına in-app bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'checklist.item_removed',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'checklist.item_removed',
-        payload: { checklistId: input.checklistId, itemId: item.id, cardId: ctx.card.id },
+        payload: itemRemovedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersion(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -395,6 +435,7 @@ const itemRouter = router({
       });
       return { id: item.id, deleted: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
@@ -515,6 +556,7 @@ export const checklistRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       await assertBoardWritable(tx, ctx.card.boardId);
 
@@ -532,14 +574,35 @@ export const checklistRouter = router({
         .returning(checklistCols);
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const checklistCreatedPayload = {
+        checklistId: created.id,
+        cardId: ctx.card.id,
+        title: created.title,
+      };
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'checklist.created',
+          payload: checklistCreatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // DEM-153 — yapılacaklar listesi ekleme kart watcher'larına bildirim üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'checklist.created',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'checklist.created',
-        payload: { checklistId: created.id, cardId: ctx.card.id, title: created.title },
+        payload: checklistCreatedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
 
       const seq = await bumpBoardVersion(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -560,6 +623,7 @@ export const checklistRouter = router({
       });
       return created;
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),

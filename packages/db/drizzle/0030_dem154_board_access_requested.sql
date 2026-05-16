@@ -1,0 +1,22 @@
+-- DEM-154 — board erişim talebi bildirimi.
+--
+-- İki Postgres enum'a birer değer eklenir:
+--
+--   activity_event_type += 'board.access_requested'
+--     Biri paylaşılan board linkinden erişim talep edince
+--     (`board.accessRequests.request`) tx içinde yazılan activity event.
+--
+--   notification_type    += 'board_access_requested'
+--     Rule engine bu activity'yi board admin'lerine bu bildirim tipiyle
+--     fan-out eder (in-app + email opt-in; cooldown-bypass).
+--
+-- Kaynak: `@pusula/domain/constants.ts` `ACTIVITY_EVENT_TYPES` +
+-- `NOTIFICATION_TYPES` (`pgEnum(...)` ile bağlı — DB enum tek listeye
+-- eşitlenmek zorunda; aksi halde insert SQLSTATE 22P02 ile fail eder).
+--
+-- `IF NOT EXISTS` idempotent (önceki member_* / granular pattern: 0022, 0028, 0029).
+--
+-- Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-154 — board erişim
+-- talebi bildirimi" + `docs/architecture/06-bildirim-altyapisi.md`.
+ALTER TYPE "public"."activity_event_type" ADD VALUE IF NOT EXISTS 'board.access_requested';--> statement-breakpoint
+ALTER TYPE "public"."notification_type" ADD VALUE IF NOT EXISTS 'board_access_requested';

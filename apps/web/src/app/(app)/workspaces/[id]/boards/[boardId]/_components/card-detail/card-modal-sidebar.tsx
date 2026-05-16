@@ -36,8 +36,12 @@ type CardModalSidebarProps = {
   attachmentCount: number;
   /** Resolve a user id to a display name. */
   nameOf: (userId: string) => string | null | undefined;
+  /** Resolve a user id to an avatar URL (`null` when unset). */
+  imageOf: (userId: string) => string | null;
   viewerUserId: string;
   viewerName: string | null;
+  /** The viewer's avatar URL (`null` when unset) — for the comment composer. */
+  viewerImage: string | null;
   isBoardAdmin: boolean;
   /** Board `member+` and board active — may add / edit / delete own comments. */
   canComment: boolean;
@@ -62,8 +66,9 @@ function timeOf(value: Date | string): number {
 
 /**
  * Card modal right panel: a sticky header with the tab strip (Yorumlar / Aktivite
- * / Ekler / Tümü, each with a count) + the always-visible comment composer, then
- * the scrolling tab content. Comments newest-first; activity newest-first; Ekler
+ * / Ekler / Tümü, each with a count), then the scrolling tab content. The comment
+ * composer lives inside the Yorumlar tab only (mirroring how the upload dropzone
+ * lives inside the Ekler tab). Comments newest-first; activity newest-first; Ekler
  * is an empty placeholder (attachments — Faz 8); Tümü merges comments + activity
  * by `createdAt` (descending). Presentational — the dialog wires the mutations.
  */
@@ -75,8 +80,10 @@ export function CardModalSidebar({
   activityError,
   attachmentCount,
   nameOf,
+  imageOf,
   viewerUserId,
   viewerName,
+  viewerImage,
   isBoardAdmin,
   canComment,
   onCreateComment,
@@ -121,6 +128,7 @@ export function CardModalSidebar({
     <CardDetailComments
       comments={commentsNewestFirst}
       nameOf={nameOf}
+      imageOf={imageOf}
       viewerUserId={viewerUserId}
       isBoardAdmin={isBoardAdmin}
       canComment={canComment}
@@ -145,7 +153,7 @@ export function CardModalSidebar({
         onValueChange={(v) => setTab(v as typeof tab)}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="sticky top-0 z-10 shrink-0 space-y-3 bg-muted/40 p-4 backdrop-blur sm:p-[18px]">
+        <div className="sticky top-0 z-10 shrink-0 bg-muted/40 px-4 pt-3 pb-2.5 backdrop-blur sm:px-[18px]">
           <TabsList>
             <TabsTrigger value="comments" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.comments} count={visibleCommentCount} />
@@ -160,20 +168,22 @@ export function CardModalSidebar({
               <TabLabel label={copy.tabs.all} count={allCount} />
             </TabsTrigger>
           </TabsList>
-
-          {canComment && (
-            <CardCommentComposer
-              viewerName={viewerName}
-              onSubmit={onCreateComment}
-              pending={commentPending}
-              error={commentError}
-              mentions={mentions}
-            />
-          )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-[18px] sm:pb-[18px]">
-          <TabsContent value="comments">{commentsList}</TabsContent>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-4 sm:px-[18px] sm:pb-[18px]">
+          <TabsContent value="comments" className="space-y-3">
+            {canComment && (
+              <CardCommentComposer
+                viewerName={viewerName}
+                viewerImage={viewerImage}
+                onSubmit={onCreateComment}
+                pending={commentPending}
+                error={commentError}
+                mentions={mentions}
+              />
+            )}
+            {commentsList}
+          </TabsContent>
           <TabsContent value="activity">{activityList}</TabsContent>
           <TabsContent value="attachments">
             <CardDetailAttachments
@@ -197,6 +207,7 @@ export function CardModalSidebar({
                       key={`c-${item.comment.id}`}
                       comments={[item.comment]}
                       nameOf={nameOf}
+                      imageOf={imageOf}
                       viewerUserId={viewerUserId}
                       isBoardAdmin={isBoardAdmin}
                       canComment={canComment}

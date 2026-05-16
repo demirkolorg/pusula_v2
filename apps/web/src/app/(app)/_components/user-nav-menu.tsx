@@ -19,9 +19,11 @@ import { strings } from '@/lib/strings';
 type UserNavMenuProps = {
   userName: string;
   userEmail: string;
+  /** Avatar image URL; omitted/`null` falls back to initials. */
+  userImage?: string | null;
 };
 
-export function UserNavMenu({ userName, userEmail }: UserNavMenuProps) {
+export function UserNavMenu({ userName, userEmail, userImage }: UserNavMenuProps) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const copy = strings.shell.userMenu;
@@ -47,7 +49,12 @@ export function UserNavMenu({ userName, userEmail }: UserNavMenuProps) {
           aria-label={copy.ariaLabel}
           className="size-9 rounded-full"
         >
-          <Avatar name={userName || userEmail} size="md" className="size-8" />
+          <Avatar
+            name={userName || userEmail}
+            image={userImage}
+            size="md"
+            className="size-8"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="w-56">

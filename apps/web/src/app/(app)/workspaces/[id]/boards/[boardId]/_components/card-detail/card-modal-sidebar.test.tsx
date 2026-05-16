@@ -17,6 +17,7 @@ const tabs = strings.card.detail.tabs;
 const detailCopy = strings.card.detail;
 
 const nameOf = (id: string) => ({ u1: 'Ada', u2: 'Bora' })[id as 'u1' | 'u2'] ?? null;
+const imageOf = () => null;
 
 const comments: CommentView[] = [
   {
@@ -34,6 +35,7 @@ const activity: CardActivityEvent[] = [
     type: 'card.created',
     actorId: 'u2',
     actorName: 'Bora',
+    actorImage: null,
     payload: {},
     createdAt: new Date('2026-02-02'),
   },
@@ -48,8 +50,10 @@ function setup(overrides: Partial<Parameters<typeof CardModalSidebar>[0]> = {}) 
     activityError: null,
     attachmentCount: 0,
     nameOf,
+    imageOf,
     viewerUserId: 'u1',
     viewerName: 'Ada',
+    viewerImage: null,
     isBoardAdmin: false,
     canComment: true,
     onCreateComment: vi.fn(),
@@ -92,6 +96,21 @@ describe('<CardModalSidebar>', () => {
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
     expect(screen.getByText('Ekler paneli')).toBeInTheDocument();
+  });
+
+  it('the comment composer lives only in the Yorumlar tab', async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(screen.getByLabelText(detailCopy.composer.placeholder)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: new RegExp(tabs.activity) }));
+    expect(screen.queryByLabelText(detailCopy.composer.placeholder)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
+    expect(screen.queryByLabelText(detailCopy.composer.placeholder)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: new RegExp(tabs.comments) }));
+    expect(screen.getByLabelText(detailCopy.composer.placeholder)).toBeInTheDocument();
   });
 
   it('the activity tab is labelled "Aktivite" (not "İşlemler")', () => {

@@ -19,6 +19,14 @@ import {
   Alert,
   AlertDescription,
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
   Dialog,
   DialogClose,
   DialogContent,
@@ -144,6 +152,37 @@ const LIST_ACCENT_FG: Record<ListColor, string> = {
 function asListColor(color: string | null): ListColor | null {
   return color != null && LIST_COLOR_SET.has(color) ? (color as ListColor) : null;
 }
+
+/**
+ * The list-header menu (rename / colour / icon / move / archive) is offered
+ * two ways — the header's ⋮ button (a dropdown) and a right-click on the header
+ * (a context menu). Both share one set of menu items via `renderListMenu`; the
+ * caller passes the matching primitive set so the items render under whichever
+ * menu opened them.
+ */
+type ListMenuKit = {
+  Item: React.ElementType;
+  Separator: React.ElementType;
+  Sub: React.ElementType;
+  SubTrigger: React.ElementType;
+  SubContent: React.ElementType;
+};
+
+const DROPDOWN_MENU_KIT: ListMenuKit = {
+  Item: DropdownMenuItem,
+  Separator: DropdownMenuSeparator,
+  Sub: DropdownMenuSub,
+  SubTrigger: DropdownMenuSubTrigger,
+  SubContent: DropdownMenuSubContent,
+};
+
+const CONTEXT_MENU_KIT: ListMenuKit = {
+  Item: ContextMenuItem,
+  Separator: ContextMenuSeparator,
+  Sub: ContextMenuSub,
+  SubTrigger: ContextMenuSubTrigger,
+  SubContent: ContextMenuSubContent,
+};
 
 /**
  * Fixed-width board column for a single list: a header (drag handle + title +
@@ -347,6 +386,174 @@ export function ListColumn({
     );
   };
 
+  // Shared menu items for both the ⋮ dropdown and the header context menu.
+  const renderListMenu = ({ Item, Separator, Sub, SubTrigger, SubContent }: ListMenuKit) => (
+    <>
+      {!listArchived && (
+        <>
+          <Item onSelect={startRenaming}>
+            <PencilIcon />
+            {columnCopy.menuRename}
+          </Item>
+          <Sub>
+            <SubTrigger>
+              <PaletteIcon />
+              {strings.board.list.colorPicker.title}
+            </SubTrigger>
+            <SubContent className="p-2">
+              <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
+            </SubContent>
+          </Sub>
+          <Sub>
+            <SubTrigger>
+              <StarIcon />
+              {strings.board.list.iconPicker.title}
+            </SubTrigger>
+            <SubContent className="p-2">
+              <ListIconPicker
+                boardId={boardId}
+                listId={list.id}
+                value={listIcon}
+                color={listIconColor}
+              />
+            </SubContent>
+          </Sub>
+        </>
+      )}
+      {(canMoveLeft || canMoveRight) && (
+        <>
+          <Separator />
+          {canMoveLeft && (
+            <Item onSelect={() => dnd?.moveColumnByOne(list.id, 'left')}>
+              <ArrowLeftIcon />
+              {dndCopy.moveLeft}
+            </Item>
+          )}
+          {canMoveRight && (
+            <Item onSelect={() => dnd?.moveColumnByOne(list.id, 'right')}>
+              <ArrowRightIcon />
+              {dndCopy.moveRight}
+            </Item>
+          )}
+          <Separator />
+        </>
+      )}
+      <Item onSelect={() => setArchiveOpen(true)}>
+        {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+        {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
+      </Item>
+    </>
+  );
+
+  // The expanded (non-collapsed) header. Rendered as-is when the list is
+  // read-only or being renamed; wrapped in a context menu otherwise (below).
+  const expandedHeader = (
+    <header className="text-card-foreground flex shrink-0 items-center justify-between gap-1 p-2">
+      {renaming ? (
+        <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
+          <Input
+            id={renameId}
+            name="listTitle"
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelRenaming();
+              }
+            }}
+            placeholder={columnCopy.renamePlaceholder}
+            aria-label={columnCopy.renamePlaceholder}
+            disabled={renameList.isPending}
+            autoComplete="off"
+            autoFocus
+            className="h-7 border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-invalid={renameError || renameList.isError ? true : undefined}
+            aria-describedby={renameError ? `${renameId}-error` : undefined}
+          />
+          {renameError && (
+            <p id={`${renameId}-error`} className="text-destructive text-sm">
+              {renameError}
+            </p>
+          )}
+          {!renameError && renameList.isError && (
+            <p className="text-destructive text-sm">
+              {getMutationErrorMessage(renameList) ?? strings.common.unknownError}
+            </p>
+          )}
+        </form>
+      ) : (
+        <>
+          <div
+            ref={dnd && !listArchived ? handleRef : undefined}
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-1 rounded-sm',
+              dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
+            )}
+            aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
+          >
+            {listArchived && (
+              <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+            )}
+            {ListHeaderIcon && listIcon && (
+              <ListHeaderIcon
+                data-testid={`list-icon-${listIcon}`}
+                className={cn(
+                  'size-3.5 shrink-0',
+                  listIconColor
+                    ? LIST_ICON_FG[listIconColor]
+                    : listColor === null
+                      ? 'text-muted-foreground'
+                      : LIST_ACCENT_FG[listColor],
+                )}
+                aria-hidden
+              />
+            )}
+            {listEditable ? (
+              <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+                <button
+                  type="button"
+                  className={cn(
+                    'block min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-[color:var(--board-list-bg-hover)] focus-visible:ring-2 focus-visible:ring-ring/60',
+                  )}
+                  onClick={startRenaming}
+                >
+                  {list.title}
+                </button>
+              </h2>
+            ) : (
+              <h2 className="truncate text-[15px] font-semibold">{list.title}</h2>
+            )}
+          </div>
+          {renderCollapseToggle()}
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label={columnCopy.more}
+                >
+                  <MoreHorizontalIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {renderListMenu(DROPDOWN_MENU_KIT)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
+      )}
+    </header>
+  );
+
   return (
     <section
       ref={columnRef}
@@ -395,163 +602,15 @@ export function ListColumn({
             </span>
           </div>
         </header>
+      ) : canEdit && !renaming ? (
+        <ContextMenu>
+          <ContextMenuTrigger asChild>{expandedHeader}</ContextMenuTrigger>
+          <ContextMenuContent className="w-56">
+            {renderListMenu(CONTEXT_MENU_KIT)}
+          </ContextMenuContent>
+        </ContextMenu>
       ) : (
-        <header className="text-card-foreground flex shrink-0 items-center justify-between gap-1 p-2">
-          {renaming ? (
-            <form onSubmit={handleRenameSubmit} noValidate className="w-full space-y-2">
-              <Input
-                id={renameId}
-                name="listTitle"
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    cancelRenaming();
-                  }
-                }}
-                placeholder={columnCopy.renamePlaceholder}
-                aria-label={columnCopy.renamePlaceholder}
-                disabled={renameList.isPending}
-                autoComplete="off"
-                autoFocus
-                className="h-7 border-0 bg-muted/40 px-1.5 text-[15px] font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                aria-invalid={renameError || renameList.isError ? true : undefined}
-                aria-describedby={renameError ? `${renameId}-error` : undefined}
-              />
-              {renameError && (
-                <p id={`${renameId}-error`} className="text-destructive text-sm">
-                  {renameError}
-                </p>
-              )}
-              {!renameError && renameList.isError && (
-                <p className="text-destructive text-sm">
-                  {getMutationErrorMessage(renameList) ?? strings.common.unknownError}
-                </p>
-              )}
-            </form>
-          ) : (
-            <>
-              <div
-                ref={dnd && !listArchived ? handleRef : undefined}
-                className={cn(
-                  'flex min-w-0 flex-1 items-center gap-1 rounded-sm',
-                  dnd && !listArchived && !renaming && 'cursor-grab active:cursor-grabbing',
-                )}
-                aria-label={dnd && !listArchived ? dndCopy.listDragHandleLabel : undefined}
-              >
-                {listArchived && (
-                  <ArchiveIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                )}
-                {ListHeaderIcon && listIcon && (
-                  <ListHeaderIcon
-                    data-testid={`list-icon-${listIcon}`}
-                    className={cn(
-                      'size-3.5 shrink-0',
-                      listIconColor
-                        ? LIST_ICON_FG[listIconColor]
-                        : listColor === null
-                          ? 'text-muted-foreground'
-                          : LIST_ACCENT_FG[listColor],
-                    )}
-                    aria-hidden
-                  />
-                )}
-                {listEditable ? (
-                  <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-                    <button
-                      type="button"
-                      className={cn(
-                        'block min-w-0 max-w-full truncate rounded-sm text-left outline-none hover:bg-[color:var(--board-list-bg-hover)] focus-visible:ring-2 focus-visible:ring-ring/60',
-                      )}
-                      onClick={startRenaming}
-                    >
-                      {list.title}
-                    </button>
-                  </h2>
-                ) : (
-                  <h2 className="truncate text-[15px] font-semibold">{list.title}</h2>
-                )}
-              </div>
-              {renderCollapseToggle()}
-              {canEdit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 shrink-0"
-                      aria-label={columnCopy.more}
-                    >
-                      <MoreHorizontalIcon className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {!listArchived && (
-                      <>
-                        <DropdownMenuItem onSelect={startRenaming}>
-                          <PencilIcon />
-                          {columnCopy.menuRename}
-                        </DropdownMenuItem>
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <PaletteIcon />
-                            {strings.board.list.colorPicker.title}
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent className="p-2">
-                            <ListColorPicker boardId={boardId} listId={list.id} value={listColor} />
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <StarIcon />
-                            {strings.board.list.iconPicker.title}
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent className="p-2">
-                            <ListIconPicker
-                              boardId={boardId}
-                              listId={list.id}
-                              value={listIcon}
-                              color={listIconColor}
-                            />
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      </>
-                    )}
-                    {(canMoveLeft || canMoveRight) && (
-                      <>
-                        <DropdownMenuSeparator />
-                        {canMoveLeft && (
-                          <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'left')}>
-                            <ArrowLeftIcon />
-                            {dndCopy.moveLeft}
-                          </DropdownMenuItem>
-                        )}
-                        {canMoveRight && (
-                          <DropdownMenuItem onSelect={() => dnd?.moveColumnByOne(list.id, 'right')}>
-                            <ArrowRightIcon />
-                            {dndCopy.moveRight}
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
-                      {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-                      {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </>
-          )}
-        </header>
+        expandedHeader
       )}
 
       {!collapsed && (

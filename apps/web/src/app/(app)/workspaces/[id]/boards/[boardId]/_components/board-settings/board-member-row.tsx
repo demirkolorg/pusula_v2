@@ -5,6 +5,7 @@ import { BOARD_ROLES, type BoardRole } from '@pusula/domain';
 import {
   Alert,
   AlertDescription,
+  Avatar,
   Badge,
   Button,
   Dialog,
@@ -29,6 +30,10 @@ const ASSIGNABLE_BOARD_ROLES = BOARD_ROLES as readonly BoardRole[];
 export type BoardMemberRowMember = {
   userId: string;
   name: string | null;
+  /** Account e-postası — adlar çakışabildiği için kimliği netleştirir (DEM-157). */
+  email: string | null;
+  /** Account avatar URL (`null` until the user uploads one — DEM-160). */
+  image: string | null;
   role: BoardRole;
   /** `true` for a workspace owner/admin who inherits board access without an explicit row. */
   inherited: boolean;
@@ -81,7 +86,7 @@ export function BoardMemberRow({
 }: BoardMemberRowProps) {
   const copy = strings.board.settings;
   const isSelf = member.userId === viewerUserId;
-  const displayName = member.name?.trim() || member.userId;
+  const displayName = member.name?.trim() || member.email?.trim() || member.userId;
   const controlsDisabled = disabled || pending;
   // Demoting/removing the sole explicit admin is rejected server-side; lock it here too.
   const lockedAsLastAdmin = isLastAdmin && member.role === 'admin';
@@ -95,20 +100,28 @@ export function BoardMemberRow({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate font-medium">{displayName}</span>
-          {isSelf && <Badge variant="outline">{copy.youBadge}</Badge>}
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar name={displayName} image={member.image} size="sm" />
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate font-medium">{displayName}</span>
+            {isSelf && <Badge variant="outline">{copy.youBadge}</Badge>}
+          </div>
+          {member.email && member.email !== displayName && (
+            <p className="text-muted-foreground truncate text-sm">{member.email}</p>
+          )}
+          {member.inherited && (
+            <p className="text-muted-foreground text-xs">{copy.inheritedNote}</p>
+          )}
+          {lockedAsLastAdmin && !member.inherited && (
+            <p className="text-muted-foreground text-xs">{copy.lastAdminNote}</p>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
-        {member.inherited && <p className="text-muted-foreground text-xs">{copy.inheritedNote}</p>}
-        {lockedAsLastAdmin && !member.inherited && (
-          <p className="text-muted-foreground text-xs">{copy.lastAdminNote}</p>
-        )}
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
