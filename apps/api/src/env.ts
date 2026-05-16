@@ -14,7 +14,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
-  AUTH_SECRET: z.string().min(16, 'AUTH_SECRET must be at least 16 chars'),
+  AUTH_SECRET: z.string().min(16, 'AUTH_SECRET must be at least 16 chars (32+ in production)'),
   APP_URL: z.string().min(1).default('http://localhost:3000'),
   API_URL: z.string().min(1).default('http://localhost:3001'),
   API_PORT: z.coerce.number().int().positive().default(3001),
@@ -51,5 +51,32 @@ const envSchema = z.object({
   SENTRY_DSN_API: z.string().min(1).optional(),
 });
 
-export const env = envSchema.parse(process.env);
+// Üretim sertleştirme guard'ı: prod'da hiçbir kritik env zayıf/default değere
+// sessizce düşmemeli. Geliştirme/test default'ları (`pusula` S3 anahtarları,
+// `redis://localhost:6379`) prod'da gerçek bir konfigürasyon hatası demektir —
+// boot'u açık hatayla durdur.
+function assertProductionHardening(value: z.infer<typeof envSchema>): void {
+  if (value.NODE_ENV !== 'production') return;
+  const issues: string[] = [];
+  if (value.S3_ACCESS_KEY_ID === 'pusula') {
+    issues.push('S3_ACCESS_KEY_ID must not be the default "pusula" in production');
+  }
+  if (value.S3_SECRET_ACCESS_KEY === 'pusula-secret') {
+    issues.push('S3_SECRET_ACCESS_KEY must not be the default "pusula-secret" in production');
+  }
+  if (value.REDIS_URL === 'redis://localhost:6379') {
+    issues.push('REDIS_URL must not point at localhost in production');
+  }
+  if (value.AUTH_SECRET.length < 32) {
+    issues.push('AUTH_SECRET must be at least 32 chars in production');
+  }
+  if (issues.length > 0) {
+    throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);
+  }
+}
+
+const parsedEnv = envSchema.parse(process.env);
+assertProductionHardening(parsedEnv);
+
+export const env = parsedEnv;
 export type Env = typeof env;

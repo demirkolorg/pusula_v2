@@ -12,16 +12,50 @@ const config: NextConfig = {
   // Monorepo: the standalone tracer must walk up to the repo root so workspace
   // packages (`@pusula/ui` / `domain` / `api`) are traced into the bundle.
   outputFileTracingRoot: join(import.meta.dirname, '../..'),
-  // Password reset and email verification carry one-time tokens in `?token=`.
-  // Send `Referrer-Policy: no-referrer` so token-bearing URLs never leak via
-  // the `Referer` header to any third party the page might talk to.
   async headers() {
-    return [
+    const rules: { source: string; headers: { key: string; value: string }[] }[] = [
+      // Password reset and email verification carry one-time tokens in `?token=`.
+      // Send `Referrer-Policy: no-referrer` so token-bearing URLs never leak via
+      // the `Referer` header to any third party the page might talk to.
       {
         source: '/:path(reset-password|forgot-password|verify-email)',
         headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
       },
     ];
+
+    // Content-Security-Policy — yalnız PRODUCTION'da. Origin'ler üretim
+    // domain'lerine sabit (api/s3/sentry); dev'de app `localhost:3001`'e
+    // konuşur ve Next dev HMR `eval` kullanır → bu CSP dev'i kırardı.
+    // ENFORCING (report-only değil). `script-src`: Next inline bootstrap için
+    // `'unsafe-inline'` (`'unsafe-eval'` GEREKMEZ). `frame-src`: KRİTİK — kart
+    // eki PDF önizlemesi `<iframe src="https://s3.pusulaportal.com/...">`.
+    // NOT: deploy sonrası tarayıcı konsolunda doğrula — engellenen bir kaynak
+    // çıkarsa ilgili direktife eklenir.
+    if (process.env.NODE_ENV === 'production') {
+      rules.unshift({
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https://s3.pusulaportal.com",
+              "font-src 'self' data:",
+              "connect-src 'self' https://api.pusulaportal.com https://s3.pusulaportal.com https://o4511399874920448.ingest.de.sentry.io wss://api.pusulaportal.com",
+              "frame-src 'self' https://s3.pusulaportal.com",
+              "child-src 'self' https://s3.pusulaportal.com",
+              "frame-ancestors 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
+            ].join('; '),
+          },
+        ],
+      });
+    }
+
+    return rules;
   },
 };
 

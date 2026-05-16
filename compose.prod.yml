@@ -57,6 +57,24 @@ services:
       - 'traefik.http.routers.pusula-api.entrypoints=websecure'
       - 'traefik.http.routers.pusula-api.tls.certresolver=letsencrypt'
       - 'traefik.http.services.pusula-api.loadbalancer.server.port=3001'
+      # Güvenlik header'ları — `secheaders-all` (HSTS+nosniff+referrer) tüm
+      # router'larda; `secheaders-frame` (X-Frame-Options: DENY) yalnız web+api.
+      # `pusula-ratelimit` IP başına brute-force/bombardıman koruması.
+      - 'traefik.http.routers.pusula-api.middlewares=secheaders-all,secheaders-frame,pusula-ratelimit'
+      # --- Ortak güvenlik header middleware'leri (burada tanımlanır, tüm
+      # router'lar referans verir; Traefik middleware tanımı global'dir) ---
+      - 'traefik.http.middlewares.secheaders-all.headers.stsSeconds=63072000'
+      - 'traefik.http.middlewares.secheaders-all.headers.stsIncludeSubdomains=true'
+      - 'traefik.http.middlewares.secheaders-all.headers.stsPreload=true'
+      - 'traefik.http.middlewares.secheaders-all.headers.contentTypeNosniff=true'
+      - 'traefik.http.middlewares.secheaders-all.headers.referrerPolicy=strict-origin-when-cross-origin'
+      # frameDeny YALNIZ web+api — `s3` router'ı PDF iframe önizleme için
+      # ALMAMALI (pusulaportal.com sayfası s3.pusulaportal.com'u iframe'liyor).
+      - 'traefik.http.middlewares.secheaders-frame.headers.frameDeny=true'
+      # API rate limit — IP başına. average=100 req/s, burst=200 (cömert:
+      # optimistic UI çok sayıda küçük istek atar, normal kullanım engellenmez).
+      - 'traefik.http.middlewares.pusula-ratelimit.ratelimit.average=100'
+      - 'traefik.http.middlewares.pusula-ratelimit.ratelimit.burst=200'
     networks:
       - default # iç ağ — postgres / redis / minio
       - dokploy-network # Dokploy Traefik bu ağ üzerinden yönlendirir
@@ -106,7 +124,9 @@ services:
       - 'traefik.http.routers.pusula-web.rule=Host(`${ROOT_DOMAIN}`) || Host(`www.${ROOT_DOMAIN}`)'
       - 'traefik.http.routers.pusula-web.entrypoints=websecure'
       - 'traefik.http.routers.pusula-web.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.pusula-web.middlewares=pusula-www-redirect'
+      # Mevcut www→kök redirect KORUNUR; güvenlik header'ları zincire eklenir
+      # (web router frameDeny ALIR — web kendini iframe'lemez).
+      - 'traefik.http.routers.pusula-web.middlewares=pusula-www-redirect,secheaders-all,secheaders-frame'
       - 'traefik.http.services.pusula-web.loadbalancer.server.port=3000'
       - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.regex=^https?://www\.(.+)'
       - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.replacement=https://$${1}'
@@ -156,6 +176,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+      # Web konsolu prod'da hiç başlamasın — yalnız S3 API (port 9000) açık.
+      MINIO_BROWSER: 'off'
     volumes:
       - minio_data:/data
     networks:
@@ -170,6 +192,11 @@ services:
       - 'traefik.http.routers.pusula-s3.entrypoints=websecure'
       - 'traefik.http.routers.pusula-s3.tls.certresolver=letsencrypt'
       - 'traefik.http.services.pusula-s3.loadbalancer.server.port=9000'
+      # KRİTİK: s3 router'ı YALNIZ `secheaders-all` alır (HSTS+nosniff+referrer).
+      # frameDeny UYGULANMAZ — kart eki PDF önizlemesi pusulaportal.com sayfası
+      # içinde `<iframe src="https://s3.pusulaportal.com/...">` kullanıyor;
+      # X-Frame-Options: DENY önizlemeyi kırardı.
+      - 'traefik.http.routers.pusula-s3.middlewares=secheaders-all'
     # No healthcheck — the minio/minio image ships neither `mc` nor `curl`, so
     # the runbook template's `mc ready local` check cannot run. No service
     # depends on minio with `service_healthy`; the API/worker S3 client retries

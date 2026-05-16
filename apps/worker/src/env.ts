@@ -45,5 +45,29 @@ const envSchema = z.object({
   SENTRY_DSN_WORKER: z.string().min(1).optional(),
 });
 
-export const env = envSchema.parse(process.env);
+// Üretim sertleştirme guard'ı (apps/api ile aynı disiplin): prod'da kritik env
+// zayıf/default değere sessizce düşmesin — açık hatayla boot'u durdur.
+// `DATABASE_URL` zaten `min(1)` ile zorunlu (default yok). `AUTH_SECRET`
+// worker'da kullanılmadığı için kontrol edilmez.
+function assertProductionHardening(value: z.infer<typeof envSchema>): void {
+  if (value.NODE_ENV !== 'production') return;
+  const issues: string[] = [];
+  if (value.S3_ACCESS_KEY_ID === 'pusula') {
+    issues.push('S3_ACCESS_KEY_ID must not be the default "pusula" in production');
+  }
+  if (value.S3_SECRET_ACCESS_KEY === 'pusula-secret') {
+    issues.push('S3_SECRET_ACCESS_KEY must not be the default "pusula-secret" in production');
+  }
+  if (value.REDIS_URL === 'redis://localhost:6379') {
+    issues.push('REDIS_URL must not point at localhost in production');
+  }
+  if (issues.length > 0) {
+    throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);
+  }
+}
+
+const parsedEnv = envSchema.parse(process.env);
+assertProductionHardening(parsedEnv);
+
+export const env = parsedEnv;
 export type Env = typeof env;

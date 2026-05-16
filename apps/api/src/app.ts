@@ -70,11 +70,14 @@ app.use(
 app.get('/', (c) => c.json({ name: 'pusula-api', ok: true }));
 app.get('/health', (c) => {
   const ok = readiness.status === 'ready' && readiness.realtime === 'ready';
+  // `/health` anonim erişime açık — iç hata mesajı/stack production'da
+  // sızdırılmaz. `error` detayı yalnız dev/test yanıtına eklenir.
+  const exposeError = env.NODE_ENV !== 'production' && readiness.error;
   const body = {
     ok,
     status: readiness.status,
     realtime: readiness.realtime,
-    ...(readiness.error ? { error: readiness.error } : {}),
+    ...(exposeError ? { error: readiness.error } : {}),
     ts: new Date().toISOString(),
   };
   return c.json(body, ok ? 200 : 503);
