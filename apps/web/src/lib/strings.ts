@@ -1683,6 +1683,7 @@ export const strings = {
     actions: {
       preview: 'Önizle',
       download: 'İndir',
+      openInNewTab: 'Yeni sekmede aç',
       edit: 'Açıklamayı düzenle',
       moreActions: 'Ek menüsü',
       delete: 'Sil',

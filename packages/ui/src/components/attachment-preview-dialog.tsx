@@ -1,7 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { DownloadIcon, MinusIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
+import {
+  DownloadIcon,
+  ExternalLinkIcon,
+  MinusIcon,
+  PlusIcon,
+  RotateCcwIcon,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './button';
 import {
@@ -19,6 +25,8 @@ export type AttachmentPreviewKind = 'image' | 'pdf';
 
 export interface AttachmentPreviewLabels {
   download: string;
+  /** Action that opens the file in a new browser tab. */
+  openInNewTab: string;
   close: string;
   zoomIn: string;
   zoomOut: string;
@@ -143,6 +151,22 @@ function AttachmentPreviewDialog({
                 </Tooltip>
               </>
             )}
+            {url && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={labels.openInNewTab}
+                    onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                  >
+                    <ExternalLinkIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{labels.openInNewTab}</TooltipContent>
+              </Tooltip>
+            )}
             {onDownload && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -186,12 +210,11 @@ function AttachmentPreviewDialog({
               style={{ transform: `scale(${zoom / 100})` }}
             />
           ) : (
-            <iframe
-              src={url}
-              title={fileName}
-              sandbox="allow-same-origin"
-              className="size-full border-0"
-            />
+            // PDF: rendered by the browser's built-in viewer. No `sandbox`
+            // attribute — a sandboxed iframe blocks the PDF plugin, which
+            // surfaces as a broken-file placeholder. The presigned GET URL is
+            // read-only S3 content, so an unsandboxed iframe is safe here.
+            <iframe src={url} title={fileName} className="size-full border-0" />
           )}
         </div>
       </DialogContent>

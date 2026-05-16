@@ -539,6 +539,7 @@ export function CardDetailAttachments({
           onDownload={() => void handleDownload(preview.row)}
           labels={{
             download: copy.actions.download,
+            openInNewTab: copy.actions.openInNewTab,
             close: strings.common.close,
             zoomIn: copy.preview.zoomIn,
             zoomOut: copy.preview.zoomOut,
