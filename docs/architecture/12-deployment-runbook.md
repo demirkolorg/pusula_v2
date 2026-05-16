@@ -40,7 +40,8 @@ ayarlarını ayrıca kod/Terraform ile yönetmeye gerek yok.
 **Önkoşullar:**
 
 - VDS'te Dokploy kurulu ve çalışıyor (panel erişimi var).
-- Domain(ler) hazır ve A kaydı VDS IP'sine bakıyor: ör. `app.<domain>` → web, `api.<domain>` → api.
+- Domain(ler) hazır ve A kaydı VDS IP'sine bakıyor: web **kök domain**de (`<domain>` → web, `www.<domain>`
+  → köke kalıcı yönlendirme — Traefik `redirectregex` middleware'i), `api.<domain>` → api.
   MinIO S3 endpoint'i için **ayrı bir subdomain gerekir** (ör. `s3.<domain>`): avatarlar (DEM-160) public-read
   `avatars/*` objeleri olarak tarayıcıdan doğrudan yüklenir; `S3_PUBLIC_URL` bu subdomain'e bakar. Konsol
   (`:9001`) opsiyoneldir, açılırsa ayrı subdomain.
@@ -207,10 +208,15 @@ services:
       api: { condition: service_started }
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.pusula-web.rule=Host(`app.${ROOT_DOMAIN}`)'
+      # Web kök domain'de; www. → köke kalıcı yönlendirilir.
+      - 'traefik.http.routers.pusula-web.rule=Host(`${ROOT_DOMAIN}`) || Host(`www.${ROOT_DOMAIN}`)'
       - 'traefik.http.routers.pusula-web.entrypoints=websecure'
       - 'traefik.http.routers.pusula-web.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.pusula-web.middlewares=pusula-www-redirect'
       - 'traefik.http.services.pusula-web.loadbalancer.server.port=3000'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.regex=^https?://www\.(.+)'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.replacement=https://$${1}'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.permanent=true'
 
   postgres:
     image: postgres:17-alpine
@@ -321,7 +327,7 @@ Dokploy compose servisinin **Environment** sekmesinde tüm anahtarları gir. Kay
 | `DATABASE_URL`                                        | `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}` (internal host `postgres`) |
 | `REDIS_URL`                                           | `redis://redis:6379` (internal host `redis`)                                                                 |
 | `AUTH_SECRET`                                         | `openssl rand -base64 32` ile üret; **kaydet** (rotate edersen tüm session'lar düşer)                        |
-| `APP_URL`                                             | `https://app.${ROOT_DOMAIN}`                                                                                 |
+| `APP_URL`                                             | `https://${ROOT_DOMAIN}` (web kök domain'de)                                                                 |
 | `API_URL`                                             | `https://api.${ROOT_DOMAIN}`                                                                                 |
 | `NEXT_PUBLIC_API_URL`                                 | `https://api.${ROOT_DOMAIN}` — **build arg** (web image'ına inline edilir)                                   |
 | `S3_ENDPOINT`                                         | `http://minio:9000` (app'ler internal kullanır)                                                              |
@@ -347,7 +353,7 @@ değerlerde. `.env` dosyaları git'e girmez — bu değerler Dokploy'da yaşar (
 - **(B) Dokploy UI "Domains" sekmesi** — compose servisindeki ilgili container'a (`web` → 3000, `api` → 3001)
   domain ata, "HTTPS / Let's Encrypt" işaretle.
 
-Her iki yolda da DNS A kayıtları VDS IP'sine bakmalı: `app.${ROOT_DOMAIN}` → web, `api.${ROOT_DOMAIN}` → api.
+Her iki yolda da DNS A kayıtları VDS IP'sine bakmalı: `${ROOT_DOMAIN}` + `www.${ROOT_DOMAIN}` → web, `api.${ROOT_DOMAIN}` → api.
 Sertifika ilk istekte üretilir; DNS yayılımı tamamlanmadan deploy edersen Let's Encrypt başarısız olur,
 DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olarak okur — `APP_URL` doğru olmalı
 (→ [`03-backend.md`](03-backend.md)).

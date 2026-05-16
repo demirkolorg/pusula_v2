@@ -97,10 +97,15 @@ services:
       api: { condition: service_started }
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.pusula-web.rule=Host(`app.${ROOT_DOMAIN}`)'
+      # Web kök domain'de yayınlanır (DEM-60 sonrası karar); www. → köke kalıcı yönlendirilir.
+      - 'traefik.http.routers.pusula-web.rule=Host(`${ROOT_DOMAIN}`) || Host(`www.${ROOT_DOMAIN}`)'
       - 'traefik.http.routers.pusula-web.entrypoints=websecure'
       - 'traefik.http.routers.pusula-web.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.pusula-web.middlewares=pusula-www-redirect'
       - 'traefik.http.services.pusula-web.loadbalancer.server.port=3000'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.regex=^https?://www\.(.+)'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.replacement=https://$${1}'
+      - 'traefik.http.middlewares.pusula-www-redirect.redirectregex.permanent=true'
 
   # --- PostgreSQL — transactional source of truth -------------------------
   postgres:
