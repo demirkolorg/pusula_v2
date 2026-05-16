@@ -33,6 +33,8 @@ updated: 2026-05-15
 
 Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upload → commit**: orphan riski sıfır, activity/realtime/notification yazımı atomic.
 
+> **Wired (DEM-148 / Faz 11B — 2026-05-15):** Two-phase akış `packages/api/src/routers/attachment.ts`'te kodda — `attachment.initiate` draft INSERT + presigned PUT URL, `attachment.commit` tek tx idempotent (`committed_at IS NOT NULL` no-op). Güvenlik sertleştirmesi (security-review): presigned PUT URL `Content-Length` `signableHeaders` ile imzalanır — `initiate`'in `size` Zod limiti (50 MiB) artık storage katmanında da bağlayıcı; `attachment.initiate` per-user rate limit (20/60 s). `getDownloadUrl` `committed_at IS NOT NULL` filtreli (draft satıra presigned GET yok). Procedure haritası + QA özeti → [`03-backend.md`](03-backend.md) "Faz 11 — Attachment".
+
 ```txt
 1. Client → API: `attachment.initiate({ cardId, fileName, mimeType, size, description? })`
    - Permission: board admin veya member; arşivli board reject; MIME allowlist + size ≤ 50 MiB validasyon
@@ -46,7 +48,7 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
    - (opsiyonel) HEAD request to MinIO — gerçekten yüklendi mi doğrula
    - Tek transaction:
        UPDATE attachments SET committed_at = NOW(), updated_at = NOW() WHERE id = ?
-       INSERT activity_events.attachment.added (payload: { attachmentId, fileName, mimeType, sizeBytes, hasDescription })
+       INSERT activity_events.attachment.added (payload: { attachmentId, fileName, mimeType, size, hasDescription, clientMutationId })
        INSERT realtime_events (Faz 5B outbox: type='attachment.added', board scope)
        INSERT notification_outbox  ← watcher fan-out (Faz 6 notification-rules.ts)
        UPDATE boards SET version = version + 1 WHERE id = ?
@@ -62,7 +64,7 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
 
 - **`attachment.list({ cardId })`** — board'a erişen herkes (admin/member/viewer); `committed_at IS NOT NULL` filtre; `committed_at DESC` sırada. Response her satır için `{ id, fileName, mimeType, size, kind: 'image'|'pdf'|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean }`. Cover-image picker bu listeyi `mimeType LIKE 'image/%'` ile filtreler.
 - **`attachment.update({ attachmentId, description, clientMutationId })`** — yalnız `description` alanı düzenlenir (dosya adı/MIME/size **immutable**; yeni yükleme = yeni initiate). Yetki: uploader **veya** board admin. Activity üretmez (düşük gürültü; UI inline edit'i şıracaktır); `realtime_events.attachment.updated` Faz 11.1'e ertelenebilir veya aynı tx'te yazılır (V1: yazılmaz — açıklama değişimi düşük sinyal; client mutation `attachment.list` invalidate ederse yeterli).
-- **`attachment.delete({ attachmentId, clientMutationId })`** — yetki: uploader **veya** board admin (viewer reject). Single transaction: `attachments` DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1` + (`cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir — kartın kapak şeridi kaybolur). Post-commit `void enqueueAttachmentCleanup({ storageKey })` worker MinIO `DeleteObject`. Soft-delete YOK.
+- **`attachment.delete({ attachmentId, clientMutationId })`** — yetki: uploader **veya** board admin (viewer reject). Single transaction: `attachments` DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1` + (`cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir — kartın kapak şeridi kaybolur). Post-commit `maybeEnqueueAttachmentCleanup(ctx, { attachmentId, storageKey })` worker MinIO `DeleteObject`. Soft-delete YOK.
 - **`attachment.getDownloadUrl({ attachmentId })`** — mevcut DEM-110 procedure korunur; board'a erişen herkes (viewer dahil); presigned GET TTL 10 dk.
 
 ### Önizleme (V1 önerisi)

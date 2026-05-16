@@ -231,6 +231,7 @@ export const cardMembersRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -263,14 +264,42 @@ export const cardMembersRouter = router({
         };
       }
 
-      await tx.insert(activityEvents).values({
+      const removedPayload = {
+        cardId: ctx.card.id,
+        // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);
+        // `userId` legacy alanını da koruyoruz (activity feed UI kullanıyor).
+        userId: input.userId,
+        removedUserId: input.userId,
+        role: input.role,
+        self: input.userId === ctx.session.user.id,
+      };
+      const [removedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'card.member_removed',
+          payload: removedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!removedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 10A (DEM-135) — çıkarılan kullanıcıya "karttan çıkarıldın"
+      // bildirimi (in-app, DEM-152 — `card_member_removed` tipi). Permission
+      // filter atlar: alıcı artık card_members'ta yok ama bildirim yine
+      // gitmeli. Kendini çıkaran kullanıcıya actor self-skip uygular.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: removedActivity.id,
+        type: 'card.member_removed',
         workspaceId: ctx.card.workspaceId,
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        type: 'card.member_removed',
-        payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+        payload: removedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = removedActivity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.card.boardId);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -291,6 +320,7 @@ export const cardMembersRouter = router({
         changed: true as const,
       };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),

@@ -33,7 +33,12 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     attachment: {
-      createUpload: { mutationOptions: (o: unknown) => o },
+      // Faz 11B (DEM-148) — cover upload migrated to `initiate` + `commit`.
+      initiate: { mutationOptions: (o: unknown) => o },
+      commit: { mutationOptions: (o: unknown) => o },
+      list: { mutationOptions: (o: unknown) => o, queryOptions: () => ({}) },
+      update: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
       getDownloadUrl: {
         queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
           input,
@@ -230,23 +235,35 @@ describe('<CardItem>', () => {
     expect(h.routerPush).not.toHaveBeenCalled();
   });
 
-  it('can upload a cover photo from the cover context menu', async () => {
+  it('can upload a cover photo from the cover context menu (Faz 11B two-phase commit)', async () => {
     vi.useRealTimers();
     const user = userEvent.setup();
     const fetchMock = vi.fn(async () => ({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
+    // Faz 11B (DEM-148) — cover upload now triggers three mutateAsync calls:
+    // (1) attachment.initiate → presigned PUT + attachmentId (draft).
+    // (2) attachment.commit → stamps committed_at + returns the full row.
+    // (3) card.update → links the committed attachment as the cover.
     h.mutateAsync
       .mockResolvedValueOnce({
-        attachment: {
-          attachmentId: 'att-new',
-          fileName: 'cover.png',
-          mimeType: 'image/png',
-          size: 5,
-        },
+        attachmentId: 'att-new',
         upload: {
           url: 'https://storage.test/put',
           headers: { 'content-type': 'image/png' },
         },
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      })
+      .mockResolvedValueOnce({
+        id: 'att-new',
+        fileName: 'cover.png',
+        mimeType: 'image/png',
+        size: 5,
+        kind: 'image',
+        description: null,
+        uploader: { id: 'u1', name: 'u1', image: null },
+        createdAt: new Date(),
+        committedAt: new Date(),
+        isCover: false,
       })
       .mockResolvedValueOnce(undefined);
 
@@ -276,7 +293,8 @@ describe('<CardItem>', () => {
       target: { files: [file] },
     });
 
-    await vi.waitFor(() => expect(h.mutateAsync).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(h.mutateAsync).toHaveBeenCalledTimes(3));
+    // (1) initiate carries the file metadata + a clientMutationId.
     expect(h.mutateAsync.mock.calls[0]?.[0]).toMatchObject({
       cardId: 'card1',
       fileName: 'cover.png',
@@ -288,7 +306,12 @@ describe('<CardItem>', () => {
       headers: { 'content-type': 'image/png' },
       body: file,
     });
+    // (2) commit confirms the upload by attachmentId.
     expect(h.mutateAsync.mock.calls[1]?.[0]).toMatchObject({
+      attachmentId: 'att-new',
+    });
+    // (3) card.update links the cover.
+    expect(h.mutateAsync.mock.calls[2]?.[0]).toMatchObject({
       cardId: 'card1',
       coverImageAttachmentId: 'att-new',
     });

@@ -10,7 +10,7 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / List / Card procedure
  * haritası) and `docs/architecture/03-backend.md`.
  */
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from '@pusula/db';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from '@pusula/db';
 import {
   activityEvents,
   attachments,
@@ -300,6 +300,9 @@ export const boardRouter = router({
     type CardLabelRow = { cardId: string; labelId: string; name: string; color: string };
     type ChecklistAggRow = { cardId: string; total: number; done: number };
     type CommentAggRow = { cardId: string; count: number };
+    // Faz 11B (DEM-148) — committed attachment count per card (`committed_at
+    // IS NOT NULL`). Drafts are excluded. One GROUP BY query — no N+1.
+    type AttachmentAggRow = { cardId: string; count: number };
     type CardMemberRow = {
       cardId: string;
       userId: string;
@@ -317,15 +320,23 @@ export const boardRouter = router({
     const coverAttachmentIds = boardCards
       .map((c) => c.coverImageAttachmentId)
       .filter((id): id is string => Boolean(id));
-    const [labelRows, checklistRows, commentRows, memberRows, coverRows]: [
+    const [
+      labelRows,
+      checklistRows,
+      commentRows,
+      attachmentRows,
+      memberRows,
+      coverRows,
+    ]: [
       CardLabelRow[],
       ChecklistAggRow[],
       CommentAggRow[],
+      AttachmentAggRow[],
       CardMemberRow[],
       CoverAttachmentRow[],
     ] =
       cardIds.length === 0
-        ? [[], [], [], [], []]
+        ? [[], [], [], [], [], []]
         : await Promise.all([
             ctx.db
               .select({
@@ -353,6 +364,17 @@ export const boardRouter = router({
               .from(comments)
               .where(and(inArray(comments.cardId, cardIds), isNull(comments.deletedAt)))
               .groupBy(comments.cardId),
+            // Faz 11B (DEM-148) — committed attachment count per card. Filter
+            // by `committed_at IS NOT NULL` so draft (orphan) rows don't
+            // inflate badge counts. The partial index
+            // `attachments_card_committed_idx` covers this exactly.
+            ctx.db
+              .select({ cardId: attachments.cardId, count: sql<number>`(count(*))::int` })
+              .from(attachments)
+              .where(
+                and(inArray(attachments.cardId, cardIds), isNotNull(attachments.committedAt)),
+              )
+              .groupBy(attachments.cardId),
             ctx.db
               .select({
                 cardId: cardMembers.cardId,
@@ -394,6 +416,10 @@ export const boardRouter = router({
     const commentCountByCard = new Map<string, number>();
     for (const row of commentRows) commentCountByCard.set(row.cardId, row.count);
 
+    // Faz 11B (DEM-148) — `attachmentCount` is the committed-only count.
+    const attachmentCountByCard = new Map<string, number>();
+    for (const row of attachmentRows) attachmentCountByCard.set(row.cardId, row.count);
+
     const membersByCard = new Map<
       string,
       { userId: string; name: string | null; image: string | null; role: 'assignee' | 'watcher' }[]
@@ -420,6 +446,7 @@ export const boardRouter = router({
           checklistTotal: checklist?.total ?? 0,
           checklistDone: checklist?.done ?? 0,
           commentCount: commentCountByCard.get(card.id) ?? 0,
+          attachmentCount: attachmentCountByCard.get(card.id) ?? 0,
           members: membersByCard.get(card.id) ?? [],
           coverImage: card.coverImageAttachmentId
             ? (coverImageByAttachmentId.get(card.coverImageAttachmentId) ?? null)

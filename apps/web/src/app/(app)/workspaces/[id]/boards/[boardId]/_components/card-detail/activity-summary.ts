@@ -44,6 +44,16 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
         typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} panoyu geri yükledi` : `${who} panoyu arşivledi`;
     }
+    case 'board.background_changed':
+      return `${who} panonun arka planını değiştirdi`;
+    case 'board.background_cleared':
+      return `${who} panonun arka planını kaldırdı`;
+    case 'board.updated': {
+      const fromIcon = str(p, 'fromIcon');
+      return fromIcon !== undefined
+        ? `${who} panonun simgesini değiştirdi`
+        : `${who} pano ayarlarını güncelledi`;
+    }
     case 'board.member_added':
       return `${who} panoya bir üye ekledi`;
     case 'board.member_removed':
@@ -76,8 +86,14 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return `${who} liste rengini değiştirdi`;
     case 'list.color_cleared':
       return `${who} liste rengini kaldırdı`;
+    case 'list.icon_changed':
+      return `${who} listenin simgesini değiştirdi`;
+    case 'list.icon_cleared':
+      return `${who} listenin simgesini kaldırdı`;
     case 'card.created':
       return `${who} kartı oluşturdu`;
+    case 'card.moved':
+      return `${who} kartı taşıdı`;
     case 'card.renamed': {
       const from = str(p, 'fromTitle');
       const to = str(p, 'toTitle');
@@ -128,6 +144,8 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return `${who} bir yorumu düzenledi`;
     case 'comment.deleted':
       return `${who} bir yorumu sildi`;
+    case 'comment.mentioned':
+      return `${who} bir yorumda bir kullanıcıdan bahsetti`;
     case 'checklist.created': {
       const title = str(p, 'title');
       return title
@@ -144,7 +162,15 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return `${who} bir maddenin tamamlanmasını geri aldı`;
     case 'checklist.item_removed':
       return `${who} bir maddeyi sildi`;
+    case 'attachment.added': {
+      const fileName = str(p, 'fileName');
+      return fileName ? `${who} bir dosya ekledi: “${fileName}”` : `${who} bir dosya ekledi`;
+    }
+    case 'attachment.removed': {
+      const fileName = str(p, 'fileName');
+      return fileName ? `${who} bir dosya kaldırdı: “${fileName}”` : `${who} bir dosya kaldırdı`;
+    }
     default:
-      return `${who} bir işlem yaptı (${event.type})`;
+      return `${who} bir işlem yaptı`;
   }
 }

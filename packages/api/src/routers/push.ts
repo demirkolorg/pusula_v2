@@ -1,6 +1,6 @@
 /**
- * Push-tokens router — Faz 6B (DEM-91). Two procedures the mobile client
- * (Faz 7) drives once Expo Notifications hands it a device token:
+ * Push-tokens router — Faz 6B (DEM-91) + Faz 10B (DEM-136). Procedures the
+ * mobile client (Faz 7) and the bildirim ayar ekranı (Faz 10E) drive:
  *
  *  - `tokens.register` — store the token (or reactivate it if a previous
  *    revoke is on file). Idempotent: re-registering the same token bumps
@@ -16,6 +16,19 @@
  *    someone else's token is a silent no-op (no `NOT_FOUND` so we don't leak
  *    whether a token exists for a different user).
  *
+ *  - `tokens.list` — Faz 10B: the bildirim ayar ekranı "Cihazlar" section
+ *    surfaces the caller's active devices. Revoked tokens are hidden so the
+ *    UI does not have to filter them out client-side. The full token string
+ *    is **never** returned (audit / privacy); only the metadata the user
+ *    needs to identify the device.
+ *
+ *  - `tokens.revokeById` — Faz 10E: the bildirim ayar ekranı "Cihazlar" UI
+ *    revokes a device by row `id`. The web client does not have the raw
+ *    token string (see `list` above), so the token-keyed `revoke` is the
+ *    wrong endpoint for it; mobile clients keep using `revoke({ token })`
+ *    during their logout flow. Same idempotency + ownership rules: re-revoke
+ *    is a no-op, a stray id for someone else's token is silently ignored.
+ *
  * Token format (`ExponentPushToken[xxx]` / legacy `ExpoPushToken[xxx]`) is
  * re-validated server-side via the Zod schema in `@pusula/domain` — a
  * misconfigured or malicious client cannot park junk in the table the
@@ -29,9 +42,13 @@
  * procedure'leri" and `docs/architecture/06-bildirim-altyapisi.md`
  * "Push kanalı (Expo, Faz 6B)".
  */
-import { and, eq, sql } from '@pusula/db';
+import { and, desc, eq, isNull, sql } from '@pusula/db';
 import { pushTokens } from '@pusula/db';
-import { registerPushTokenInput, revokePushTokenInput } from '@pusula/domain';
+import {
+  registerPushTokenInput,
+  revokePushTokenByIdInput,
+  revokePushTokenInput,
+} from '@pusula/domain';
 import { protectedProcedure, router } from '../trpc';
 
 export const pushRouter = router({
@@ -116,5 +133,67 @@ export const pushRouter = router({
         .returning({ id: pushTokens.id });
       return { revoked: updated.length > 0 };
     }),
+
+    /**
+     * Active push tokens registered to the caller (Faz 10B — DEM-136). The
+     * bildirim ayar ekranı "Cihazlar" section lists them so the user can
+     * see which devices receive push and revoke individual tokens (logout
+     * on a stale device). Revoked rows are excluded — the audit row stays
+     * in DB but the UI only sees live devices.
+     *
+     * Sort order matches what a human expects: most-recently-used first,
+     * falling back to `created_at` for tokens that never got a `last_used`
+     * stamp (a freshly registered device before the first push arrives).
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const userId = ctx.session.user.id;
+      const rows = await ctx.db
+        .select({
+          id: pushTokens.id,
+          platform: pushTokens.platform,
+          deviceName: pushTokens.deviceName,
+          lastUsedAt: pushTokens.lastUsedAt,
+          createdAt: pushTokens.createdAt,
+        })
+        .from(pushTokens)
+        .where(and(eq(pushTokens.userId, userId), isNull(pushTokens.revokedAt)))
+        // `COALESCE(last_used_at, created_at)` keeps just-registered tokens
+        // (never used → `last_used_at IS NULL`) from sinking to the bottom.
+        .orderBy(desc(sql`COALESCE(${pushTokens.lastUsedAt}, ${pushTokens.createdAt})`));
+      return rows;
+    }),
+
+    /**
+     * Revoke a push token by its row `id` (Faz 10E — DEM-139). The bildirim
+     * ayar ekranı's "Cihazlar" section needs this because `tokens.list` —
+     * by design — never returns the raw token string, only the row id +
+     * metadata. Same idempotency + ownership semantics as `revoke({ token })`:
+     * we only flip rows that are still active and owned by the caller, so a
+     * stray id for someone else's row is a silent no-op (no info leak about
+     * whether the id maps to a token at all).
+     *
+     * Returns `{ revoked: boolean }` — `true` when this call flipped a
+     * row, `false` for already-revoked / unknown / cross-user rows.
+     */
+    revokeById: protectedProcedure
+      .input(revokePushTokenByIdInput)
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.session.user.id;
+        const now = new Date();
+        const updated = await ctx.db
+          .update(pushTokens)
+          .set({ revokedAt: now })
+          .where(
+            and(
+              eq(pushTokens.id, input.id),
+              eq(pushTokens.userId, userId),
+              // Mirror `revoke({ token })`: re-revoking is a no-op so a buggy
+              // client can't keep bumping `revoked_at`.
+              sql`${pushTokens.revokedAt} IS NULL`,
+            ),
+          )
+          .returning({ id: pushTokens.id });
+        return { revoked: updated.length > 0 };
+      }),
   }),
 });

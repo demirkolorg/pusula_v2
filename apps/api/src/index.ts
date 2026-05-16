@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { app, markApiStartupFailed, markApiStartupReady, setRealtimeEmit } from './app';
+import { closeAttachmentCleanupQueue } from './attachment-cleanup-queue';
 import { closeCompactionQueue } from './compaction-queue';
 import { closeNotificationQueue } from './notification-queue';
 import { closeRealtimePublishQueue } from './realtime-publish-queue';
@@ -38,6 +39,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         await closeCompactionQueue().catch(() => {});
         await closeRealtimePublishQueue().catch(() => {});
         await closeNotificationQueue().catch(() => {});
+        await closeAttachmentCleanupQueue().catch(() => {});
         process.exit(0);
       })();
     });

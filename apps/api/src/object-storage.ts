@@ -21,9 +21,20 @@ export const objectStorage: ObjectStorage = {
       ContentType: input.contentType,
       ContentLength: input.contentLength,
     });
+    // `content-length` MUST be in the signed headers — otherwise a caller
+    // could request a presigned URL for `size: 1024` and then PUT a 5 GB
+    // body, bypassing the 50 MiB Zod cap (Faz 11B — DEM-148 / security H1).
+    // The browser sets `Content-Length` from the body automatically and
+    // cannot override it, so a mismatched body is rejected by MinIO/S3.
     return {
-      url: await getSignedUrl(s3, command, { expiresIn: 10 * 60 }),
-      headers: { 'content-type': input.contentType },
+      url: await getSignedUrl(s3, command, {
+        expiresIn: 10 * 60,
+        signableHeaders: new Set(['content-type', 'content-length']),
+      }),
+      headers: {
+        'content-type': input.contentType,
+        'content-length': String(input.contentLength),
+      },
     };
   },
 

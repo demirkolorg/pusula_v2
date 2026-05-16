@@ -42,6 +42,25 @@ export function parseDateInputValue(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+const bytesFormatter = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });
+
+/**
+ * Format a byte count as a human-readable size, e.g. `1,2 MB`. Uses binary
+ * (1024) units and the Turkish decimal separator.
+ */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${bytesFormatter.format(value)} ${units[unitIndex]}`;
+}
+
 /** Format a timestamp as a compact Turkish relative time, e.g. "2 dakika önce". */
 export function formatRelativeTime(value: Date | string, now: Date = new Date()): string {
   const date = value instanceof Date ? value : new Date(value);

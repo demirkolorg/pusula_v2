@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull } from '@pusula/db';
 import { boardMembers, boards, workspaceMembers, workspaces } from '@pusula/db';
 import { protectedProcedure, publicProcedure, router } from '../trpc';
+import { devicesRouter } from './devices';
 
 /**
  * Thin auth surface for clients. The actual sign-in/up/out flows are served by
@@ -70,4 +71,13 @@ export const authRouter = router({
 
     return { workspaceId: workspace.id, boardId: board.id };
   }),
+
+  /**
+   * Faz 10I (DEM-143) — `auth.devices.list` + `auth.devices.revoke`. Bilinen
+   * cihazlar listesi /account "Güvenlik" sekmesinin "Bilinen cihazlar"
+   * section'ından okunur; revoke o cihaza ait `auth_known_devices` satırını
+   * + eşleşen Better Auth session'larını siler. Detay: `./devices.ts` +
+   * `docs/architecture/15-bildirim-ayar-ekrani.md` §15.4 Section 8.
+   */
+  devices: devicesRouter,
 });

@@ -419,6 +419,90 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
+  it("digest_queued email row is skipped (not handed off, not stamped) — Faz 10G", async () => {
+    // Faz 10G: digest worker bu satırı kendi cron'unda işler; publish
+    // processor email kanal kuyruğuna push etmemeli.
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'email',
+        recipientId,
+        type: 'card_assigned',
+        payload: { activityType: 'card.member_added', cardId },
+        status: 'digest_queued',
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+
+    const enqueuedEmail: string[] = [];
+    const publisher = capturingPublisher();
+    const result = await processNotificationPublishJob(
+      db(),
+      publisher,
+      {
+        enqueueEmail: async (id) => {
+          enqueuedEmail.push(id);
+        },
+      },
+      { eventId: activityId },
+    );
+    expect(result.processed).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(enqueuedEmail).toEqual([]);
+
+    const [row] = await db()
+      .select({ status: notificationOutbox.status, processedAt: notificationOutbox.processedAt })
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.id, outboxId));
+    expect(row?.status).toBe('digest_queued');
+    expect(row?.processedAt).toBeNull();
+
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+  });
+
+  it("sweeper ignores digest_queued rows — Faz 10G", async () => {
+    // Sweeper digest satırlarını yeniden enqueue etmemeli — digest worker
+    // ayrı cron üzerinden işler. Aksi halde her tick'te aynı satır publish
+    // processor'a düşüp tekrar skip edilir (gürültü).
+    //
+    // Bu test'i izole tutmak için: kendi `activityId`'mizin satırlarını
+    // önce temizleriz, sonra tek bir `digest_queued` satır ekleriz; sweep
+    // sonucunda *bu* activityId enqueued listesinde olmamalı (diğer
+    // paralel testlerden artık stale satırlar varsa onların sayısına
+    // değil, kendi event'imizin akıbetine bakıyoruz).
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'email',
+        recipientId,
+        type: 'card_assigned',
+        payload: {},
+        status: 'digest_queued',
+        createdAt: new Date(Date.now() - 120_000),
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+    try {
+      const enqueued: string[] = [];
+      await sweepStaleNotificationEvents(db(), {
+        enqueue: async (eventId: string) => {
+          enqueued.push(eventId);
+        },
+      });
+      // Digest satırı sweep'te değil — kendi activityId'miz enqueued
+      // listesinde olmamalı (başka stale satırlar mevcutsa toplam swept
+      // sayısı 0 olmayabilir; izole varlık testi bu kadar yeterli).
+      expect(enqueued).not.toContain(activityId);
+    } finally {
+      await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+    }
+  });
+
   it('sweeper re-enqueues stale pending events', async () => {
     // Seed a row that's already > 30 s old (we lie about its `created_at`).
     const [outbox] = await db()

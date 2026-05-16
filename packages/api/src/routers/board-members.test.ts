@@ -549,6 +549,109 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
+
+  // Faz 10A (DEM-135) — owner Bob'u board'dan çıkarınca Bob için
+  // `notification_outbox.member_removed` satırı (in_app + email).
+  //
+  // NB: bu suite'teki mevcut `remove` testi yeni dispatch hattı sayesinde
+  // `targetUserId` için member_removed üretiyor → 60 s cooldown'a takılmamak
+  // için her Faz 10A test'i kendi fresh kullanıcısıyla çalışır.
+  it('remove (Faz 10A): dispatches member_removed outbox rows to the removed user (in_app + email)', async () => {
+    const freshId = newId('u-faz10a-removed');
+    await db().insert(users).values({ id: freshId, name: freshId, email: emailOf(freshId) });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId, userId: freshId, role: 'member' });
+    createdUserIds.push(freshId);
+
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Faz10A Remove Outbox Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db().insert(boardMembers).values({
+      boardId: board.id,
+      userId: freshId,
+      role: 'member',
+    });
+
+    await callerFor(ownerId).board.members.remove({
+      boardId: board.id,
+      userId: freshId,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.boardId, board.id));
+    const removedAct = acts.find(
+      (a) =>
+        a.type === 'board.member_removed' &&
+        (a.payload as { removedUserId?: string }).removedUserId === freshId,
+    );
+    expect(removedAct).toBeDefined();
+
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, removedAct!.id));
+    expect(outbox).toHaveLength(2);
+    const channels = outbox.map((o) => o.channel).sort();
+    expect(channels).toEqual(['email', 'in_app']);
+    expect(outbox.every((o) => o.type === 'member_removed')).toBe(true);
+    expect(outbox.every((o) => o.recipientId === freshId)).toBe(true);
+  });
+
+  // Faz 10A (DEM-135) — admin Bob'un rolünü değiştirince Bob için
+  // `notification_outbox.member_role_changed` satırı (sadece in_app).
+  it('updateRole (Faz 10A): dispatches member_role_changed outbox row to the target user (in_app only)', async () => {
+    const freshId = newId('u-faz10a-role');
+    await db().insert(users).values({ id: freshId, name: freshId, email: emailOf(freshId) });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId, userId: freshId, role: 'member' });
+    createdUserIds.push(freshId);
+
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Faz10A Role Outbox Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db().insert(boardMembers).values({
+      boardId: board.id,
+      userId: freshId,
+      role: 'member',
+    });
+
+    await callerFor(ownerId).board.members.updateRole({
+      boardId: board.id,
+      userId: freshId,
+      role: 'admin',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.boardId, board.id));
+    const roleAct = acts.find(
+      (a) =>
+        a.type === 'board.member_role_changed' &&
+        (a.payload as { targetUserId?: string }).targetUserId === freshId,
+    );
+    expect(roleAct).toBeDefined();
+
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, roleAct!.id));
+    expect(outbox).toHaveLength(1);
+    expect(outbox[0]!.channel).toBe('in_app');
+    expect(outbox[0]!.type).toBe('member_role_changed');
+    expect(outbox[0]!.recipientId).toBe(freshId);
+    expect((outbox[0]!.payload as { toRole?: string }).toRole).toBe('admin');
+  });
 });
 
 // File-scoped teardown: close the probe pool once after every suite in this file.

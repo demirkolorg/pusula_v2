@@ -2,6 +2,7 @@ import type { Context as HonoContext } from 'hono';
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { createContext, type Context } from '@pusula/api';
 import { getRealtimeEmit } from './app';
+import { enqueueAttachmentCleanup } from './attachment-cleanup-queue';
 import { auth } from './auth';
 import { enqueueCompaction } from './compaction-queue';
 import { enqueueNotificationPublish } from './notification-queue';
@@ -44,6 +45,12 @@ export async function buildTrpcContext(
     // Best-effort notification outbox enqueue (Faz 6A — DEM-90). Same sweeper
     // discipline — a Redis blip just delays delivery, doesn't drop it.
     enqueueNotificationPublish,
+    // Best-effort attachment cleanup enqueue (Faz 11C — DEM-149). Called by
+    // the `attachment.delete` mutation (Faz 11B / DEM-148) after tx commit.
+    // Redis blip leaves a stray MinIO object behind — BullMQ retries (3
+    // attempts) cover transient failures; the 60-min orphan sweeper only
+    // scans `committed_at IS NULL` drafts, not deleted rows.
+    enqueueAttachmentCleanup,
     objectStorage,
   });
 }

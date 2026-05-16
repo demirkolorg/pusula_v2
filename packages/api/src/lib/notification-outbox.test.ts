@@ -11,6 +11,7 @@ import {
   boardMembers,
   cardMembers,
   notificationOutbox,
+  notificationPreferences,
   users,
   workspaceMembers,
 } from '@pusula/db';
@@ -201,5 +202,174 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
     expect(rows.every((r) => r.type === 'card_assigned')).toBe(true);
 
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.eventId, activityId));
+  });
+
+  // ─── Faz 10G (DEM-141) — email digest tercih davranışı ──────────────
+
+  it("emailMode='off' (global) → email channel rule skipped, in_app/push still go through", async () => {
+    // Stale outbox + preferences temizliği.
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+
+    // Recipient için global tercih: email kapalı (`off`).
+    await db().insert(notificationPreferences).values({
+      userId: recipientId,
+      muteLevel: 'none',
+      mentionOnly: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      emailMode: 'off',
+    });
+
+    // Fan-out: card_assigned → in_app + email + push. Email satırı insert
+    // edilmez; iki satır eklenir (in_app + push).
+    const event: ActivityEventForRules = {
+      id: activityId,
+      type: 'card.member_added',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, userId: recipientId, role: 'assignee' },
+    };
+    const result = await dispatchNotificationsForActivity(db(), event);
+    expect(result.inserted).toBe(2);
+    expect(result.skipped).toBe(1);
+
+    const rows = await db()
+      .select({ channel: notificationOutbox.channel })
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    expect(rows.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
+
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+  });
+
+  it("emailMode='hourly_digest' → email row inserts with status='digest_queued'", async () => {
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+
+    await db().insert(notificationPreferences).values({
+      userId: recipientId,
+      muteLevel: 'none',
+      mentionOnly: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      emailMode: 'hourly_digest',
+    });
+
+    const event: ActivityEventForRules = {
+      id: activityId,
+      type: 'card.member_added',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, userId: recipientId, role: 'assignee' },
+    };
+    const result = await dispatchNotificationsForActivity(db(), event);
+    expect(result.inserted).toBe(3);
+
+    const emailRows = await db()
+      .select({ status: notificationOutbox.status })
+      .from(notificationOutbox)
+      .where(
+        dbMod.and(
+          dbMod.eq(notificationOutbox.eventId, activityId),
+          dbMod.eq(notificationOutbox.channel, 'email'),
+        ),
+      );
+    expect(emailRows).toHaveLength(1);
+    expect(emailRows[0]!.status).toBe('digest_queued');
+
+    // in_app + push satırları normal pending.
+    const otherRows = await db()
+      .select({ channel: notificationOutbox.channel, status: notificationOutbox.status })
+      .from(notificationOutbox)
+      .where(
+        dbMod.and(
+          dbMod.eq(notificationOutbox.eventId, activityId),
+          dbMod.ne(notificationOutbox.channel, 'email'),
+        ),
+      );
+    expect(otherRows.every((r) => r.status === 'pending')).toBe(true);
+
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+  });
+
+  it("emailMode='daily_digest' + mention bypass → mention email STAYS 'pending' (digest-bypass)", async () => {
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.recipientId, recipientId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+
+    await db().insert(notificationPreferences).values({
+      userId: recipientId,
+      muteLevel: 'none',
+      mentionOnly: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      emailMode: 'daily_digest',
+    });
+
+    // Mention type — DIGEST_BYPASS set'inde, digest mod'da bile anlık
+    // pending kalmalı.
+    const outcome = await insertNotificationOutbox(db(), {
+      rule: rule({ type: 'mention', channel: 'email' }),
+      eventId: activityId,
+    });
+    expect(outcome.inserted).toBe(true);
+    if (outcome.inserted) {
+      expect(outcome.status).toBe('pending');
+    }
+
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.recipientId, recipientId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+  });
+
+  it('no preference row → emailMode defaults to instant → email row pending (mevcut davranış korunur)', async () => {
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.recipientId, recipientId));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.eq(notificationPreferences.userId, recipientId));
+
+    const outcome = await insertNotificationOutbox(db(), {
+      rule: rule({ type: 'card_assigned', channel: 'email' }),
+      eventId: activityId,
+    });
+    expect(outcome.inserted).toBe(true);
+    if (outcome.inserted) {
+      expect(outcome.status).toBe('pending');
+    }
+
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.recipientId, recipientId));
   });
 });

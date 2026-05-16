@@ -429,6 +429,7 @@ export const boardMembersRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -477,13 +478,39 @@ export const boardMembersRouter = router({
         .set({ role: input.role })
         .where(and(eq(boardMembers.boardId, ctx.board.id), eq(boardMembers.userId, input.userId)));
 
-      await tx.insert(activityEvents).values({
+      const roleChangePayload = {
+        // Faz 10A (DEM-135): alıcı `targetUserId` (rule engine bunu okur);
+        // `userId` legacy alanını da koruyoruz (activity feed payload sözleşmesi).
+        userId: input.userId,
+        targetUserId: input.userId,
+        fromRole: member.role,
+        toRole: input.role,
+      };
+      const [roleActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.member_role_changed',
+          payload: roleChangePayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!roleActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 10A (DEM-135) — rolü değişen kişiye in-app `member_role_changed`
+      // bildirimi. Kullanıcı hâlâ board/workspace üyesi olduğu için normal
+      // permission filter geçer; aktör self-skip uygulanır.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: roleActivity.id,
+        type: 'board.member_role_changed',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'board.member_role_changed',
-        payload: { userId: input.userId, fromRole: member.role, toRole: input.role },
+        payload: roleChangePayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = roleActivity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -498,6 +525,7 @@ export const boardMembersRouter = router({
 
       return { userId: input.userId, role: input.role, changed: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
@@ -519,6 +547,7 @@ export const boardMembersRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -552,13 +581,40 @@ export const boardMembersRouter = router({
         .delete(boardMembers)
         .where(and(eq(boardMembers.boardId, ctx.board.id), eq(boardMembers.userId, input.userId)));
 
-      await tx.insert(activityEvents).values({
+      const removedPayload = {
+        // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);
+        // `userId` legacy alanını da koruyoruz (activity feed sözleşmesi).
+        userId: input.userId,
+        removedUserId: input.userId,
+        removedRole: member.role,
+        self: isSelf,
+      };
+      const [removedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.member_removed',
+          payload: removedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!removedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 10A (DEM-135) — çıkarılan kullanıcıya in-app + email
+      // `member_removed` bildirimi. Permission filter atlar: alıcı artık
+      // board_members'ta yok ama bildirim gitmek zorunda. Aktör (kendisini
+      // çıkaran) self-skip alır.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: removedActivity.id,
+        type: 'board.member_removed',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'board.member_removed',
-        payload: { userId: input.userId, removedRole: member.role, self: isSelf },
+        payload: removedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = removedActivity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -573,6 +629,7 @@ export const boardMembersRouter = router({
 
       return { userId: input.userId, changed: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),

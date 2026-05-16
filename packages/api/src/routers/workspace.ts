@@ -24,6 +24,10 @@ import {
   type WorkspaceRole,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { workspaceProcedure } from '../middleware/workspace';
 import { protectedProcedure, router } from '../trpc';
 
@@ -73,7 +77,8 @@ const workspaceMembersRouter = router({
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Üye rolünü değiştirme yetkiniz yok.' });
       }
 
-      return ctx.db.transaction(async (tx) => {
+      let notificationEventId: string | undefined;
+      const result = await ctx.db.transaction(async (tx) => {
         const [target] = await tx
           .select({ role: workspaceMembers.role })
           .from(workspaceMembers)
@@ -107,15 +112,43 @@ const workspaceMembersRouter = router({
             ),
           );
 
-        await tx.insert(activityEvents).values({
-          workspaceId: ctx.workspace.id,
-          actorId: ctx.session.user.id,
+        const roleChangePayload = {
+          // Faz 10A (DEM-135): alıcı `targetUserId` (rule engine bunu okur);
+          // `userId` legacy alanını da koruyoruz (activity feed sözleşmesi).
+          userId: input.userId,
+          targetUserId: input.userId,
+          fromRole: target.role,
+          toRole: input.role,
+        };
+        const [roleActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.workspace.id,
+            actorId: ctx.session.user.id,
+            type: 'workspace.member_role_changed',
+            payload: roleChangePayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!roleActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Faz 10A (DEM-135) — rolü değişen kişiye in-app
+        // `member_role_changed` bildirimi (workspace scope; boardId yok).
+        // Alıcı hâlâ workspace üyesi olduğu için permission filter geçer.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: roleActivity.id,
           type: 'workspace.member_role_changed',
-          payload: { userId: input.userId, fromRole: target.role, toRole: input.role },
+          workspaceId: ctx.workspace.id,
+          boardId: null,
+          cardId: null,
+          actorId: ctx.session.user.id,
+          payload: roleChangePayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = roleActivity.id;
 
         return { userId: input.userId, role: input.role, changed: true as const };
       });
+      maybeEnqueueNotificationPublish(ctx, notificationEventId);
+      return result;
     }),
 
   /** Remove a member. Managers may remove anyone (except an `owner`); anyone may remove themselves. */
@@ -125,7 +158,8 @@ const workspaceMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Üye çıkarma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [target] = await tx
         .select({ role: workspaceMembers.role })
         .from(workspaceMembers)
@@ -155,15 +189,44 @@ const workspaceMembersRouter = router({
           ),
         );
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.workspace.id,
-        actorId: ctx.session.user.id,
+      const removedPayload = {
+        // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);
+        // `userId` legacy alanını da koruyoruz (activity feed sözleşmesi).
+        userId: input.userId,
+        removedUserId: input.userId,
+        removedRole: target.role,
+        self: isSelf,
+      };
+      const [removedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.workspace.id,
+          actorId: ctx.session.user.id,
+          type: 'workspace.member_removed',
+          payload: removedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!removedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 10A (DEM-135) — çıkarılan kullanıcıya in-app + email
+      // `member_removed` bildirimi (workspace scope; boardId yok).
+      // Permission filter atlar: alıcı artık workspace_members'ta yok ama
+      // bildirim gitmeli. Aktör (kendisini çıkaran) self-skip alır.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: removedActivity.id,
         type: 'workspace.member_removed',
-        payload: { userId: input.userId, removedRole: target.role, self: isSelf },
+        workspaceId: ctx.workspace.id,
+        boardId: null,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: removedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = removedActivity.id;
 
       return { userId: input.userId, removed: true as const };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /**

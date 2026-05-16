@@ -145,6 +145,11 @@ Sonraki tur (Faz 11+ veya kullanıcı talebi): misafir attachment **görüntüle
 
 ## Kabul kriterleri (Faz 11E)
 
+> **Wired (2026-05-15, DEM-151):** Bu kriterler Faz 11E test/QA turunda doğrulandı —
+> domain Zod permütasyon (35 test), db migration `0027` + backfill + partial index (8 test),
+> api permission matrix + two-phase + tx sayımı (38 test), worker cleanup + orphan sweep (21 test),
+> Playwright `e2e/attachment.spec.ts` 5 senaryo (tam stack 5/5 PASS). code-review + verifier PASS.
+
 - Allowlist 8 tip OK + 9. tip reddedilir (`BAD_REQUEST`).
 - Size 50 MiB sınırı + 1 byte reddedilir.
 - Permission matrix: admin upload/delete OK; member upload OK + sadece kendi attachment'ını silebilir; viewer upload+delete reject + indir OK.

@@ -2,6 +2,8 @@ import { Worker } from 'bullmq';
 import {
   QUEUE,
   allQueues,
+  attachmentCleanupQueue,
+  notificationsEmailDigestQueue,
   notificationsEmailQueue,
   notificationsPushQueue,
   notificationsQueue,
@@ -11,6 +13,17 @@ import {
 import { connection } from './redis';
 import { db, pool } from './db';
 import { env } from './env';
+import {
+  createAttachmentS3Client,
+  processAttachmentCleanupJob,
+  s3DeleteObjectAdapter,
+  type AttachmentCleanupJobData,
+} from './jobs/attachment-cleanup';
+import {
+  ATTACHMENT_CLEANUP_SWEEPER_INTERVAL_MS,
+  ATTACHMENT_CLEANUP_SWEEPER_JOB_NAME,
+  sweepOrphanAttachments,
+} from './jobs/attachment-cleanup-sweeper';
 import { processCompactionJob, type CompactionJobData } from './jobs/compaction';
 import { processSearchReindexJob, type SearchReindexJobData } from './jobs/search-reindex';
 import {
@@ -32,6 +45,13 @@ import {
   processNotificationPushJob,
   type NotificationPushJobData,
 } from './jobs/notification-push';
+import {
+  NOTIFICATION_EMAIL_DIGEST_DAILY_CRON,
+  NOTIFICATION_EMAIL_DIGEST_DAILY_JOB_NAME,
+  NOTIFICATION_EMAIL_DIGEST_HOURLY_CRON,
+  NOTIFICATION_EMAIL_DIGEST_HOURLY_JOB_NAME,
+  processEmailDigestTick,
+} from './jobs/notification-email-digest';
 import {
   NOTIFICATION_PUBLISH_SWEEPER_INTERVAL_MS,
   NOTIFICATION_PUBLISH_SWEEPER_JOB_NAME,
@@ -253,6 +273,32 @@ const notificationPushWorker = new Worker(
   { connection, concurrency: 5 },
 );
 
+// Faz 10G (DEM-141) — email digest cron. İki repeatable job adı (hourly +
+// daily) aynı worker tarafından işlenir; job.name'e göre cadence türetilir.
+// Concurrency 1: digest tick'leri seyrek (saatlik / günlük); paralel tick
+// race yaratmaz ama bir tick uzarsa diğeri sırada bekler — `FOR UPDATE SKIP
+// LOCKED` zaten cross-instance HA için yeterli güvence sağlıyor.
+const notificationEmailDigestWorker = new Worker(
+  QUEUE.notificationsEmailDigest,
+  async (job) => {
+    const cadence =
+      job.name === NOTIFICATION_EMAIL_DIGEST_HOURLY_JOB_NAME ? 'hourly' : 'daily';
+    const result = await processEmailDigestTick(
+      db,
+      emailMailer,
+      { from: env.EMAIL_FROM, appUrl: env.APP_URL },
+      cadence,
+    );
+    if (result.scanned > 0) {
+      console.warn(
+        `[worker:notification-email-digest] tick=${cadence} scanned=${result.scanned} ` +
+          `sent=${result.emailsSent} skipped=${result.recipientsSkipped}`,
+      );
+    }
+  },
+  { connection, concurrency: 1 },
+);
+
 const compactionWorker = new Worker(
   QUEUE.compaction,
   async (job) => {
@@ -276,14 +322,51 @@ const searchReindexWorker = new Worker(
   { connection, concurrency: 1 },
 );
 
+// Faz 11C (DEM-149) — attachment cleanup. Shared S3 client between the
+// delete-trigger processor and the orphan sweeper; both go through the
+// `s3DeleteObjectAdapter` so `NoSuchKey` is swallowed once.
+const attachmentS3Client = createAttachmentS3Client({
+  endpoint: env.S3_ENDPOINT,
+  region: env.S3_REGION,
+  credentials: {
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+  },
+});
+const attachmentStorage = s3DeleteObjectAdapter(attachmentS3Client);
+
+const attachmentCleanupWorker = new Worker(
+  QUEUE.attachmentCleanup,
+  async (job) => {
+    if (job.name === ATTACHMENT_CLEANUP_SWEEPER_JOB_NAME) {
+      const result = await sweepOrphanAttachments(db, attachmentStorage, env.S3_BUCKET);
+      if (result.scanned > 0) {
+        console.warn(
+          `[worker:attachment-cleanup-sweeper] tick — scanned=${result.scanned} ` +
+            `storageDeleted=${result.storageDeleted} dbDeleted=${result.dbDeleted} ` +
+            `storageFailed=${result.storageFailed}`,
+        );
+      }
+      return;
+    }
+    const data = job.data as AttachmentCleanupJobData;
+    await processAttachmentCleanupJob(attachmentStorage, env.S3_BUCKET, data);
+  },
+  // Concurrency 3: cleanup is HTTP-bound to MinIO; modest parallelism keeps
+  // a backlog from snowballing without flooding the storage layer.
+  { connection, concurrency: 3 },
+);
+
 const workers = [
   notificationsWorker,
   notificationEmailWorker,
   notificationPushWorker,
+  notificationEmailDigestWorker,
   realtimeWorker,
   scheduledWorker,
   compactionWorker,
   searchReindexWorker,
+  attachmentCleanupWorker,
 ];
 
 for (const w of workers) {
@@ -325,6 +408,56 @@ void notificationsQueue
   )
   .catch((err) => {
     console.error('[worker:notifications-sweeper] failed to register repeatable job:', err.message);
+  });
+
+// Faz 10G (DEM-141) — register the email digest cron jobs. Hourly + daily
+// repeatable entries; their `jobId` keeps a single scheduler row per cadence
+// across restarts (BullMQ debounces existing repeatable jobs on a re-add).
+void notificationsEmailDigestQueue
+  .add(
+    NOTIFICATION_EMAIL_DIGEST_HOURLY_JOB_NAME,
+    {},
+    {
+      jobId: 'notification-email-digest-hourly',
+      repeat: { pattern: NOTIFICATION_EMAIL_DIGEST_HOURLY_CRON },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:notification-email-digest] hourly register failed:', err.message);
+  });
+void notificationsEmailDigestQueue
+  .add(
+    NOTIFICATION_EMAIL_DIGEST_DAILY_JOB_NAME,
+    {},
+    {
+      jobId: 'notification-email-digest-daily',
+      repeat: { pattern: NOTIFICATION_EMAIL_DIGEST_DAILY_CRON },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:notification-email-digest] daily register failed:', err.message);
+  });
+
+// Faz 11C (DEM-149) — register the hourly attachment-cleanup sweeper. Same
+// shape as the 60 s realtime/notification sweepers, just on a 1-hour cadence
+// (drafts get a 1 h grace window before sweep — see DEM-149).
+void attachmentCleanupQueue
+  .add(
+    ATTACHMENT_CLEANUP_SWEEPER_JOB_NAME,
+    {},
+    {
+      jobId: 'attachment-cleanup-sweeper',
+      repeat: { every: ATTACHMENT_CLEANUP_SWEEPER_INTERVAL_MS },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:attachment-cleanup-sweeper] failed to register repeatable job:', err.message);
   });
 
 // Faz 6A (DEM-90) — register the 5-minute due-date scheduler. Lives on

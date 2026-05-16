@@ -604,9 +604,11 @@ shell: {
 - **`apps/mobile` tema/switcher** — `apps/mobile` yok zaten; gelirse Expo bağlamında ayrı tartışılır.
 - **Server-side recent/pinned workspace/board** — Faz 8 (cookie veya `users.recent_boards` jsonb kolonu — ayrı iş).
 
-## 13.10 Kart eki — "Ekler" sekmesi (Faz 11)
+## 13.10 Kart eki — "Ekler" sekmesi (Faz 11D — ✅ wired)
 
-Kart detay modalı sağ paneldeki `Tabs` "Ekler N" sekmesinin gerçek içeriği. §13.3'te placeholder olarak tanımlı (`PaperclipIcon` disabled, Faz 2.7C-2/DEM-74); Faz 11D bu sekmeye gerçek attachment yönetimini bağlar. Implementasyon rehberi → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.13; iş kuralları → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md); akış → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1.
+> **Wired (DEM-150, 2026-05-15):** `Dropzone`, `AttachmentTile`, `AttachmentPreviewDialog` bileşenleri `packages/ui/src/components/` altında implement edildi ve `@pusula/ui` index + `package.json` exports'a eklendi. Uygulamalar: "Kapak" rozeti `LabelChip accent` yerine basit `bg-primary` rozet (LabelChip `accent` variant'ı + `PaletteName` zorunlu olduğundan); office/PDF thumbnail ikon renkleri WCAG 1.4.11 (3:1) için koyulaştırıldı.
+
+Kart detay modalı sağ paneldeki `Tabs` "Ekler N" sekmesinin gerçek içeriği. §13.3'te placeholder olarak tanımlı (`PaperclipIcon` disabled, Faz 2.7C-2/DEM-74); Faz 11D bu sekmeye gerçek attachment yönetimini bağlar. Implementasyon rehberi → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.14; iş kuralları → [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md); akış → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1.
 
 ### 13.10.1 `Dropzone` (yeni `@pusula/ui` bileşeni)
 

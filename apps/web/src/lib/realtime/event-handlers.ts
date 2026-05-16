@@ -82,6 +82,8 @@ export interface RealtimeFilters {
   boardMembers?: (boardId: string) => QueryFilters;
   /** `board.invitations.list({ boardId })` filter factory. */
   boardInvitations?: (boardId: string) => QueryFilters;
+  /** `attachment.list({ cardId })` filter factory — Faz 11D (DEM-150). */
+  attachments?: (cardId: string) => QueryFilters;
 }
 
 type Payload = Record<string, unknown>;
@@ -157,6 +159,9 @@ function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Car
     checklistTotal: 0,
     checklistDone: 0,
     commentCount: 0,
+    // Faz 11B (DEM-148) — board.get response carries this; new realtime-
+    // synthesised cards start with zero attachments.
+    attachmentCount: 0,
     members: [],
     coverImage: null,
   } as CardCache;
@@ -262,7 +267,7 @@ function bumpCardNumber(
   qc: QueryClient,
   filters: RealtimeFilters,
   cardId: string,
-  field: 'commentCount' | 'checklistTotal' | 'checklistDone',
+  field: 'commentCount' | 'checklistTotal' | 'checklistDone' | 'attachmentCount',
   delta: number,
 ): void {
   patchBoardCard(qc, filters, cardId, (card) => {
@@ -741,6 +746,23 @@ export function dispatchRealtimeEvent(
       if (!boardId) return;
       invalidate(qc, filters.boardMembers?.(boardId));
       invalidate(qc, filters.board);
+      return;
+    }
+    case 'attachment.added': {
+      // Faz 11D (DEM-150) — invalidate the card's `attachment.list` so the
+      // "Ekler" tab shows the new file, and bump the board card's
+      // `attachmentCount` so the paperclip meta chip stays in sync.
+      const cardId = cardIdFrom(envelope, payload);
+      if (!cardId) return;
+      invalidate(qc, filters.attachments?.(cardId));
+      bumpCardNumber(qc, filters, cardId, 'attachmentCount', 1);
+      return;
+    }
+    case 'attachment.removed': {
+      const cardId = cardIdFrom(envelope, payload);
+      if (!cardId) return;
+      invalidate(qc, filters.attachments?.(cardId));
+      bumpCardNumber(qc, filters, cardId, 'attachmentCount', -1);
       return;
     }
     default: {

@@ -22,7 +22,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { notificationOutbox, pushTokens, users } from '@pusula/db';
+import { notificationOutbox, notificationPreferences, pushTokens, users } from '@pusula/db';
 import {
   createDryRunExpoClient,
   processNotificationPushJob,
@@ -115,6 +115,9 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
       .delete(notificationOutbox)
       .where(dbMod.inArray(notificationOutbox.recipientId, createdUserIds));
     await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
   });
 
   afterAll(async () => {
@@ -123,6 +126,9 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
       .delete(notificationOutbox)
       .where(dbMod.inArray(notificationOutbox.recipientId, createdUserIds));
     await db().delete(pushTokens).where(dbMod.inArray(pushTokens.userId, createdUserIds));
+    await db()
+      .delete(notificationPreferences)
+      .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
     await db().delete(users).where(dbMod.inArray(users.id, createdUserIds));
     await probe.pool.end();
   });
@@ -355,5 +361,71 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     const outcome = await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
     expect(outcome).toEqual({ kind: 'skipped', reason: 'no-tokens' });
     expect(client.sentChunks).toHaveLength(0);
+  });
+
+  // ───────────────────────────── quiet hours (Faz 10F / DEM-140)
+
+  function windowAroundNow(): { from: string; to: string } {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const now = new Date();
+    const past = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const future = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    return {
+      from: fmt.format(past).replace('24:', '00:'),
+      to: fmt.format(future).replace('24:', '00:'),
+    };
+  }
+
+  it('quiet-hours: card_assigned inside window → dead + quiet_hours_window reason', async () => {
+    await seedToken(aliceId);
+    const { from, to } = windowAroundNow();
+    await db()
+      .insert(notificationPreferences)
+      .values({
+        userId: aliceId,
+        quietFrom: from,
+        quietTo: to,
+        quietTimezone: 'Europe/Istanbul',
+      });
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      type: 'card_assigned',
+      payload: { actorName: 'Bob', cardTitle: 'X' },
+    });
+    const client = capturingClient();
+    const outcome = await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+    expect(outcome).toEqual({ kind: 'skipped', reason: 'quiet-hours' });
+    expect(client.sentChunks).toHaveLength(0);
+
+    const row = await readOutbox(outboxId);
+    expect(row?.status).toBe('dead');
+    expect(row?.lastError).toBe('quiet_hours_window');
+  });
+
+  it('quiet-hours: mention inside window BYPASSES suppression (sent)', async () => {
+    await seedToken(aliceId);
+    const { from, to } = windowAroundNow();
+    await db()
+      .insert(notificationPreferences)
+      .values({
+        userId: aliceId,
+        quietFrom: from,
+        quietTo: to,
+        quietTimezone: 'Europe/Istanbul',
+      });
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      type: 'mention',
+      payload: { actorName: 'Bob', cardTitle: 'X' },
+    });
+    const client = capturingClient();
+    const outcome = await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+    expect(outcome.kind).toBe('sent');
+    expect(client.sentChunks).toHaveLength(1);
   });
 });

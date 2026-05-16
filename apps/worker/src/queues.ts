@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import { connection } from './redis';
+import { ATTACHMENT_CLEANUP_RETRY_POLICY } from './jobs/attachment-cleanup';
 
 /**
  * Background queue names. Each maps to a BullMQ queue consumed by a Worker in
@@ -31,6 +32,17 @@ export const QUEUE = {
    * then every user has zero active tokens → no-op + warn log.
    */
   notificationsPush: 'pusula-notifications-push',
+  /**
+   * Faz 10G (DEM-141) — hourly/daily email digest cron.
+   * Producer: BullMQ repeatable scheduler entries in `index.ts`
+   * (`notification-email-digest-hourly` + `-daily`).
+   * Consumer: `jobs/notification-email-digest.ts`.
+   *
+   * Independent from `notificationsEmail` (transactional) queue: digest
+   * cron'u trafiği farklı (her recipient için tek mail), retry/backoff
+   * semantiği farklı (gecikme tolere edilir), workload izole tutulur.
+   */
+  notificationsEmailDigest: 'pusula-notifications-email-digest',
   /** Publishes pending `realtime_events` rows to Socket.IO rooms. */
   realtimePublish: 'pusula-realtime-publish',
   /** Due-date reminders, digest emails, cleanup. */
@@ -51,6 +63,21 @@ export const QUEUE = {
    * (`search_documents`) for a board/workspace scope.
    */
   searchReindex: 'pusula-search-reindex',
+  /**
+   * Faz 11C (DEM-149) — attachment cleanup queue. Two responsibilities,
+   * dispatched by `job.name`:
+   *  1. Delete trigger (`attachment-cleanup`): fired by `attachment.delete`
+   *     (DEM-148) tx COMMIT — payload `{ attachmentId, storageKey }`. Worker
+   *     calls MinIO `DeleteObjectCommand`. Idempotent (`NoSuchKey` swallowed).
+   *  2. Orphan sweep (`attachment-cleanup-sweeper`): repeatable 60 min cron
+   *     (Faz 5B/6A sweeper pattern simetri — daha seyrek, 1 saatlik draft
+   *     window). Drops `committed_at IS NULL AND created_at < NOW() - 1h`
+   *     drafts: storage first, then DB row.
+   *
+   * Queue name duplicated in `apps/api/src/attachment-cleanup-queue.ts`
+   * (producer side) — must stay in sync: `'pusula-attachment-cleanup'`.
+   */
+  attachmentCleanup: 'pusula-attachment-cleanup',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -71,6 +98,14 @@ export const notificationsPushQueue = new Queue(QUEUE.notificationsPush, {
   connection,
   defaultJobOptions,
 });
+export const notificationsEmailDigestQueue = new Queue(QUEUE.notificationsEmailDigest, {
+  connection,
+  // Digest cron'unda 5 attempt + exponential backoff fazla; Resend transient
+  // hatalarında 2 deneme + 30 sn aralık yeterli (bir sonraki cron tick
+  // zaten 1 saat sonra). Yine de defaultJobOptions ile uyum için aynı
+  // shape — sweeper özelliği yok, BullMQ retry'a güveniyoruz.
+  defaultJobOptions,
+});
 export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
   connection,
   defaultJobOptions,
@@ -78,13 +113,24 @@ export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
 export const scheduledQueue = new Queue(QUEUE.scheduled, { connection, defaultJobOptions });
 export const compactionQueue = new Queue(QUEUE.compaction, { connection, defaultJobOptions });
 export const searchReindexQueue = new Queue(QUEUE.searchReindex, { connection, defaultJobOptions });
+// Faz 11C (DEM-149) — 3 retry + exponential backoff matches DEM-149 spec
+// (delete trigger). The sweeper job rides on the same queue and inherits
+// these defaults; sweeper failures are recovered by the next 60 min tick.
+// Policy lives in `jobs/attachment-cleanup.ts` (single source of truth, unit
+// tested there — see `ATTACHMENT_CLEANUP_RETRY_POLICY`).
+export const attachmentCleanupQueue = new Queue(QUEUE.attachmentCleanup, {
+  connection,
+  defaultJobOptions: ATTACHMENT_CLEANUP_RETRY_POLICY,
+});
 
 export const allQueues = [
   notificationsQueue,
   notificationsEmailQueue,
   notificationsPushQueue,
+  notificationsEmailDigestQueue,
   realtimePublishQueue,
   scheduledQueue,
   compactionQueue,
   searchReindexQueue,
+  attachmentCleanupQueue,
 ];

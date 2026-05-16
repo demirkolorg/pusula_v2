@@ -101,6 +101,8 @@ export {
   ContextMenuTrigger,
 } from './components/context-menu';
 export { Checkbox } from './components/checkbox';
+export { Switch } from './components/switch';
+export { RadioGroup, RadioGroupItem } from './components/radio-group';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/tabs';
 export {
   RichTextEditor,
@@ -115,3 +117,16 @@ export {
   type MentionSource,
 } from './components/rich-text-editor';
 export { Toaster, toast, type ToasterProps } from './components/sonner';
+export { Dropzone, type DropzoneProps, type DropzoneLabels } from './components/dropzone';
+export {
+  AttachmentTile,
+  type AttachmentTileProps,
+  type AttachmentTileLabels,
+  type AttachmentTileKind,
+} from './components/attachment-tile';
+export {
+  AttachmentPreviewDialog,
+  type AttachmentPreviewDialogProps,
+  type AttachmentPreviewLabels,
+  type AttachmentPreviewKind,
+} from './components/attachment-preview-dialog';

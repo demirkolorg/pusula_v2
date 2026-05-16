@@ -36,9 +36,12 @@ vi.mock('resend', () => ({
 
 const {
   __resetResendClientForTests,
+  newDeviceLoginEmailHtml,
+  newDeviceLoginEmailText,
   resetPasswordEmailHtml,
   resetPasswordEmailText,
   resolveRecipient,
+  sendNewDeviceLoginEmail,
   sendResetPasswordEmail,
   sendVerificationEmail,
   verificationEmailHtml,
@@ -266,6 +269,98 @@ describe('sendVerificationEmail - with RESEND_API_KEY', () => {
     expect(arg.subject).toMatch(/E-posta doğrulama/);
     expect(String(arg.html)).toContain('verify-email');
     expect(String(arg.text)).toContain(VERIFY_URL);
+  });
+});
+
+const NEW_DEVICE_PARAMS = {
+  userName: 'Aria',
+  userAgent: 'chrome/120.0 (windows nt 10.0; win64; x64)',
+  ipSubnet: '203.0.113.0/24',
+  loginAt: new Date(Date.UTC(2026, 4, 15, 14, 23)), // 2026-05-15 14:23 UTC
+  secureAccountUrl: 'http://localhost:3000/account?tab=security',
+};
+
+describe('newDeviceLoginEmailText', () => {
+  it('includes the UA, subnet, formatted timestamp, and secure-account link', () => {
+    const text = newDeviceLoginEmailText(NEW_DEVICE_PARAMS);
+    expect(text).toContain('Merhaba Aria,');
+    expect(text).toContain('chrome/120.0 (windows nt 10.0; win64; x64)');
+    expect(text).toContain('203.0.113.0/24');
+    expect(text).toContain('2026-05-15 14:23 UTC');
+    expect(text).toContain('http://localhost:3000/account?tab=security');
+    expect(text).toMatch(/parolanızı değiştirin/i);
+  });
+
+  it('falls back to a generic greeting when userName is empty', () => {
+    const text = newDeviceLoginEmailText({ ...NEW_DEVICE_PARAMS, userName: '   ' });
+    expect(text.startsWith('Merhaba,')).toBe(true);
+  });
+});
+
+describe('newDeviceLoginEmailHtml', () => {
+  it('renders the branded layout (preheader + brand band + CTA + fallback URL + footer)', () => {
+    const html = newDeviceLoginEmailHtml(NEW_DEVICE_PARAMS);
+    expect(html).toMatch(/<!doctype html>/i);
+    expect(html).toMatch(/display:none;[^"]*overflow:hidden/);
+    expect(html).toMatch(/yeni bir cihazdan giriş yapıldı/i);
+    expect(html).toContain('#5b5bd6');
+    expect(html).toMatch(/>Pusula</);
+    expect(html).toContain('Yeni cihazdan giriş tespit edildi');
+    expect(html).toMatch(/bgcolor="#5b5bd6"/);
+    expect(html).toContain('Hesabımı koru');
+    expect(html.match(/account\?tab=security/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(html).toMatch(new RegExp(`© ${new Date().getFullYear()} Pusula`));
+  });
+
+  it('escapes hostile characters in the secure-account URL', () => {
+    const html = newDeviceLoginEmailHtml({
+      ...NEW_DEVICE_PARAMS,
+      secureAccountUrl: 'http://x/"><script>alert(1)</script>',
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+});
+
+describe('sendNewDeviceLoginEmail', () => {
+  it('without RESEND_API_KEY: does not throw and logs a warning', async () => {
+    mockEnv.RESEND_API_KEY = undefined;
+    __resetResendClientForTests();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      sendNewDeviceLoginEmail({ to: 'aria@test.com', ...NEW_DEVICE_PARAMS }),
+    ).resolves.toBeUndefined();
+
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('with RESEND_API_KEY: sends html + text via Resend with the correct subject', async () => {
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    __resetResendClientForTests();
+    sendMock.mockResolvedValue({ data: { id: 'email_dev' }, error: null });
+
+    await sendNewDeviceLoginEmail({ to: 'aria@test.com', ...NEW_DEVICE_PARAMS });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const arg = sendMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.to).toBe('aria@test.com');
+    expect(arg.subject).toMatch(/Yeni cihazdan/);
+    expect(String(arg.html)).toContain('Yeni cihazdan giriş tespit edildi');
+    expect(String(arg.text)).toContain('203.0.113.0/24');
+  });
+
+  it('does not throw when Resend rejects', async () => {
+    mockEnv.RESEND_API_KEY = 're_test_key';
+    __resetResendClientForTests();
+    sendMock.mockRejectedValue(new Error('boom'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(
+      sendNewDeviceLoginEmail({ to: 'aria@test.com', ...NEW_DEVICE_PARAMS }),
+    ).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
   });
 });
 

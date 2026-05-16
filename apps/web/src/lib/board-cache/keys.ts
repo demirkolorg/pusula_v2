@@ -55,6 +55,10 @@ export type BoardCacheKeys = {
   boardInvitations: (
     boardId: string,
   ) => ReturnType<ReturnType<typeof useTRPC>['board']['invitations']['list']['queryFilter']>;
+  /** `attachment.list({ cardId })` — committed card attachments (Faz 11D). */
+  attachments: (
+    cardId: string,
+  ) => ReturnType<ReturnType<typeof useTRPC>['attachment']['list']['queryFilter']>;
 };
 
 export function useBoardCacheKeys(): BoardCacheKeys {
@@ -71,6 +75,7 @@ export function useBoardCacheKeys(): BoardCacheKeys {
       boardLabels: (boardId) => trpc.label.list.queryFilter({ boardId }),
       boardMembers: (boardId) => trpc.board.members.list.queryFilter({ boardId }),
       boardInvitations: (boardId) => trpc.board.invitations.list.queryFilter({ boardId }),
+      attachments: (cardId) => trpc.attachment.list.queryFilter({ cardId }),
     }),
     [trpc],
   );

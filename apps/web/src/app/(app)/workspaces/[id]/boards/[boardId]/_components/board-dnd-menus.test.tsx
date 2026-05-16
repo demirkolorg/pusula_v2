@@ -47,7 +47,16 @@ vi.mock('@/trpc/client', () => ({
       },
     },
     board: { get: { queryFilter: () => ({}) } },
-    attachment: { createUpload: { mutationOptions: (o: unknown) => o } },
+    attachment: {
+      // Faz 11B (DEM-148) — board-dnd-menus renders card-item children that
+      // mount the full attachment surface; mock all leaves for hook safety.
+      initiate: { mutationOptions: (o: unknown) => o },
+      commit: { mutationOptions: (o: unknown) => o },
+      list: { mutationOptions: (o: unknown) => o, queryOptions: () => ({}) },
+      update: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
+      getDownloadUrl: { queryOptions: () => ({}) },
+    },
   }),
 }));
 

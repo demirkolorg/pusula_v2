@@ -59,6 +59,12 @@ export async function sweepStaleNotificationEvents(
   // a single event; we only need to enqueue the job once. Rows with
   // `event_id IS NULL` (orphans from a deleted activity_events row — ON
   // DELETE SET NULL FK) are skipped here; the retention job cleans them up.
+  //
+  // Faz 10G (DEM-141): `digest_queued` rows aren't owed a re-publish — the
+  // dedicated `notification-email-digest` cron processes them on its own
+  // schedule. Excluding them keeps the sweeper from re-enqueueing rows that
+  // the publish processor would simply skip again (and avoids growing
+  // sweeper noise as a user's digest backlog accumulates between ticks).
   const result = await db.execute(sql`
     SELECT DISTINCT event_id
     FROM ${notificationOutbox}
@@ -69,6 +75,7 @@ export async function sweepStaleNotificationEvents(
         sql`NOW() - (${NOTIFICATION_PUBLISH_SWEEPER_GRACE_SECONDS} * INTERVAL '1 second')`,
       ),
       sql`${notificationOutbox.eventId} IS NOT NULL`,
+      sql`${notificationOutbox.status} <> 'digest_queued'`,
     )}
     LIMIT ${NOTIFICATION_PUBLISH_SWEEPER_BATCH}
   `);

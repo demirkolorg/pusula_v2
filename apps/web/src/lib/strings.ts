@@ -280,10 +280,11 @@ export const strings = {
     fallbackActorName: 'Bir kullanıcı',
     fallbackCardTitle: 'bu kart',
     fallbackBoardName: 'bu pano',
-    fallbackWorkspaceName: 'bu workspace',
+    fallbackWorkspaceName: 'bu çalışma alanı',
     summary: {
       cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
-      commentMentioned: (cardTitle: string) => `seni "${cardTitle}" kartında bahsetti`,
+      commentMentioned: (cardTitle: string) =>
+        `"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
       commentCreated: (cardTitle: string) => `"${cardTitle}" kartında yorum bıraktı`,
       dueApproaching: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi yaklaşıyor`,
       dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
@@ -291,12 +292,21 @@ export const strings = {
       dueOverdue: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi geçti`,
       boardMemberInvited: (boardName: string) => `seni "${boardName}" panosuna davet etti`,
       workspaceMemberInvited: (workspaceName: string) =>
-        `seni "${workspaceName}" workspace'ine davet etti`,
+        `seni "${workspaceName}" çalışma alanına davet etti`,
       watchedActivity: (cardTitle: string) => `"${cardTitle}" kartında değişiklik yaptı`,
       checklistItemCompleted: (cardTitle: string) =>
         `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
       cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
       cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
+      // DEM-152 — granular kart-aktivite özetleri.
+      cardMoved: (cardTitle: string) => `"${cardTitle}" kartını taşıdı`,
+      cardUncompleted: (cardTitle: string) =>
+        `"${cardTitle}" kartının tamamlandı işaretini kaldırdı`,
+      cardDueSet: (cardTitle: string) => `"${cardTitle}" kartı için teslim tarihi belirledi`,
+      cardDueCleared: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihini kaldırdı`,
+      cardCoverChanged: (cardTitle: string) => `"${cardTitle}" kartının kapağını değiştirdi`,
+      cardMemberRemoved: (cardTitle: string) => `seni "${cardTitle}" kartından çıkardı`,
+      attachmentAdded: (cardTitle: string) => `"${cardTitle}" kartına bir dosya ekledi`,
       default: 'bir bildirim gönderdi',
     },
   },
@@ -834,6 +844,7 @@ export const strings = {
       labelsTooltip: 'Etiketler',
       checklistTooltip: 'Yapılacaklar',
       commentsTooltip: 'Yorumlar',
+      attachmentsTooltip: 'Ekler',
       membersTooltip: 'Üyeler',
       membersMore: 'üye daha',
       open: 'Kartı aç',
@@ -1136,8 +1147,16 @@ export const strings = {
           commentReply: 'Takipteki kartta yorum',
           dueApproaching: 'Yaklaşan bitiş',
           dueOverdue: 'Geciken kart',
-          watchedActivity: 'Takipteki kart hareketi',
-          checklistItemCompleted: 'Checklist maddesi tamamlandı',
+          dueChanged: 'Teslim tarihi değişti',
+          // DEM-152 — granular kart-aktivite tipleri (eski `watchedActivity`
+          // çöp kovasının yerini aldı).
+          cardMoved: 'Kart taşındı',
+          cardArchived: 'Kart arşivlendi',
+          cardCompleted: 'Kart tamamlandı',
+          cardCoverChanged: 'Kart kapağı değişti',
+          cardMemberRemoved: 'Karttan çıkarıldım',
+          attachmentAdded: 'Karta dosya eklendi',
+          checklistItemCompleted: 'Yapılacaklar maddesi tamamlandı',
           memberRemoved: 'Üyelikten çıkarıldım',
           memberRoleChanged: 'Rolüm değişti',
           boardInvitation: 'Pano daveti',
@@ -1469,5 +1488,82 @@ export const strings = {
         'Bu bağlantı artık kullanılamaz. Paylaşan kişiden yeni bir bağlantı isteyebilirsin.',
       backHome: 'Pusula ana sayfasına git',
     },
+  },
+  /**
+   * Kart eki "Ekler" sekmesi (Faz 11D — DEM-150). Dropzone, ek satırı,
+   * önizleme dialogu ve kapak görseli seçici metinleri. Entity-bağımsız
+   * tutulur (i18n hazır — hardcode metin yok).
+   */
+  attachment: {
+    tabs: {
+      attachments: 'Ekler',
+    },
+    dropzone: {
+      idle: 'Dosya bırak veya seç',
+      hint: 'Resim, PDF, Word/Excel/PowerPoint — en fazla 50 MB',
+      active: 'Bırak yüklesin',
+      uploading: (percent: number) => `Yükleniyor… %${percent}`,
+      ariaLabel: 'Dosya yükle',
+      disabledHint: 'Yalnızca okuyabilirsiniz',
+      error: {
+        tooLarge: 'Dosya çok büyük. En fazla 50 MB yükleyebilirsin.',
+        mimeRejected: 'Bu dosya türü desteklenmiyor.',
+      },
+    },
+    description: {
+      label: 'Açıklama (isteğe bağlı)',
+      placeholder: 'Bu dosya nedir? Ne için yüklüyorsun?',
+      counter: (used: number, max: number) => `${used}/${max}`,
+    },
+    upload: {
+      action: 'Yükle',
+      uploading: 'Yükleniyor…',
+    },
+    actions: {
+      preview: 'Önizle',
+      download: 'İndir',
+      edit: 'Açıklamayı düzenle',
+      moreActions: 'Ek menüsü',
+      delete: 'Sil',
+      makeCover: 'Kapak yap',
+      removeCover: 'Kapağı kaldır',
+      save: 'Kaydet',
+      cancel: 'İptal',
+      cancelUpload: 'Yüklemeyi iptal et',
+    },
+    confirmDelete: {
+      title: 'Eki sil',
+      description: 'Bu ek kalıcı olarak silinecek. Bu işlem geri alınamaz.',
+      confirm: 'Sil',
+      cancel: 'Vazgeç',
+    },
+    cover: {
+      badge: 'Kapak',
+      tabColor: 'Kapak rengi',
+      tabImage: 'Kapak görseli',
+      imageEmpty: 'Bu kartta henüz görsel ek yok.',
+      clear: 'Kapağı kaldır',
+      selectAria: 'Kapak görseli olarak seç:',
+    },
+    empty: {
+      title: 'Henüz ek yok.',
+      description: 'Resim, PDF veya Office dosyası ekleyebilirsin.',
+    },
+    preview: {
+      zoomIn: 'Yakınlaştır',
+      zoomOut: 'Uzaklaştır',
+      zoomReset: 'Sıfırla',
+      zoomArea: 'Önizleme alanı — yön tuşlarıyla kaydırılabilir',
+      loading: 'Önizleme yükleniyor…',
+      error: 'Önizleme yüklenemedi.',
+    },
+    error: {
+      uploadFailed: 'Dosya yüklenemedi. Lütfen tekrar deneyin.',
+      commitFailed: 'Dosya kaydedilemedi. Lütfen tekrar deneyin.',
+      deleteFailed: 'Ek silinemedi. Lütfen tekrar deneyin.',
+      updateFailed: 'Açıklama güncellenemedi. Lütfen tekrar deneyin.',
+      downloadFailed: 'Dosya indirilemedi. Lütfen tekrar deneyin.',
+    },
+    metaTooltip: 'Ekler',
   },
 } as const;

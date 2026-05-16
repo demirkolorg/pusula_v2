@@ -5,6 +5,12 @@ import { strings } from '@/lib/strings';
 import { CardDetailCoverColor } from './card-detail-cover-color';
 
 const m = strings.card.detail.modal;
+const coverCopy = strings.attachment.cover;
+
+/** Activate the "Kapak görseli" tab (image upload + attachment picker). */
+async function openImageTab(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('tab', { name: coverCopy.tabImage }));
+}
 
 function setup(overrides: Partial<Parameters<typeof CardDetailCoverColor>[0]> = {}) {
   const props = {
@@ -80,6 +86,7 @@ describe('<CardDetailCoverColor>', () => {
     const props = setup();
     const file = new File(['cover'], 'cover.png', { type: 'image/png' });
 
+    await openImageTab(user);
     await user.upload(screen.getByLabelText(m.coverImageUpload), file);
 
     expect(props.onImageSelect).toHaveBeenCalledWith(file);
@@ -96,9 +103,29 @@ describe('<CardDetailCoverColor>', () => {
       },
     });
 
+    await openImageTab(user);
     expect(screen.getByText('cover.webp')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: m.coverImageClear }));
 
     expect(props.onClearImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists existing image attachments and picks one as the cover', async () => {
+    const user = userEvent.setup();
+    const onCoverImageSelect = vi.fn();
+    setup({
+      imageAttachments: [
+        { id: 'img-1', fileName: 'plan.png', isCover: false },
+        { id: 'img-2', fileName: 'logo.webp', isCover: true },
+      ],
+      onCoverImageSelect,
+    });
+
+    await openImageTab(user);
+    await user.click(
+      screen.getByRole('button', { name: `${coverCopy.selectAria} plan.png` }),
+    );
+
+    expect(onCoverImageSelect).toHaveBeenCalledWith('img-1');
   });
 });

@@ -2,6 +2,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
+
+// The attachments tab is its own trpc-wired component (Faz 11D); stub it so the
+// sidebar test stays presentational.
+vi.mock('./card-detail-attachments', () => ({
+  CardDetailAttachments: () => <div>Ekler paneli</div>,
+}));
+
 import { CardModalSidebar } from './card-modal-sidebar';
 import type { CommentView } from './card-detail-comments';
 import type { CardActivityEvent } from './activity-summary';
@@ -34,10 +41,12 @@ const activity: CardActivityEvent[] = [
 
 function setup(overrides: Partial<Parameters<typeof CardModalSidebar>[0]> = {}) {
   const props = {
+    cardId: 'card-1',
     comments,
     activity,
     activityPending: false,
     activityError: null,
+    attachmentCount: 0,
     nameOf,
     viewerUserId: 'u1',
     viewerName: 'Ada',
@@ -82,7 +91,7 @@ describe('<CardModalSidebar>', () => {
     );
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
-    expect(screen.getByText(detailCopy.attachments.empty)).toBeInTheDocument();
+    expect(screen.getByText('Ekler paneli')).toBeInTheDocument();
   });
 
   it('the activity tab is labelled "Aktivite" (not "İşlemler")', () => {

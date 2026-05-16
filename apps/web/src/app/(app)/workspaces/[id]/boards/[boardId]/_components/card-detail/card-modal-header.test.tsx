@@ -4,8 +4,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 import { CardModalHeader } from './card-modal-header';
 
+// Faz 10H (DEM-142) — CardDetailSnooze artık header içinde render ediliyor;
+// preferences.get + snooze/unsnooze mutation'larını mock'lamamız gerek.
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: { url: 'https://storage.test/modal-cover.png' } }),
+  useQuery: () => ({
+    data: { url: 'https://storage.test/modal-cover.png' },
+    isPending: false,
+    isError: false,
+  }),
+  useMutation: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+    variables: undefined,
+    reset: vi.fn(),
+  }),
+  useQueryClient: () => ({
+    cancelQueries: vi.fn(),
+    invalidateQueries: vi.fn(),
+    getQueryData: vi.fn(),
+    setQueryData: vi.fn(),
+  }),
 }));
 
 vi.mock('@/trpc/client', () => ({
@@ -18,6 +37,19 @@ vi.mock('@/trpc/client', () => ({
         }),
       },
     },
+    notifications: {
+      preferences: {
+        get: {
+          queryOptions: (input: unknown) => ({ key: 'preferences.get', input }),
+          queryFilter: (input: unknown) => ({ queryKey: ['preferences.get', input] }),
+        },
+        list: {
+          queryFilter: () => ({ queryKey: ['preferences.list'] }),
+        },
+        snooze: { mutationOptions: (o: unknown) => o },
+        unsnooze: { mutationOptions: (o: unknown) => o },
+      },
+    },
   }),
 }));
 
@@ -26,6 +58,7 @@ const m = copy.modal;
 
 function setup(overrides: Partial<Parameters<typeof CardModalHeader>[0]> = {}) {
   const props = {
+    cardId: 'c_test',
     boardName: 'Yol Haritası',
     listName: 'Yapılacaklar',
     archived: false,
@@ -49,6 +82,7 @@ describe('<CardModalHeader>', () => {
   it('shows the archived badge only when archived', () => {
     const { rerender } = render(
       <CardModalHeader
+        cardId="c_test"
         boardName="B"
         listName="L"
         archived={false}
@@ -60,6 +94,7 @@ describe('<CardModalHeader>', () => {
     expect(screen.queryByText(m.archivedBadge)).not.toBeInTheDocument();
     rerender(
       <CardModalHeader
+        cardId="c_test"
         boardName="B"
         listName="L"
         archived
@@ -101,6 +136,7 @@ describe('<CardModalHeader>', () => {
   it('plain bar (border-b, no palette class) when no cover colour is set', () => {
     render(
       <CardModalHeader
+        cardId="c_test"
         boardName="B"
         listName="L"
         coverColor={null}
@@ -118,6 +154,7 @@ describe('<CardModalHeader>', () => {
   it('coloured bar (bg-palet-*, no border-b) when a cover colour is set', () => {
     render(
       <CardModalHeader
+        cardId="c_test"
         boardName="B"
         listName="L"
         coverColor="mavi"
@@ -135,6 +172,7 @@ describe('<CardModalHeader>', () => {
   it('renders the cover image above the modal chrome and suppresses the colour bar', () => {
     render(
       <CardModalHeader
+        cardId="c_test"
         boardName="B"
         listName="L"
         coverColor="mavi"

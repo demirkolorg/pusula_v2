@@ -18,6 +18,8 @@
  *  - revoke is idempotent: a second call returns `{ revoked: false }`.
  *  - revoke scoped to caller: revoking someone else's token returns
  *    `{ revoked: false }` without touching the row.
+ *  - revokeById (Faz 10E): flips a row by id, idempotent, scoped to caller,
+ *    rejects empty id (Zod).
  *  - both procedures require auth (UNAUTHORIZED with no session).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -244,5 +246,59 @@ describe.runIf(dbAvailable)('push-tokens router (integration)', () => {
     await expect(callerFor(null).push.tokens.revoke({ token: newToken() })).rejects.toThrow(
       /UNAUTHORIZED|Oturum gerekli/,
     );
+  });
+
+  // -------------------------------------------------------------- revokeById
+
+  it('revokeById: flips an active token by row id (revoked: true)', async () => {
+    const token = newToken();
+    const reg = await callerFor(aliceId).push.tokens.register({ token, platform: 'ios' });
+    const result = await callerFor(aliceId).push.tokens.revokeById({ id: reg.tokenId });
+    expect(result.revoked).toBe(true);
+    const row = await readToken(token);
+    expect(row?.revokedAt).not.toBeNull();
+  });
+
+  it('revokeById: idempotent — a second call returns revoked: false', async () => {
+    const token = newToken();
+    const reg = await callerFor(aliceId).push.tokens.register({ token, platform: 'ios' });
+    const first = await callerFor(aliceId).push.tokens.revokeById({ id: reg.tokenId });
+    expect(first.revoked).toBe(true);
+    const stampAfterFirst = (await readToken(token))?.revokedAt;
+
+    const second = await callerFor(aliceId).push.tokens.revokeById({ id: reg.tokenId });
+    expect(second.revoked).toBe(false);
+
+    const stampAfterSecond = (await readToken(token))?.revokedAt;
+    expect(stampAfterSecond).toEqual(stampAfterFirst);
+  });
+
+  it("revokeById: scoped to the caller — revoking another user’s row is a no-op", async () => {
+    const token = newToken();
+    const reg = await callerFor(aliceId).push.tokens.register({ token, platform: 'ios' });
+    const result = await callerFor(bobId).push.tokens.revokeById({ id: reg.tokenId });
+    expect(result.revoked).toBe(false);
+    const row = await readToken(token);
+    expect(row?.revokedAt).toBeNull();
+    expect(row?.userId).toBe(aliceId);
+  });
+
+  it('revokeById: unknown id returns revoked: false silently', async () => {
+    const result = await callerFor(aliceId).push.tokens.revokeById({
+      id: 'pt_does_not_exist',
+    });
+    expect(result.revoked).toBe(false);
+  });
+
+  it('revokeById: rejects empty id (Zod)', async () => {
+    await expect(callerFor(aliceId).push.tokens.revokeById({ id: '' })).rejects.toThrow(
+      /BAD_REQUEST|Token kimliği/,
+    );
+  });
+
+  it('revokeById: requires authentication', async () => {
+    await expect(
+      callerFor(null).push.tokens.revokeById({ id: 'whatever' }),
+    ).rejects.toThrow(/UNAUTHORIZED|Oturum gerekli/);
   });
 });

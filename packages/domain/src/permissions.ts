@@ -70,3 +70,36 @@ export function canManageBoard(ctx: AccessContext): boolean {
 export function canDeleteOwnAccount(ownedWorkspaceCount: number): boolean {
   return ownedWorkspaceCount === 0;
 }
+
+/**
+ * Pure scope-access check for a `notification_preferences` row (Faz 10B —
+ * DEM-136). The procedure resolves the membership/access flag for the most
+ * specific scope dimension via DB, then passes it here. This function folds
+ * the "every user can manage their own global default" rule and otherwise
+ * defers to the caller-resolved `hasScopeAccess`.
+ *
+ * Why a helper at all: the global-default rule is easy to forget, and the
+ * symmetry across procedures (get/upsert/delete) means a missed check would
+ * have to be patched in three places. Centralising it means one source of
+ * truth + one shape to test.
+ *
+ * @param scope - Scope columns from the row. At most one of the three is
+ *   set (the Zod schema enforces this); the helper itself accepts more
+ *   permissive shapes to remain useful from procedures that already
+ *   normalised the row to the DB form (where `null` is the sentinel).
+ * @param hasScopeAccess - For non-global scopes, whether the caller has
+ *   access to the scope dimension (workspace member / effective board role /
+ *   card watcher-or-assignee or board access for `cardId`). Ignored for
+ *   global scope.
+ *
+ * See `docs/architecture/06-bildirim-altyapisi.md` Notification preferences
+ * API and `docs/domain/04-bildirim-kurallari.md` "Tercihler ve bastırma".
+ */
+export function canManageNotificationPreference(
+  scope: { workspaceId?: string | null; boardId?: string | null; cardId?: string | null },
+  hasScopeAccess: boolean,
+): boolean {
+  const isGlobal = !scope.workspaceId && !scope.boardId && !scope.cardId;
+  if (isGlobal) return true;
+  return hasScopeAccess;
+}

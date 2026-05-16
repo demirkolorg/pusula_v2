@@ -5,7 +5,9 @@ export {
   type CreateContextOptions,
   type SessionInfo,
   type SessionUser,
+  type AttachmentCleanupJobInput,
   type CompactionScope,
+  type EnqueueAttachmentCleanup,
   type EnqueueCompaction,
   type EnqueueNotificationPublish,
   type EnqueueRealtimePublish,
@@ -14,6 +16,7 @@ export {
   type RealtimePayloadEnvelope,
   type RealtimeEmit,
 } from './context';
+export { maybeEnqueueAttachmentCleanup } from './lib/attachment-cleanup';
 export { insertRealtimeEvent, maybeEnqueueRealtimePublish } from './lib/realtime-publish';
 export { generateShareToken, hashShareToken } from './lib/share-token';
 export {

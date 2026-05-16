@@ -99,6 +99,7 @@ export function useBoardRealtime(
       boardLabels: (boardId: string) => cacheKeysRef.current.boardLabels(boardId),
       boardMembers: (boardId: string) => cacheKeysRef.current.boardMembers(boardId),
       boardInvitations: (boardId: string) => cacheKeysRef.current.boardInvitations(boardId),
+      attachments: (cardId: string) => cacheKeysRef.current.attachments(cardId),
     };
     // Read the current `boards.version` straight from the cache. If multiple
     // queries match the filter (shouldn't, in practice — one board, one entry),

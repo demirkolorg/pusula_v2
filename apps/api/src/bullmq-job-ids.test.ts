@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { compactionJobId, notificationPublishJobId, realtimePublishJobId } from './bullmq-job-ids';
+import {
+  attachmentCleanupJobId,
+  compactionJobId,
+  notificationPublishJobId,
+  realtimePublishJobId,
+} from './bullmq-job-ids';
 
 describe('BullMQ job ids', () => {
   it('avoids the Redis key separator in custom job ids', () => {
@@ -9,5 +14,6 @@ describe('BullMQ job ids', () => {
     expect(compactionJobId({ kind: 'board', boardId: 'board:1' })).toBe(
       'compaction-board-board%3A1',
     );
+    expect(attachmentCleanupJobId('att:1')).toBe('cleanup-att%3A1');
   });
 });

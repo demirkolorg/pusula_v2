@@ -148,6 +148,62 @@
       "when": 1778840469888,
       "tag": "0020_aromatic_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1778926800000,
+      "tag": "0021_dem136_notification_prefs_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779013200000,
+      "tag": "0022_dem135_notification_types_member",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779099600000,
+      "tag": "0023_dem143_known_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779186000000,
+      "tag": "0024_dem140_quiet_hours",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779272400000,
+      "tag": "0025_dem142_snooze",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779358800000,
+      "tag": "0026_dem141_email_digest",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779445200000,
+      "tag": "0027_dem147_faz11A_attachments_general",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779531600000,
+      "tag": "0028_dem152_notification_types_granular",
+      "breakpoints": true
     }
   ]
 }

@@ -54,5 +54,22 @@ export const revokePushTokenInput = z.object({
   token: expoPushTokenSchema,
 });
 
+/**
+ * Faz 10E (DEM-139) — bildirim ayar ekranı "Cihazlar" section'ı için id-tabanlı
+ * revoke. `push.tokens.list` privacy nedeniyle ham token string'ini hiçbir
+ * zaman dönmediğinden web istemci, satırı tablo `id`'siyle iptal eder.
+ * Mobil istemci (Faz 7) logout akışında elindeki token'ı verdiği için
+ * `revokePushTokenInput`'i kullanmaya devam eder; iki şema aynı tablo üstünde
+ * farklı anahtarlarla aynı `revoked_at = NOW()` damgasını basar.
+ *
+ * `id` formatı — Postgres `gen_random_uuid()` veya `nanoid` benzeri opak string;
+ * boyut/karakter sınırı yok (validation procedure'de UNAUTHORIZED+ownership ile
+ * çözülür, Zod sadece tip garantisi sağlar).
+ */
+export const revokePushTokenByIdInput = z.object({
+  id: z.string().min(1, { message: 'Token kimliği boş olamaz.' }),
+});
+
 export type RegisterPushTokenInput = z.infer<typeof registerPushTokenInput>;
 export type RevokePushTokenInput = z.infer<typeof revokePushTokenInput>;
+export type RevokePushTokenByIdInput = z.infer<typeof revokePushTokenByIdInput>;

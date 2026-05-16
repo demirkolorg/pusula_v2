@@ -225,6 +225,24 @@ const cardMemberRemovedPayloadSchema = z
   })
   .passthrough();
 
+// Faz 11D (DEM-150) — kart eki realtime event'leri. `commit`/`delete`
+// (`packages/api/src/routers/attachment.ts`) producer; `event-handlers.ts`
+// consumer. Dispatcher yalnız `cardId`'yi (envelope'tan) okuyup
+// `attachment.list` query'sini invalidate eder, bu yüzden şema minimaldir —
+// `attachmentId` zorunlu, üretici eklediği `fileName`/`mimeType`/`kind`/
+// `uploader` alanları `passthrough()` ile korunur.
+const attachmentAddedPayloadSchema = z
+  .object({
+    attachmentId: z.string().min(1),
+  })
+  .passthrough();
+
+const attachmentRemovedPayloadSchema = z
+  .object({
+    attachmentId: z.string().min(1),
+  })
+  .passthrough();
+
 export const realtimeEventPayloadSchemas = {
   'card.created': cardCreatedPayloadSchema,
   'card.updated': cardUpdatedPayloadSchema,
@@ -241,6 +259,9 @@ export const realtimeEventPayloadSchemas = {
   'card.label_removed': cardLabelRemovedPayloadSchema,
   'card.member_added': cardMemberAddedPayloadSchema,
   'card.member_removed': cardMemberRemovedPayloadSchema,
+  // Faz 11D event'leri:
+  'attachment.added': attachmentAddedPayloadSchema,
+  'attachment.removed': attachmentRemovedPayloadSchema,
 } satisfies Record<string, z.ZodType<unknown>>;
 
 export type RealtimeEventPayloadType = keyof typeof realtimeEventPayloadSchemas;

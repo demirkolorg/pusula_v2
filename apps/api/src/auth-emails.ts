@@ -74,6 +74,7 @@ export function resolveRecipient(to: string): string {
 
 const RESET_SUBJECT = 'Pusula — Şifre sıfırlama';
 const VERIFY_SUBJECT = 'Pusula — E-posta doğrulama';
+const NEW_DEVICE_SUBJECT = 'Pusula — Yeni cihazdan oturum açıldı';
 
 /** Brand color — email-safe hex of the `--primary` token (`oklch(0.56 0.17 275)`). */
 const BRAND_INDIGO = '#5b5bd6';
@@ -263,6 +264,73 @@ export function verificationEmailText(url: string): string {
   ].join('\n');
 }
 
+type NewDeviceLoginParams = {
+  /** Human-readable display name (best-effort; fallback when missing). */
+  userName: string | null | undefined;
+  /** Normalised UA string for display (e.g. "chrome/120.0 (windows nt 10.0…)"). */
+  userAgent: string;
+  /** Subnet we recorded (e.g. `203.0.113.0/24` or `unknown`). */
+  ipSubnet: string;
+  /** UTC timestamp of the login. */
+  loginAt: Date;
+  /** Absolute URL the recipient should follow to secure their account. */
+  secureAccountUrl: string;
+};
+
+function formatNewDeviceTimestamp(loginAt: Date): string {
+  // Stable, locale-free formatting so test snapshots don't drift across CI/dev
+  // machines. Example: `2026-05-15 14:23 UTC`.
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${loginAt.getUTCFullYear()}-${pad(loginAt.getUTCMonth() + 1)}-${pad(loginAt.getUTCDate())} ${pad(
+    loginAt.getUTCHours(),
+  )}:${pad(loginAt.getUTCMinutes())} UTC`;
+}
+
+/** Plain-text body for the "yeni cihazdan oturum açıldı" security email. */
+export function newDeviceLoginEmailText(params: NewDeviceLoginParams): string {
+  const { userName, userAgent, ipSubnet, loginAt, secureAccountUrl } = params;
+  const greeting = userName && userName.trim().length > 0 ? `Merhaba ${userName},` : 'Merhaba,';
+  return [
+    greeting,
+    '',
+    'Pusula hesabınıza yeni bir cihazdan giriş yapıldı:',
+    `Tarayıcı / cihaz: ${userAgent}`,
+    `Yaklaşık ağ: ${ipSubnet}`,
+    `Tarih: ${formatNewDeviceTimestamp(loginAt)}`,
+    '',
+    'Bu siz değilseniz hemen parolanızı değiştirin ve diğer oturumları kapatın:',
+    secureAccountUrl,
+    '',
+    'Eğer bu girişi siz yaptıysanız bu e-postayı yok sayabilirsiniz; bilgi amaçlıdır.',
+    '',
+    'Pusula',
+  ].join('\n');
+}
+
+/** Branded HTML body for the new-device-login security email. */
+export function newDeviceLoginEmailHtml(params: NewDeviceLoginParams): string {
+  const { userName, userAgent, ipSubnet, loginAt, secureAccountUrl } = params;
+  const friendlyName = userName && userName.trim().length > 0 ? userName.trim() : 'orada';
+  return renderTransactionalEmail({
+    preheader: 'Hesabınıza yeni bir cihazdan giriş yapıldı. Bu siz değilseniz hesabınızı koruyun.',
+    title: NEW_DEVICE_SUBJECT,
+    heading: 'Yeni cihazdan giriş tespit edildi',
+    intro: [
+      `Merhaba ${friendlyName}, Pusula hesabınıza yeni bir cihazdan giriş yapıldı.`,
+      `Tarayıcı / cihaz: ${userAgent}`,
+      `Yaklaşık ağ: ${ipSubnet}`,
+      `Tarih: ${formatNewDeviceTimestamp(loginAt)}`,
+    ],
+    cta: { label: 'Hesabımı koru', url: secureAccountUrl },
+    fallbackLabel: 'Buton çalışmazsa bu bağlantıyı tarayıcına kopyala:',
+    notes: [
+      'Bu siz değilseniz hemen parolanızı değiştirin ve diğer oturumları "Bilinen cihazlar" listesinden kapatın.',
+      'Bu girişi siz yaptıysanız bu e-postayı yok sayabilirsiniz — bilgi amaçlıdır.',
+    ],
+    footer: FOOTER_LINE,
+  });
+}
+
 /** Branded HTML body for the signup email-verification email. */
 export function verificationEmailHtml(url: string): string {
   return renderTransactionalEmail({
@@ -364,6 +432,61 @@ export async function sendVerificationEmail(params: { to: string; url: string })
     }
   } catch (error) {
     console.error('[auth] e-posta doğrulama e-postası gönderilirken beklenmeyen hata:', error);
+  }
+}
+
+/**
+ * Send the "yeni cihazdan oturum açıldı" security email. Same best-effort
+ * discipline as the other transactional auth emails: never throws, never blocks
+ * the login path. Unlike the reset/verify URLs there's no one-time token in the
+ * link, so it's safe to log even in production when Resend is not configured.
+ *
+ * Faz 10I (DEM-143) — `docs/architecture/07-auth.md` (Yeni cihazda oturum maili)
+ * + `docs/architecture/15-bildirim-ayar-ekrani.md` §15.4 Section 8.
+ */
+export async function sendNewDeviceLoginEmail(
+  params: {
+    to: string;
+    userName: string | null | undefined;
+    userAgent: string;
+    ipSubnet: string;
+    loginAt: Date;
+    secureAccountUrl: string;
+  },
+): Promise<void> {
+  const { to, userName, userAgent, ipSubnet, loginAt, secureAccountUrl } = params;
+  const resend = getResend();
+  const renderParams: NewDeviceLoginParams = {
+    userName,
+    userAgent,
+    ipSubnet,
+    loginAt,
+    secureAccountUrl,
+  };
+
+  if (!resend) {
+    // No token here — fine to log even in production so the operator can see we
+    // would have notified the user. Still best-effort.
+    console.warn(
+      '[auth] RESEND_API_KEY tanımlı değil — yeni cihaz güvenlik e-postası gönderilemedi.',
+      { to, ipSubnet },
+    );
+    return;
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: env.EMAIL_FROM,
+      to: resolveRecipient(to),
+      subject: NEW_DEVICE_SUBJECT,
+      html: newDeviceLoginEmailHtml(renderParams),
+      text: newDeviceLoginEmailText(renderParams),
+    });
+    if (error) {
+      console.error('[auth] yeni cihaz güvenlik e-postası gönderilemedi:', error);
+    }
+  } catch (error) {
+    console.error('[auth] yeni cihaz güvenlik e-postası gönderilirken beklenmeyen hata:', error);
   }
 }
 

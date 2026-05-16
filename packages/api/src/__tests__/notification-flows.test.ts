@@ -318,10 +318,10 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
   // atlanmış olan due-date + permission rejection + cooldown-elapsed
   // senaryoları. Hepsi DB integration; `runIf(dbAvailable)` zaten dışta.
 
-  it('due-date flow: card.update sets dueAt → card.due_set activity → watched_activity outbox for card watchers', async () => {
+  it('due-date flow: card.update sets dueAt → card.due_set activity → card_due_changed outbox for card watchers', async () => {
     const fx = await seedFixture();
 
-    // Bob kart üzerinde watcher olsun (assignee değil — watched_activity
+    // Bob kart üzerinde watcher olsun (assignee değil — card-aktivite
     // notification'ı tüm watcher'lara fan-out eder).
     await probe!.db.insert(cardMembers).values({
       cardId: fx.card.id,
@@ -339,10 +339,12 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
     const activity = await activityFor(fx, 'card.due_set', 'cardId', fx.card.id);
     expect(activity).toBeDefined();
 
-    // Watcher Bob'a in_app outbox satırı bekleniyor (watched_activity tipi).
-    const outbox = await outboxFor(fx.bob.id, 'watched_activity');
+    // Watcher Bob'a in_app outbox satırı bekleniyor. DEM-152 — `card.due_set`
+    // artık granular `card_due_changed` tipine yönlenir (eski `watched_activity`
+    // çöp kovası bölündü).
+    const outbox = await outboxFor(fx.bob.id, 'card_due_changed');
     expect(outbox.length).toBeGreaterThanOrEqual(1);
-    expect(outbox[0]).toMatchObject({ channel: 'in_app', type: 'watched_activity' });
+    expect(outbox[0]).toMatchObject({ channel: 'in_app', type: 'card_due_changed' });
   });
 
   it('permission rejection: workspace guest with no board access does NOT receive a notification', async () => {

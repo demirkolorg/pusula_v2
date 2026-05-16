@@ -116,6 +116,10 @@ export function CardDetailDialog({
       trpc.board.members.list.queryOptions({ boardId }),
       trpc.label.list.queryOptions({ boardId }),
       trpc.board.get.queryOptions({ boardId }),
+      // Faz 11D (DEM-150) — attachment list drives the "Ekler" tab counter +
+      // the cover-image picker; warm here so the sidebar/cover picker share
+      // one cache entry. Loads on its own (not part of the modal gate).
+      trpc.attachment.list.queryOptions({ cardId }),
     ],
   });
   const [
@@ -128,6 +132,7 @@ export function CardDetailDialog({
     boardMembersQ,
     boardLabelsQ,
     boardQ,
+    attachmentsQ,
   ] = queries;
 
   /**
@@ -294,7 +299,13 @@ export function CardDetailDialog({
   const addLabel = useMutation(trpc.card.labels.add.mutationOptions(onMutated));
   const removeLabel = useMutation(trpc.card.labels.remove.mutationOptions(onMutated));
   const createLabel = useMutation(trpc.label.create.mutationOptions(onMutated));
-  const createCoverUpload = useMutation(trpc.attachment.createUpload.mutationOptions());
+  // Faz 11B (DEM-148) — cover image upload now uses the two-phase commit:
+  // `initiate` reserves a draft row + presigned PUT, then `commit` stamps
+  // `committed_at` + emits the audit / fan-out. The cover-image link uses the
+  // committed row's id verbatim (legacy DEM-110 rows were backfilled by
+  // migration `0027`).
+  const initiateAttachment = useMutation(trpc.attachment.initiate.mutationOptions());
+  const commitAttachment = useMutation(trpc.attachment.commit.mutationOptions());
   const createChecklist = useMutation(trpc.checklist.create.mutationOptions(onMutated));
   const renameChecklist = useMutation(trpc.checklist.update.mutationOptions(onMutated));
   const deleteChecklist = useMutation(trpc.checklist.delete.mutationOptions(onMutated));
@@ -430,23 +441,38 @@ export function CardDetailDialog({
       return;
     }
     try {
-      const upload = await createCoverUpload.mutateAsync({
+      const initiated = await initiateAttachment.mutateAsync({
         cardId,
         fileName: file.name,
         mimeType,
         size: file.size,
+        clientMutationId: cmid(),
       });
-      const response = await fetch(upload.upload.url, {
+      // `initiated.upload.headers` carries both `content-type` and
+      // `content-length` (Faz 11B — DEM-148 / security H1): the presigned URL
+      // signs both, so the upload is rejected unless they match the request.
+      // The browser sets `Content-Length` itself from `body` (and cannot be
+      // overridden), keeping the signed size and the actual body in lock-step.
+      const response = await fetch(initiated.upload.url, {
         method: 'PUT',
-        headers: upload.upload.headers,
+        headers: initiated.upload.headers,
         body: file,
       });
       if (!response.ok) throw new Error(detailCopy.modal.coverImageUploadFailed);
 
-      pendingCoverImageRef.current = upload.attachment;
+      const committed = await commitAttachment.mutateAsync({
+        attachmentId: initiated.attachmentId,
+        clientMutationId: cmid(),
+      });
+      pendingCoverImageRef.current = {
+        attachmentId: committed.id,
+        fileName: committed.fileName,
+        mimeType: committed.mimeType,
+        size: committed.size,
+      };
       await updateCoverImage.mutateAsync({
         cardId,
-        coverImageAttachmentId: upload.attachment.attachmentId,
+        coverImageAttachmentId: committed.id,
       });
     } catch (err) {
       setCoverImageUploadError(
@@ -468,9 +494,47 @@ export function CardDetailDialog({
   };
 
   // --- Loading / error states ---------------------------------------------
-  // Activity loads on its own — the sidebar renders its own skeleton from
-  // `pending` — so it must not hold the whole modal in the loading state.
-  const isPending = queries.some((q) => q !== activityQ && q.isPending);
+  // Activity + attachments load on their own — the sidebar renders its own
+  // skeleton — so they must not hold the whole modal in the loading state.
+  const isPending = queries.some(
+    (q) => q !== activityQ && q !== attachmentsQ && q.isPending,
+  );
+  const attachmentList = (attachmentsQ.data ?? []) as {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    kind: string | null;
+    isCover: boolean;
+  }[];
+  const attachmentCount = attachmentList.length;
+  // Image attachments are eligible cover images (Faz 11D — DEM-150).
+  const coverImageOptions = useMemo(
+    () =>
+      attachmentList
+        .filter((row) => row.kind === 'image')
+        .map((row) => ({ id: row.id, fileName: row.fileName, isCover: row.isCover })),
+    [attachmentList],
+  );
+  // Pick an existing committed image attachment as the cover. Re-uses the
+  // `updateCoverImage` optimistic mutation; the picked row's metadata seeds
+  // `pendingCoverImageRef` so the optimistic patch shows the photo at once.
+  const selectCoverImageAttachment = useCallback(
+    (attachmentId: string) => {
+      const row = attachmentList.find((item) => item.id === attachmentId);
+      setCoverImageUploadError(null);
+      pendingCoverImageRef.current = row
+        ? {
+            attachmentId: row.id,
+            fileName: row.fileName,
+            mimeType: row.mimeType,
+            size: row.size,
+          }
+        : null;
+      updateCoverImage.mutate({ cardId, coverImageAttachmentId: attachmentId });
+    },
+    [attachmentList, cardId, updateCoverImage],
+  );
   const isNotFound =
     cardQ.isError &&
     (cardQ.error as { data?: { code?: string } } | null)?.data?.code === 'NOT_FOUND';
@@ -513,6 +577,7 @@ export function CardDetailDialog({
             </DialogDescription>
 
             <CardModalHeader
+              cardId={cardId}
               boardName={boardTitle}
               listName={listTitle}
               coverImage={card.coverImage ?? null}
@@ -625,11 +690,18 @@ export function CardDetailDialog({
                         onSelect={(next) => updateCoverColor.mutate({ cardId, coverColor: next })}
                         onImageSelect={uploadCoverImage}
                         onClearImage={clearCoverImage}
+                        imageAttachments={coverImageOptions}
+                        onCoverImageSelect={selectCoverImageAttachment}
                         pending={updateCoverColor.isPending}
-                        imagePending={createCoverUpload.isPending || updateCoverImage.isPending}
+                        imagePending={
+                          initiateAttachment.isPending ||
+                          commitAttachment.isPending ||
+                          updateCoverImage.isPending
+                        }
                         error={
                           coverImageUploadError ||
-                          errOf(createCoverUpload) ||
+                          errOf(initiateAttachment) ||
+                          errOf(commitAttachment) ||
                           errOf(updateCoverImage) ||
                           errOf(updateCoverColor)
                         }
@@ -728,9 +800,11 @@ export function CardDetailDialog({
 
               {/* Right panel ------------------------------------------------ */}
               <CardModalSidebar
+                cardId={cardId}
                 comments={commentsQ.data ?? []}
                 activity={activityQ.data ?? []}
                 activityPending={activityQ.isPending}
+                attachmentCount={attachmentCount}
                 activityError={
                   activityQ.isError ? activityQ.error?.message || strings.common.unknownError : null
                 }

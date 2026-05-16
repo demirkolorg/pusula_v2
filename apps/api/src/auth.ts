@@ -4,8 +4,13 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { count, eq, getDb, accounts, sessions, users, verifications, workspaces } from '@pusula/db';
 import { canDeleteOwnAccount, userImageUrlSchema, userNameSchema } from '@pusula/domain';
 import { bootstrapNewUser } from './bootstrap';
-import { sendResetPasswordEmail, sendVerificationEmail } from './auth-emails';
+import {
+  sendNewDeviceLoginEmail,
+  sendResetPasswordEmail,
+  sendVerificationEmail,
+} from './auth-emails';
 import { env } from './env';
+import { recordSessionDevice } from './known-devices';
 
 /**
  * Better Auth instance. Self-hosted, TypeScript-first; serves its own HTTP
@@ -135,6 +140,46 @@ export const auth = betterAuth({
         },
       },
     },
+    session: {
+      // Faz 10I (DEM-143) — Yeni cihazdan oturum güvenlik maili. Better Auth her
+      // başarılı login (e-posta+parola, OAuth, …) sonrası `sessions` satırını
+      // yazar; biz burada (user_agent, IP /24 veya /48 subnet) parmak izini
+      // `auth_known_devices`'a upsert ederiz. İlk görüşse Resend ile güvenlik
+      // maili gönderilir — bildirim outbox'tan **bağımsız** (security mail
+      // user'ın kanal tercihine bakmaz). Tamamen best-effort: helper / mail
+      // başarısız olursa login akışı bozulmaz.
+      //
+      // Detay: `./known-devices.ts` + `./auth-emails.ts:sendNewDeviceLoginEmail`,
+      // `docs/architecture/07-auth.md` (Yeni cihazda oturum maili — Faz 10I),
+      // `docs/architecture/15-bildirim-ayar-ekrani.md` §15.4 Section 8.
+      create: {
+        after: async (session) => {
+          try {
+            const result = await recordSessionDevice({
+              userId: session.userId,
+              userAgent: session.userAgent,
+              ip: session.ipAddress,
+            });
+            if (!result || !result.isNewDevice) return;
+            const userEmail = await getUserEmail(session.userId);
+            if (!userEmail) return;
+            await sendNewDeviceLoginEmail({
+              to: userEmail.email,
+              userName: userEmail.name,
+              userAgent: result.userAgentNormalized,
+              ipSubnet: result.ipSubnet,
+              loginAt: new Date(),
+              secureAccountUrl: `${env.APP_URL}/account?tab=security`,
+            });
+          } catch (error) {
+            console.error(
+              `[auth] new-device login notification failed for session ${session.id}:`,
+              error,
+            );
+          }
+        },
+      },
+    },
   },
 });
 
@@ -147,6 +192,25 @@ export const auth = betterAuth({
  * this) excludes archived workspaces — the count here is the authoritative one.
  * See `@pusula/domain` `canDeleteOwnAccount` and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
+/**
+ * Look up the user's email + display name for transactional auth mail. Returns
+ * `null` if the row is missing (race against deletion) or the lookup fails —
+ * the caller treats that as "skip the email" rather than throwing.
+ */
+async function getUserEmail(userId: string): Promise<{ email: string; name: string } | null> {
+  try {
+    const [row] = await getDb()
+      .select({ email: users.email, name: users.name })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row ?? null;
+  } catch (error) {
+    console.error(`[auth] failed to load user ${userId} for security email:`, error);
+    return null;
+  }
+}
+
 async function assertCanDeleteAccount(userId: string): Promise<void> {
   const [row] = await getDb()
     .select({ value: count() })

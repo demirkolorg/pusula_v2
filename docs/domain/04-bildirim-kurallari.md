@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-15
+updated: 2026-05-16
 ---
 
 # 04 — Bildirim Kuralları
@@ -52,6 +52,33 @@ updated: 2026-05-15
 | `due_overdue`                                  | Kart üyeleri                              | in-app + push + email (opt-in)                 | Due-date scheduler (geçmiş; bir kez)                                             |
 | `attachment.added`                             | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push                       | Faz 11; actor hariç; cooldown 60s; `attachment.removed` bildirim üretmez (düşük sinyal; activity feed'de görünür) |
 
+## Bildirim tipi taksonomisi (DEM-152)
+
+Activity event taksonomisi ince tanelidir; bildirim tipi taksonomisi (`NOTIFICATION_TYPES`,
+`@pusula/domain/constants.ts`) onu **alıcının önemsediği** kadar gruplar. Her tip UI'da
+kendi ikonu/rengi/özet metniyle görünür; `payload.activityType` her zaman taşınır
+(worker e-posta/push template'i + UI tam metni bunu kullanır).
+
+Faz 6A'da kart üzerindeki tüm hareketler tek `watched_activity` "çöp kovası" tipindeydi —
+kart taşıma, arşivleme, tamamlama, tarih, kapak, ek hepsi tek gri ikon + tek metinle
+gösteriliyordu. DEM-152 bunu **7 granular tipe** böldü (saf ayrıştırma — yeni tetikleyici
+veya kanal eklenmedi):
+
+| Bildirim tipi          | Üreten activity event(ler)i                                       | Kanal                          |
+| ---------------------- | ----------------------------------------------------------------- | ------------------------------ |
+| `card_moved`           | `card.moved`                                                      | in-app                         |
+| `card_archived`        | `card.archived`                                                   | in-app                         |
+| `card_completed`       | `card.completed` / `card.uncompleted`                             | in-app                         |
+| `card_due_changed`     | `card.due_set` / `card.due_cleared`                               | in-app                         |
+| `card_cover_changed`   | `card.cover_changed/cleared` + `card.cover_image_changed/cleared` | in-app                         |
+| `card_member_removed`  | `card.member_removed` (alıcı = karttan çıkarılan kişi)            | in-app                         |
+| `attachment_added`     | `attachment.added`                                                | in-app + push (opt-in)         |
+
+`watched_activity` enum değeri **silinmez** (Postgres enum append-only) ama artık hiçbir
+olay ona yönlenmez — yalnız geriye dönük/fallback değer olarak kalır. Atama, mention,
+yorum, due reminder, davet ve `member_removed`/`member_role_changed` tipleri DEM-152'den
+etkilenmez.
+
 ## Genel kurallar
 
 - **Actor self-skip:** Actor'ın kendisine bildirim **gönderilmez** (kendi yaptığın işten bildirim almazsın).
@@ -79,9 +106,10 @@ Tercihler workspace / board / card seviyesinde tutulur (`user_id, workspace_id?,
 - **mute_level:** o kapsamdaki bildirimleri kıs/sustur. Tam mute'ta bile **mention** ve **doğrudan davet** geçer.
 - **mention_only:** o kapsamda yalnızca mention bildirimleri gelir.
 - **push_enabled / email_enabled:** ilgili kanalı aç/kapat (in-app her zaman üretilir; sadece push/email teslimi tercihe bağlı).
+- **mute_until** (Faz 10H — DEM-142): kart-scope satırında geçici snooze. `> NOW()` iken `mute_level='all'` davranışı uygulanır (mute-bypass tipler hâlâ geçer); süresi dolunca otomatik açılır, satır audit için silinmez. Yalnız kart kapsamında set edilir; üst kapsam satırlarında değer tutulsa bile rule engine yalnız kart kapsamı dahilinde dikkate alır (narrowest-scope-wins kart satırını seçer).
 - Watcher'lık otomatik kazanılabilir (örn. karta yorum yapınca veya atanınca) ama kullanıcı kartı "unwatch" edebilir.
 
-**Faz 6 kapsamı:** tablo + API hazır; **kullanıcı arayüzü (tercih ekranı) Faz 6'da yok** — varsayılan tercihler (in-app her zaman + push/email opt-in) ile çalışır. Tercih ekranı sonraki tur (Faz 7/8) veya kullanıcı talebiyle.
+**Faz 6 kapsamı:** tablo + rule engine + outbox + worker hattı hazır; **kullanıcı arayüzü (tercih ekranı) Faz 6'da yok** — varsayılan tercihler (in-app her zaman + push/email opt-in + global default açık) ile çalışır. **Faz 10'da implement edilir** ([DEM-133](https://linear.app/demirkol/issue/DEM-133); `notifications.preferences.*` tRPC procedure'leri Faz 10B, UI Faz 10C-10E, gelişmiş özellikler 10F/G/H). Tasarım anatomisi → [`../architecture/15-bildirim-ayar-ekrani.md`](../architecture/15-bildirim-ayar-ekrani.md); backend procedure imzaları → [`../architecture/06-bildirim-altyapisi.md`](../architecture/06-bildirim-altyapisi.md) "Notification preferences API".
 
 ## Sıralama / öncelik
 
@@ -123,14 +151,35 @@ Edge case'ler:
 - Mention parser
 - Faz 5 outbox pattern'i comment/checklist/label/member mutation'larına genişletme (realtime kart detay sync)
 
-**Bu fazda implement edilmez (sonraki tur):**
+**Bu fazda implement edilmez (sonraki turlara aktarıldı):**
 
-- Notification tercih/ayarlar ekranı UI (varsayılan tercihlerle çalışır)
-- Email digest (saatlik/günlük özet)
-- Slack/Teams entegrasyonu
-- Notification rich content (action buttons, deep link payload zenginleştirme)
-- Mobile push gerçek cihaz testi — Faz 7
-- Search index notification (kim hangi içerikte arama yapabilir?) — Faz 6.5
+- **Notification tercih/ayarlar ekranı UI** → **Faz 10** ([DEM-133](https://linear.app/demirkol/issue/DEM-133)). Tablo + rule engine + outbox + worker hattı Faz 6'da hazır; `notifications.preferences.*` tRPC procedure'leri Faz 10B, UI Faz 10C-10E. Tasarım → [`../architecture/15-bildirim-ayar-ekrani.md`](../architecture/15-bildirim-ayar-ekrani.md).
+- **Email digest (saatlik/günlük özet)** → Faz 10G ([DEM-141](https://linear.app/demirkol/issue/DEM-141)). `notification_preferences.email_mode` enum + `notification-email-digest` worker job.
+- **Quiet hours (sessiz saatler)** → Faz 10F ([DEM-140](https://linear.app/demirkol/issue/DEM-140)). `notification_preferences` üstüne `quiet_from`/`quiet_to`/`quiet_timezone` + worker filter.
+- **Snooze (kart bazında geçici sustur)** → Faz 10H ([DEM-142](https://linear.app/demirkol/issue/DEM-142)). `notification_preferences.mute_until` + kart detay UI dropdown.
+- **Yeni cihazda oturum güvenlik maili** → Faz 10I ([DEM-143](https://linear.app/demirkol/issue/DEM-143)). Notification outbox'tan bağımsız (Better Auth login hook).
+- Slack/Teams entegrasyonu — açıkça istenmeden açılmaz.
+- Notification rich content (action buttons, deep link payload zenginleştirme) — Faz 11+ / ayrı iş.
+- Mobile push gerçek cihaz testi — Faz 7.
+- Search index notification (kim hangi içerikte arama yapabilir?) — Faz 6.5.
+
+## Bilinen açıklar (Faz 10A — DEM-135'te kapanır)
+
+Faz 6A bazı mutation'larda `activity_events` insert ediyor ama `dispatchNotificationsForActivity(tx, activityEvent)` çağrısı **eksik kaldı**. Rule engine bu activity tiplerini destekliyor ya da kolay desteklenebilir; çağrı düşmediği için kullanıcı için "sessiz" UX yaşanıyor. Faz 10A bu 5 boşluğu kapatır.
+
+| Mutation | Activity tipi | Şu an | Olması gereken (Faz 10A) | Notification tipi |
+|----------|---------------|-------|--------------------------|-------------------|
+| `card.update` (cover color) | `card.cover_changed` / `card.cover_cleared` | activity var, dispatch yok | watcher'lar in-app | `watched_activity` |
+| `card.update` (cover image) | `card.cover_image_changed` / `card.cover_image_cleared` | activity var, dispatch yok | watcher'lar in-app | `watched_activity` |
+| `card.members.remove` | `card.member_removed` | activity var, dispatch yok | **çıkarılan kişiye** in-app (karta erişimi kaybetti) | `watched_activity` |
+| `board.members.remove` | `board.member_removed` | activity var, dispatch yok | **çıkarılan kişiye** in-app + email | yeni `member_removed` |
+| `board.members.updateRole` | `board.member_role_changed` | activity var, dispatch yok | **rolü değişen kişiye** in-app | yeni `member_role_changed` |
+| `workspace.removeMember` | `workspace.member_removed` | activity var, dispatch yok | **çıkarılan kişiye** in-app + email | yeni `member_removed` |
+| `workspace.updateMemberRole` | `workspace.member_role_changed` | activity var, dispatch yok | **rolü değişen kişiye** in-app | yeni `member_role_changed` |
+
+**Permission filter istisnası:** `card.member_removed` ve `board.member_removed` özel — alıcı **artık o kaynağa erişimi yok**. Rule engine permission filter'ı (`notification-rules.ts collectRecipients`) bu kişileri normalde atar. 10A bu tipler için filter atlamalı: "karttan/board'dan çıkarıldın" bildirimi mantıken **erişim kaybedildikten sonra** gider. Implementation: tip kontrolü (`member_removed` tiplerinde recipient board/workspace üye olmasa bile geçer).
+
+Detay akış + email template'leri → [`../architecture/06-bildirim-altyapisi.md`](../architecture/06-bildirim-altyapisi.md) "Faz 6 dispatch açıkları" bölümü.
 
 ## Test stratejisi (özet — detay Faz 6E / DEM-94)
 

@@ -1,5 +1,6 @@
 import { getDb, type Database } from '@pusula/db';
 import type { RealtimeEventEnvelope } from '@pusula/domain';
+import type { EnqueueAttachmentCleanup } from './lib/attachment-cleanup';
 import type { EnqueueCompaction } from './lib/compaction';
 import type { EnqueueNotificationPublish } from './lib/notification-outbox';
 import type { ObjectStorage } from './lib/object-storage';
@@ -79,6 +80,15 @@ export interface CreateContextOptions {
    * stragglers anyway). See `lib/notification-outbox.ts`.
    */
   enqueueNotificationPublish?: EnqueueNotificationPublish;
+  /**
+   * Best-effort hook to enqueue a `pusula-attachment-cleanup` job after the
+   * `attachment.delete` mutation tx commits (Faz 11C — DEM-149). The host
+   * (`apps/api`) wires this to the BullMQ producer; omitted in tests / Next
+   * route handlers → enqueue is a no-op (the 60 min sweeper in `apps/worker`
+   * cleans up draft rows + their storage objects regardless). See
+   * `lib/attachment-cleanup.ts`.
+   */
+  enqueueAttachmentCleanup?: EnqueueAttachmentCleanup;
   /** Host-provided object storage adapter for presigned attachment URLs. */
   objectStorage?: ObjectStorage;
 }
@@ -97,6 +107,8 @@ export interface Context {
   enqueueRealtimePublish?: EnqueueRealtimePublish;
   /** See `CreateContextOptions.enqueueNotificationPublish`. `undefined` ⇒ enqueue no-op. */
   enqueueNotificationPublish?: EnqueueNotificationPublish;
+  /** See `CreateContextOptions.enqueueAttachmentCleanup`. `undefined` ⇒ enqueue no-op. */
+  enqueueAttachmentCleanup?: EnqueueAttachmentCleanup;
   /** See `CreateContextOptions.objectStorage`. */
   objectStorage?: ObjectStorage;
   /**
@@ -125,6 +137,7 @@ export function createContext(opts: CreateContextOptions): Context {
     realtime: opts.realtime,
     enqueueRealtimePublish: opts.enqueueRealtimePublish,
     enqueueNotificationPublish: opts.enqueueNotificationPublish,
+    enqueueAttachmentCleanup: opts.enqueueAttachmentCleanup,
     objectStorage: opts.objectStorage,
     // The `enforceClientMutationId` middleware overwrites this for every
     // protected procedure call; explicit default keeps the shape stable for
@@ -134,6 +147,10 @@ export function createContext(opts: CreateContextOptions): Context {
   };
 }
 
+export type {
+  AttachmentCleanupJobInput,
+  EnqueueAttachmentCleanup,
+} from './lib/attachment-cleanup';
 export type { CompactionScope, EnqueueCompaction } from './lib/compaction';
 export type { EnqueueNotificationPublish } from './lib/notification-outbox';
 export type { CoverImage, ObjectStorage } from './lib/object-storage';

@@ -72,6 +72,10 @@ type OutboxRow = {
   recipientId: string | null;
   type: string;
   payload: unknown;
+  // Faz 10G (DEM-141): `'digest_queued'` damgalı satırlar email kanal
+  // kuyruğuna push edilmez (digest worker bunları toplu olarak işler).
+  // Burada okuyup `dispatchOutboxRow` içinde skip kararı veriyoruz.
+  status: string;
   processedAt: Date | null;
   createdAt: Date;
 };
@@ -114,6 +118,7 @@ export async function processNotificationPublishJob(
         recipientId: notificationOutbox.recipientId,
         type: notificationOutbox.type,
         payload: notificationOutbox.payload,
+        status: notificationOutbox.status,
         processedAt: notificationOutbox.processedAt,
         createdAt: notificationOutbox.createdAt,
       })
@@ -215,6 +220,16 @@ async function dispatchOutboxRow(
       });
     }
   } else if (row.channel === 'email') {
+    // Faz 10G (DEM-141): `digest_queued` damgalı satırları digest worker
+    // (`notification-email-digest.ts`) recipient bazlı toplar — burada
+    // email kanal kuyruğuna push etmiyoruz. Satır `processed_at` boş
+    // kalır (digest worker stamp eder); 60 s sweeper bu satırları
+    // yeniden buraya getirir ama yine aynı dalda skip edilirler — net
+    // sonuç: digest worker tick'leyene kadar sessiz dolaşırlar, ek
+    // yük yaratmazlar (status filtresi index'li).
+    if (row.status === 'digest_queued') {
+      return 'skipped';
+    }
     if (enqueuers.enqueueEmail) {
       try {
         await enqueuers.enqueueEmail(row.id);

@@ -8,9 +8,18 @@ import { AppSpinner } from '@/components/app-spinner';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { AccountTabs } from './_components/account-tabs';
 import { ChangePasswordForm } from './_components/change-password-form';
 import { DeleteAccountSection } from './_components/delete-account-section';
+import { NotificationsChannelsForm } from './_components/notifications-channels-form';
+import { NotificationsDevicesList } from './_components/notifications-devices-list';
+import { NotificationsDigestForm } from './_components/notifications-digest-form';
+import { NotificationsQuietHoursForm } from './_components/notifications-quiet-hours-form';
+import { NotificationsScopeTree } from './_components/notifications-scope-tree';
+import { NotificationsSnoozeList } from './_components/notifications-snooze-list';
+import { NotificationsTypeMatrix } from './_components/notifications-type-matrix';
 import { ProfileForm } from './_components/profile-form';
+import { SecurityActivitySection } from './_components/security-activity-section';
 
 /**
  * `(app)/account` — self-service account settings: name + avatar URL, change
@@ -129,28 +138,46 @@ export default function AccountPage() {
         <p className="text-muted-foreground text-sm">{strings.account.pageDescription}</p>
       </div>
 
-      <ProfileForm
-        initialName={user.name}
-        initialImage={user.image ?? null}
-        email={user.email}
-        pending={profilePending}
-        error={profileError}
-        success={profileSuccess}
-        onSubmit={handleProfileSubmit}
-      />
-
-      <ChangePasswordForm
-        pending={passwordPending}
-        error={passwordError}
-        success={passwordSuccess}
-        onSubmit={handlePasswordSubmit}
-      />
-
-      <DeleteAccountSection
-        ownedWorkspaceCount={ownedWorkspaceCount}
-        pending={deletePending}
-        error={deleteError}
-        onDelete={handleDelete}
+      <AccountTabs
+        profile={
+          <ProfileForm
+            initialName={user.name}
+            initialImage={user.image ?? null}
+            email={user.email}
+            pending={profilePending}
+            error={profileError}
+            success={profileSuccess}
+            onSubmit={handleProfileSubmit}
+          />
+        }
+        security={
+          <>
+            <ChangePasswordForm
+              pending={passwordPending}
+              error={passwordError}
+              success={passwordSuccess}
+              onSubmit={handlePasswordSubmit}
+            />
+            <SecurityActivitySection />
+            <DeleteAccountSection
+              ownedWorkspaceCount={ownedWorkspaceCount}
+              pending={deletePending}
+              error={deleteError}
+              onDelete={handleDelete}
+            />
+          </>
+        }
+        notifications={
+          <>
+            <NotificationsChannelsForm />
+            <NotificationsTypeMatrix />
+            <NotificationsQuietHoursForm />
+            <NotificationsDigestForm />
+            <NotificationsScopeTree />
+            <NotificationsSnoozeList />
+            <NotificationsDevicesList />
+          </>
+        }
       />
     </div>
   );

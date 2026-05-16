@@ -52,12 +52,40 @@ export function activitySummary(type: string, payload: unknown): string {
       return copy.workspaceMemberInvited(
         text(p, 'workspaceName') ?? strings.notifications.fallbackWorkspaceName,
       );
+    // DEM-152 — granular kart-aktivite tipleri. Her tip kendi özet metniyle;
+    // iki activity tipi tek bildirim tipini paylaştığında (`card_completed`,
+    // `card_due_changed`) `activityType` payload alanı doğru fiili seçer.
+    case 'card_moved':
+    case 'card.moved':
+      return copy.cardMoved(cardTitle(p));
+    case 'card_archived':
+      return copy.cardArchived(cardTitle(p));
+    case 'card_completed':
+      return text(p, 'activityType') === 'card.uncompleted'
+        ? copy.cardUncompleted(cardTitle(p))
+        : copy.cardCompleted(cardTitle(p));
+    case 'card_due_changed':
+      return text(p, 'activityType') === 'card.due_cleared'
+        ? copy.cardDueCleared(cardTitle(p))
+        : copy.cardDueSet(cardTitle(p));
+    case 'card_cover_changed':
+      return copy.cardCoverChanged(cardTitle(p));
+    case 'card_member_removed':
+    case 'card.member_removed':
+      return copy.cardMemberRemoved(cardTitle(p));
+    case 'attachment_added':
+    case 'attachment.added':
+      return copy.attachmentAdded(cardTitle(p));
+    // `watched_activity` artık üretilmiyor (DEM-152) ama eski satırlar için
+    // fallback olarak korunur — `activityType`'a göre çözer.
     case 'watched_activity':
       switch (text(p, 'activityType')) {
         case 'card.archived':
           return copy.cardArchived(cardTitle(p));
         case 'card.completed':
           return copy.cardCompleted(cardTitle(p));
+        case 'card.moved':
+          return copy.cardMoved(cardTitle(p));
         default:
           return copy.watchedActivity(cardTitle(p));
       }

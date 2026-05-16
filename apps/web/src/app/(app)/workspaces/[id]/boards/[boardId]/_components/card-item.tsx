@@ -91,6 +91,8 @@ export type BoardCard = {
   checklistDone: number;
   /** Non-deleted comment count (`board.get`). */
   commentCount: number;
+  /** Committed-only attachment count — drafts excluded (`board.get`, Faz 11B). */
+  attachmentCount?: number;
   /** Card members - name + image + role only, never e-mail (`board.get`). May be empty. */
   members: CardMember[];
 };
@@ -331,7 +333,10 @@ export function CardItem({
     onConflict,
     onMutationError,
   });
-  const createCoverUpload = useMutation(trpc.attachment.createUpload.mutationOptions());
+  // Faz 11B (DEM-148) — cover image now uses two-phase commit (`initiate` +
+  // `commit`). The cover-image link points to the committed row's `id`.
+  const initiateAttachment = useMutation(trpc.attachment.initiate.mutationOptions());
+  const commitAttachment = useMutation(trpc.attachment.commit.mutationOptions());
 
   const invalidateBoardCardData = async () => {
     await queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
@@ -370,7 +375,8 @@ export function CardItem({
   }
   const selectedDueKey = toDateInputValue(card.dueAt);
   const dueOptions = dueQuickOptions();
-  const imageControlsDisabled = createCoverUpload.isPending || updateCard.isPending;
+  const imageControlsDisabled =
+    initiateAttachment.isPending || commitAttachment.isPending || updateCard.isPending;
 
   const toggleLabel = (labelId: string) => {
     const vars = { cardId: card.id, labelId, clientMutationId: crypto.randomUUID() };
@@ -407,23 +413,33 @@ export function CardItem({
     }
 
     try {
-      const upload = await createCoverUpload.mutateAsync({
+      const initiated = await initiateAttachment.mutateAsync({
         cardId: card.id,
         fileName: file.name,
         mimeType,
         size: file.size,
+        clientMutationId: crypto.randomUUID(),
       });
-      const response = await fetch(upload.upload.url, {
+      const response = await fetch(initiated.upload.url, {
         method: 'PUT',
-        headers: upload.upload.headers,
+        headers: initiated.upload.headers,
         body: file,
       });
       if (!response.ok) throw new Error(menuCopy.coverImageUploadFailed);
 
-      pendingCoverImageRef.current = upload.attachment;
+      const committed = await commitAttachment.mutateAsync({
+        attachmentId: initiated.attachmentId,
+        clientMutationId: crypto.randomUUID(),
+      });
+      pendingCoverImageRef.current = {
+        attachmentId: committed.id,
+        fileName: committed.fileName,
+        mimeType: committed.mimeType,
+        size: committed.size,
+      };
       await updateCard.mutateAsync({
         cardId: card.id,
-        coverImageAttachmentId: upload.attachment.attachmentId,
+        coverImageAttachmentId: committed.id,
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : menuCopy.coverImageUploadFailed);
@@ -504,6 +520,7 @@ export function CardItem({
           dueAt={card.dueAt}
           labelCount={card.labels.length}
           commentCount={card.commentCount}
+          attachmentCount={card.attachmentCount}
           members={card.members}
         />
       </div>

@@ -178,7 +178,60 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
   });
 
-  it('card.cover_image_changed → watchers get watched_activity in_app rows', async () => {
+  it('attachment.added → watchers get attachment_added, in_app + push (DEM-152)', async () => {
+    // Kart watcher pool fan-out + push opt-in default. Email kanali yok
+    // (brief: channels=['in_app','push']). DEM-152 — `watched_activity` çöp
+    // kovası granular `attachment_added` tipine bölündü; kanal davranışı aynı.
+    const event: ActivityEventForRules = {
+      id: newId('ae-att-added'),
+      type: 'attachment.added',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: {
+        attachmentId: newId('att'),
+        fileName: 'rapor.pdf',
+        mimeType: 'application/pdf',
+        size: 12345,
+        hasDescription: false,
+      },
+    };
+    const rules = await computeNotifications(db(), event);
+    // Unique recipient: only the watcher (actor self-skipped).
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'attachment_added')).toBe(true);
+    const channels = rules
+      .filter((r) => r.recipientUserId === watcherId)
+      .map((r) => r.channel)
+      .sort();
+    // in_app + push (push push-by-type listesinde; email yok)
+    expect(channels).toEqual(['in_app', 'push']);
+    // Payload whitelist: attachmentId + fileName notification payload'una geçer.
+    const watcherRule = rules.find((r) => r.recipientUserId === watcherId && r.channel === 'in_app');
+    expect(watcherRule?.payload).toMatchObject({
+      activityType: 'attachment.added',
+      notificationType: 'attachment_added',
+      attachmentId: expect.any(String),
+      fileName: 'rapor.pdf',
+    });
+  });
+
+  it('attachment.removed → no rules emitted (mapEventToNotificationType returns null)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-att-removed'),
+      type: 'attachment.removed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { attachmentId: newId('att'), fileName: 'rapor.pdf' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules).toEqual([]);
+  });
+
+  it('card.cover_image_changed → watchers get card_cover_changed in_app rows', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-cover-image'),
       type: 'card.cover_image_changed',
@@ -190,7 +243,7 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     };
     const rules = await computeNotifications(db(), event);
     expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
-    expect(rules.every((r) => r.type === 'watched_activity')).toBe(true);
+    expect(rules.every((r) => r.type === 'card_cover_changed')).toBe(true);
     expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
   });
 
@@ -258,5 +311,285 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     };
     const rules = await computeNotifications(db(), event);
     expect(rules).toEqual([]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Faz 10A (DEM-135) — dispatch açıkları kapatma turu.
+  // ─────────────────────────────────────────────────────────────────────
+
+  it('card.cover_changed → watchers get card_cover_changed in_app rows (Faz 10A / DEM-152)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-cover'),
+      type: 'card.cover_changed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, coverColor: 'red' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'card_cover_changed')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
+  it('card.member_removed → removed user (no card seat) still receives in_app (Faz 10A — permission-filter exception)', async () => {
+    // Bu sahnede `guestNoSeatId` karta üye değil — `card_members`'ta hiç
+    // bulunmadığı için recipient havuzuna `payload.removedUserId` üzerinden
+    // doğrudan girer. Permission filter normalde guest'i atardı; 10A bu
+    // tip için filter'ı atlatıyor.
+    const event: ActivityEventForRules = {
+      id: newId('ae-card-removed'),
+      type: 'card.member_removed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, removedUserId: guestNoSeatId, role: 'assignee' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules.map((r) => r.recipientUserId)).toEqual([guestNoSeatId]);
+    expect(rules.every((r) => r.type === 'card_member_removed')).toBe(true);
+    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+  });
+
+  it('board.member_removed → removed user (no board membership) still receives in_app + email (Faz 10A)', async () => {
+    // `outsiderId` board'a hiç üye olmadı — normal akış permission filter
+    // ile düşürürdü. 10A `member_removed` için filter atlanıyor.
+    const event: ActivityEventForRules = {
+      id: newId('ae-board-removed'),
+      type: 'board.member_removed',
+      workspaceId,
+      boardId,
+      cardId: null,
+      actorId,
+      payload: { removedUserId: outsiderId, removedRole: 'member' },
+    };
+    const rules = await computeNotifications(db(), event);
+    const channels = rules
+      .filter((r) => r.recipientUserId === outsiderId)
+      .map((r) => r.channel)
+      .sort();
+    expect(channels).toEqual(['email', 'in_app']);
+    expect(rules.every((r) => r.type === 'member_removed')).toBe(true);
+  });
+
+  it('workspace.member_removed → removed user receives in_app + email (no boardId, Faz 10A)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-ws-removed'),
+      type: 'workspace.member_removed',
+      workspaceId,
+      boardId: null,
+      cardId: null,
+      actorId,
+      payload: { removedUserId: outsiderId, removedRole: 'member' },
+    };
+    const rules = await computeNotifications(db(), event);
+    const channels = rules
+      .filter((r) => r.recipientUserId === outsiderId)
+      .map((r) => r.channel)
+      .sort();
+    expect(channels).toEqual(['email', 'in_app']);
+    expect(rules.every((r) => r.type === 'member_removed')).toBe(true);
+  });
+
+  it('board.member_role_changed → target user receives in_app only (Faz 10A; no mute-bypass, no email default)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-board-role'),
+      type: 'board.member_role_changed',
+      workspaceId,
+      boardId,
+      cardId: null,
+      actorId,
+      payload: { targetUserId: assigneeId, fromRole: 'member', toRole: 'admin' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules.map((r) => r.recipientUserId)).toEqual([assigneeId]);
+    expect(rules.every((r) => r.type === 'member_role_changed')).toBe(true);
+    expect(rules.map((r) => r.channel)).toEqual(['in_app']);
+  });
+
+  it('workspace.member_role_changed → target user receives in_app only (no boardId, Faz 10A)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-ws-role'),
+      type: 'workspace.member_role_changed',
+      workspaceId,
+      boardId: null,
+      cardId: null,
+      actorId,
+      payload: { targetUserId: assigneeId, fromRole: 'member', toRole: 'admin' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules.map((r) => r.recipientUserId)).toEqual([assigneeId]);
+    expect(rules.every((r) => r.type === 'member_role_changed')).toBe(true);
+    expect(rules.map((r) => r.channel)).toEqual(['in_app']);
+  });
+
+  it('member_removed actor self-skip: çıkaran kişi kendi olduğunda alıcı kendisi olamaz (Faz 10A)', async () => {
+    // Kullanıcı kendi kendini board'dan çıkarıyor → çıkarılan kişi = actor
+    // → actor self-skip uygulanır → 0 satır üretilir. "Kendine 'çıkarıldın'
+    // bildirimi gitmez" garantisi.
+    const event: ActivityEventForRules = {
+      id: newId('ae-board-self'),
+      type: 'board.member_removed',
+      workspaceId,
+      boardId,
+      cardId: null,
+      actorId: assigneeId,
+      payload: { removedUserId: assigneeId, removedRole: 'member', self: true },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules).toEqual([]);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Faz 10H (DEM-142) — Snooze: kart bazında geçici sustur.
+  // ─────────────────────────────────────────────────────────────────────
+
+  it('snooze aktif (mute_until > now) + comment.created → bildirim üretilmez (Faz 10H)', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000); // +1 saat
+    await db().insert(notificationPreferences).values({
+      userId: watcherId,
+      cardId,
+      muteUntil: future,
+    });
+    try {
+      const event: ActivityEventForRules = {
+        id: newId('ae-snooze'),
+        type: 'comment.created',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { commentId: newId('cm'), cardId },
+      };
+      const rules = await computeNotifications(db(), event);
+      // Watcher snooze'lu, dolayısıyla hiç bildirim üretmez. Diğer alıcı yok.
+      expect(rules).toEqual([]);
+    } finally {
+      await db()
+        .delete(notificationPreferences)
+        .where(
+          dbMod.and(
+            dbMod.eq(notificationPreferences.userId, watcherId),
+            dbMod.eq(notificationPreferences.cardId, cardId),
+          ),
+        );
+    }
+  });
+
+  it('snooze aktif + comment.mentioned → mute-bypass çalışır, bildirim gider (Faz 10H)', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    await db().insert(notificationPreferences).values({
+      userId: assigneeId,
+      cardId,
+      muteUntil: future,
+    });
+    try {
+      const event: ActivityEventForRules = {
+        id: newId('ae-snooze-mention'),
+        type: 'comment.mentioned',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { commentId: newId('cm'), mentionedUserId: assigneeId },
+      };
+      const rules = await computeNotifications(db(), event);
+      // Mention mute-bypass tipinde; snooze'a rağmen tüm kanallarda geçer
+      // (in_app + email + push — pickChannels mention için 3 satır üretir).
+      expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([assigneeId]);
+      expect(rules.every((r) => r.type === 'mention')).toBe(true);
+      expect(rules.some((r) => r.channel === 'in_app')).toBe(true);
+    } finally {
+      await db()
+        .delete(notificationPreferences)
+        .where(
+          dbMod.and(
+            dbMod.eq(notificationPreferences.userId, assigneeId),
+            dbMod.eq(notificationPreferences.cardId, cardId),
+          ),
+        );
+    }
+  });
+
+  it('snooze süresi dolmuş (mute_until < now) → bildirim normal şekilde üretilir (Faz 10H)', async () => {
+    const past = new Date(Date.now() - 60 * 1000); // 1 dakika önce dolmuş
+    await db().insert(notificationPreferences).values({
+      userId: watcherId,
+      cardId,
+      muteUntil: past,
+    });
+    try {
+      const event: ActivityEventForRules = {
+        id: newId('ae-snooze-expired'),
+        type: 'comment.created',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { commentId: newId('cm'), cardId },
+      };
+      const rules = await computeNotifications(db(), event);
+      expect(rules.map((r) => r.recipientUserId)).toEqual([watcherId]);
+      expect(rules.every((r) => r.type === 'comment_reply')).toBe(true);
+    } finally {
+      await db()
+        .delete(notificationPreferences)
+        .where(
+          dbMod.and(
+            dbMod.eq(notificationPreferences.userId, watcherId),
+            dbMod.eq(notificationPreferences.cardId, cardId),
+          ),
+        );
+    }
+  });
+
+  it('snooze + muteLevel=all aynı satırda → her iki yol da mute, mute-bypass tipler hâlâ geçer (Faz 10H)', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    await db().insert(notificationPreferences).values({
+      userId: assigneeId,
+      cardId,
+      muteLevel: 'all',
+      muteUntil: future,
+    });
+    try {
+      // Normal tip → boş.
+      const commentEvent: ActivityEventForRules = {
+        id: newId('ae-snooze-mute-all'),
+        type: 'card.member_added',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { cardId, userId: assigneeId, role: 'assignee' },
+      };
+      const r1 = await computeNotifications(db(), commentEvent);
+      expect(r1).toEqual([]);
+
+      // Mention → bypass; her iki kontrol de mute olsa bile geçer.
+      const mentionEvent: ActivityEventForRules = {
+        id: newId('ae-snooze-mute-mention'),
+        type: 'comment.mentioned',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { commentId: newId('cm'), mentionedUserId: assigneeId },
+      };
+      const r2 = await computeNotifications(db(), mentionEvent);
+      // Mention bypass — tüm kanallarda gönderilir (in_app + email + push).
+      expect([...new Set(r2.map((r) => r.recipientUserId))]).toEqual([assigneeId]);
+      expect(r2.every((r) => r.type === 'mention')).toBe(true);
+    } finally {
+      await db()
+        .delete(notificationPreferences)
+        .where(
+          dbMod.and(
+            dbMod.eq(notificationPreferences.userId, assigneeId),
+            dbMod.eq(notificationPreferences.cardId, cardId),
+          ),
+        );
+    }
   });
 });

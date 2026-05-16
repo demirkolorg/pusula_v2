@@ -30,6 +30,15 @@ const envSchema = z.object({
     .enum(['0', '1', 'false', 'true'])
     .default('0')
     .transform((value) => value === '1' || value === 'true'),
+  // Faz 11C (DEM-149) — S3/MinIO settings shared with `apps/api`. The worker
+  // needs them for the `pusula-attachment-cleanup` queue (delete trigger +
+  // orphan sweep `DeleteObjectCommand`). Same defaults as the API host so
+  // dev/CI keep working without explicit env wiring.
+  S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: z.string().min(1).default('pusula'),
+  S3_ACCESS_KEY_ID: z.string().min(1).default('pusula'),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).default('pusula-secret'),
 });
 
 export const env = envSchema.parse(process.env);

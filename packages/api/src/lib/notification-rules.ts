@@ -120,12 +120,13 @@ export async function computeNotifications(
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * Which slot in `NOTIFICATION_TYPES` does an activity event roll up to? Note
- * the domain notification taxonomy is intentionally coarser than the activity
- * taxonomy — e.g. all `card.completed` / `card.uncompleted` / `card.archived`
- * / `card.moved` events report as `watched_activity` so the UI can group them
- * under one "kart üzerinde aktivite" badge. The activity *type* is carried in
- * the payload (`activityType`) so the worker still picks a precise i18n key.
+ * Which slot in `NOTIFICATION_TYPES` does an activity event roll up to? The
+ * notification taxonomy is still coarser than the activity taxonomy in places
+ * (`card.completed` + `card.uncompleted` both report `card_completed`), but
+ * DEM-152 split the old `watched_activity` catch-all into seven granular
+ * card-activity types so the UI can show a distinct icon + copy per kind. The
+ * activity *type* is still carried in the payload (`activityType`) so the
+ * worker can pick a precise i18n key (e.g. completed vs uncompleted).
  */
 function mapEventToNotificationType(event: ActivityEventForRules): NotificationType | null {
   switch (event.type) {
@@ -135,15 +136,27 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
       return 'comment_reply';
     case 'comment.mentioned':
       return 'mention';
-    case 'card.due_set':
-    case 'card.due_cleared':
+    // DEM-152 — `watched_activity` "çöp kovası" 7 granular tipe bölündü.
+    // Saf ayrıştırma: recipient hesabı (`collectRecipients` aşağıda hâlâ bu
+    // event'leri kart watcher pool'una toplar) + kanal seçimi değişmedi;
+    // değişen yalnız bildirim *tipi* — UI her tip için ayrı ikon/metin.
+    case 'card.moved':
+      return 'card_moved';
+    case 'card.archived':
+      return 'card_archived';
     case 'card.completed':
     case 'card.uncompleted':
-    case 'card.archived':
-    case 'card.moved':
+      return 'card_completed';
+    case 'card.due_set':
+    case 'card.due_cleared':
+      return 'card_due_changed';
+    case 'card.cover_changed':
+    case 'card.cover_cleared':
     case 'card.cover_image_changed':
     case 'card.cover_image_cleared':
-      return 'watched_activity';
+      return 'card_cover_changed';
+    case 'attachment.added': // Faz 11B (DEM-148) — kart eki commit; push opt-in default
+      return 'attachment_added';
     case 'checklist.item_checked':
       return 'checklist_item_completed';
     case 'board.member_added':
@@ -152,6 +165,21 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
       // top so the recipient sees the membership in their notification
       // centre, not just in their inbox.
       return 'board_invitation';
+    case 'card.member_removed':
+      // Faz 10A (DEM-135) — alıcı **çıkarılan kullanıcı** (payload.userId);
+      // permission filter atlar (artık karta erişimi yok). `collectRecipients`
+      // aşağıda özel branch işler. DEM-152 — granular `card_member_removed`.
+      return 'card_member_removed';
+    case 'board.member_removed':
+    case 'workspace.member_removed':
+      // Faz 10A (DEM-135) — alıcı **çıkarılan kullanıcı**; in-app + email.
+      // Permission filter atlanır (alıcı artık board/workspace üyesi değil).
+      return 'member_removed';
+    case 'board.member_role_changed':
+    case 'workspace.member_role_changed':
+      // Faz 10A (DEM-135) — alıcı **rolü değişen kullanıcı**; in-app.
+      // Alıcı hâlâ üye olduğu için normal permission filter geçer.
+      return 'member_role_changed';
     default:
       return null;
   }
@@ -263,7 +291,10 @@ async function collectRecipients(
     case 'card.moved':
     case 'card.cover_image_changed':
     case 'card.cover_image_cleared':
+    case 'card.cover_changed': // Faz 10A (DEM-135) — kapak rengi watcher pool
+    case 'card.cover_cleared':
     case 'checklist.item_checked':
+    case 'attachment.added': // Faz 11B (DEM-148) — kart eki watcher pool
       // The card's watcher pool — assignees + watchers. The actor is removed
       // below.
       for (const userId of ctx.cardMemberIds) candidates.add(userId);
@@ -278,6 +309,24 @@ async function collectRecipients(
       if (userId) candidates.add(userId);
       break;
     }
+    // Faz 10A (DEM-135) — "sen çıkarıldın / rolün değişti" bildirimleri:
+    // alıcı doğrudan payload'taki `userId` / `removedUserId` / `targetUserId`.
+    // Permission filter aşağıda tip kontrolü ile atlanır.
+    case 'card.member_removed':
+    case 'board.member_removed':
+    case 'workspace.member_removed': {
+      const userId =
+        stringField(event.payload, 'removedUserId') ?? stringField(event.payload, 'userId');
+      if (userId) candidates.add(userId);
+      break;
+    }
+    case 'board.member_role_changed':
+    case 'workspace.member_role_changed': {
+      const userId =
+        stringField(event.payload, 'targetUserId') ?? stringField(event.payload, 'userId');
+      if (userId) candidates.add(userId);
+      break;
+    }
     default:
       return candidates;
   }
@@ -285,6 +334,18 @@ async function collectRecipients(
   // Actor self-skip — never notify the user who triggered the event.
   if (event.actorId) candidates.delete(event.actorId);
   if (candidates.size === 0) return candidates;
+
+  // Faz 10A (DEM-135) permission-filter istisnası: "X'ten çıkarıldın"
+  // bildirimleri mantıken erişim kaybedildikten *sonra* gider. Aksi halde
+  // aşağıdaki workspace/board membership filter alıcıyı düşürürdü.
+  // `*member_role_changed` alıcısı hâlâ üye olduğu için normal akıştan geçer.
+  if (
+    event.type === 'card.member_removed' ||
+    event.type === 'board.member_removed' ||
+    event.type === 'workspace.member_removed'
+  ) {
+    return candidates;
+  }
 
   // Permission filter: drop anyone who can't reach the board any more.
   // Cheaper than a per-user `resolveBoardAccess` call: one query against
@@ -366,8 +427,16 @@ async function pickChannels(
   const pushEnabled = preference?.pushEnabled ?? true;
   const emailEnabled = preference?.emailEnabled ?? true;
 
+  // Faz 10H (DEM-142) — snooze: `mute_until > NOW()` aktif iken `mute_level =
+  // 'all'` davranışı uygulanır. Süresi dolmuş satır görmezden gelinir
+  // (audit için silinmez). Mute-bypass tipler (mention + *_invitation)
+  // snooze sırasında da geçer — kart detay dropdown'ı kullanıcıya `mention`
+  // ve davet'in geçeceğini bildirir.
+  const muteUntil = preference?.muteUntil ?? null;
+  const snoozeActive = muteUntil !== null && muteUntil.getTime() > Date.now();
+
   if (!muteBypass) {
-    if (muteLevel === 'all') return [];
+    if (muteLevel === 'all' || snoozeActive) return [];
     // Cast through `string` so the TS control-flow analysis doesn't narrow
     // `notificationType` to whatever subset of literals `mapEventToNotificationType`
     // currently emits — Faz 6C extends this with `'mention'`, and we want the
@@ -381,25 +450,37 @@ async function pickChannels(
   const channels: NotificationChannel[] = ['in_app'];
 
   // Push: per the domain spec, `card_assigned` + `mention` + `due_*` opt in by
-  // default; the rest (`watched_activity`, `comment_reply`, `checklist_*`) are
-  // in-app only unless the user explicitly opted in (push_enabled is a *gate*,
-  // not a request — the rule decides whether to even consider push).
+  // default; the granular card-activity types (`card_moved`, `card_archived`,
+  // `card_completed`, `card_due_changed`, `card_cover_changed`,
+  // `card_member_removed`), `comment_reply` and `checklist_*` are in-app only
+  // unless the user explicitly opted in (push_enabled is a *gate*, not a
+  // request — the rule decides whether to even consider push).
+  //
+  // Faz 11B (DEM-148) / DEM-152: `attachment_added` push opt-in default —
+  // brief'te kart watcher push kanalına da bildirim ister. Diğer granular
+  // kart-aktivite tipleri (kapak, taşıma, tamamlama, tarih) hâlâ yalnız in_app
+  // — DEM-152 kanal davranışını değiştirmedi (saf ayrıştırma).
   const pushByType =
     notificationType === 'card_assigned' ||
     notificationType === 'mention' ||
     notificationType === 'due_approaching' ||
-    notificationType === 'due_overdue';
+    notificationType === 'due_overdue' ||
+    notificationType === 'attachment_added';
   if (pushByType && pushEnabled) channels.push('push');
 
   // Email: per the domain spec, the heavy-touch types — `card_assigned`,
   // `mention`, `due_overdue`, invitations — opt in by default; the rest stay
-  // in-app/push.
+  // in-app/push. Faz 10A (DEM-135): `member_removed` (board/workspace üyeliği
+  // sona erdi) e-postayla da gönderilir — alıcı "bir daha içeride değil"
+  // sinyalini posta kutusunda görebilmeli; `member_role_changed` sadece in-app
+  // (kullanıcı zaten üye, gürültü olmasın).
   const emailByType =
     notificationType === 'card_assigned' ||
     notificationType === 'mention' ||
     notificationType === 'due_overdue' ||
     notificationType === 'board_invitation' ||
-    notificationType === 'workspace_invitation';
+    notificationType === 'workspace_invitation' ||
+    notificationType === 'member_removed';
   if (emailByType && emailEnabled) channels.push('email');
 
   return channels;
@@ -410,6 +491,14 @@ type PreferenceRow = {
   mentionOnly: boolean;
   pushEnabled: boolean;
   emailEnabled: boolean;
+  /**
+   * Faz 10H (DEM-142) — kart bazında geçici snooze. `null` snooze yok;
+   * `Date` aktif veya dolmuş snooze (rule engine `> Date.now()` karşılaştır).
+   * Yalnız kart kapsamı satırından okunur — narrowest-scope-wins zaten
+   * en yakın satırı seçer; üst kapsam satırlarındaki değer pratikte hiç
+   * okunmaz (UI yalnız kart-scope upsert/snooze yazar).
+   */
+  muteUntil: Date | null;
 };
 
 /**
@@ -441,6 +530,7 @@ async function loadPreference(
       mentionOnly: notificationPreferences.mentionOnly,
       pushEnabled: notificationPreferences.pushEnabled,
       emailEnabled: notificationPreferences.emailEnabled,
+      muteUntil: notificationPreferences.muteUntil,
       workspaceId: notificationPreferences.workspaceId,
       boardId: notificationPreferences.boardId,
       cardId: notificationPreferences.cardId,
@@ -466,6 +556,7 @@ async function loadPreference(
     mentionOnly: best.row.mentionOnly,
     pushEnabled: best.row.pushEnabled,
     emailEnabled: best.row.emailEnabled,
+    muteUntil: best.row.muteUntil,
   };
 }
 
@@ -519,6 +610,14 @@ function buildPayload(
     'role',
     'title',
     'dueAt',
+    // Faz 10A (DEM-135) — member_removed / member_role_changed bildirimleri
+    // için rol + alıcı bilgisi: email/push template'leri "X kişiyi
+    // çıkardı / rolünü Y yaptı" mesajını payload üzerinden render eder.
+    'removedUserId',
+    'removedRole',
+    'targetUserId',
+    'fromRole',
+    'toRole',
     // Faz 6 review fix (W1 DEM-91): mention / comment-reply email template
     // `commentPreview` bekliyor; producer activity payload'una ekledikleri
     // zaman worker outbox satırına da geçiş yapsın.
@@ -530,6 +629,12 @@ function buildPayload(
     // open token leak riski olur. Email template payload'ta `inviteToken`
     // okur — direct insert satırında zaten var.
     'commentPreview',
+    // Faz 11B (DEM-148) — `attachment.added` payload alanlari: in-app
+    // notification UI'da "X dosyayi ekledi" satirini render etmek icin
+    // attachmentId + fileName lazim. mime/size aynı payload'ta tutuluyor
+    // (activity'de) ama notification template'leri yalniz fileName kullanir.
+    'attachmentId',
+    'fileName',
   ] as const) {
     const v = event.payload[key];
     if (v !== undefined && v !== null) payload[key] = v;

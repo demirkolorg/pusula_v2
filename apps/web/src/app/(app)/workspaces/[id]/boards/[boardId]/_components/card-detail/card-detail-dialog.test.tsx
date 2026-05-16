@@ -46,7 +46,8 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: { url: 'https://storage.test/modal-cover.png' } }),
   useQueries: ({ queries }: { queries: unknown[] }) => {
     // Order matches the dialog: card.get, card.members, card.labels, checklist.list,
-    // comment.list, card.activity.list, board.members.list, label.list, board.get.
+    // comment.list, card.activity.list, board.members.list, label.list, board.get,
+    // attachment.list.
     const boardMembers = [{ userId: 'u1', name: 'Ada', role: h.boardRole }];
     const results = [
       ok({ card: h.card, relations: [] }),
@@ -61,6 +62,7 @@ vi.mock('@tanstack/react-query', () => ({
         board: { title: 'Pano', role: h.boardRole, archivedAt: null },
         lists: [{ id: 'l1', title: 'Liste' }],
       }),
+      ok([]), // attachment list (Faz 11D)
     ];
     return results.slice(0, queries.length);
   },
@@ -129,11 +131,31 @@ vi.mock('@/trpc/client', () => ({
       },
     },
     comment: { list: deepProxy, create: deepProxy, update: deepProxy, delete: deepProxy },
-    attachment: { createUpload: deepProxy, getDownloadUrl: deepProxy },
+    // Faz 11B (DEM-148) — cover upload now uses two-phase commit; the broader
+    // attachment router shape is mocked so hook mount doesn't blow up.
+    attachment: {
+      initiate: deepProxy,
+      commit: deepProxy,
+      list: deepProxy,
+      update: deepProxy,
+      delete: deepProxy,
+      getDownloadUrl: deepProxy,
+    },
     // Faz 9D (DEM-130) — share endpoint mock (ShareDialog `useQuery(share.list)`
     // + `useMutation(share.create/revoke)` çağrıları için; dialog kapalı iken
     // query `enabled: false`, fakat hooks yine mount edilir).
     share: { list: deepProxy, create: deepProxy, revoke: deepProxy },
+    // Faz 10H (DEM-142) — CardModalHeader artık CardDetailSnooze'u render
+    // ediyor; preferences.get/snooze/unsnooze + preferences.list endpoint'leri
+    // hook mount aşamasında erişilir.
+    notifications: {
+      preferences: {
+        get: deepProxy,
+        list: deepProxy,
+        snooze: { mutationOptions: namedMutationOptions('preferences.snooze') },
+        unsnooze: { mutationOptions: namedMutationOptions('preferences.unsnooze') },
+      },
+    },
   }),
 }));
 
@@ -213,6 +235,9 @@ describe('<CardDetailDialog>', () => {
     const user = userEvent.setup();
     renderDialog();
     await user.click(screen.getByRole('button', { name: strings.card.detail.modal.coverColor }));
+    // The cover picker is now a two-tab control — the upload input lives in the
+    // "Kapak görseli" tab (Faz 11D — DEM-150).
+    await user.click(screen.getByRole('tab', { name: strings.attachment.cover.tabImage }));
 
     const file = new File([new Uint8Array(CARD_COVER_IMAGE_MAX_BYTES + 1)], 'too-big.png', {
       type: 'image/png',

@@ -349,4 +349,113 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
     await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId });
     expect(mailer.calls[0]!.subject).toMatch(/geçti/i);
   });
+
+  // ───────────────────────────────── quiet hours (Faz 10F / DEM-140)
+
+  /**
+   * Helper: pick an `Europe/Istanbul` window that contains *now*, so we
+   * don't have to mock the clock to land in/out of the window. `from`
+   * 2h-before-now and `to` 2h-after-now covers any current Istanbul time.
+   */
+  function windowAroundNow(): { from: string; to: string } {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const now = new Date();
+    const past = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const future = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    return {
+      from: fmt.format(past).replace('24:', '00:'),
+      to: fmt.format(future).replace('24:', '00:'),
+    };
+  }
+
+  function windowFarFromNow(): { from: string; to: string } {
+    // 6h before now → 4h before now: a safely-past window the helper
+    // evaluates as outside ("not quiet").
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const now = new Date();
+    const start = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const end = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    return {
+      from: fmt.format(start).replace('24:', '00:'),
+      to: fmt.format(end).replace('24:', '00:'),
+    };
+  }
+
+  it('quiet-hours: card_assigned inside window → dead + quiet_hours_window reason', async () => {
+    const { from, to } = windowAroundNow();
+    await db()
+      .insert(notificationPreferences)
+      .values({
+        userId: aliceId,
+        quietFrom: from,
+        quietTo: to,
+        quietTimezone: 'Europe/Istanbul',
+      });
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      type: 'card_assigned',
+      payload: { actorName: 'Bob', cardTitle: 'X' },
+    });
+    const mailer = capturingMailer();
+    const outcome = await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId });
+    expect(outcome).toEqual({ kind: 'skipped', reason: 'quiet-hours' });
+    expect(mailer.calls).toHaveLength(0);
+
+    const row = await readOutbox(outboxId);
+    expect(row?.processedAt).not.toBeNull();
+    expect(row?.status).toBe('dead');
+    expect(row?.lastError).toBe('quiet_hours_window');
+  });
+
+  it('quiet-hours: mention inside window BYPASSES suppression (sent)', async () => {
+    const { from, to } = windowAroundNow();
+    await db()
+      .insert(notificationPreferences)
+      .values({
+        userId: aliceId,
+        quietFrom: from,
+        quietTo: to,
+        quietTimezone: 'Europe/Istanbul',
+      });
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      type: 'mention',
+      payload: { actorName: 'Bob', cardTitle: 'X', commentPreview: '@alice' },
+    });
+    const mailer = capturingMailer();
+    const outcome = await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId });
+    expect(outcome.kind).toBe('sent');
+    expect(mailer.calls).toHaveLength(1);
+  });
+
+  it('quiet-hours: window in the past → not quiet → normal send', async () => {
+    const { from, to } = windowFarFromNow();
+    await db()
+      .insert(notificationPreferences)
+      .values({
+        userId: aliceId,
+        quietFrom: from,
+        quietTo: to,
+        quietTimezone: 'Europe/Istanbul',
+      });
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      type: 'card_assigned',
+      payload: { actorName: 'Bob', cardTitle: 'X' },
+    });
+    const mailer = capturingMailer();
+    const outcome = await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId });
+    expect(outcome.kind).toBe('sent');
+    expect(mailer.calls).toHaveLength(1);
+  });
 });

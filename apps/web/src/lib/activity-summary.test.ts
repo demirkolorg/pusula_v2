@@ -21,4 +21,32 @@ describe('activitySummary', () => {
     expect(activitySummary('comment.created', { cardTitle: 'Yorum' })).toContain('Yorum');
     expect(activitySummary('due_reminder_1h', { cardTitle: 'Due' })).toContain('Due');
   });
+
+  it('DEM-152 — renders granular card-activity notification types', () => {
+    expect(activitySummary('card_moved', { cardTitle: 'Taşınan' })).toContain('taşıdı');
+    expect(activitySummary('card_archived', { cardTitle: 'Arşiv' })).toContain('arşivledi');
+    expect(activitySummary('card_completed', { cardTitle: 'Bitti' })).toContain(
+      'tamamlandı işaretledi',
+    );
+    expect(
+      activitySummary('card_completed', {
+        cardTitle: 'Geri',
+        activityType: 'card.uncompleted',
+      }),
+    ).toContain('işaretini kaldırdı');
+    expect(activitySummary('card_due_changed', { cardTitle: 'Tarih' })).toContain(
+      'teslim tarihi belirledi',
+    );
+    expect(
+      activitySummary('card_due_changed', {
+        cardTitle: 'Tarih',
+        activityType: 'card.due_cleared',
+      }),
+    ).toContain('teslim tarihini kaldırdı');
+    expect(activitySummary('card_cover_changed', { cardTitle: 'Kapak' })).toContain(
+      'kapağını değiştirdi',
+    );
+    expect(activitySummary('card_member_removed', { cardTitle: 'Çıkış' })).toContain('çıkardı');
+    expect(activitySummary('attachment_added', { cardTitle: 'Dosya' })).toContain('dosya ekledi');
+  });
 });

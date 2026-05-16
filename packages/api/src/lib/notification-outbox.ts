@@ -29,9 +29,18 @@
  * See `docs/architecture/06-bildirim-altyapisi.md` "Notification processor
  * (Faz 6)" and `docs/domain/04-bildirim-kurallari.md`.
  */
-import { and, eq, gt, ne, notificationOutbox, sql } from '@pusula/db';
+import {
+  and,
+  eq,
+  gt,
+  isNull,
+  ne,
+  notificationOutbox,
+  notificationPreferences,
+  sql,
+} from '@pusula/db';
 import type { Database } from '@pusula/db';
-import type { NotificationType } from '@pusula/domain';
+import type { EmailDigestMode, NotificationType } from '@pusula/domain';
 import type { Queryable } from '../middleware/board-access';
 import type { ActivityEventForRules, NotificationRule } from './notification-rules';
 import { computeNotifications } from './notification-rules';
@@ -58,6 +67,26 @@ const COOLDOWN_BYPASS = new Set<NotificationType>([
   'due_overdue',
 ]);
 
+/**
+ * Faz 10G (DEM-141) — e-posta digest **mute-bypass** tipler. Recipient
+ * `email_mode` ne olursa olsun şu tipler **anlık** gönderilir (`'instant'`
+ * davranışı uygulanır), digest worker'a düşürülmez:
+ *  - `mention`               — her @ kritik sinyal; kullanıcı geç fark
+ *                              ederse anlam kaybeder.
+ *  - `board_invitation`      — davet token'ı tek-kullanımlık + zaman
+ *                              hassasiyetli; toplu özet kabul edilemez.
+ *  - `workspace_invitation`  — aynı disiplin.
+ *
+ * Listenin kaynağı: `notification-rules.ts:pickChannels` mute-bypass set'i
+ * + domain `04-bildirim-kurallari.md` "Mute-bypass" tablosu. İkisinin
+ * senkron kalması gerek; testler bağlar.
+ */
+const DIGEST_BYPASS = new Set<NotificationType>([
+  'mention',
+  'board_invitation',
+  'workspace_invitation',
+]);
+
 /** Inputs `insertNotificationOutbox` accepts — one rule = one outbox row. */
 export interface InsertNotificationOutboxInput {
   rule: NotificationRule;
@@ -66,8 +95,32 @@ export interface InsertNotificationOutboxInput {
 }
 
 export type InsertOutcome =
-  | { inserted: true; outboxId: string }
-  | { inserted: false; reason: 'cooldown' };
+  | { inserted: true; outboxId: string; status: 'pending' | 'digest_queued' }
+  | { inserted: false; reason: 'cooldown' | 'email_mode_off' };
+
+/**
+ * Faz 10G (DEM-141) — recipient'in global preference satırından `email_mode`
+ * okur. Sadece **global** satıra bakar (workspace/board/card override
+ * satırlarında bu alan tutulsa da digest mantığı global tercihten okur,
+ * Zod schema scope override'da `'instant'` haricini reddediyor). Satır
+ * yoksa varsayılan `'instant'` — mevcut transactional davranış.
+ */
+async function readEmailMode(tx: Tx, recipientUserId: string): Promise<EmailDigestMode> {
+  const [row] = await tx
+    .select({ emailMode: notificationPreferences.emailMode })
+    .from(notificationPreferences)
+    .where(
+      and(
+        eq(notificationPreferences.userId, recipientUserId),
+        isNull(notificationPreferences.workspaceId),
+        isNull(notificationPreferences.boardId),
+        isNull(notificationPreferences.cardId),
+      ),
+    )
+    .limit(1);
+  const mode = (row?.emailMode ?? 'instant') as EmailDigestMode;
+  return mode;
+}
 
 /**
  * Insert a single `notification_outbox` row inside the caller's transaction.
@@ -121,6 +174,23 @@ export async function insertNotificationOutbox(
     }
   }
 
+  // Faz 10G (DEM-141) — e-posta kanalı için recipient'in `email_mode`
+  // tercihini damgalama aşamasında uygula. Mute-bypass tipler (mention +
+  // davet) her durumda anlık gider. `'off'` ise email satırı insert
+  // edilmez (sessizce skip — UI'da net seçim). Digest mod'larda satır
+  // `digest_queued` damgalanır; 6A publish processor bunu görür ve email
+  // kanal kuyruğuna push etmez (`notification-publish.ts:dispatchOutboxRow`).
+  let status: 'pending' | 'digest_queued' = 'pending';
+  if (rule.channel === 'email' && !DIGEST_BYPASS.has(rule.type)) {
+    const emailMode = await readEmailMode(tx, rule.recipientUserId);
+    if (emailMode === 'off') {
+      return { inserted: false, reason: 'email_mode_off' };
+    }
+    if (emailMode === 'hourly_digest' || emailMode === 'daily_digest') {
+      status = 'digest_queued';
+    }
+  }
+
   const [row] = await tx
     .insert(notificationOutbox)
     .values({
@@ -129,10 +199,11 @@ export async function insertNotificationOutbox(
       recipientId: rule.recipientUserId,
       type: rule.type,
       payload: rule.payload,
+      status,
     })
     .returning({ id: notificationOutbox.id });
   if (!row) throw new Error('notification_outbox insert returned no row');
-  return { inserted: true, outboxId: row.id };
+  return { inserted: true, outboxId: row.id, status };
 }
 
 /** Minimal slice of the tRPC context this helper needs. */
@@ -171,6 +242,10 @@ export async function dispatchNotificationsForActivity(
   let inserted = 0;
   let skipped = 0;
   for (const rule of rules) {
+    // Faz 10G (DEM-141): cooldown + email_mode_off skip'leri tek sayaca
+    // düşer — caller'a fan-out sayısı gerek, hangi sebepten skip
+    // edildiği test ve log seviyesinde önemli ama mutation gövdesinde
+    // yalnız fan-out adedi kullanılır.
     const outcome = await insertNotificationOutbox(tx, {
       rule,
       eventId: activityEvent.id,

@@ -519,46 +519,84 @@ export const cardRouter = router({
         if (dispatched.inserted > 0) notificationEventId = activity.id;
       }
       if (coverColorChanged) {
-        await tx.insert(activityEvents).values({
+        const coverColorType = updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared';
+        const coverColorPayload = updated.coverColor
+          ? {
+              cardId: card.id,
+              coverColor: updated.coverColor,
+              clientMutationId: ctx.clientMutationId,
+            }
+          : {
+              cardId: card.id,
+              fromCoverColor: card.coverColor,
+              clientMutationId: ctx.clientMutationId,
+            };
+        const [coverActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: card.boardId,
+            cardId: card.id,
+            actorId: ctx.session.user.id,
+            type: coverColorType,
+            payload: coverColorPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!coverActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Faz 10A (DEM-135) — kapak rengi değişimi watcher'lara in-app gider
+        // (DEM-152 — `card_cover_changed` tipi). Permission filter normal akış.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: coverActivity.id,
+          type: coverColorType,
           workspaceId: ctx.card.workspaceId,
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared',
-          payload: updated.coverColor
-            ? {
-                cardId: card.id,
-                coverColor: updated.coverColor,
-                clientMutationId: ctx.clientMutationId,
-              }
-            : {
-                cardId: card.id,
-                fromCoverColor: card.coverColor,
-                clientMutationId: ctx.clientMutationId,
-              },
+          payload: coverColorPayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = coverActivity.id;
       }
       if (coverImageChanged) {
-        await tx.insert(activityEvents).values({
+        const coverImageType = updated.coverImageAttachmentId
+          ? 'card.cover_image_changed'
+          : 'card.cover_image_cleared';
+        const coverImagePayload = updated.coverImageAttachmentId
+          ? {
+              cardId: card.id,
+              coverImageAttachmentId: updated.coverImageAttachmentId,
+              clientMutationId: ctx.clientMutationId,
+            }
+          : {
+              cardId: card.id,
+              fromCoverImageAttachmentId: card.coverImageAttachmentId,
+              clientMutationId: ctx.clientMutationId,
+            };
+        const [coverImageActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.card.workspaceId,
+            boardId: card.boardId,
+            cardId: card.id,
+            actorId: ctx.session.user.id,
+            type: coverImageType,
+            payload: coverImagePayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!coverImageActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Faz 10A (DEM-135) — kapak fotoğrafı değişimi watcher'lara in-app
+        // gider (DEM-152 — `card_cover_changed` tipi).
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: coverImageActivity.id,
+          type: coverImageType,
           workspaceId: ctx.card.workspaceId,
           boardId: card.boardId,
           cardId: card.id,
           actorId: ctx.session.user.id,
-          type: updated.coverImageAttachmentId
-            ? 'card.cover_image_changed'
-            : 'card.cover_image_cleared',
-          payload: updated.coverImageAttachmentId
-            ? {
-                cardId: card.id,
-                coverImageAttachmentId: updated.coverImageAttachmentId,
-                clientMutationId: ctx.clientMutationId,
-              }
-            : {
-                cardId: card.id,
-                fromCoverImageAttachmentId: card.coverImageAttachmentId,
-                clientMutationId: ctx.clientMutationId,
-              },
+          payload: coverImagePayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = coverImageActivity.id;
       }
 
       const [bumped] = await tx
@@ -943,7 +981,8 @@ export const cardRouter = router({
         .where(eq(boards.id, card.boardId))
         .returning({ version: boards.version });
 
-      // Faz 6A (DEM-90) — notify card watchers of the uncompletion (watched_activity).
+      // Faz 6A (DEM-90) — notify card watchers of the uncompletion
+      // (DEM-152 — `card_completed` type; payload.activityType = card.uncompleted).
       const uncompleteDispatched = await dispatchNotificationsForActivity(tx, {
         id: uncompleteActivity.id,
         type: 'card.uncompleted',
@@ -1387,7 +1426,7 @@ export const cardRouter = router({
       if (!moveToListActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       // Faz 6A (DEM-90) — notify card watchers of the move (target board's
-      // workspace context). `card.moved` is `watched_activity` notification.
+      // workspace context). `card.moved` → `card_moved` notification (DEM-152).
       const moveToListDispatched = await dispatchNotificationsForActivity(tx, {
         id: moveToListActivity.id,
         type: 'card.moved',

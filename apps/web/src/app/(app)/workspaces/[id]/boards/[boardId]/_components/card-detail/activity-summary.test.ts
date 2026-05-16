@@ -99,9 +99,55 @@ describe('summarizeCardActivity', () => {
     ).toBe('Bir kullanıcı yorum ekledi');
   });
 
-  it('unknown type → generic line including the type', () => {
-    expect(summarizeCardActivity({ ...base, type: 'card.moved' }, 'X')).toBe(
-      'Ada bir işlem yaptı (card.moved)',
+  it('card.moved / comment.mentioned → readable lines', () => {
+    expect(summarizeCardActivity({ ...base, type: 'card.moved' }, 'X')).toBe('Ada kartı taşıdı');
+    expect(summarizeCardActivity({ ...base, type: 'comment.mentioned' }, 'X')).toBe(
+      'Ada bir yorumda bir kullanıcıdan bahsetti',
+    );
+  });
+
+  it('attachment events → include the file name when present', () => {
+    expect(
+      summarizeCardActivity(
+        { ...base, type: 'attachment.added', payload: { fileName: 'plan.pdf' } },
+        'X',
+      ),
+    ).toBe('Ada bir dosya ekledi: “plan.pdf”');
+    expect(summarizeCardActivity({ ...base, type: 'attachment.added', payload: {} }, 'X')).toBe(
+      'Ada bir dosya ekledi',
+    );
+    expect(
+      summarizeCardActivity(
+        { ...base, type: 'attachment.removed', payload: { fileName: 'eski.png' } },
+        'X',
+      ),
+    ).toBe('Ada bir dosya kaldırdı: “eski.png”');
+  });
+
+  it('board background / list icon events → readable lines', () => {
+    expect(summarizeCardActivity({ ...base, type: 'board.background_changed' }, 'X')).toBe(
+      'Ada panonun arka planını değiştirdi',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'board.background_cleared' }, 'X')).toBe(
+      'Ada panonun arka planını kaldırdı',
+    );
+    expect(
+      summarizeCardActivity(
+        { ...base, type: 'board.updated', payload: { fromIcon: '📋', toIcon: '🚀' } },
+        'X',
+      ),
+    ).toBe('Ada panonun simgesini değiştirdi');
+    expect(summarizeCardActivity({ ...base, type: 'list.icon_changed' }, 'X')).toBe(
+      'Ada listenin simgesini değiştirdi',
+    );
+    expect(summarizeCardActivity({ ...base, type: 'list.icon_cleared' }, 'X')).toBe(
+      'Ada listenin simgesini kaldırdı',
+    );
+  });
+
+  it('unknown type → generic Turkish line without the raw type', () => {
+    expect(summarizeCardActivity({ ...base, type: 'some.future_event' }, 'X')).toBe(
+      'Ada bir işlem yaptı',
     );
   });
 });

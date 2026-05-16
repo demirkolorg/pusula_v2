@@ -519,6 +519,66 @@ export type CardCoverImageMimeType = (typeof CARD_COVER_IMAGE_MIME_TYPES)[number
 export const CARD_COVER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
+ * Faz 11 (DEM-147) — V1 allowlist for general card attachment uploads. Eight
+ * MIME types across three "kinds" (image / pdf / office). The cover-image
+ * path (`CARD_COVER_IMAGE_MIME_TYPES` + 5 MiB) is a strict subset and stays
+ * its own narrow gate — see `docs/architecture/04-veri-katmani.md` "Faz 11"
+ * + `docs/domain/07-ek-kurallari.md`. SVG / ODF / text / csv / archives are
+ * intentionally out of V1.
+ */
+export const ATTACHMENT_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+] as const;
+export type AttachmentMimeType = (typeof ATTACHMENT_MIME_TYPES)[number];
+
+/** Maximum general attachment upload size: 50 MiB (Faz 11 V1). */
+export const ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
+
+/** Maximum length of the optional attachment description / caption (Faz 11 V1). */
+export const ATTACHMENT_DESCRIPTION_MAX_LEN = 500;
+
+/**
+ * Coarse "kind" bucket derived from MIME — `@pusula/ui` `AttachmentTile` and
+ * the preview dialog branch on this. Stable token; not stored in DB (derived
+ * on read from `mime_type`). See `attachmentKindFromMime`.
+ */
+export const ATTACHMENT_KIND = ['image', 'pdf', 'office'] as const;
+export type AttachmentKind = (typeof ATTACHMENT_KIND)[number];
+
+/**
+ * Map a V1-allowlisted MIME to its coarse `AttachmentKind`. Strict — only the
+ * exact eight MIME types in `ATTACHMENT_MIME_TYPES` resolve to a kind; anything
+ * else returns `null`. Deliberately exact-match (not `startsWith('image/')`):
+ * `image/svg+xml` is intentionally **not** in V1, and a permissive prefix match
+ * would silently route an SVG into the image-preview branch — a stored-XSS
+ * vector if a UI ever inlines the URL.
+ */
+export function attachmentKindFromMime(mime: string): AttachmentKind | null {
+  switch (mime) {
+    case 'image/jpeg':
+    case 'image/png':
+    case 'image/webp':
+    case 'image/gif':
+      return 'image';
+    case 'application/pdf':
+      return 'pdf';
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+    case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+      return 'office';
+    default:
+      return null;
+  }
+}
+
+/**
  * Board background gradient presets (DEM-100). Stored as `gradient:<name>` in
  * `boards.background`; UI mirrors this list in `@pusula/ui` for CSS class maps.
  */
@@ -594,13 +654,72 @@ export const NOTIFICATION_TYPES = [
   'workspace_invitation',
   'watched_activity',
   'checklist_item_completed',
+  // Faz 10A (DEM-135) — bir kullanıcının board veya workspace üyeliği
+  // sona erdiğinde / rolü değiştiğinde alıcıya gönderilen bildirim tipleri.
+  // `member_removed` permission filter'ı atlar (alıcı artık kaynağa erişemez);
+  // `member_role_changed` normal permission akışına tabidir. Detay →
+  // `docs/architecture/06-bildirim-altyapisi.md` "Faz 6 dispatch açıkları".
+  'member_removed',
+  'member_role_changed',
+  // DEM-152 — `watched_activity` "çöp kovası" tipi 7 granular tipe bölündü.
+  // Activity taksonomisi her zaman ince taneliydi; bu tipler bildirim
+  // taksonomisini onunla hizalar — her tip UI'da kendi ikonu/rengi/özet
+  // metniyle görünür (`payload.activityType` hâlâ taşınır). Saf ayrıştırma:
+  // yeni tetikleyici/kanal eklenmez (`card.moved` → `card_moved` gibi 1:1).
+  // `watched_activity` listede kalır (append-only enum) ama artık hiçbir
+  // olay ona yönlenmez — fallback değer. Detay →
+  // `docs/domain/04-bildirim-kurallari.md` "Bildirim tipi taksonomisi".
+  'card_moved',
+  'card_archived',
+  'card_completed',
+  'card_due_changed',
+  'card_cover_changed',
+  'card_member_removed',
+  'attachment_added',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */
 export const MUTE_LEVELS = ['none', 'mentions_only', 'all'] as const;
 
-/** Outbox / search-outbox processing states. */
-export const OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'dead'] as const;
+/**
+ * Outbox / search-outbox processing states.
+ *
+ * `digest_queued` (Faz 10G — DEM-141): e-posta kanalında biriken bildirim
+ * satırı. Recipient'in `notification_preferences.email_mode` değeri
+ * `hourly_digest` veya `daily_digest` ise satır transactional gönderilmez —
+ * `digest_queued` damgalanır ve `apps/worker/notification-email-digest.ts`
+ * cron'u recipient bazlı toplu özet maili gönderir, sonrasında satırı
+ * `sent` damgalar. APPEND-ONLY — listenin sonuna eklendi (`@pusula/db`
+ * `pgEnum('outbox_status')` bu sırayla bağlanıyor; ortadan değer eklemek /
+ * çıkarmak destructive).
+ */
+export const OUTBOX_STATUSES = [
+  'pending',
+  'processing',
+  'sent',
+  'failed',
+  'dead',
+  'digest_queued',
+] as const;
+
+/**
+ * E-posta bildirimlerinin gönderim modu. `notification_preferences.email_mode`
+ * kolonunu doldurur (Faz 10G — DEM-141).
+ *  - `'instant'`        → mevcut davranış: her bildirim ayrı transactional mail.
+ *  - `'hourly_digest'`  → outbox `digest_queued` damgalanır, saatlik cron tek
+ *                          özet mail yollar.
+ *  - `'daily_digest'`   → outbox `digest_queued` damgalanır, günlük (08:00 UTC)
+ *                          cron tek özet mail yollar.
+ *  - `'off'`            → outbox'a `channel='email'` satırı insert edilmez;
+ *                          legacy `email_enabled=false` ile aynı sonucu üretir
+ *                          ama UI'da net seçim için ayrı kolon.
+ *
+ * Mute-bypass tipler (`mention` / `board_invitation` / `workspace_invitation`)
+ * `email_mode` değerinden bağımsız her zaman anlık gider — `notification-outbox.ts`
+ * insert helper'ı bu disiplini damgalama aşamasında uygular.
+ */
+export const EMAIL_DIGEST_MODES = ['instant', 'hourly_digest', 'daily_digest', 'off'] as const;
+export type EmailDigestMode = (typeof EMAIL_DIGEST_MODES)[number];
 
 /** Entity kinds indexed in `search_documents`. */
 export const SEARCH_ENTITY_TYPES = ['board', 'list', 'card', 'comment', 'label'] as const;

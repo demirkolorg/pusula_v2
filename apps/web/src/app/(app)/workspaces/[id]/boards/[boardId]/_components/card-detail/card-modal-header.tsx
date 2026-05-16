@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  BellIcon,
   CopyPlusIcon,
   LinkIcon,
   ListIcon,
@@ -27,6 +26,7 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardCoverImage, type CoverImage } from '../card-cover-image';
+import { CardDetailSnooze } from './card-detail-snooze';
 
 const PALETTE_BAR: Record<PaletteName, string> = {
   kirmizi: 'bg-palet-kirmizi text-palet-kirmizi-foreground',
@@ -44,6 +44,8 @@ const PALETTE_BAR: Record<PaletteName, string> = {
 };
 
 type CardModalHeaderProps = {
+  /** Faz 10H (DEM-142) — snooze dropdown'ı için gerekli. */
+  cardId: string;
   boardName: string | null;
   listName: string | null;
   /** Cover image metadata; when present, the image band takes precedence over `coverColor`. */
@@ -67,6 +69,7 @@ type CardModalHeaderProps = {
  * `cards.coverColor` — `coverColor` defaults to `null`.
  */
 export function CardModalHeader({
+  cardId,
   boardName,
   listName,
   coverImage = null,
@@ -133,23 +136,9 @@ export function CardModalHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {/* Notifications — disabled placeholder until the watch/notify UI lands. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                disabled
-                aria-label={copy.notifications}
-                className={cn(
-                  'inline-flex size-7 cursor-not-allowed items-center justify-center rounded-md opacity-50 [&_svg]:size-4',
-                  onColored ? 'text-current' : 'text-muted-foreground',
-                )}
-              >
-                <BellIcon aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{copy.notificationsSoon}</TooltipContent>
-          </Tooltip>
+          {/* Faz 10H (DEM-142) — Snooze dropdown. Bell ikonu artık aktif:
+              kullanıcı kartı 1s/4s/1g/1h/belirli tarihe kadar susturabilir. */}
+          <CardDetailSnooze cardId={cardId} onColored={onColored} />
 
           {/* Copy deep link. */}
           <Tooltip open={copied ? true : undefined}>

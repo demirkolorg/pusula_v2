@@ -38,6 +38,11 @@ import { notificationOutbox, notificationPreferences, users } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import type { NotificationType } from '@pusula/domain';
 import type * as ResendSdk from 'resend';
+import {
+  QUIET_HOURS_DEAD_REASON,
+  isQuietHoursBypassType,
+  isWithinQuietHours,
+} from '../lib/quiet-hours';
 import { renderNotificationEmail, type RenderedEmail } from './notification-templates';
 
 export const NOTIFICATION_EMAIL_JOB_NAME = 'notification-email';
@@ -47,7 +52,10 @@ export type NotificationEmailJobData = { outboxId: string };
 /** Outcome of one processor run — useful for tests + structured logs. */
 export type NotificationEmailOutcome =
   | { kind: 'sent'; messageId: string | null }
-  | { kind: 'skipped'; reason: 'missing' | 'preference-disabled' | 'no-recipient' };
+  | {
+      kind: 'skipped';
+      reason: 'missing' | 'preference-disabled' | 'no-recipient' | 'quiet-hours';
+    };
 
 /** Minimal mailer surface — `resend.emails.send` shape; injectable for tests. */
 export interface EmailMailer {
@@ -197,17 +205,31 @@ export async function processNotificationEmailJob(
       return { kind: 'skipped', reason: 'no-recipient' };
     }
 
-    const emailEnabled = await isEmailEnabled(tx, {
+    const decision = await loadEmailDecision(tx, {
       userId: row.recipientId,
       workspaceId: row.workspaceId,
       boardId: row.boardId,
       cardId: row.cardId,
     });
-    if (!emailEnabled) {
+    if (!decision.emailEnabled) {
       // Preference says "no email for this scope". Mark delivered (audit:
       // the row was *handled* — just not sent) so the sweeper moves on.
       await stampSent(tx, row.id);
       return { kind: 'skipped', reason: 'preference-disabled' };
+    }
+
+    // Faz 10F (DEM-140) — quiet hours filter. The window lives only on the
+    // global preference row; mute-bypass types (mention/invitations) skip
+    // this branch upstream so the user's most urgent notifications still
+    // arrive inside the window. A `true` here stamps `status='dead'` with a
+    // `quiet_hours_window` reason so the sweeper doesn't keep re-enqueuing
+    // and the dead-letter dashboard can surface it.
+    if (
+      !isQuietHoursBypassType(row.type) &&
+      isWithinQuietHours(decision.quietHours, { now: new Date() })
+    ) {
+      await stampDead(tx, row.id, QUIET_HOURS_DEAD_REASON);
+      return { kind: 'skipped', reason: 'quiet-hours' };
     }
 
     const rendered = renderNotificationEmail({
@@ -241,6 +263,23 @@ async function stampSent(tx: Database, outboxId: string): Promise<void> {
     .where(eq(notificationOutbox.id, outboxId));
 }
 
+/**
+ * Faz 10F (DEM-140) — terminal stamp for "we deliberately did not send this".
+ * Used by the quiet-hours filter; the row stays in the outbox for audit but
+ * `status='dead'` keeps the sweeper from re-enqueuing it.
+ */
+async function stampDead(tx: Database, outboxId: string, reason: string): Promise<void> {
+  await tx
+    .update(notificationOutbox)
+    .set({
+      processedAt: new Date(),
+      status: 'dead',
+      lastError: reason,
+      attempts: sql`${notificationOutbox.attempts} + 1`,
+    })
+    .where(eq(notificationOutbox.id, outboxId));
+}
+
 async function loadRecipient(
   tx: Database,
   userId: string,
@@ -254,14 +293,23 @@ async function loadRecipient(
 }
 
 /**
- * Resolve `email_enabled` via the narrowest-scope-wins lookup:
- *   card → board → workspace → global default (= true).
- * Mirrors the channel-pick logic in `packages/api/src/lib/notification-rules.ts`
- * (Faz 6A); duplicated here because the rule engine emits the channel
- * pre-decision into the outbox row, but a user can flip preferences after
- * the row was written and the email processor must respect the latest state.
+ * Resolve the email-channel decision for a recipient + scope:
+ *
+ *  - `emailEnabled` follows narrowest-scope-wins (card → board → workspace
+ *    → global default = true). Mirrors `pickChannels` in
+ *    `packages/api/src/lib/notification-rules.ts` — duplicated here because
+ *    the rule engine emits the channel pre-decision into the outbox row,
+ *    but a user can flip preferences after the row was written and the
+ *    email processor must respect the latest state.
+ *  - `quietHours` is the global-default triplet (Faz 10F / DEM-140). Quiet
+ *    hours live only on the global row; scope overrides never carry a
+ *    window (the upsert path rejects that). We always read the global row
+ *    when it exists; absent global row → no window.
+ *
+ * One query covers both lookups since we already needed the global row for
+ * the scope-cascade fallback.
  */
-async function isEmailEnabled(
+async function loadEmailDecision(
   tx: Database,
   scope: {
     userId: string;
@@ -269,14 +317,23 @@ async function isEmailEnabled(
     boardId: string | null;
     cardId: string | null;
   },
-): Promise<boolean> {
-  // Read the candidates ordered by scope width; first explicit override wins.
+): Promise<{
+  emailEnabled: boolean;
+  quietHours: {
+    quietFrom: string | null;
+    quietTo: string | null;
+    quietTimezone: string | null;
+  } | null;
+}> {
   const candidates = await tx
     .select({
       workspaceId: notificationPreferences.workspaceId,
       boardId: notificationPreferences.boardId,
       cardId: notificationPreferences.cardId,
       emailEnabled: notificationPreferences.emailEnabled,
+      quietFrom: notificationPreferences.quietFrom,
+      quietTo: notificationPreferences.quietTo,
+      quietTimezone: notificationPreferences.quietTimezone,
     })
     .from(notificationPreferences)
     .where(eq(notificationPreferences.userId, scope.userId));
@@ -288,16 +345,24 @@ async function isEmailEnabled(
     if (c.workspaceId && c.workspaceId === scope.workspaceId) s += 1;
     return s;
   };
-  // Narrowest matching scope wins. A row whose scope mismatches gets score
-  // 0 but we still need it as the global default (workspace/board/card all
-  // null). Pick the highest *matching* score; if none matches, fall through.
   const matched = candidates
     .map((c) => ({ c, s: score(c) }))
     .filter((r) => r.s > 0 || (!r.c.workspaceId && !r.c.boardId && !r.c.cardId))
     .sort((a, b) => b.s - a.s);
   const best = matched[0]?.c;
-  if (!best) return true; // global default
-  return best.emailEnabled;
+  const emailEnabled = best ? best.emailEnabled : true;
+
+  const globalRow = candidates.find(
+    (c) => !c.workspaceId && !c.boardId && !c.cardId,
+  );
+  const quietHours = globalRow
+    ? {
+        quietFrom: globalRow.quietFrom,
+        quietTo: globalRow.quietTo,
+        quietTimezone: globalRow.quietTimezone,
+      }
+    : null;
+  return { emailEnabled, quietHours };
 }
 
 /** For email-only invitations (no `recipient_id`): try to render from payload. */

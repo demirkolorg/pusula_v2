@@ -7,6 +7,7 @@ import {
   jsonb,
   pgTable,
   text,
+  time,
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -55,6 +56,13 @@ export const notifications = pgTable(
 /**
  * Per-(user, scope) notification preferences. A row scoped to a workspace,
  * board, or card overrides broader scopes; all-null scope = global default.
+ *
+ * The `notification_preferences_scope_uq` UNIQUE index (Faz 10B — DEM-136
+ * migration `0021_dem136_notification_prefs_unique`) is what makes
+ * `notifications.preferences.upsert` race-safe: Postgres treats nullable
+ * `workspace_id`/`board_id`/`card_id` columns as distinct in a plain
+ * multi-column UNIQUE, so the index uses `COALESCE(col, '')` to fold NULL
+ * into a sentinel and serve as the ON CONFLICT target.
  */
 export const notificationPreferences = pgTable(
   'notification_preferences',
@@ -70,9 +78,64 @@ export const notificationPreferences = pgTable(
     mentionOnly: boolean().notNull().default(false),
     pushEnabled: boolean().notNull().default(true),
     emailEnabled: boolean().notNull().default(true),
+    // Faz 10F (DEM-140) — single global quiet-hours window. The three
+    // columns travel together (CHECK constraint below); meaningful only on
+    // the global-default scope row (workspace/board/card overrides ignore
+    // these). See migration `0024_dem140_quiet_hours.sql`.
+    quietFrom: time(),
+    quietTo: time(),
+    quietTimezone: text(),
+    // Faz 10H (DEM-142) — kart bazında geçici snooze. `NULL` → snooze yok;
+    // `> NOW()` → aktif snooze (rule engine `pickChannels` mute kabul eder,
+    // mute-bypass tipler hâlâ geçer); `< NOW()` → süresi dolmuş, satır
+    // silinmez (audit). Yalnız card-scope tercih satırında set edilir;
+    // global/workspace/board satırlarında set edilse bile rule engine bu
+    // alanı yalnız kart kapsamı dahilinde dikkate alır (loadPreference
+    // narrowest-scope-wins zaten kart satırını seçer). See migration
+    // `0025_dem142_snooze.sql`.
+    muteUntil: timestamp({ withTimezone: true }),
+    // Faz 10G (DEM-141) — e-posta sıklığı / digest modu. `'instant'` =
+    // varsayılan transactional davranış (her bildirim ayrı mail);
+    // `'hourly_digest'` / `'daily_digest'` outbox satırını `digest_queued`
+    // damgalar (worker özet maili gönderir); `'off'` outbox'a email satırı
+    // hiç insert edilmez. Legacy `email_enabled` flag'i geriye dönük
+    // korunur — rule engine ikisini AND'ler (`email_enabled=false` veya
+    // `email_mode='off'` → kanal kapalı). Mute-bypass tipler (mention +
+    // davet) `email_mode` değerinden bağımsız her zaman anlık gider.
+    // Yalnız global-default satırında anlamlıdır; workspace/board/card
+    // override satırlarında değer tutulsa da digest mantığı global
+    // tercihten okur. CHECK constraint migration `0026_dem141_email_digest`
+    // ile uygulanır.
+    emailMode: text().notNull().default('instant'),
     ...timestamps,
   },
-  (t) => [index('notification_preferences_user_idx').on(t.userId)],
+  (t) => [
+    index('notification_preferences_user_idx').on(t.userId),
+    // Faz 10B (DEM-136) — see migration `0021`. COALESCE-on-nullable scope
+    // columns is the only way to make `(NULL, NULL, NULL)` global rows
+    // compare equal under UNIQUE. Conflict target on upsert is the same
+    // expression list.
+    uniqueIndex('notification_preferences_scope_uq').on(
+      t.userId,
+      sql`COALESCE(${t.workspaceId}, '')`,
+      sql`COALESCE(${t.boardId}, '')`,
+      sql`COALESCE(${t.cardId}, '')`,
+    ),
+    // Faz 10F (DEM-140) — all-or-nothing on the quiet-hours triplet so the
+    // worker filter never sees a half-configured window.
+    check(
+      'notification_preferences_quiet_hours_consistency',
+      sql`(${t.quietFrom} IS NULL AND ${t.quietTo} IS NULL AND ${t.quietTimezone} IS NULL)
+          OR (${t.quietFrom} IS NOT NULL AND ${t.quietTo} IS NOT NULL AND ${t.quietTimezone} IS NOT NULL)`,
+    ),
+    // Faz 10H (DEM-142) — partial index on snooze: yalnız aktif/dolmuş
+    // snooze satırlarını içerir. AccountTabs Section 7 (`aktif snooze`
+    // listesi) ve worker filter'ları bu index üzerinden gider; tablo
+    // tarama yapmaz. See migration `0025_dem142_snooze.sql`.
+    index('notification_preferences_mute_until_idx')
+      .on(t.muteUntil)
+      .where(sql`${t.muteUntil} IS NOT NULL`),
+  ],
 );
 
 /**
@@ -120,6 +183,13 @@ export const notificationOutbox = pgTable(
     uniqueIndex('notification_outbox_scheduler_dedupe_uq')
       .on(sql`(${t.payload} ->> 'dedupeKey')`)
       .where(sql`${t.eventId} IS NULL AND ${t.payload} ? 'dedupeKey'`),
+    // Faz 10G (DEM-141) — digest worker `recipient_id`'ye göre toplu okur:
+    // `WHERE status='digest_queued' AND processed_at IS NULL` partial
+    // index, recipient × created_at sıralı tarama yapılmasına izin verir.
+    // Migration `0026_dem141_email_digest.sql` ile yaratılır.
+    index('notification_outbox_digest_queued_idx')
+      .on(t.recipientId, t.createdAt)
+      .where(sql`${t.status} = 'digest_queued' AND ${t.processedAt} IS NULL`),
   ],
 );
 

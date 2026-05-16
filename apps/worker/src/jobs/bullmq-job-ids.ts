@@ -17,3 +17,13 @@ export function notificationEmailJobId(outboxId: string): string {
 export function notificationPushJobId(outboxId: string): string {
   return bullmqJobId('push', outboxId);
 }
+
+/**
+ * Faz 11C (DEM-149) — per-attachment debounce for the `pusula-attachment-
+ * cleanup` queue. Same shape as the producer-side helper in `apps/api/src/
+ * bullmq-job-ids.ts` (string duplicated here to keep `apps/worker` free of
+ * the API host's bullmq-job-ids module).
+ */
+export function attachmentCleanupJobId(attachmentId: string): string {
+  return bullmqJobId('cleanup', attachmentId);
+}

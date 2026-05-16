@@ -1,6 +1,12 @@
 'use client';
 
-import { AlignLeftIcon, CalendarIcon, MessageSquareIcon, TagIcon } from 'lucide-react';
+import {
+  AlignLeftIcon,
+  CalendarIcon,
+  MessageSquareIcon,
+  PaperclipIcon,
+  TagIcon,
+} from 'lucide-react';
 import { Avatar, MetaChip, MetaRow, Tooltip, TooltipContent, TooltipTrigger } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
@@ -18,6 +24,8 @@ type CardMetaRowProps = {
   dueAt: Date | string | null;
   labelCount?: number;
   commentCount: number;
+  /** Committed-attachment count — drives the paperclip chip (Faz 11D). */
+  attachmentCount?: number;
   members: CardMember[];
   /** Injectable "now" for deterministic tests. Defaults to `Date.now()`. */
   now?: number;
@@ -51,6 +59,7 @@ export function CardMetaRow({
   dueAt,
   labelCount = 0,
   commentCount,
+  attachmentCount = 0,
   members,
   now,
 }: CardMetaRowProps) {
@@ -60,9 +69,10 @@ export function CardMetaRow({
   const hasDescription = description != null && description.trim() !== '';
   const hasLabels = labelCount > 0;
   const hasComments = commentCount > 0;
+  const hasAttachments = attachmentCount > 0;
   const hasMembers = members.length > 0;
   const hasDue = dueAt != null;
-  const hasActions = hasDue || hasDescription || hasLabels || hasComments;
+  const hasActions = hasDue || hasDescription || hasLabels || hasComments || hasAttachments;
 
   if (!hasActions && !hasMembers) {
     return null;
@@ -173,6 +183,19 @@ export function CardMetaRow({
                 </span>
               </TooltipTrigger>
               <TooltipContent>{`${copy.commentsTooltip} · ${commentCount}`}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {hasAttachments && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <MetaChip icon={<PaperclipIcon className="size-3" aria-hidden />}>
+                    {attachmentCount}
+                  </MetaChip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{`${copy.attachmentsTooltip} · ${attachmentCount}`}</TooltipContent>
             </Tooltip>
           )}
         </MetaRow>

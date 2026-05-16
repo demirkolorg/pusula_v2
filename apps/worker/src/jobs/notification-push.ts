@@ -26,11 +26,16 @@
  * 6B)".
  */
 import { and, eq, inArray, isNull, sql } from '@pusula/db';
-import { notificationOutbox, pushTokens, users } from '@pusula/db';
+import { notificationOutbox, notificationPreferences, pushTokens, users } from '@pusula/db';
 import { createRequire } from 'node:module';
 import type { Database } from '@pusula/db';
 import type { NotificationType } from '@pusula/domain';
 import type * as ExpoServerSdk from 'expo-server-sdk';
+import {
+  QUIET_HOURS_DEAD_REASON,
+  isQuietHoursBypassType,
+  isWithinQuietHours,
+} from '../lib/quiet-hours';
 import { renderNotificationPush } from './notification-templates';
 
 const require = createRequire(import.meta.url);
@@ -41,7 +46,7 @@ export type NotificationPushJobData = { outboxId: string };
 
 export type NotificationPushOutcome =
   | { kind: 'sent'; ticketCount: number; revokedTokens: number }
-  | { kind: 'skipped'; reason: 'missing' | 'no-tokens' | 'no-recipient' };
+  | { kind: 'skipped'; reason: 'missing' | 'no-tokens' | 'no-recipient' | 'quiet-hours' };
 
 // ───────────────────────────────────────────────────────────────────────────
 // Expo client surface — narrow enough to mock in tests, fat enough to map
@@ -166,6 +171,18 @@ export async function processNotificationPushJob(
       return { kind: 'skipped', reason: 'no-recipient' };
     }
 
+    // Faz 10F (DEM-140) — quiet hours filter. Symmetric with the email
+    // processor: the window lives on the global preference row, mute-bypass
+    // types skip the check. Stamping `status='dead'` keeps the sweeper from
+    // re-enqueuing once the window expires.
+    if (!isQuietHoursBypassType(row.type)) {
+      const quietHours = await loadGlobalQuietHours(tx, row.recipientId);
+      if (isWithinQuietHours(quietHours, { now: new Date() })) {
+        await stampDead(tx, row.id, QUIET_HOURS_DEAD_REASON);
+        return { kind: 'skipped', reason: 'quiet-hours' };
+      }
+    }
+
     // Active tokens only. `revoked_at IS NULL` is index-backed (Faz 6B
     // partial index `push_tokens_user_active_idx`).
     const tokens = await tx
@@ -259,6 +276,22 @@ async function stampSent(tx: Database, outboxId: string): Promise<void> {
     .where(eq(notificationOutbox.id, outboxId));
 }
 
+/**
+ * Faz 10F (DEM-140) — symmetric with the email processor's `stampDead`. The
+ * outbox row is permanently silenced; the sweeper skips dead rows.
+ */
+async function stampDead(tx: Database, outboxId: string, reason: string): Promise<void> {
+  await tx
+    .update(notificationOutbox)
+    .set({
+      processedAt: new Date(),
+      status: 'dead',
+      lastError: reason,
+      attempts: sql`${notificationOutbox.attempts} + 1`,
+    })
+    .where(eq(notificationOutbox.id, outboxId));
+}
+
 async function loadRecipient(
   tx: Database,
   userId: string,
@@ -267,6 +300,39 @@ async function loadRecipient(
     .select({ name: users.name, email: users.email })
     .from(users)
     .where(eq(users.id, userId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Read the global quiet-hours triplet for the user, or `null` when none is
+ * configured. Scope-specific quiet hours are not supported (Faz 10F karar);
+ * the upsert path rejects non-global writes, so a single global lookup is
+ * all the push processor needs.
+ */
+async function loadGlobalQuietHours(
+  tx: Database,
+  userId: string,
+): Promise<{
+  quietFrom: string | null;
+  quietTo: string | null;
+  quietTimezone: string | null;
+} | null> {
+  const [row] = await tx
+    .select({
+      quietFrom: notificationPreferences.quietFrom,
+      quietTo: notificationPreferences.quietTo,
+      quietTimezone: notificationPreferences.quietTimezone,
+    })
+    .from(notificationPreferences)
+    .where(
+      and(
+        eq(notificationPreferences.userId, userId),
+        isNull(notificationPreferences.workspaceId),
+        isNull(notificationPreferences.boardId),
+        isNull(notificationPreferences.cardId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }

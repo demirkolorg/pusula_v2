@@ -261,6 +261,7 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
           c.checklistTotal === 0 &&
           c.checklistDone === 0 &&
           c.commentCount === 0 &&
+          c.attachmentCount === 0 &&
           Array.isArray(c.members) &&
           c.members.length === 0,
       ),
@@ -410,20 +411,71 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     const rich = shaped.cards.find((c) => c.id === richCard.id);
     const bare = shaped.cards.find((c) => c.id === bareCard.id);
 
-    expect(rich).toBeDefined();
-    expect(rich?.checklistTotal).toBe(3);
-    expect(rich?.checklistDone).toBe(2);
-    expect(rich?.commentCount).toBe(1);
-    expect(rich?.members).toHaveLength(1);
-    expect(rich?.members[0]).toMatchObject({ userId: ownerId, role: 'assignee' });
-    // privacy — no e-mail field leaks through
-    expect(rich?.members[0]).not.toHaveProperty('email');
+    // Two committed attachments + one draft (committed_at IS NULL) → only the
+    // two committed ones count toward attachmentCount (Faz 11B / DEM-148).
+    await db()
+      .insert(attachments)
+      .values([
+        {
+          cardId: richCard.id,
+          boardId: board.id,
+          uploaderId: ownerId,
+          storageKey: `boards/${board.id}/cards/${richCard.id}/a-rapor.pdf`,
+          fileName: 'rapor.pdf',
+          mimeType: 'application/pdf',
+          size: 1024,
+          committedAt: new Date(),
+        },
+        {
+          cardId: richCard.id,
+          boardId: board.id,
+          uploaderId: ownerId,
+          storageKey: `boards/${board.id}/cards/${richCard.id}/b-foto.png`,
+          fileName: 'foto.png',
+          mimeType: 'image/png',
+          size: 2048,
+          committedAt: new Date(),
+        },
+        {
+          cardId: richCard.id,
+          boardId: board.id,
+          uploaderId: ownerId,
+          storageKey: `boards/${board.id}/cards/${richCard.id}/c-draft.png`,
+          fileName: 'draft.png',
+          mimeType: 'image/png',
+          size: 512,
+          committedAt: null,
+        },
+      ]);
 
+    // Re-fetch after attachment seed.
+    const shaped2 = await callerFor(ownerId).board.get({ boardId: board.id });
+    const rich2 = shaped2.cards.find((c) => c.id === richCard.id);
+    const bare2 = shaped2.cards.find((c) => c.id === bareCard.id);
+
+    expect(rich2).toBeDefined();
+    expect(rich2?.checklistTotal).toBe(3);
+    expect(rich2?.checklistDone).toBe(2);
+    expect(rich2?.commentCount).toBe(1);
+    expect(rich2?.attachmentCount).toBe(2);
+    expect(rich2?.members).toHaveLength(1);
+    expect(rich2?.members[0]).toMatchObject({ userId: ownerId, role: 'assignee' });
+    // privacy — no e-mail field leaks through
+    expect(rich2?.members[0]).not.toHaveProperty('email');
+
+    expect(bare2).toBeDefined();
+    expect(bare2?.checklistTotal).toBe(0);
+    expect(bare2?.checklistDone).toBe(0);
+    expect(bare2?.commentCount).toBe(0);
+    expect(bare2?.attachmentCount).toBe(0);
+    expect(bare2?.members).toEqual([]);
+
+    // Original `rich`/`bare` snapshots (taken before the attachment seed) still
+    // pass their pre-existing assertions — kept for backward-compat coverage.
+    expect(rich).toBeDefined();
+    expect(rich?.attachmentCount).toBe(0);
     expect(bare).toBeDefined();
-    expect(bare?.checklistTotal).toBe(0);
-    expect(bare?.checklistDone).toBe(0);
-    expect(bare?.commentCount).toBe(0);
-    expect(bare?.members).toEqual([]);
+    expect(bare?.attachmentCount).toBe(0);
   });
 
   it('get: each card carries its attached labels (DEM-54 — board screen label filter)', async () => {

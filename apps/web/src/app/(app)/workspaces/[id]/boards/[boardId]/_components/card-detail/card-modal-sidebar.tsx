@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ActivityIcon, PaperclipIcon } from 'lucide-react';
+import { ActivityIcon } from 'lucide-react';
 import {
   EmptyState,
   Tabs,
@@ -12,6 +12,7 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardDetailActivity } from './card-detail-activity';
+import { CardDetailAttachments } from './card-detail-attachments';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
 import type { CardActivityEvent } from './activity-summary';
 
@@ -25,10 +26,14 @@ function TabLabel({ label, count }: { label: string; count: number }) {
 }
 
 type CardModalSidebarProps = {
+  /** Card id — drives the attachments tab queries (Faz 11D). */
+  cardId: string;
   comments: CommentView[];
   activity: CardActivityEvent[];
   activityPending: boolean;
   activityError: string | null;
+  /** Committed-attachment count — drives the "Ekler" tab counter. */
+  attachmentCount: number;
   /** Resolve a user id to a display name. */
   nameOf: (userId: string) => string | null | undefined;
   viewerUserId: string;
@@ -63,10 +68,12 @@ function timeOf(value: Date | string): number {
  * by `createdAt` (descending). Presentational — the dialog wires the mutations.
  */
 export function CardModalSidebar({
+  cardId,
   comments,
   activity,
   activityPending,
   activityError,
+  attachmentCount,
   nameOf,
   viewerUserId,
   viewerName,
@@ -87,7 +94,6 @@ export function CardModalSidebar({
     [comments],
   );
   const activityCount = activity.length;
-  const attachmentCount = 0;
   const allCount = comments.length + activityCount;
 
   // Newest-first ordering for the lists.
@@ -170,9 +176,11 @@ export function CardModalSidebar({
           <TabsContent value="comments">{commentsList}</TabsContent>
           <TabsContent value="activity">{activityList}</TabsContent>
           <TabsContent value="attachments">
-            <EmptyState
-              icon={<PaperclipIcon className="size-8" />}
-              message={copy.attachments.empty}
+            <CardDetailAttachments
+              cardId={cardId}
+              canEdit={canComment}
+              isBoardAdmin={isBoardAdmin}
+              viewerUserId={viewerUserId}
             />
           </TabsContent>
           <TabsContent value="all">
