@@ -25,6 +25,22 @@ import { notificationTypeIcon } from './notification-type-icon';
 
 const NOTIFICATIONS_LIMIT = 20;
 
+/**
+ * Scheduler kaynaklı (aktörsüz) bildirim tipleri — bunları bir kullanıcı
+ * tetiklemez, dolayısıyla satırda aktör adı/avatarı gösterilmez. Bkz.
+ * `docs/domain/04-bildirim-kurallari.md` → "Sistem (aktörsüz) bildirimler".
+ */
+const SYSTEM_NOTIFICATION_TYPES = new Set([
+  'due_approaching',
+  'due_overdue',
+  'due_reminder_1d',
+  'due_reminder_1h',
+]);
+
+function isSystemNotification(type: string): boolean {
+  return SYSTEM_NOTIFICATION_TYPES.has(type);
+}
+
 type NotificationPage = RouterOutputs['notifications']['list'];
 type NotificationListData = InfiniteData<NotificationPage, string | null>;
 
@@ -270,6 +286,7 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
                 <ul className="divide-border/60 divide-y">
                   {group.items.map((notification) => {
                     const payload = notificationPayload(notification);
+                    const system = isSystemNotification(notification.type);
                     const actorName =
                       payload.actorName ?? strings.notifications.fallbackActorName;
                     const unread = isUnread(notification);
@@ -294,10 +311,22 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
                         tabIndex={0}
                       >
                         <span className="relative mt-0.5 shrink-0">
-                          <Avatar name={actorName} image={payload.actorImage} size="md" />
-                          <span className="bg-card ring-card absolute -right-1 -bottom-1 inline-flex size-5 items-center justify-center rounded-full ring-2">
-                            {notificationTypeIcon(notification.type, 'size-3')}
-                          </span>
+                          {system ? (
+                            <span className="bg-muted flex size-8 items-center justify-center rounded-full">
+                              {notificationTypeIcon(notification.type, 'size-4')}
+                            </span>
+                          ) : (
+                            <>
+                              <Avatar
+                                name={actorName}
+                                image={payload.actorImage}
+                                size="md"
+                              />
+                              <span className="bg-card ring-card absolute -right-1 -bottom-1 inline-flex size-5 items-center justify-center rounded-full ring-2">
+                                {notificationTypeIcon(notification.type, 'size-3')}
+                              </span>
+                            </>
+                          )}
                         </span>
 
                         <span className="min-w-0 flex-1">
@@ -307,14 +336,18 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
                               !unread && 'text-muted-foreground',
                             )}
                           >
-                            <span
-                              className={cn(
-                                'font-medium',
-                                unread ? 'text-foreground' : 'text-muted-foreground',
-                              )}
-                            >
-                              {actorName}
-                            </span>{' '}
+                            {!system && (
+                              <>
+                                <span
+                                  className={cn(
+                                    'font-medium',
+                                    unread ? 'text-foreground' : 'text-muted-foreground',
+                                  )}
+                                >
+                                  {actorName}
+                                </span>{' '}
+                              </>
+                            )}
                             <span>
                               {activitySummary(notification.type, notification.payload)}
                             </span>

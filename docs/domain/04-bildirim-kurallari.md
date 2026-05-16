@@ -147,6 +147,7 @@ Kurallar:
 ## Genel kurallar
 
 - **Actor self-skip:** Actor'ın kendisine bildirim **gönderilmez** (kendi yaptığın işten bildirim almazsın).
+- **Sistem (aktörsüz) bildirimler:** Due-date scheduler kaynaklı `due_reminder_1d` / `due_reminder_1h` / `due_overdue` bildirimlerini bir kullanıcı tetiklemez — bunların **aktörü yoktur**. `notification_outbox` payload'ları `actorName` taşımaz; in-app bildirim merkezi bu satırlarda aktör adı **prefix'i** veya kullanıcı avatarı göstermez (avatar yerine tipin saat ikonlu sistem rozeti çizilir). Push/e-posta şablonları da aktörsüz cümle kurar. Karşılaştırma: davet/atama/yorum gibi olaylar aktörlüdür ve satır `<aktör adı> <özet>` kalıbıyla çizilir. Sistem bildiriminin payload'u kart başlığını (`cardTitle`) taşımalıdır — aksi halde özet "bu kart" fallback'ine düşer.
 - **Dedupe (event_id):** Aynı domain event'inden aynı alıcıya **tek** bildirim üretilir (`notification_outbox.event_id` üzerinden).
 - **Rol birleşimi:** Bir alıcı birden fazla rolle ilgiliyse (örn. hem assignee hem watcher) en kapsamlı tek bildirim üretilir, çoğaltılmaz (recipient + event_id unique).
 - **Mute-bypass:** `mention` ve doğrudan `davet` her zaman geçer (mute / mention-only ayarları görmez).

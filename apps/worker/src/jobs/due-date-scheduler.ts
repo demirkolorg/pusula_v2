@@ -53,6 +53,7 @@ type ReminderTier = 'due_reminder_1d' | 'due_reminder_1h' | 'due_overdue';
 
 interface CardRow {
   id: string;
+  title: string;
   boardId: string;
   workspaceId: string;
   dueAt: Date;
@@ -74,6 +75,7 @@ export async function runDueDateScheduler(
   const candidates = (await db
     .select({
       id: cards.id,
+      title: cards.title,
       boardId: cards.boardId,
       workspaceId: boards.workspaceId,
       dueAt: cards.dueAt,
@@ -147,6 +149,7 @@ export async function runDueDateScheduler(
                 activityType: tier,
                 notificationType,
                 cardId: card.id,
+                cardTitle: card.title,
                 boardId: card.boardId,
                 workspaceId: card.workspaceId,
                 dueAt: card.dueAt,

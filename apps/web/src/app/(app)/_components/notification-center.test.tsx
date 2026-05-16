@@ -301,6 +301,30 @@ describe('<NotificationCenter>', () => {
     expect(screen.getByText(strings.notifications.summary.default)).toBeInTheDocument();
   });
 
+  it('renders scheduler-sourced (system) notifications without an actor prefix', async () => {
+    listResult = {
+      items: [
+        unreadNotification({
+          id: 'n-due',
+          type: 'due_overdue',
+          actorId: null,
+          payload: { cardTitle: 'Sprint planı' },
+        }),
+      ],
+      nextCursor: null,
+    };
+
+    renderCenter();
+
+    // System rows show only the summary — no "Bir kullanıcı" actor prefix.
+    expect(
+      await screen.findByText(strings.notifications.summary.dueOverdue('Sprint planı')),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(strings.notifications.fallbackActorName),
+    ).not.toBeInTheDocument();
+  });
+
   it('clicking an unread row navigates, marks it read, and closes the panel', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
