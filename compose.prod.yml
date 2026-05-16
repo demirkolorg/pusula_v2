@@ -158,6 +158,18 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
     volumes:
       - minio_data:/data
+    networks:
+      - default # iç ağ — api/worker server-to-server S3 erişimi (minio:9000)
+      - dokploy-network # external — Traefik s3.${ROOT_DOMAIN}'i buraya yönlendirir
+    # Traefik — S3 API'sini (port 9000) tarayıcıya açar: presigned avatar
+    # upload (PUT) + presigned attachment download + public avatar okuma
+    # hepsi `https://s3.${ROOT_DOMAIN}` üzerinden gider (S3_PUBLIC_URL).
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.pusula-s3.rule=Host(`s3.${ROOT_DOMAIN}`)'
+      - 'traefik.http.routers.pusula-s3.entrypoints=websecure'
+      - 'traefik.http.routers.pusula-s3.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.pusula-s3.loadbalancer.server.port=9000'
     # No healthcheck — the minio/minio image ships neither `mc` nor `curl`, so
     # the runbook template's `mc ready local` check cannot run. No service
     # depends on minio with `service_healthy`; the API/worker S3 client retries

@@ -3,8 +3,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ObjectStorage } from '@pusula/api';
 import { env } from './env';
 
+// This client is used ONLY to presign URLs (createPresignedPut/GetUrl) — a
+// pure crypto operation, no network call. Presigned URLs are handed to the
+// BROWSER, so they must target the public, browser-reachable origin
+// (`S3_PUBLIC_URL`), not the internal `S3_ENDPOINT` (`http://minio:9000` in
+// prod — unreachable, and mixed-content on an HTTPS page). Falls back to
+// `S3_ENDPOINT` for local dev where that is already host-mapped & reachable.
 const s3 = new S3Client({
-  endpoint: env.S3_ENDPOINT,
+  endpoint: env.S3_PUBLIC_URL ?? env.S3_ENDPOINT,
   region: env.S3_REGION,
   forcePathStyle: true,
   credentials: {

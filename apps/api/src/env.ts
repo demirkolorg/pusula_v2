@@ -19,11 +19,12 @@ const envSchema = z.object({
   API_URL: z.string().min(1).default('http://localhost:3001'),
   API_PORT: z.coerce.number().int().positive().default(3001),
   S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
-  // Browser-facing base URL for public bucket objects (DEM-160 avatars). The
-  // API's S3 client uses `S3_ENDPOINT` to reach MinIO server-to-server — in
-  // Docker/prod that is an internal hostname (`http://minio:9000`) the browser
-  // cannot resolve. `users.image` must be a browser-reachable URL, so the
-  // public avatar URL is built from this instead. Optional: when unset it
+  // Browser-facing base URL for the MinIO bucket (DEM-160). EVERY S3 URL the
+  // browser touches is built from this: the public avatar URL (`users.image`)
+  // AND the presigned upload/download URLs (avatar PUT, attachment GET) — the
+  // browser cannot reach the internal `S3_ENDPOINT` (`http://minio:9000` in
+  // prod) and `http://` is mixed-content on an HTTPS page. Only server-to-server
+  // S3 access (the worker's cleanup) uses `S3_ENDPOINT`. Optional: when unset it
   // falls back to `S3_ENDPOINT` (correct for local dev, where `S3_ENDPOINT`
   // is already the host-mapped `http://localhost:9100`). In production set it
   // to the public MinIO origin (Traefik subdomain). See
