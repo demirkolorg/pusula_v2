@@ -1,0 +1,161 @@
+# =========================================================================
+# Pusula v2 — production stack (DEM-60).
+# Dokploy "Docker Compose" service type: point Dokploy at the repo + branch +
+# this file; the whole stack deploys as one unit. SEPARATE from the local
+# `docker-compose.yml` — here Postgres is not published, no dev credentials,
+# named volumes for backup. Env values are injected by Dokploy; `${VAR}`
+# references below are filled from the Dokploy service "Environment" tab.
+# Runbook: docs/architecture/12-deployment-runbook.md
+# =========================================================================
+name: pusula
+
+services:
+  # --- one-off: apply schema migrations, then exit -----------------------
+  migrate:
+    image: pusula-api:latest # built by the `api` service below
+    command: ['pnpm', 'db:migrate']
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # --- tRPC + Hono HTTP server -------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: pusula-api:latest # shared by `migrate` and `worker`
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      APP_URL: ${APP_URL}
+      API_URL: ${API_URL}
+      API_PORT: 3001
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      # Browser-facing public origin for avatar objects (DEM-160). Must be the
+      # public MinIO URL — S3_ENDPOINT here is the internal `minio:9000`.
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Traefik (Dokploy) — domain via these labels or the Dokploy UI "Domains" tab:
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.pusula-api.rule=Host(`api.${ROOT_DOMAIN}`)'
+      - 'traefik.http.routers.pusula-api.entrypoints=websecure'
+      - 'traefik.http.routers.pusula-api.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.pusula-api.loadbalancer.server.port=3001'
+
+  # --- BullMQ worker (notifications / realtime publish / cleanup / etc.) --
+  worker:
+    image: pusula-api:latest # same image as `api`, different command
+    command: ['node', 'apps/worker/dist/index.js']
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    # No Traefik labels — the worker exposes no HTTP.
+
+  # --- Next.js web app ----------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined at build time → must equal https://api.${ROOT_DOMAIN}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: pusula-web:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      api: { condition: service_started }
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.pusula-web.rule=Host(`app.${ROOT_DOMAIN}`)'
+      - 'traefik.http.routers.pusula-web.entrypoints=websecure'
+      - 'traefik.http.routers.pusula-web.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.pusula-web.loadbalancer.server.port=3000'
+
+  # --- PostgreSQL — transactional source of truth -------------------------
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: Europe/Istanbul
+      PGTZ: Europe/Istanbul
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # No `ports:` — Postgres is never exposed to the internet. Use an SSH
+    # tunnel for admin access (runbook §12.12).
+
+  # --- Redis — BullMQ queue + Socket.IO adapter ---------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # --- MinIO — S3-compatible object storage (attachments) -----------------
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - minio_data:/data
+    # No healthcheck — the minio/minio image ships neither `mc` nor `curl`, so
+    # the runbook template's `mc ready local` check cannot run. No service
+    # depends on minio with `service_healthy`; the API/worker S3 client retries
+    # until MinIO is up. The default bucket (`S3_BUCKET`) is created once
+    # during the first deploy (runbook §12.7) — that same step also opens the
+    # `avatars/` prefix to anonymous download (`mc anonymous set download`,
+    # DEM-160) so uploaded avatars resolve as stable public URLs. Expose the
+    # console on its own subdomain via Traefik labels (`...server.port=9001`)
+    # only if needed.
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:

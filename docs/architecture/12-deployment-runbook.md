@@ -16,7 +16,7 @@ parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/10-platform|10 — Platform]]'
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
-updated: 2026-05-12
+updated: 2026-05-16
 ---
 
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
@@ -41,17 +41,24 @@ ayarlarını ayrıca kod/Terraform ile yönetmeye gerek yok.
 
 - VDS'te Dokploy kurulu ve çalışıyor (panel erişimi var).
 - Domain(ler) hazır ve A kaydı VDS IP'sine bakıyor: ör. `app.<domain>` → web, `api.<domain>` → api.
-  (MinIO konsolu/S3 endpoint'i internete açılacaksa ayrı subdomain; açılmayacaksa sadece internal.)
+  MinIO S3 endpoint'i için **ayrı bir subdomain gerekir** (ör. `s3.<domain>`): avatarlar (DEM-160) public-read
+  `avatars/*` objeleri olarak tarayıcıdan doğrudan yüklenir; `S3_PUBLIC_URL` bu subdomain'e bakar. Konsol
+  (`:9001`) opsiyoneldir, açılırsa ayrı subdomain.
 - Repo GitHub'da; Dokploy'un repoya erişimi var (GitHub App veya deploy key).
-- `compose.prod.yml` ve `apps/{web,api,worker}/Dockerfile` repoda mevcut (→ §12.2; bunların gerçek
-  dosyaları [DEM-60](https://linear.app/demirkol/issue/DEM-60)'ta eklenir — v2 yazımı ilerleyince; bu runbook template'i taşır).
+- `compose.prod.yml` ve `apps/{api,web}/Dockerfile` repoda mevcut — **[DEM-60](https://linear.app/demirkol/issue/DEM-60) ile eklendi** (2026-05-16): repo kökünde `compose.prod.yml` + `.dockerignore`, `apps/api/Dockerfile` (api+worker+migrate ortak), `apps/web/Dockerfile` (Next standalone). Aşağıdaki §12.2 bunların kaynağı/açıklamasıdır.
 - Eski v1'i indirme penceresi belli (kullanıcı: "birkaç günlüğüne erişimi kapatıp v2 deploy edeceğiz").
 
 ---
 
-## 12.2 Repo tarafı — `compose.prod.yml` + `Dockerfile`'lar (template)
+## 12.2 Repo tarafı — `compose.prod.yml` + `Dockerfile`'lar
 
-> Bunlar **template**'tir; gerçek dosyalar [DEM-60](https://linear.app/demirkol/issue/DEM-60)'ta eklenir. Build context = **repo kökü**.
+> **Wired ([DEM-60](https://linear.app/demirkol/issue/DEM-60), 2026-05-16):** Aşağıdaki bloklar artık **gerçek dosya**dır — `compose.prod.yml`, `.dockerignore` (repo kökü), `apps/api/Dockerfile`, `apps/web/Dockerfile`. Build context = **repo kökü**. Kanonik kaynak repodaki dosyalardır; aşağıdaki listeler açıklama amaçlıdır. Template'ten bilinçli sapmalar:
+> - **`.dockerignore` eklendi** (template'te yoktu) — `node_modules`/`dist`/`.next`/`.turbo`/`.env*`/log/test çıktıları hariç tutulur; `.env`'in image katmanına sızması engellenir, build context küçük kalır.
+> - **`apps/web/next.config.ts`** `output: 'standalone'` + `outputFileTracingRoot` (monorepo kök tracing) taşır — web Dockerfile'ı bunu varsayar.
+> - **`migrate` ve `worker`** `build:` yerine `image: pusula-api:latest` kullanır (yalnız `api` build eder; üç servis tek image paylaşır → tek build).
+> - Servislere **`restart: unless-stopped`** (migrate hariç — `restart: "no"`).
+> - **`minio` healthcheck'i yok** — `minio/minio` image'ında `mc`/`curl` gömülü değil; template'in `mc ready local` check'i çalışmaz. Hiçbir servis minio'ya `service_healthy` ile bağlanmadığı için sorun değil.
+> - **Doğrulama:** `docker compose -f compose.prod.yml config` parse temiz; `docker compose build api` tam geçti. `web` image build'i `next build` type-check aşamasında, doğrulama anındaki ilgisiz bir working-tree WIP'i nedeniyle bir kez takıldı; Dockerfile/pipeline doğru — temiz working tree'de `docker compose build web` tek koşuyla geçer.
 
 ### 12.2.1 `apps/api/Dockerfile` — api **ve** worker bu image'ı paylaşır
 
@@ -318,6 +325,7 @@ Dokploy compose servisinin **Environment** sekmesinde tüm anahtarları gir. Kay
 | `API_URL`                                             | `https://api.${ROOT_DOMAIN}`                                                                                 |
 | `NEXT_PUBLIC_API_URL`                                 | `https://api.${ROOT_DOMAIN}` — **build arg** (web image'ına inline edilir)                                   |
 | `S3_ENDPOINT`                                         | `http://minio:9000` (app'ler internal kullanır)                                                              |
+| `S3_PUBLIC_URL`                                       | Avatarların tarayıcıya açık MinIO origin'i (Traefik subdomain, ör. `https://s3.${ROOT_DOMAIN}`) — DEM-160; `S3_ENDPOINT` internal olduğu için ayrı |
 | `S3_REGION`                                           | `us-east-1` (MinIO için fark etmez)                                                                          |
 | `S3_BUCKET`                                           | `pusula`                                                                                                     |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`           | MinIO root kimliği — güçlü, dev `minioadmin`'den farklı                                                      |
@@ -351,8 +359,10 @@ DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olar
 1. Dokploy compose servisinde **Deploy**'a bas. Build logunu izle (web + api/worker image'ları build edilir).
 2. Sıra: `postgres` healthy → `migrate` koşar ve `service_completed_successfully` olur → `api`/`worker` başlar → `web` başlar.
    `migrate` fail ederse logdan bak (`DATABASE_URL` yanlış / şema sorunu); düzelt, redeploy.
-3. **MinIO bucket'ı oluştur** (bir kerelik): MinIO konsoluna gir (geçici port-forward veya konsol subdomain'i)
-   ya da `mc` ile: `mc alias set local http://<vds>:... <key> <secret> && mc mb local/pusula`. (İleride init container'a alınabilir.)
+3. **MinIO bucket'ı oluştur + avatar prefix'ini aç** (bir kerelik): MinIO konsoluna gir (geçici port-forward veya konsol subdomain'i)
+   ya da `mc` ile:
+   `mc alias set local http://<vds>:... <key> <secret> && mc mb local/pusula && mc anonymous set download local/pusula/avatars`.
+   Son komut `avatars/` prefix'ini anonim okumaya açar (DEM-160 — yüklenen avatarlar kalıcı public URL olarak çözülür); bucket'ın geri kalanı (kart ekleri) private kalır. (İleride init container'a alınabilir.)
 4. **Doğrulama:** `docker ps` — `pusula-api`, `pusula-worker`, `pusula-web`, `pusula-postgres`, `pusula-redis`, `pusula-minio` ayakta, healthcheck'ler `healthy`; `migrate` `Exited (0)`.
 
 ---

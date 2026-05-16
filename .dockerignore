@@ -1,0 +1,47 @@
+# Build context for the production Docker images (DEM-60).
+# `apps/{api,web}/Dockerfile` use `COPY . .` in the prune stage; everything
+# below is excluded so the context stays small and no secret/local artifact
+# leaks into an image layer.
+
+# Dependencies — reinstalled inside the build (pnpm install --frozen-lockfile)
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt inside the image
+**/dist
+**/.next
+**/.turbo
+**/coverage
+
+# Secrets & env — must never enter an image layer
+.env
+.env.*
+!env.example
+
+# Version control & editor
+.git
+.gitignore
+.obsidian
+.claude
+
+# Local infra & tooling — not needed in the build
+docker-compose.yml
+compose.prod.yml
+.dockerignore
+
+# Tests & reports — not needed for a production image
+e2e
+playwright-report
+playwright-results.xml
+test-results
+
+# Logs & scratch files
+*.log
+codex-*.log
+.codex-dev.log
+
+# Docs & material — not part of the runtime
+docs
+material
+*.md
+!README.md
