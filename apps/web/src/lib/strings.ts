@@ -262,6 +262,7 @@ export const strings = {
       list: 'Listeler',
       card: 'Kartlar',
       comment: 'Yorumlar',
+      attachment: 'Dosyalar',
       label: 'Etiketler',
     },
   },

@@ -58,6 +58,7 @@ import {
   insertRealtimeEvent,
   maybeEnqueueRealtimePublish,
 } from '../lib/realtime-publish';
+import { deleteSearchDocument, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';
 import { resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
@@ -365,6 +366,11 @@ export const attachmentRouter = router({
         payload: activityPayload,
       });
 
+      // Faz 6.5 search (DEM-163) — the attachment becomes searchable (file
+      // name + description) only once it's committed; the draft INSERT in
+      // `initiate` writes nothing to `search_documents`.
+      await upsertSearchDocument(tx, { entityType: 'attachment', entityId: row.id });
+
       return { raced: false as const, dispatched: dispatched.inserted };
     });
 
@@ -453,10 +459,15 @@ export const attachmentRouter = router({
       });
     }
 
-    await ctx.db
-      .update(attachments)
-      .set({ description: input.description ?? null, updatedAt: new Date() })
-      .where(eq(attachments.id, existing.id));
+    await ctx.db.transaction(async (tx) => {
+      await tx
+        .update(attachments)
+        .set({ description: input.description ?? null, updatedAt: new Date() })
+        .where(eq(attachments.id, existing.id));
+      // DEM-163 — the caption is part of the attachment search body, so the
+      // index is refreshed in the same transaction as the row update.
+      await upsertSearchDocument(tx, { entityType: 'attachment', entityId: existing.id });
+    });
 
     return await loadAttachmentResponse(ctx.db, existing.id);
   }),
@@ -507,6 +518,10 @@ export const attachmentRouter = router({
       // Delete first — `cards.cover_image_attachment_id` FK is `ON DELETE
       // SET NULL`, so nothing else needs touching.
       await tx.delete(attachments).where(eq(attachments.id, existing.id));
+
+      // DEM-163 — `search_documents` has no FK to `attachments` (entity_id is
+      // plain text), so the search row must be removed explicitly.
+      await deleteSearchDocument(tx, { entityType: 'attachment', entityId: existing.id });
 
       const payload: Record<string, unknown> = {
         attachmentId: existing.id,

@@ -320,6 +320,62 @@ describe.runIf(dbAvailable)('search router (integration)', () => {
     expect(withArchived.items.some((item) => item.entityId === archivedCard.id)).toBe(true);
   });
 
+  it('indexes committed attachments and excludes drafts from search', async () => {
+    const { workspaceId, boardId, listId } = await seedBoard(
+      ownerId,
+      'Search Attachment Co',
+      'Ek Arama Panosu',
+    );
+    const owner = callerFor(ownerId);
+    const card = await owner.card.create({
+      listId,
+      title: 'Ek Arama Karti',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // The `attachment.initiate` path needs object storage (presigned PUT), so
+    // the draft row is inserted directly; `commit` itself only touches the DB.
+    const [draft] = await db()
+      .insert(dbMod.attachments)
+      .values({
+        cardId: card.id,
+        boardId,
+        uploaderId: ownerId,
+        storageKey: newId('key'),
+        fileName: 'ekarama-rapor.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+        description: 'Imzali ekarama belgesi',
+        committedAt: null,
+      })
+      .returning({ id: dbMod.attachments.id });
+
+    // Draft (`committed_at IS NULL`) — not searchable.
+    const beforeCommit = await owner.search.query({ boardId, query: 'ekarama', limit: 20 });
+    expect(beforeCommit.items.some((item) => item.entityId === draft!.id)).toBe(false);
+
+    await owner.attachment.commit({
+      attachmentId: draft!.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const afterCommit = await owner.search.query({ boardId, query: 'ekarama', limit: 20 });
+    expect(afterCommit.items.find((item) => item.entityId === draft!.id)).toMatchObject({
+      entityType: 'attachment',
+      cardId: card.id,
+      title: 'ekarama-rapor.pdf',
+      targetUrl: `/workspaces/${workspaceId}/boards/${boardId}?card=${card.id}`,
+    });
+
+    // Deleting the attachment drops it back out of search.
+    await owner.attachment.delete({
+      attachmentId: draft!.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    const afterDelete = await owner.search.query({ boardId, query: 'ekarama', limit: 20 });
+    expect(afterDelete.items.some((item) => item.entityId === draft!.id)).toBe(false);
+  });
+
   it('rejects short queries before touching search', async () => {
     await expect(callerFor(ownerId).search.query({ query: 'a' })).rejects.toMatchObject({
       code: 'BAD_REQUEST',

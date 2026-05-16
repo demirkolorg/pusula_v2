@@ -878,7 +878,14 @@ export const EMAIL_DIGEST_MODES = ['instant', 'hourly_digest', 'daily_digest', '
 export type EmailDigestMode = (typeof EMAIL_DIGEST_MODES)[number];
 
 /** Entity kinds indexed in `search_documents`. */
-export const SEARCH_ENTITY_TYPES = ['board', 'list', 'card', 'comment', 'label'] as const;
+export const SEARCH_ENTITY_TYPES = [
+  'board',
+  'list',
+  'card',
+  'comment',
+  'label',
+  'attachment',
+] as const;
 
 /**
  * Kart paylaşım linkleri için izin verilen süreler (gün). Üye paylaşım linki

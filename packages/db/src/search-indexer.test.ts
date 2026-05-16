@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from './index';
 import {
+  attachments,
   boardMembers,
   boards,
   cardLabels,
@@ -100,7 +101,7 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
   }
 
   async function readDoc(
-    entityType: 'board' | 'list' | 'card' | 'comment' | 'label',
+    entityType: 'board' | 'list' | 'card' | 'comment' | 'label' | 'attachment',
     entityId: string,
   ) {
     const rows = await db()
@@ -210,6 +211,68 @@ describe.runIf(dbAvailable)('search-indexer (integration)', () => {
     await upsertSearchDocument(db(), { entityType: 'comment', entityId: comment!.id });
 
     expect(await readDoc('comment', comment!.id)).toHaveLength(0);
+  });
+
+  it('indexes a committed attachment by file name + description, skips drafts', async () => {
+    const { boardId, ownerId } = await seedBoard();
+    const [list] = await db()
+      .insert(lists)
+      .values({ boardId, title: 'L', position: 'a0' })
+      .returning({ id: lists.id });
+    const [card] = await db()
+      .insert(cards)
+      .values({ boardId, listId: list!.id, title: 'C', position: 'a0' })
+      .returning({ id: cards.id });
+
+    // Draft (`committed_at IS NULL`) — never indexed.
+    const [draft] = await db()
+      .insert(attachments)
+      .values({
+        cardId: card!.id,
+        boardId,
+        uploaderId: ownerId,
+        storageKey: newId('key'),
+        fileName: 'taslak-rapor.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+        committedAt: null,
+      })
+      .returning({ id: attachments.id });
+    await upsertSearchDocument(db(), { entityType: 'attachment', entityId: draft!.id });
+    expect(await readDoc('attachment', draft!.id)).toHaveLength(0);
+
+    // Committed — indexed with file name as title and description as body.
+    const [committed] = await db()
+      .insert(attachments)
+      .values({
+        cardId: card!.id,
+        boardId,
+        uploaderId: ownerId,
+        storageKey: newId('key'),
+        fileName: 'kira-sozlesmesi.pdf',
+        mimeType: 'application/pdf',
+        size: 2048,
+        description: 'Imzali kira belgesi',
+        committedAt: new Date(),
+      })
+      .returning({ id: attachments.id });
+    await upsertSearchDocument(db(), { entityType: 'attachment', entityId: committed!.id });
+
+    const rows = await readDoc('attachment', committed!.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      boardId,
+      cardId: card!.id,
+      title: 'kira-sozlesmesi.pdf',
+      body: 'Imzali kira belgesi',
+      labels: [],
+      archivedAt: null,
+    });
+
+    // Archiving the card propagates to the attachment's archive state.
+    await db().update(cards).set({ archivedAt: new Date() }).where(dbMod.eq(cards.id, card!.id));
+    await upsertSearchDocument(db(), { entityType: 'attachment', entityId: committed!.id });
+    expect((await readDoc('attachment', committed!.id))[0]?.archivedAt).toBeInstanceOf(Date);
   });
 
   it('reindexes a board scope idempotently', async () => {

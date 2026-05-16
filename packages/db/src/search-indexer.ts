@@ -1,7 +1,16 @@
-import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import type { SearchEntityType } from '@pusula/domain';
 import type { Database } from './client';
-import { boards, cardLabels, cards, comments, labels, lists, searchDocuments } from './schema';
+import {
+  attachments,
+  boards,
+  cardLabels,
+  cards,
+  comments,
+  labels,
+  lists,
+  searchDocuments,
+} from './schema';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 export type SearchIndexerDb = Database | Tx;
@@ -283,6 +292,8 @@ export async function resolveSearchDocumentPayload(
       return resolveCommentPayload(tx, ref.entityId);
     case 'label':
       return resolveLabelPayload(tx, ref.entityId);
+    case 'attachment':
+      return resolveAttachmentPayload(tx, ref.entityId);
   }
 }
 
@@ -465,6 +476,48 @@ async function resolveLabelPayload(
   };
 }
 
+async function resolveAttachmentPayload(
+  tx: SearchIndexerDb,
+  attachmentId: string,
+): Promise<ResolvedSearchDocument | null> {
+  const [row] = await tx
+    .select({
+      id: attachments.id,
+      cardId: attachments.cardId,
+      boardId: attachments.boardId,
+      fileName: attachments.fileName,
+      description: attachments.description,
+      committedAt: attachments.committedAt,
+      updatedAt: attachments.updatedAt,
+      cardArchivedAt: cards.archivedAt,
+      listArchivedAt: lists.archivedAt,
+      workspaceId: boards.workspaceId,
+      boardArchivedAt: boards.archivedAt,
+    })
+    .from(attachments)
+    .innerJoin(cards, eq(cards.id, attachments.cardId))
+    .innerJoin(lists, eq(lists.id, cards.listId))
+    .innerJoin(boards, eq(boards.id, attachments.boardId))
+    .where(eq(attachments.id, attachmentId))
+    .limit(1);
+  // Draft uploads (`committed_at IS NULL`) are never indexed — a returned
+  // `null` makes `upsertSearchDocument` delete any stale row instead.
+  if (!row || row.committedAt === null) return null;
+  return {
+    entityType: 'attachment',
+    entityId: row.id,
+    workspaceId: row.workspaceId,
+    boardId: row.boardId,
+    cardId: row.cardId,
+    title: row.fileName,
+    body: row.description,
+    labels: [],
+    // Attachments don't archive on their own — they follow the card/list/board.
+    archivedAt: firstDate(row.cardArchivedAt, row.listArchivedAt, row.boardArchivedAt),
+    updatedAt: row.updatedAt,
+  };
+}
+
 export async function reindexSearchDocuments(
   db: SearchIndexerDb,
   input: ReindexSearchDocumentsInput,
@@ -527,6 +580,12 @@ export async function syncSearchDocumentsForCard(
       .from(comments)
       .where(and(eq(comments.cardId, cardId), isNull(comments.deletedAt)));
     for (const row of commentRows) refs.push({ entityType: 'comment', entityId: row.id });
+
+    const attachmentRows = await db
+      .select({ id: attachments.id })
+      .from(attachments)
+      .where(and(eq(attachments.cardId, cardId), isNotNull(attachments.committedAt)));
+    for (const row of attachmentRows) refs.push({ entityType: 'attachment', entityId: row.id });
   }
 
   const currentKeys = new Set(refs.map(refKey));
@@ -544,7 +603,7 @@ export async function syncSearchDocumentsForCard(
     .where(
       and(
         eq(searchDocuments.cardId, cardId),
-        inArray(searchDocuments.entityType, ['card', 'comment']),
+        inArray(searchDocuments.entityType, ['card', 'comment', 'attachment']),
       ),
     );
   for (const row of existing) {
@@ -632,6 +691,14 @@ async function collectSearchDocumentRefs(
       .from(labels)
       .where(inArray(labels.boardId, boardIds));
     for (const row of rows) add({ entityType: 'label', entityId: row.id });
+  }
+
+  if (scopeAllows(input.entityTypes, 'attachment')) {
+    const rows = await db
+      .select({ id: attachments.id })
+      .from(attachments)
+      .where(and(inArray(attachments.boardId, boardIds), isNotNull(attachments.committedAt)));
+    for (const row of rows) add({ entityType: 'attachment', entityId: row.id });
   }
 
   return refs;

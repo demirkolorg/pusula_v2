@@ -185,9 +185,10 @@ domain mutation tx
 ```
 
 - Request-path helper hafif kalır: sadece değişen entity'nin search document'ını upsert/delete eder.
-- Board/list/card/comment/label kapsamı: create/update/archive/delete.
+- Board/list/card/comment/label/attachment kapsamı: create/update/archive/delete.
 - Archive: `archived_at` set edilir veya entity görünmezse search document silinir.
 - Comment soft-delete: search document silinir; silinmiş yorum gövdesi index'te kalmaz.
+- Attachment (DEM-163): `entity_type='attachment'`, `title=file_name`, `body=description`. Yalnızca commit edilmiş ek (`committed_at IS NOT NULL`) indekslenir — `attachment.commit`/`update` upsert eder, draft satır ve `attachment.delete` search document'ı siler. `archived_at` kartın/listenin/board'un arşiv durumundan türer. Dosya **içeriği** indekslenmez (OCR yok).
 - Reindex/backfill worker büyük veya şüpheli durumlarda tüm workspace/board için idempotent yeniden üretim yapar. Worker aynı `(entity_type, entity_id)` unique key üzerinden upsert eder.
 - Search index hatası domain mutation'ını sessizce yutmaz; aynı transaction içinde beklenen index yazımı başarısızsa mutation rollback eder. Ağır reindex ayrı worker sorumluluğudur.
 

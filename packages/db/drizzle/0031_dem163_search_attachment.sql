@@ -1,0 +1,15 @@
+-- DEM-163 — `search_entity_type` Postgres enum'una `'attachment'` değeri:
+--
+--   'attachment' — karta ekli dosya (file_name + description) arama kapsamına girer.
+--
+-- Faz 6.5 araması bugüne dek board/list/card/comment/label kapsıyordu; karta
+-- ekli dosyalar aranamıyordu. `search_documents.entity_type` kolonu
+-- `pgEnum('search_entity_type', SEARCH_ENTITY_TYPES)` ile `@pusula/domain`
+-- listesine bağlı — listeye `'attachment'` eklendi, DB enum'u da eşitlenmeli;
+-- aksi halde `attachment.commit` index upsert'i SQLSTATE 22P02 ile fail eder.
+--
+-- `IF NOT EXISTS` idempotent (önceki enum-değer pattern'i: 0022, 0028, 0029).
+--
+-- Detay → `docs/domain/06-arama-kapsami.md` "Aranabilir içerik" +
+-- `docs/architecture/09-depolama-ve-arama.md` §9.2 "Index bakım akışı".
+ALTER TYPE "public"."search_entity_type" ADD VALUE IF NOT EXISTS 'attachment';

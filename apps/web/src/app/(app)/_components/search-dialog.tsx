@@ -13,7 +13,14 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import type { LucideIcon } from 'lucide-react';
-import { LayoutGridIcon, ListIcon, MessageSquareIcon, SearchIcon, TagsIcon } from 'lucide-react';
+import {
+  LayoutGridIcon,
+  ListIcon,
+  MessageSquareIcon,
+  PaperclipIcon,
+  SearchIcon,
+  TagsIcon,
+} from 'lucide-react';
 import {
   Badge,
   Button,
@@ -53,13 +60,21 @@ type SearchDialogProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
-const entityOrder: SearchEntityType[] = ['board', 'list', 'card', 'comment', 'label'];
+const entityOrder: SearchEntityType[] = [
+  'board',
+  'list',
+  'card',
+  'comment',
+  'attachment',
+  'label',
+];
 
 const entityIcons = {
   board: LayoutGridIcon,
   list: ListIcon,
   card: LayoutGridIcon,
   comment: MessageSquareIcon,
+  attachment: PaperclipIcon,
   label: TagsIcon,
 } satisfies Record<SearchEntityType, LucideIcon>;
 
@@ -87,7 +102,7 @@ function resultContext(item: SearchResult) {
   return [
     item.workspaceTitle,
     item.boardTitle,
-    item.entityType === 'comment' ? item.cardTitle : null,
+    item.entityType === 'comment' || item.entityType === 'attachment' ? item.cardTitle : null,
   ]
     .filter(Boolean)
     .join(' / ');
