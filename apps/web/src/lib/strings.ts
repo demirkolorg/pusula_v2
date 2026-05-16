@@ -370,7 +370,7 @@ export const strings = {
       checklistItemRemoved: (cardTitle: string) =>
         `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
       attachmentRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir dosya kaldırdı`,
-      default: 'bir bildirim gönderdi',
+      default: 'bir işlem yaptı',
     },
   },
   workspace: {

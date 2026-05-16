@@ -36,8 +36,14 @@ export function activitySummary(type: string, payload: unknown): string {
     case 'comment_reply':
     case 'comment.created':
       return copy.commentCreated(cardTitle(p));
-    case 'due_approaching':
+    case 'due_approaching': {
+      // DEM-170 — scheduler 1g/1s hatırlatmasının ikisine de `due_approaching`
+      // tipini verir; tier-özel metni `reminderTier` payload alanından seç.
+      const tier = text(p, 'reminderTier');
+      if (tier === 'due_reminder_1h') return copy.dueReminder1h(cardTitle(p));
+      if (tier === 'due_reminder_1d') return copy.dueReminder1d(cardTitle(p));
       return copy.dueApproaching(cardTitle(p));
+    }
     case 'due_reminder_1d':
       return copy.dueReminder1d(cardTitle(p));
     case 'due_reminder_1h':

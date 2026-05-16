@@ -137,15 +137,13 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
     case 'card_assigned':
       return { title: 'Yeni atama', body: `${actor}, "${subject}" kartına seni atadı.`, data };
     case 'mention':
-      return { title: 'Sözedildin', body: `${actor} bir yorumda senden bahsetti.`, data };
+      return { title: 'Senden söz edildi', body: `${actor} bir yorumda senden bahsetti.`, data };
     case 'comment_reply':
       return { title: 'Yeni yorum', body: `${actor}, "${subject}" kartına yorum yazdı.`, data };
-    case 'due_approaching':
-      return {
-        title: 'Yaklaşan teslim',
-        body: `"${subject}" kartının teslim tarihi yaklaşıyor.`,
-        data,
-      };
+    case 'due_approaching': {
+      const due = dueApproachingParts(ctx.payload);
+      return { title: due.pushTitle, body: `${due.phrase(subject)}.`, data };
+    }
     case 'due_overdue':
       return { title: 'Geciken kart', body: `"${subject}" kartının teslim tarihi geçti.`, data };
     case 'board_invitation':
@@ -425,12 +423,14 @@ function renderDueReminder(ctx: TemplateContext): RenderedEmail {
   const cardTitle = pickSubject(ctx.payload);
   const link = cardDeepLink(ctx);
   const overdue = ctx.type === 'due_overdue';
+  // DEM-170 — yaklaşan hatırlatma metni tier'a göre (1g / 1s); geciken sabit.
+  const due = dueApproachingParts(ctx.payload);
   const subject = overdue
     ? `"${cardTitle}" kartının teslim tarihi geçti`
-    : `"${cardTitle}" kartının teslim tarihi yaklaşıyor`;
+    : due.phrase(cardTitle);
   const body = overdue
     ? `"${cardTitle}" kartının teslim tarihi geçti. Lütfen kontrol et.`
-    : `"${cardTitle}" kartının teslim tarihi yaklaşıyor.`;
+    : `${due.phrase(cardTitle)}.`;
   return {
     subject,
     text: textShell(ctx.recipient.name, [body, '', 'Karta gitmek için:', link]),
@@ -813,7 +813,7 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
     case 'comment_reply':
       return `${actor} → "${subject}" kartında yeni yorum`;
     case 'due_approaching':
-      return `"${subject}" — teslim tarihi yaklaşıyor`;
+      return dueApproachingParts(item.payload).phrase(subject);
     case 'due_overdue':
       return `"${subject}" — teslim tarihi geçti`;
     case 'board_invitation':
@@ -917,7 +917,8 @@ function pickActorName(payload: Record<string, unknown>): string {
   if (typeof payload.shareLinkId === 'string' && payload.shareLinkId.length > 0) {
     return 'Misafir';
   }
-  return stringOr(payload, 'actorName', 'Birisi');
+  // DEM-169 — fallback web in-app/aktivite akışıyla aynı ("Bir kullanıcı").
+  return stringOr(payload, 'actorName', 'Bir kullanıcı');
 }
 
 function pickSubject(payload: Record<string, unknown>): string {
@@ -932,6 +933,36 @@ function pickSubject(payload: Record<string, unknown>): string {
 function stringOr(payload: Record<string, unknown>, key: string, fallback: string): string {
   const v = payload[key];
   return typeof v === 'string' && v.length > 0 ? v : fallback;
+}
+
+/**
+ * DEM-170 — due-approaching hatırlatmasının tier-özel metni. Scheduler 24 saat
+ * (`due_reminder_1d`) ve 1 saat (`due_reminder_1h`) hatırlatmalarının ikisine de
+ * `due_approaching` bildirim tipini verir; aciliyeti `reminderTier` payload
+ * alanından çözeriz.
+ */
+function dueApproachingParts(payload: Record<string, unknown>): {
+  pushTitle: string;
+  /** Kart başlığını alıp tam cümleyi döndürür — sonunda nokta yok. */
+  phrase: (cardTitle: string) => string;
+} {
+  const tier = stringOr(payload, 'reminderTier', '');
+  if (tier === 'due_reminder_1h') {
+    return {
+      pushTitle: 'Son 1 saat',
+      phrase: (c) => `"${c}" kartının teslimine 1 saatten az kaldı`,
+    };
+  }
+  if (tier === 'due_reminder_1d') {
+    return {
+      pushTitle: 'Yarın teslim',
+      phrase: (c) => `"${c}" kartı yarın teslim ediliyor`,
+    };
+  }
+  return {
+    pushTitle: 'Yaklaşan teslim',
+    phrase: (c) => `"${c}" kartının teslim tarihi yaklaşıyor`,
+  };
 }
 
 function cardDeepLink(ctx: TemplateContext): string {

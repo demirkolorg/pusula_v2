@@ -80,4 +80,19 @@ describe('activitySummary', () => {
     // activity-type alias'ları (eski payload uyumu)
     expect(activitySummary('card.renamed', { cardTitle: 'Eski' })).toContain('Eski');
   });
+
+  it('DEM-170 — due_approaching picks tier-specific copy from reminderTier', () => {
+    // Tier yoksa jenerik "yaklaşıyor".
+    expect(activitySummary('due_approaching', { cardTitle: 'Plan' })).toContain(
+      'teslim tarihi yaklaşıyor',
+    );
+    // 24 saat tier'ı → "yarın teslim ediliyor".
+    expect(
+      activitySummary('due_approaching', { cardTitle: 'Plan', reminderTier: 'due_reminder_1d' }),
+    ).toContain('yarın teslim ediliyor');
+    // 1 saat tier'ı → aciliyet metni.
+    expect(
+      activitySummary('due_approaching', { cardTitle: 'Plan', reminderTier: 'due_reminder_1h' }),
+    ).toContain('1 saat sonra teslim ediliyor');
+  });
 });

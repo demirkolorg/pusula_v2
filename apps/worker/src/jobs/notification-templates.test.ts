@@ -84,6 +84,20 @@ describe('renderDigestEmail', () => {
     expect(result.html).toContain('ve 2 daha');
   });
 
+  it('DEM-170 — due_approaching digest line reflects the reminder tier', () => {
+    const result = renderDigestEmail({
+      recipient: RECIPIENT,
+      cadence: 'hourly',
+      items: [
+        item('due_approaching', { cardTitle: 'Yarınki', reminderTier: 'due_reminder_1d' }),
+        item('due_approaching', { cardTitle: 'Birazdan', reminderTier: 'due_reminder_1h' }),
+      ],
+      appUrl: APP_URL,
+    });
+    expect(result.html).toContain('yarın teslim ediliyor');
+    expect(result.html).toContain('1 saatten az kaldı');
+  });
+
   it('plain text body mirrors HTML structure', () => {
     const result = renderDigestEmail({
       recipient: RECIPIENT,
