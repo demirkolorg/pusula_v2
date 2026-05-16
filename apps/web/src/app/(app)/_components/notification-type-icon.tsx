@@ -45,6 +45,11 @@ export function notificationTypeIcon(type: string, className?: string) {
     case 'workspace_invitation':
     case 'workspace.member_invited':
       return <MailIcon className={cn(iconClass, 'text-blue-500')} aria-hidden />;
+    // DEM-175 — board'a doğrudan eklenme (davet değil); kart üye eklemeyle
+    // aynı "kullanıcı eklendi" ikonu.
+    case 'board_member_added':
+    case 'board.member_added':
+      return <UserPlusIcon className={cn(iconClass, 'text-blue-500')} aria-hidden />;
     // DEM-152 — granular kart-aktivite tipleri. Her tip kendi ikon + rengiyle;
     // activity-type alias'ları (`card.moved` vb.) eski çağrı yollarıyla uyumlu
     // kalmak için aynı case'te tutulur.

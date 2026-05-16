@@ -832,6 +832,14 @@ export const NOTIFICATION_TYPES = [
   // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı.
   // Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-154".
   'board_access_requested',
+  // DEM-175 — board'a doğrudan üye eklemesi (`board.member_added`). Faz 2.5'ten
+  // beri `board_invitation` tipiyle bildiriliyordu — "davet" metni + kabul/reddet
+  // beklentisi yanıltıcı (kullanıcı zaten üye) + mute-bypass'tan istenmeyen anlık
+  // e-posta. Kendi tipine ayrıldı: "ekledi" metni, mute-bypass DEĞİL, in-app +
+  // email opt-in. `ACTIVITY_EVENT_TYPES` değişmez (`board.member_added` zaten var).
+  // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı.
+  // Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-175".
+  'board_member_added',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */

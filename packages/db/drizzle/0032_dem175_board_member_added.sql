@@ -1,0 +1,19 @@
+-- DEM-175 — board'a doğrudan üye eklemesi için ayrı bildirim tipi.
+--
+-- notification_type += 'board_member_added'
+--   `board.member_added` activity'si Faz 2.5'ten beri `board_invitation`
+--   tipiyle bildiriliyordu — "Pano daveti / …davet etti" metni + kabul/reddet
+--   beklentisi yanıltıcıydı (kullanıcı zaten üye) ve `board_invitation`
+--   mute-bypass olduğundan susturmuş kullanıcı yine de anlık e-posta alıyordu.
+--   Rule engine artık doğrudan eklemeyi bu tipe yönlendiriyor: "ekledi" metni,
+--   in-app + email opt-in, mute-bypass DEĞİL.
+--
+-- `activity_event_type` DEĞİŞMEZ — `board.member_added` activity zaten var.
+--
+-- Kaynak: `@pusula/domain/constants.ts` `NOTIFICATION_TYPES` (`pgEnum(...)` ile
+-- bağlı — DB enum tek listeye eşitlenmek zorunda; aksi halde insert SQLSTATE
+-- 22P02 ile fail eder). `IF NOT EXISTS` idempotent (önceki pattern: 0028-0030).
+--
+-- Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-175 — doğrudan board
+-- üyeliği bildirimi" + `docs/architecture/06-bildirim-altyapisi.md`.
+ALTER TYPE "public"."notification_type" ADD VALUE IF NOT EXISTS 'board_member_added';

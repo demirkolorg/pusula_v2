@@ -339,6 +339,7 @@ export const strings = {
       dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
       dueOverdue: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi geçti`,
       boardMemberInvited: (boardName: string) => `seni "${boardName}" panosuna davet etti`,
+      boardMemberAdded: (boardName: string) => `seni "${boardName}" panosuna ekledi`,
       workspaceMemberInvited: (workspaceName: string) =>
         `seni "${workspaceName}" çalışma alanına davet etti`,
       // DEM-154 — board erişim talebi bildirimi özeti (alıcı board admin'i).
@@ -1297,6 +1298,7 @@ export const strings = {
           checklistItemCompleted: 'Yapılacaklar maddesi tamamlandı',
           memberRemoved: 'Üyelikten çıkarıldım',
           memberRoleChanged: 'Rolüm değişti',
+          boardMemberAdded: 'Panoya eklendim',
           boardInvitation: 'Pano daveti',
           workspaceInvitation: 'Çalışma alanı daveti',
         },

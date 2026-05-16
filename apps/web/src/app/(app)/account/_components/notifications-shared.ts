@@ -268,6 +268,14 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     group: 'membership',
     channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
   },
+  // DEM-175 — board'a doğrudan eklenme. `board_invitation`'dan farklı:
+  // mute-bypass DEĞİL (kullanıcı toggle edebilir), in-app + email opt-in.
+  {
+    type: 'board_member_added',
+    i18nKey: 'boardMemberAdded',
+    group: 'membership',
+    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+  },
   {
     type: 'board_invitation',
     i18nKey: 'boardInvitation',

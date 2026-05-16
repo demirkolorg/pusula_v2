@@ -225,6 +225,13 @@
       "when": 1779790800000,
       "tag": "0031_dem163_search_attachment",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1779877200000,
+      "tag": "0032_dem175_board_member_added",
+      "breakpoints": true
     }
   ]
 }

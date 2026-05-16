@@ -53,6 +53,10 @@ export function activitySummary(type: string, payload: unknown): string {
     case 'board_invitation':
     case 'board.member_invited':
       return copy.boardMemberInvited(boardName(p));
+    // DEM-175 — board'a doğrudan eklenme: "davet etti" değil "ekledi".
+    case 'board_member_added':
+    case 'board.member_added':
+      return copy.boardMemberAdded(boardName(p));
     case 'workspace_invitation':
     case 'workspace.member_invited':
       return copy.workspaceMemberInvited(

@@ -100,6 +100,9 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
     case 'board_access_requested':
       // DEM-154 — board admin'ine "X erişim istedi" e-postası (email opt-in).
       return renderAccessRequest(ctx);
+    case 'board_member_added':
+      // DEM-175 — board'a doğrudan eklenme: "X seni Y panosuna ekledi".
+      return renderBoardMemberAdded(ctx);
     default: {
       // Exhaustiveness check — every new NotificationType must be wired here.
       const _exhaustive: never = ctx.type;
@@ -156,6 +159,13 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: 'Çalışma alanı daveti',
         body: `${actor}, seni "${subject}" çalışma alanına davet etti.`,
+        data,
+      };
+    case 'board_member_added':
+      // DEM-175 — doğrudan ekleme: "davet etti" değil "ekledi".
+      return {
+        title: 'Panoya eklendin',
+        body: `${actor}, seni "${subject}" panosuna ekledi.`,
         data,
       };
     case 'watched_activity':
@@ -462,6 +472,31 @@ function renderInvitation(ctx: TemplateContext): RenderedEmail {
       `<p>${esc(actor)}, seni <strong>${esc(targetTitle)}</strong> ${esc(scopeLabel)} davet etti.</p>`,
       `<p><a href="${esc(link)}" style="display: inline-block; padding: 8px 16px; background: #1f2937; color: #ffffff; text-decoration: none; border-radius: 6px;">Daveti incele</a></p>`,
       `<p style="color: #6b7280; font-size: 13px;">Buton çalışmazsa şu bağlantıyı tarayıcına kopyala:<br /><span style="color: #1f2937;">${esc(link)}</span></p>`,
+    ]),
+  };
+}
+
+/**
+ * DEM-175 — "X seni 'Y' panosuna ekledi" e-postası. `renderInvitation`'dan
+ * farklı: doğrudan ekleme (kullanıcı zaten üye), token/kabul akışı yok →
+ * doğrudan pano linki, "davet etti" değil "ekledi".
+ */
+function renderBoardMemberAdded(ctx: TemplateContext): RenderedEmail {
+  const actor = pickActorName(ctx.payload);
+  const boardName = pickSubject(ctx.payload);
+  const link = boardDeepLink(ctx);
+  const subject = `${actor} seni "${boardName}" panosuna ekledi`;
+  return {
+    subject,
+    text: textShell(ctx.recipient.name, [
+      `${actor}, seni "${boardName}" panosuna ekledi.`,
+      '',
+      'Panoya gitmek için:',
+      link,
+    ]),
+    html: htmlShell(ctx.recipient.name, [
+      `<p>${esc(actor)}, seni <strong>${esc(boardName)}</strong> panosuna ekledi.</p>`,
+      `<p><a href="${esc(link)}" style="display: inline-block; padding: 8px 16px; background: #1f2937; color: #ffffff; text-decoration: none; border-radius: 6px;">Panoyu aç</a></p>`,
     ]),
   };
 }
@@ -792,6 +827,8 @@ function digestGroupBaseTitle(type: NotificationType): string {
       return 'Rol değişiklikleri';
     case 'board_access_requested':
       return 'Erişim talepleri';
+    case 'board_member_added':
+      return 'Panoya eklenmeler';
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -820,6 +857,8 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       return `${actor} → "${subject}" panosuna davet`;
     case 'workspace_invitation':
       return `${actor} → "${subject}" çalışma alanına davet`;
+    case 'board_member_added':
+      return `${actor} seni "${subject}" panosuna ekledi`;
     case 'watched_activity': {
       const verb = activityVerb(stringOr(item.payload, 'activityType', ''));
       return `${actor} → "${subject}" kartını ${verb}`;

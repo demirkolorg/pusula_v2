@@ -69,6 +69,9 @@ const COOLDOWN_BYPASS = new Set<NotificationType>([
   // 60 s içinde gelen ikinci talep sahibi collapse edilirse admin'den
   // gizlenir. `board_invitation` ile aynı gerekçe.
   'board_access_requested',
+  // DEM-175 — her board ekleme ayrı bir pano erişimi; bir admin kullanıcıyı
+  // 60 s içinde iki panoya eklerse ikinci ekleme collapse edilmemeli.
+  'board_member_added',
 ]);
 
 /**

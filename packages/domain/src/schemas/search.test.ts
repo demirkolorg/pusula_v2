@@ -3,8 +3,11 @@ import { SEARCH_ENTITY_TYPES } from '../constants';
 import * as schemas from './index';
 
 describe('SEARCH_ENTITY_TYPES', () => {
-  it('matches the Faz 6.5 indexed entity set', () => {
-    expect(SEARCH_ENTITY_TYPES).toEqual(['board', 'list', 'card', 'comment', 'label']);
+  it('matches the indexed entity set (Faz 6.5 + DEM-163 attachment)', () => {
+    // DEM-163 — `attachment` arama kapsamına eklendi (karta ekli dosya adı +
+    // açıklaması); `SEARCH_ENTITY_TYPES` güncellendi ama bu beklenti
+    // güncellenmemişti — main'de kırık kalan testin düzeltmesi.
+    expect(SEARCH_ENTITY_TYPES).toEqual(['board', 'list', 'card', 'comment', 'label', 'attachment']);
   });
 });
 

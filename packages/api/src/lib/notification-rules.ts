@@ -187,11 +187,14 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
     case 'attachment.removed':
       return 'attachment_removed';
     case 'board.member_added':
-      // Direct-add (account already exists) — Faz 2.5 `board-members.add (a)`
-      // also writes an `email` outbox row inline. We layer an in-app row on
-      // top so the recipient sees the membership in their notification
-      // centre, not just in their inbox.
-      return 'board_invitation';
+      // DEM-175 — doğrudan ekleme (hesap zaten var) kendi tipinde. Eskiden
+      // `board_invitation` dönüyordu; "davet" metni + kabul/reddet beklentisi
+      // yanıltıcıydı (kullanıcı zaten üye) ve `board_invitation` mute-bypass
+      // olduğundan susturmuş kullanıcı yine de anlık e-posta alıyordu.
+      // `board_member_added`: "ekledi" metni, in-app + email opt-in,
+      // mute-bypass DEĞİL. Davet kabulü de bu activity'yi üretir ama actor =
+      // yeni üye → self-skip bildirim doğurmaz.
+      return 'board_member_added';
     case 'card.member_removed':
       // Faz 10A (DEM-135) — alıcı **çıkarılan kullanıcı** (payload.userId);
       // permission filter atlar (artık karta erişimi yok). `collectRecipients`
@@ -562,7 +565,10 @@ async function pickChannels(
     notificationType === 'board_invitation' ||
     notificationType === 'workspace_invitation' ||
     notificationType === 'member_removed' ||
-    notificationType === 'board_access_requested';
+    notificationType === 'board_access_requested' ||
+    // DEM-175 — board'a doğrudan eklenme posta kutusunda da görünsün
+    // (`board_invitation` ile aynı seviye); ama mute-bypass değil.
+    notificationType === 'board_member_added';
   if (emailByType && emailEnabled) channels.push('email');
 
   return channels;

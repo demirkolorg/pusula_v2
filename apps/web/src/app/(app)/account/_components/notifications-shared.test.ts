@@ -31,6 +31,8 @@ const EMAIL_TYPES = new Set([
   'board_invitation',
   'workspace_invitation',
   'member_removed',
+  // DEM-175 — board'a doğrudan eklenme e-posta opt-in (mute-bypass değil).
+  'board_member_added',
 ]);
 
 describe('notifications-shared MATRIX_ROWS', () => {
@@ -62,12 +64,13 @@ describe('notifications-shared MATRIX_ROWS', () => {
     }
   });
 
-  it('exposes 27 rows (one per produced NotificationType)', () => {
+  it('exposes 28 rows (one per produced NotificationType)', () => {
     // DEM-152 — 11 → 17: `watched_activity` çıkarıldı (artık üretilmiyor,
     // enum'da fallback), 7 granular kart-aktivite tipi eklendi.
     // DEM-153 — 17 → 27: kartla ilgili kalan 10 granular aksiyon tipi eklendi
     // (başlık/açıklama/etiket/yorum düzenle-sil/checklist/ek kaldırma).
-    expect(MATRIX_ROWS).toHaveLength(27);
+    // DEM-175 — 27 → 28: `board_member_added` (doğrudan board ekleme).
+    expect(MATRIX_ROWS).toHaveLength(28);
   });
 
   it('every row carries a valid group + i18nKey + channel state set', () => {
