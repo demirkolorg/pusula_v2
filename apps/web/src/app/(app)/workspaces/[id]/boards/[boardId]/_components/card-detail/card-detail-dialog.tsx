@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { TRPCClientError } from '@trpc/client';
 import {
   CARD_COVER_COLORS,
   CARD_COVER_IMAGE_MAX_BYTES,
@@ -34,6 +35,7 @@ import {
   type CardDetailCache,
 } from '@/lib/board-cache';
 import { AppSpinner } from '@/components/app-spinner';
+import { friendlyErrorMessage } from '@/lib/error-message';
 import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -487,8 +489,11 @@ export function CardDetailDialog({
         coverImageAttachmentId: committed.id,
       });
     } catch (err) {
+      // DEM-174 — ham `err.message` teknik/İngilizce sızdırabilir.
       setCoverImageUploadError(
-        err instanceof Error ? err.message : detailCopy.modal.coverImageUploadFailed,
+        err instanceof TRPCClientError
+          ? friendlyErrorMessage(err)
+          : detailCopy.modal.coverImageUploadFailed,
       );
     } finally {
       pendingCoverImageRef.current = null;

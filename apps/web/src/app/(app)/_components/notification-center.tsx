@@ -3,7 +3,7 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { BellIcon, CheckIcon, SettingsIcon } from 'lucide-react';
+import { BellIcon, CheckIcon, SettingsIcon, TriangleAlertIcon } from 'lucide-react';
 import {
   Avatar,
   Button,
@@ -101,14 +101,15 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
   const listFilter = trpc.notifications.list.infiniteQueryFilter({ limit: NOTIFICATIONS_LIMIT });
   const unreadFilter = trpc.notifications.unreadCount.queryFilter();
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(
-    trpc.notifications.list.infiniteQueryOptions(
-      { limit: NOTIFICATIONS_LIMIT },
-      {
-        getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-      },
-    ),
-  );
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery(
+      trpc.notifications.list.infiniteQueryOptions(
+        { limit: NOTIFICATIONS_LIMIT },
+        {
+          getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+        },
+      ),
+    );
 
   const markRead = useMutation(
     trpc.notifications.markRead.mutationOptions({
@@ -261,6 +262,30 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
                   className="bg-muted h-14 w-full animate-pulse rounded-md"
                 />
               ))}
+            </div>
+          ) : isError ? (
+            <div
+              data-testid="notification-error"
+              className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center"
+            >
+              <span className="bg-destructive/10 text-destructive flex size-10 items-center justify-center rounded-full">
+                <TriangleAlertIcon className="size-5" aria-hidden />
+              </span>
+              <p className="text-foreground text-sm font-medium">
+                {strings.notifications.loadErrorTitle}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {strings.notifications.loadErrorHint}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => void refetch()}
+              >
+                {strings.common.retry}
+              </Button>
             </div>
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">

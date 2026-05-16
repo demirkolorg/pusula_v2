@@ -32,7 +32,7 @@ import {
   EmptyState,
   toast,
 } from '@pusula/ui';
-import { formatRelativeTime } from '@/lib/format';
+import { formatRemainingTime } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -152,7 +152,7 @@ export function NotificationsSnoozeList() {
             <ul className="divide-border divide-y">
               {activeRows.map((row) => {
                 const until = toDateOrNull(row.muteUntil);
-                const remainingLabel = until ? formatRelativeTime(until) : '';
+                const remainingLabel = until ? formatRemainingTime(until) : '';
                 const isPending =
                   unsnooze.isPending && unsnooze.variables?.cardId === row.cardId;
                 return (
@@ -177,10 +177,7 @@ export function NotificationsSnoozeList() {
                             {row.scopeLabel}
                           </p>
                         </div>
-                        <p className="text-muted-foreground text-xs">
-                          {copy.remainingPrefix}
-                          {remainingLabel}
-                        </p>
+                        <p className="text-muted-foreground text-xs">{remainingLabel}</p>
                       </div>
                     </div>
                     <Button

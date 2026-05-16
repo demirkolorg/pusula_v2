@@ -37,6 +37,7 @@ import {
   cn,
 } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
+import { friendlyErrorMessage } from '@/lib/error-message';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -380,7 +381,7 @@ export function SearchDialog({
             <div role="alert" className="px-3 py-4 text-sm">
               <p className="text-foreground font-medium">{copy.errorTitle}</p>
               <p className="text-muted-foreground mt-1">
-                {search.error?.message || strings.common.unknownError}
+                {friendlyErrorMessage(search.error)}
               </p>
             </div>
           ) : null}

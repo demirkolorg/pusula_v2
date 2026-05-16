@@ -120,7 +120,9 @@ export function CardDetailCoverColor({
                   onClick={() => {
                     if (!on) onSelect(name);
                   }}
-                  aria-label={`${copy.coverColorOf} ${name}`}
+                  aria-label={`${copy.coverColorOf} ${
+                    (strings.board.background.colorNames as Record<string, string>)[name] ?? name
+                  }`}
                   aria-pressed={on}
                   disabled={!canEdit || pending}
                   className={cn(

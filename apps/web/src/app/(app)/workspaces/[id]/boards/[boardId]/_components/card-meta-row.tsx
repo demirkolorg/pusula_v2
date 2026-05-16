@@ -27,6 +27,8 @@ type CardMetaRowProps = {
   /** Committed-attachment count — drives the paperclip chip (Faz 11D). */
   attachmentCount?: number;
   members: CardMember[];
+  /** Tamamlanmış kart geçmiş tarihli olsa da "gecikti" sayılmaz (DEM-174). */
+  completed?: boolean;
   /** Injectable "now" for deterministic tests. Defaults to `Date.now()`. */
   now?: number;
 };
@@ -61,6 +63,7 @@ export function CardMetaRow({
   commentCount,
   attachmentCount = 0,
   members,
+  completed = false,
   now,
 }: CardMetaRowProps) {
   const copy = strings.board.card;
@@ -78,7 +81,9 @@ export function CardMetaRow({
     return null;
   }
 
-  const due = hasDue ? dueState(dueAt, nowMs) : 'normal';
+  // Tamamlanmış kartta teslim tarihi geçmiş olsa bile "gecikti" gösterilmez —
+  // bitmiş bir işin gecikme uyarısı yanıltıcı (DEM-174).
+  const due = hasDue && !completed ? dueState(dueAt, nowMs) : 'normal';
 
   return (
     <div data-slot="card-bottom-meta" className="mt-1.5 flex items-center gap-2">

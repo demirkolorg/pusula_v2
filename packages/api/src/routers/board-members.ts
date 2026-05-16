@@ -391,12 +391,15 @@ export const boardMembersRouter = router({
         type: 'board_invitation',
         payload: {
           boardId: ctx.board.id,
-          boardTitle: board.title,
+          // DEM-173 — worker `pickSubject` `boardName` arar; `actorName` davet
+          // e-postasında davet eden kişiyi gösterir (ikisi de eksikti).
+          boardName: board.title,
           workspaceId: ctx.board.workspaceId,
           email,
           role: input.role,
           inviteToken: token,
           invitedById: ctx.session.user.id,
+          actorName: ctx.session.user.name,
         },
       });
 

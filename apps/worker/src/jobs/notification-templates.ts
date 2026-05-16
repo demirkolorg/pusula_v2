@@ -872,8 +872,14 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       return `${actor} → "${subject}" kartından dosya kaldırdı`;
     case 'checklist_item_completed':
       return `${actor} → "${subject}" kartında yapılacaklar maddesi tamamlandı`;
-    case 'member_removed':
-      return `${actor} seni "${subject}" üyeliğinden çıkardı`;
+    case 'member_removed': {
+      // DEM-173 — pano mı çalışma alanı mı belirsiz kalmasın (renderMemberRemoved ile aynı).
+      const scope = memberRemovedScope(item.payload);
+      const target = pickMemberScopeTitle(item.payload, scope) || subject;
+      return scope === 'workspace'
+        ? `${actor} seni "${target}" çalışma alanından çıkardı`
+        : `${actor} seni "${target}" panosundan çıkardı`;
+    }
     case 'member_role_changed':
       return `${actor} → "${subject}" rolünü değiştirdi`;
     case 'board_access_requested':

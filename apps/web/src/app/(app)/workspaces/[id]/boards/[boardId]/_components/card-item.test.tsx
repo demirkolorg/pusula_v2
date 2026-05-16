@@ -474,7 +474,7 @@ describe('<CardItem>', () => {
       />,
     );
 
-    expect(screen.getByRole('img', { name: 'Bir kart kapak' })).toHaveAttribute(
+    expect(screen.getByRole('img', { name: 'Bir kart — kapak görseli' })).toHaveAttribute(
       'draggable',
       'false',
     );

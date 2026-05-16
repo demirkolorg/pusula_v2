@@ -72,6 +72,27 @@ export function formatBytes(bytes: number): string {
   return `${bytesFormatter.format(value)} ${units[unitIndex]}`;
 }
 
+/**
+ * Format the time remaining until a future date as a Turkish countdown, e.g.
+ * "3 gün kaldı". For a past/elapsed date returns "süre doldu". Reads more
+ * naturally than `formatRelativeTime`'s "... sonra" phrasing where the context
+ * already means "remaining" (e.g. a snooze countdown).
+ */
+export function formatRemainingTime(value: Date | string, now: Date = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  if (diffSeconds <= 0) return 'süre doldu';
+  if (diffSeconds < 60) return '1 dakikadan az kaldı';
+  if (diffSeconds < 60 * 60) return `${Math.round(diffSeconds / 60)} dakika kaldı`;
+  if (diffSeconds < 24 * 60 * 60) return `${Math.round(diffSeconds / 3600)} saat kaldı`;
+  if (diffSeconds < 30 * 24 * 60 * 60) return `${Math.round(diffSeconds / 86400)} gün kaldı`;
+  if (diffSeconds < 365 * 24 * 60 * 60) {
+    return `${Math.round(diffSeconds / (30 * 86400))} ay kaldı`;
+  }
+  return `${Math.round(diffSeconds / (365 * 86400))} yıl kaldı`;
+}
+
 /** Format a timestamp as a compact Turkish relative time, e.g. "2 dakika önce". */
 export function formatRelativeTime(value: Date | string, now: Date = new Date()): string {
   const date = value instanceof Date ? value : new Date(value);

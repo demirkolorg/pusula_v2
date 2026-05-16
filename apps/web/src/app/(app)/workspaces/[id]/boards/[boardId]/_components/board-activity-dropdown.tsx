@@ -141,9 +141,17 @@ export function BoardActivityDropdown({ boardId }: BoardActivityDropdownProps) {
                 ))}
               </ul>
             ) : firstPage.isError ? (
-              <p className="text-destructive px-1 py-2 text-sm">
-                {firstPage.error?.message || copy.loadErrorTitle}
-              </p>
+              <div className="flex flex-col items-center gap-2 px-1 py-4 text-center">
+                <p className="text-destructive text-sm">{copy.loadErrorTitle}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void firstPage.refetch()}
+                >
+                  {strings.common.retry}
+                </Button>
+              </div>
             ) : items.length === 0 ? (
               <EmptyState icon={<ActivityIcon className="size-8" />} message={copy.empty} />
             ) : (

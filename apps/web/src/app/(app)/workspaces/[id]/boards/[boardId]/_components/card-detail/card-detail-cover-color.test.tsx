@@ -37,14 +37,22 @@ describe('<CardDetailCoverColor>', () => {
   it('clicking a swatch calls onSelect with its palette name', async () => {
     const user = userEvent.setup();
     const props = setup();
-    await user.click(screen.getByRole('button', { name: `${m.coverColorOf} mavi` }));
+    await user.click(
+      screen.getByRole('button', {
+        name: `${m.coverColorOf} ${strings.board.background.colorNames.mavi}`,
+      }),
+    );
     expect(props.onSelect).toHaveBeenCalledWith('mavi');
   });
 
   it('does not re-fire onSelect when the already-selected swatch is clicked', async () => {
     const user = userEvent.setup();
     const props = setup({ coverColor: 'mavi' });
-    await user.click(screen.getByRole('button', { name: `${m.coverColorOf} mavi` }));
+    await user.click(
+      screen.getByRole('button', {
+        name: `${m.coverColorOf} ${strings.board.background.colorNames.mavi}`,
+      }),
+    );
     expect(props.onSelect).not.toHaveBeenCalled();
   });
 
@@ -62,7 +70,11 @@ describe('<CardDetailCoverColor>', () => {
 
   it('marks the active swatch with aria-pressed', () => {
     setup({ coverColor: 'yesil' });
-    expect(screen.getByRole('button', { name: `${m.coverColorOf} yesil` })).toHaveAttribute(
+    expect(
+      screen.getByRole('button', {
+        name: `${m.coverColorOf} ${strings.board.background.colorNames.yesil}`,
+      }),
+    ).toHaveAttribute(
       'aria-pressed',
       'true',
     );

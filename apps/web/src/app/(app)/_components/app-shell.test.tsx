@@ -272,7 +272,7 @@ describe('<AppShell>', () => {
 
     await user.click(screen.getByRole('button', { name: strings.auth.verifyEmail.resend }));
 
-    const cooldownPattern = /Tekrar gonder \(\d+sn\)/;
+    const cooldownPattern = /Tekrar gönder \(\d+sn\)/;
     const cooldownButton = await screen.findByRole('button', { name: cooldownPattern });
     expect(cooldownButton).toBeDisabled();
     expect(window.localStorage.getItem('pusula:email-verify-cooldown:aria@example.com')).not.toBe(
@@ -463,7 +463,9 @@ describe('<AppShell>', () => {
     vi.useFakeTimers();
     try {
       h.searchQuery.isError = true;
-      h.searchQuery.error = new Error('Arama servisi yanıt vermedi.');
+      // DEM-174 — ham hata mesajı kullanıcıya gösterilmez; tRPC dışı hata
+      // friendly jenerik Türkçe mesaja düşer (`friendlyErrorMessage`).
+      h.searchQuery.error = new Error('Search service did not respond');
       render(
         <AppShell userName="Aria Chen" userEmail="aria@example.com" emailVerified>
           <div>content</div>
@@ -479,7 +481,9 @@ describe('<AppShell>', () => {
       });
 
       expect(screen.getByRole('alert')).toHaveTextContent('Arama tamamlanamadı');
-      expect(screen.getByRole('alert')).toHaveTextContent('Arama servisi yanıt vermedi.');
+      // Ham İngilizce/teknik mesaj sızmaz — friendly jenerik metin görünür.
+      expect(screen.getByRole('alert')).toHaveTextContent(strings.common.unknownError);
+      expect(screen.getByRole('alert')).not.toHaveTextContent('Search service');
     } finally {
       vi.useRealTimers();
     }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { TRPCClientError } from '@trpc/client';
 import {
   ArchiveIcon,
   CalendarIcon,
@@ -54,6 +55,7 @@ import {
   getMutationErrorMessage,
   useOptimisticBoardMutation,
 } from '@/lib/board-cache';
+import { friendlyErrorMessage } from '@/lib/error-message';
 import { formatDate, toDateInputValue } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -445,7 +447,11 @@ export function CardItem({
         coverImageAttachmentId: committed.id,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : menuCopy.coverImageUploadFailed);
+      // DEM-174 — ham `err.message` teknik/İngilizce sızdırabilir; tRPC hatasını
+      // friendly Türkçeye çevir, diğer her şeyde bağlamsal mesajı göster.
+      toast.error(
+        err instanceof TRPCClientError ? friendlyErrorMessage(err) : menuCopy.coverImageUploadFailed,
+      );
     } finally {
       pendingCoverImageRef.current = null;
       if (coverImageInputRef.current) coverImageInputRef.current.value = '';
@@ -483,7 +489,7 @@ export function CardItem({
         {card.coverImage ? (
           <CardCoverImage
             coverImage={card.coverImage}
-            alt={`${card.title} kapak`}
+            alt={copy.coverImageAlt(card.title)}
             className="-mx-2 -mt-2 mb-1.5 h-24 rounded-t-md"
           />
         ) : coverColor ? (
@@ -525,6 +531,7 @@ export function CardItem({
           commentCount={card.commentCount}
           attachmentCount={card.attachmentCount}
           members={card.members.filter((m) => m.role === 'assignee')}
+          completed={card.completed}
         />
       </div>
     </article>
@@ -600,7 +607,10 @@ export function CardItem({
                   <button
                     key={color}
                     type="button"
-                    aria-label={`${menuCopy.coverColorOf} ${color}`}
+                    aria-label={`${menuCopy.coverColorOf} ${
+                      (strings.board.background.colorNames as Record<string, string>)[color] ??
+                      color
+                    }`}
                     aria-pressed={coverColor === color}
                     onClick={(event) => {
                       event.stopPropagation();

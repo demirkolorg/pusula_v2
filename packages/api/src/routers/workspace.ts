@@ -344,6 +344,8 @@ const workspaceMembersRouter = router({
           role: input.role,
           inviteToken: token,
           invitedById: ctx.session.user.id,
+          // DEM-173 — davet e-postasında davet eden kişiyi göster.
+          actorName: ctx.session.user.name,
         },
       });
 

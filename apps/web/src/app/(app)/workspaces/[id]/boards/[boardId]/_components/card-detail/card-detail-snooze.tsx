@@ -48,7 +48,7 @@ import {
   toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { formatRelativeTime } from '@/lib/format';
+import { formatRemainingTime } from '@/lib/format';
 import { useTRPC } from '@/trpc/client';
 
 type CardDetailSnoozeProps = {
@@ -86,10 +86,10 @@ export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnooze
 
   const muteUntil = preferenceQuery.data?.muteUntil ?? null;
   const active = isSnoozeActive(muteUntil);
-  // formatRelativeTime "1 gün sonra" verir; istediğimiz "1 gün kaldı" — Türkçe
-  // RelativeTimeFormat zaten "X sonra" döner; UI'da prefix `copy.remainingPrefix`
-  // ile birlikte "Kalan: 1 gün sonra" şeklinde anlam alır.
-  const remainingLabel = active && muteUntil ? formatRelativeTime(muteUntil) : '';
+  // DEM-174 — `formatRemainingTime` doğal Türkçe geri sayım verir ("3 gün
+  // kaldı"); eski `formatRelativeTime` "3 gün sonra" döndürüp "Kalan:" prefix'i
+  // ile birlikte bozuk "Kalan: 3 gün sonra" ifadesi üretiyordu.
+  const remainingLabel = active && muteUntil ? formatRemainingTime(muteUntil) : '';
 
   const snooze = useMutation(
     trpc.notifications.preferences.snooze.mutationOptions({
@@ -164,9 +164,7 @@ export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnooze
     }),
   );
 
-  const triggerLabel = active
-    ? `${copy.button} · ${copy.remainingPrefix}${remainingLabel}`
-    : copy.button;
+  const triggerLabel = active ? `${copy.button} · ${remainingLabel}` : copy.button;
 
   const submitDuration = (duration: SnoozeDuration) => {
     snooze.mutate({ cardId, duration, clientMutationId: crypto.randomUUID() });
@@ -231,7 +229,7 @@ export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnooze
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent>
-            {active ? `${copy.remainingPrefix}${remainingLabel}` : copy.button}
+            {active ? remainingLabel : copy.button}
           </TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="end" className="min-w-52">

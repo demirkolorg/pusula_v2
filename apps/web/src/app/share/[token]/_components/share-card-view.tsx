@@ -121,7 +121,7 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
             <>
               <span className="px-1.5">·</span>
               <span>
-                {sharedBy.name ?? copy.unknownSharer} {copy.sharedByLabel.replace(':', '')}
+                {copy.sharedByLabel} {sharedBy.name ?? copy.unknownSharer}
               </span>
             </>
           )}
