@@ -82,6 +82,8 @@ export interface RealtimeFilters {
   boardMembers?: (boardId: string) => QueryFilters;
   /** `board.invitations.list({ boardId })` filter factory. */
   boardInvitations?: (boardId: string) => QueryFilters;
+  /** `board.accessRequests.list({ boardId })` filter factory — DEM-154. */
+  boardAccessRequests?: (boardId: string) => QueryFilters;
   /** `attachment.list({ cardId })` filter factory — Faz 11D (DEM-150). */
   attachments?: (cardId: string) => QueryFilters;
 }
@@ -725,6 +727,16 @@ export function dispatchRealtimeEvent(
       if (!boardId) return;
       invalidate(qc, filters.boardMembers?.(boardId));
       invalidate(qc, filters.boardInvitations?.(boardId));
+      return;
+    }
+    case 'board.access_requested': {
+      // DEM-154 — yeni erişim talebi. Admin'in açık board sayfasında "Talepler"
+      // sekmesi + bekleyen-talep rozeti sayfa yenilemeden güncellensin diye
+      // `board.accessRequests.list` invalidate edilir. Talep sahibi board
+      // room'unda olmadığı için event yalnız admin'lere ulaşır.
+      const boardId = boardIdFrom(envelope, payload);
+      if (!boardId) return;
+      invalidate(qc, filters.boardAccessRequests?.(boardId));
       return;
     }
     case 'board.member_added': {

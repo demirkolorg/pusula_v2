@@ -33,6 +33,11 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import {
+  bumpBoardVersionForRealtime,
+  insertRealtimeEvent,
+  maybeEnqueueRealtimePublish,
+} from '../lib/realtime-publish';
 import { protectedProcedure, router } from '../trpc';
 
 type PendingRequest = {
@@ -159,6 +164,11 @@ export const boardAccessRequestsRouter = router({
     // taşı. Idempotent dallarda (zaten üye / zaten bekleyen talep) `undefined`
     // kalır — gürültü yok.
     let notificationEventId: string | undefined;
+    // DEM-154 — yeni talep, board admin'lerinin açık board sayfasında sayfa
+    // yenilemeden görünsün diye realtime event de yayınlanır (yalnız genuinely
+    // yeni talepte). Talep sahibinin board erişimi yok; `board:{id}` room'una
+    // giremez, event yalnız admin'lere ulaşır.
+    let realtimeEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const resolved = await loadBoardRequestContext(tx, input.boardId, ctx.session.user.id);
       if (resolved.role) {
@@ -226,6 +236,16 @@ export const boardAccessRequestsRouter = router({
           });
           if (dispatched.inserted > 0) notificationEventId = activity.id;
         }
+        const seq = await bumpBoardVersionForRealtime(tx, resolved.target.boardId);
+        realtimeEventId = await insertRealtimeEvent(tx, {
+          type: 'board.access_requested',
+          workspaceId: resolved.target.workspaceId,
+          boardId: resolved.target.boardId,
+          actorId: ctx.session.user.id,
+          clientMutationId: input.clientMutationId,
+          seq,
+          data: { accessRequestId: created.id },
+        });
         return created;
       }
 
@@ -252,6 +272,7 @@ export const boardAccessRequestsRouter = router({
     });
     // tx COMMIT sonrası best-effort enqueue — sweeper kaçanı yakalar.
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
 

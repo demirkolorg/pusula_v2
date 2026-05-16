@@ -67,6 +67,8 @@ const cardMembersKey = (cardId: string) => ['card.members.list', { cardId }] as 
 const boardLabelsKey = (boardId: string) => ['label.list', { boardId }] as const;
 const boardMembersKey = (boardId: string) => ['board.members.list', { boardId }] as const;
 const boardInvitationsKey = (boardId: string) => ['board.invitations.list', { boardId }] as const;
+const boardAccessRequestsKey = (boardId: string) =>
+  ['board.accessRequests.list', { boardId }] as const;
 
 const fixture = (): FixCache => ({
   board: { id: 'b1', title: 'Pano', version: 7, archivedAt: null },
@@ -150,6 +152,7 @@ const makeFilters = () => ({
   boardLabels: (boardId: string) => ({ queryKey: boardLabelsKey(boardId) }),
   boardMembers: (boardId: string) => ({ queryKey: boardMembersKey(boardId) }),
   boardInvitations: (boardId: string) => ({ queryKey: boardInvitationsKey(boardId) }),
+  boardAccessRequests: (boardId: string) => ({ queryKey: boardAccessRequestsKey(boardId) }),
 });
 
 describe('dispatchRealtimeEvent — board cache reconciliation', () => {
@@ -1088,5 +1091,15 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     dispatchRealtimeEvent(qc, makeFilters(), envelope('board.member_removed', { userId: 'u1' }));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: boardMembersKey('b1') });
     expect(invalidate).toHaveBeenCalledWith(boardFilter);
+  });
+
+  it('board.access_requested -> invalidates board access requests cache', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope('board.access_requested', { accessRequestId: 'req1' }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: boardAccessRequestsKey('b1') });
   });
 });
