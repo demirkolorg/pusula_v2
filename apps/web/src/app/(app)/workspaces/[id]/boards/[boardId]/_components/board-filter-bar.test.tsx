@@ -19,6 +19,8 @@ function renderMenu(props: Partial<ComponentProps<typeof BoardFilterMenuContent>
     selectedLabelIds: new Set(),
     onToggleLabel: vi.fn(),
     onClearLabels: vi.fn(),
+    dueDateFilter: 'all',
+    onDueDateFilterChange: vi.fn(),
   };
 
   return render(
@@ -66,6 +68,8 @@ describe('<BoardFilterMenuContent>', () => {
             selectedLabelIds={new Set(['l1'])}
             onToggleLabel={vi.fn()}
             onClearLabels={onClearLabels}
+            dueDateFilter="all"
+            onDueDateFilterChange={vi.fn()}
           />
         </DropdownMenuContent>
       </DropdownMenu>,
@@ -79,5 +83,29 @@ describe('<BoardFilterMenuContent>', () => {
     renderMenu({ labels: [] });
 
     expect(screen.getByText(copy.noLabels)).toBeInTheDocument();
+  });
+
+  it('renders the due-date filter section with the selected option checked', () => {
+    renderMenu({ dueDateFilter: 'overdue' });
+
+    expect(screen.getByText(copy.dueDateTitle)).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: copy.dueDateOverdue })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByRole('menuitemradio', { name: copy.dueDateAll })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+  });
+
+  it('clicking a due-date option calls onDueDateFilterChange with its value', async () => {
+    const user = userEvent.setup();
+    const onDueDateFilterChange = vi.fn();
+    renderMenu({ onDueDateFilterChange });
+
+    await user.click(screen.getByRole('menuitemradio', { name: copy.dueDateWeek }));
+
+    expect(onDueDateFilterChange).toHaveBeenCalledWith('week');
   });
 });

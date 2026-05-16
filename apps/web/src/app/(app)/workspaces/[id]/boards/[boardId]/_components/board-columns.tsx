@@ -8,7 +8,12 @@ import { EmptyState } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddListColumn } from './add-list-column';
 import { BoardDndProvider } from './board-dnd-context';
-import { filterCardsByLabels, filterVisibleLists } from './board-filter';
+import {
+  cardPassesDueDateFilter,
+  filterCardsByLabels,
+  filterVisibleLists,
+  type DueDateFilter,
+} from './board-filter';
 import { ListColumn, type BoardList } from './list-column';
 import { useBoardDnd } from './use-board-dnd';
 import { type BoardCard, type BoardCardLabelOption, type BoardCardMemberOption } from './card-item';
@@ -25,6 +30,8 @@ type BoardColumnsProps = {
   archivedCards?: RouterOutputs['card']['listArchived'];
   /** Label ids selected in the board top-bar filter menu. */
   selectedLabelIds: ReadonlySet<string>;
+  /** Due-date filter selected in the board top-bar filter menu. */
+  dueDateFilter?: DueDateFilter;
   /** Whether archived lists are visible in the board strip. */
   showArchivedLists: boolean;
   /** Whether archived cards are visible inside currently visible lists. */
@@ -83,6 +90,7 @@ export function BoardColumns({
   cards,
   archivedCards = [],
   selectedLabelIds,
+  dueDateFilter = 'all',
   showArchivedLists,
   showArchivedCards = false,
   boardLabels = [],
@@ -104,10 +112,13 @@ export function BoardColumns({
   );
 
   const cardsByList = useMemo(() => {
+    const nowMs = Date.now();
     const filtered = [
       ...filterCardsByLabels(cards, selectedLabelIds),
       ...filterCardsByLabels(normalizedArchivedCards, selectedLabelIds),
-    ].sort((a, b) => a.position.localeCompare(b.position));
+    ]
+      .filter((card) => cardPassesDueDateFilter(card, dueDateFilter, nowMs))
+      .sort((a, b) => a.position.localeCompare(b.position));
     const map = new Map<string, BoardCard[]>();
     for (const card of filtered) {
       const bucket = map.get(card.listId);
@@ -115,7 +126,7 @@ export function BoardColumns({
       else map.set(card.listId, [card]);
     }
     return map;
-  }, [cards, normalizedArchivedCards, selectedLabelIds]);
+  }, [cards, normalizedArchivedCards, selectedLabelIds, dueDateFilter]);
 
   // --- Drag-and-drop (Phase 3B — DEM-43) -----------------------------------
   // Enabled only when the viewer may edit and the board is active; the hook

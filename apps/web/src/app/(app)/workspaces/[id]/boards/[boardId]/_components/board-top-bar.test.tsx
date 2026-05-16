@@ -95,6 +95,14 @@ vi.mock('./board-activity-drawer', () => ({
     open ? <div role="dialog" aria-label={strings.board.activity.title} /> : null,
 }));
 
+// DEM-154 — üyelik bağlamı ayrı `BoardMembersDropdown`'a taşındı. Top bar testi
+// onun iç davranışını (rozet, sekmeler) test etmez — kendi test dosyası var.
+vi.mock('./board-settings/board-members-dropdown', () => ({
+  BoardMembersDropdown: () => (
+    <button type="button">{strings.board.topBar.members}</button>
+  ),
+}));
+
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     board: {
@@ -146,6 +154,8 @@ const filterProps = {
   selectedLabelIds: new Set<string>(['l1']),
   onToggleLabel: vi.fn(),
   onClearLabels: vi.fn(),
+  dueDateFilter: 'all' as const,
+  onDueDateFilterChange: vi.fn(),
 };
 
 describe('<BoardTopBar>', () => {
@@ -159,6 +169,7 @@ describe('<BoardTopBar>', () => {
     };
     filterProps.onToggleLabel.mockReset();
     filterProps.onClearLabels.mockReset();
+    filterProps.onDueDateFilterChange.mockReset();
     h.push.mockReset();
     h.searchCalls = [];
     h.clipboardWriteText.mockRestore?.();
@@ -366,14 +377,20 @@ describe('<BoardTopBar>', () => {
     expect(screen.getByRole('button', { name: actionCopy.share })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: actionCopy.settings })).toBeInTheDocument();
 
+    // DEM-154 — üyelik bağlamı ayrı "Üyeler" butonunda; ayarlar dropdown'u
+    // yalnız etiket / arka plan / pano işlemleri sekmelerini taşır.
+    expect(screen.getByRole('button', { name: actionCopy.settingsMembers })).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: actionCopy.settings }));
     expect(
-      await screen.findByRole('tab', { name: actionCopy.settingsMembers }),
+      await screen.findByRole('tab', { name: actionCopy.settingsLabels }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: actionCopy.settingsInvitations })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: actionCopy.settingsLabels })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsBackground })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: actionCopy.settingsActions })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: actionCopy.settingsMembers })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: actionCopy.settingsInvitations }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: actionCopy.settingsIcon })).not.toBeInTheDocument();
   });
 
@@ -531,8 +548,7 @@ describe('<BoardTopBar>', () => {
     expect(screen.queryByRole('menuitem', { name: topCopy.menuRename })).not.toBeInTheDocument();
   });
 
-  it('admin: invitations remain available inside board settings', async () => {
-    const user = userEvent.setup();
+  it('exposes a separate Üyeler button alongside settings (DEM-154)', () => {
     render(
       <BoardTopBar
         boardId="b1"
@@ -544,14 +560,10 @@ describe('<BoardTopBar>', () => {
         filter={filterProps}
       />,
     );
-    expect(
-      screen.queryByRole('tab', { name: actionCopy.settingsInvitations }),
-    ).not.toBeInTheDocument();
+    // Üyelik bağlamı artık "Pano ayarları"ndan ayrı kendi butonunda.
+    expect(screen.getByRole('button', { name: actionCopy.settingsMembers })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: actionCopy.settings })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: actionCopy.invite })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: actionCopy.settings }));
-    expect(
-      await screen.findByRole('tab', { name: actionCopy.settingsInvitations }),
-    ).toBeInTheDocument();
   });
 
   it('copies the canonical board link from the share button', async () => {

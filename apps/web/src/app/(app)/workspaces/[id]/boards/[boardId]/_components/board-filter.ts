@@ -6,6 +6,7 @@
  */
 
 type CardWithLabels = { labels: { labelId: string }[] };
+type CardWithDue = { dueAt: Date | string | null };
 type ListWithArchive = { archivedAt: Date | string | null };
 
 /**
@@ -30,6 +31,72 @@ export function filterCardsByLabels<T extends CardWithLabels>(
 ): T[] {
   if (selectedLabelIds.size === 0) return [...cards];
   return cards.filter((card) => cardPassesLabelFilter(card, selectedLabelIds));
+}
+
+/**
+ * Due-date filter selection. Single-select (radio): a card passes exactly one
+ * filter at a time. `all` disables the filter. The non-trivial windows are
+ * measured *forward from now* (Trello-style), so they overlap by design:
+ * `day` ⊂ `week` ⊂ `month`.
+ */
+export type DueDateFilter = 'all' | 'overdue' | 'day' | 'week' | 'month' | 'none';
+
+/** Filter values in the order the menu renders them. */
+export const DUE_DATE_FILTERS: readonly DueDateFilter[] = [
+  'all',
+  'overdue',
+  'day',
+  'week',
+  'month',
+  'none',
+] as const;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Forward window length (in days) for the bounded due-date filters. */
+const DUE_WINDOW_DAYS: Partial<Record<DueDateFilter, number>> = {
+  day: 1,
+  week: 7,
+  month: 30,
+};
+
+/**
+ * Whether `card` passes the due-date `filter` evaluated at `nowMs`. `all` passes
+ * every card; `none` passes only cards without a due date; `overdue` passes
+ * cards whose due date is in the past; `day`/`week`/`month` pass cards due
+ * within the next 1/7/30 days. An unparseable `dueAt` never passes a date-bound
+ * filter.
+ */
+export function cardPassesDueDateFilter(
+  card: CardWithDue,
+  filter: DueDateFilter,
+  nowMs: number,
+): boolean {
+  if (filter === 'all') return true;
+  if (card.dueAt == null) return filter === 'none';
+  if (filter === 'none') return false;
+
+  const dueMs = (card.dueAt instanceof Date ? card.dueAt : new Date(card.dueAt)).getTime();
+  if (Number.isNaN(dueMs)) return false;
+
+  if (filter === 'overdue') return dueMs < nowMs;
+
+  const windowDays = DUE_WINDOW_DAYS[filter];
+  if (windowDays == null) return false;
+  return dueMs >= nowMs && dueMs <= nowMs + windowDays * DAY_MS;
+}
+
+/**
+ * Filter a list of cards by the selected due-date filter (see
+ * {@link cardPassesDueDateFilter}). `all` returns a copy of every card.
+ */
+export function filterCardsByDueDate<T extends CardWithDue>(
+  cards: readonly T[],
+  filter: DueDateFilter,
+  nowMs: number,
+): T[] {
+  if (filter === 'all') return [...cards];
+  return cards.filter((card) => cardPassesDueDateFilter(card, filter, nowMs));
 }
 
 /** A list is archived iff its `archivedAt` is non-null. */

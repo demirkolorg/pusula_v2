@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cardPassesDueDateFilter,
   cardPassesLabelFilter,
   countArchivedLists,
+  filterCardsByDueDate,
   filterCardsByLabels,
   filterVisibleLists,
   isListArchived,
@@ -45,6 +47,57 @@ describe('board-filter helpers', () => {
       expect(filterCardsByLabels(cards, new Set(['l2'])).map((c) => c.id)).toEqual(['c1', 'c2']);
       expect(filterCardsByLabels(cards, new Set(['l1'])).map((c) => c.id)).toEqual(['c1']);
       expect(filterCardsByLabels(cards, new Set(['nope'])).map((c) => c.id)).toEqual([]);
+    });
+  });
+
+  describe('due-date filter', () => {
+    const nowMs = new Date('2026-05-16T12:00:00.000Z').getTime();
+    const DAY = 24 * 60 * 60 * 1000;
+    const dueCards = [
+      { id: 'past', dueAt: new Date(nowMs - DAY) },
+      { id: 'soon', dueAt: new Date(nowMs + 8 * 60 * 60 * 1000) }, // ~8h ahead
+      { id: 'week', dueAt: new Date(nowMs + 5 * DAY) },
+      { id: 'month', dueAt: new Date(nowMs + 20 * DAY) },
+      { id: 'far', dueAt: new Date(nowMs + 60 * DAY) },
+      { id: 'none', dueAt: null },
+    ];
+
+    it('passes every card when the filter is "all"', () => {
+      expect(dueCards.every((c) => cardPassesDueDateFilter(c, 'all', nowMs))).toBe(true);
+    });
+
+    it('"none" passes only cards without a due date', () => {
+      expect(filterCardsByDueDate(dueCards, 'none', nowMs).map((c) => c.id)).toEqual(['none']);
+    });
+
+    it('"overdue" passes only cards whose due date is in the past', () => {
+      expect(filterCardsByDueDate(dueCards, 'overdue', nowMs).map((c) => c.id)).toEqual(['past']);
+    });
+
+    it('windows are forward-looking and nested: day ⊂ week ⊂ month', () => {
+      expect(filterCardsByDueDate(dueCards, 'day', nowMs).map((c) => c.id)).toEqual(['soon']);
+      expect(filterCardsByDueDate(dueCards, 'week', nowMs).map((c) => c.id)).toEqual([
+        'soon',
+        'week',
+      ]);
+      expect(filterCardsByDueDate(dueCards, 'month', nowMs).map((c) => c.id)).toEqual([
+        'soon',
+        'week',
+        'month',
+      ]);
+    });
+
+    it('accepts string due dates and rejects unparseable ones', () => {
+      expect(cardPassesDueDateFilter({ dueAt: '2026-05-15T12:00:00.000Z' }, 'overdue', nowMs)).toBe(
+        true,
+      );
+      expect(cardPassesDueDateFilter({ dueAt: 'not-a-date' }, 'week', nowMs)).toBe(false);
+    });
+
+    it('filterCardsByDueDate returns a fresh copy when the filter is "all"', () => {
+      const out = filterCardsByDueDate(dueCards, 'all', nowMs);
+      expect(out).toEqual(dueCards);
+      expect(out).not.toBe(dueCards);
     });
   });
 

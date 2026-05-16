@@ -13,7 +13,7 @@ import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
 import { BoardAccessRequestScreen } from './_components/board-access-request-screen';
 import { BoardColumns } from './_components/board-columns';
-import { countArchivedLists } from './_components/board-filter';
+import { countArchivedLists, type DueDateFilter } from './_components/board-filter';
 import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
@@ -113,6 +113,7 @@ export default function BoardDetailPage({
   // `joined` marks deterministic room readiness for e2e sync tests.
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
   const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [dueDateFilter, setDueDateFilter] = useState<DueDateFilter>('all');
   const [showArchivedLists, setShowArchivedLists] = useState(false);
   const [showArchivedCards, setShowArchivedCards] = useState(false);
   const [boardSearchOpen, setBoardSearchOpen] = useState(false);
@@ -260,6 +261,8 @@ export default function BoardDetailPage({
           selectedLabelIds: liveSelectedLabelIds,
           onToggleLabel: toggleLabelFilter,
           onClearLabels: () => setSelectedLabelIds(new Set()),
+          dueDateFilter,
+          onDueDateFilterChange: setDueDateFilter,
         }}
         archive={{
           lists,
@@ -290,6 +293,7 @@ export default function BoardDetailPage({
           cards={cards}
           archivedCards={showArchivedCards ? (archivedCards.data ?? []) : []}
           selectedLabelIds={liveSelectedLabelIds}
+          dueDateFilter={dueDateFilter}
           showArchivedLists={showArchivedLists}
           showArchivedCards={showArchivedCards}
           boardLabels={labelList.data ?? boardLabels}
