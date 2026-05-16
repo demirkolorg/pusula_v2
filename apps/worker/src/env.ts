@@ -39,6 +39,10 @@ const envSchema = z.object({
   S3_BUCKET: z.string().min(1).default('pusula'),
   S3_ACCESS_KEY_ID: z.string().min(1).default('pusula'),
   S3_SECRET_ACCESS_KEY: z.string().min(1).default('pusula-secret'),
+  // Sentry `pusula-worker` projesinin DSN'i. Server-side; boş/eksikse
+  // `Sentry.init` no-op olur (lokal dev/test Sentry'siz çalışır).
+  // Bkz. `docs/architecture/10-platform.md` §10.5.1.
+  SENTRY_DSN_WORKER: z.string().min(1).optional(),
 });
 
 export const env = envSchema.parse(process.env);

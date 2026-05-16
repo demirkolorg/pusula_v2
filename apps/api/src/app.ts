@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import * as Sentry from '@sentry/node';
 import { appRouter, type RealtimeEmit } from '@pusula/api';
 import { auth } from './auth';
 import { env } from './env';
@@ -94,7 +96,32 @@ app.all(`${TRPC_ENDPOINT}/*`, (c) =>
     req: c.req.raw,
     router: appRouter,
     createContext: (opts) => buildTrpcContext(opts, c),
+    // §10.5.1 — yalnız beklenmeyen sunucu hatalarını Sentry'ye gönder.
+    // Permission/validation reddi (`UNAUTHORIZED`, `FORBIDDEN`, `BAD_REQUEST`…)
+    // beklenen akıştır; gürültü olarak raporlanmaz.
+    onError: ({ error, path }) => {
+      if (error.code === 'INTERNAL_SERVER_ERROR') {
+        Sentry.captureException(error.cause ?? error, {
+          tags: { trpcPath: path ?? '<unknown>' },
+        });
+      }
+    },
   }),
 );
+
+// --- Hata sınırı: tRPC dışı route'larda (share, auth, health) yakalanmayan
+// hatalar. 5xx beklenmeyen hatalar Sentry'ye gider; 4xx `HTTPException`'lar
+// beklenen akıştır (§10.5.1). ---
+app.onError((err, c) => {
+  const isClientError = err instanceof HTTPException && err.status < 500;
+  if (!isClientError) {
+    Sentry.captureException(err);
+    console.error('[api] unhandled error:', err);
+  }
+  if (err instanceof HTTPException) {
+    return err.getResponse();
+  }
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
 
 export type AppType = typeof app;

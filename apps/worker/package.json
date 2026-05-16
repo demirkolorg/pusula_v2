@@ -17,6 +17,7 @@
     "@aws-sdk/client-s3": "^3.1045.0",
     "@pusula/db": "workspace:*",
     "@pusula/domain": "workspace:*",
+    "@sentry/node": "^10.53.1",
     "bullmq": "^5.76.8",
     "dotenv": "^17.2.0",
     "expo-server-sdk": "^6.1.0",

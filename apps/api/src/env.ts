@@ -45,6 +45,9 @@ const envSchema = z.object({
   // Ignored in production. Handy because the Resend test sender
   // (`onboarding@resend.dev`) only delivers to the Resend account owner.
   EMAIL_DEV_OVERRIDE: emailSchema.optional(),
+  // Sentry `pusula-api` projesinin DSN'i. Server-side; boş/eksikse `Sentry.init`
+  // no-op olur (lokal dev/test Sentry'siz çalışır). Bkz. `10-platform.md` §10.5.1.
+  SENTRY_DSN_API: z.string().min(1).optional(),
 });
 
 export const env = envSchema.parse(process.env);

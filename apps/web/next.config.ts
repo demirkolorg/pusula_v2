@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
@@ -24,4 +25,14 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// Sentry — `pusula-web` projesi. `withSentryConfig` derleme zamanı source map
+// yüklemesini sarmalar; `SENTRY_AUTH_TOKEN`/`SENTRY_ORG` yoksa yükleme atlanır
+// (runtime hata izleme yine `instrumentation*.ts` ile çalışır).
+// Bkz. `docs/architecture/10-platform.md` §10.5.1.
+export default withSentryConfig(config, {
+  org: process.env.SENTRY_ORG,
+  project: 'pusula-web',
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // CI dışında sessiz: token yokken uyarı basmasın.
+  silent: !process.env.CI,
+});

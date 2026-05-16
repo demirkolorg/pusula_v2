@@ -1,4 +1,7 @@
+// Sentry init diğer tüm modüllerden önce çalışmalı — bu import ilk sırada kalmalı.
+import './instrument';
 import { Worker } from 'bullmq';
+import * as Sentry from '@sentry/node';
 import {
   QUEUE,
   allQueues,
@@ -370,8 +373,19 @@ const workers = [
 ];
 
 for (const w of workers) {
+  // §10.5.1 — job kalıcı olarak başarısız olduğunda (tüm retry'lar tükendi)
+  // hatayı Sentry'ye ilet; queue/job adı tag olarak eklenir.
   w.on('failed', (job, err) => {
     console.error(`[worker] job ${job?.id} failed:`, err.message);
+    Sentry.captureException(err, {
+      tags: { queue: w.name, jobName: job?.name ?? '<unknown>' },
+      extra: { jobId: job?.id, attemptsMade: job?.attemptsMade },
+    });
+  });
+  // Worker'ın kendi hatası (Redis bağlantısı vb. — job'a bağlı değil).
+  w.on('error', (err) => {
+    console.error(`[worker] ${w.name} worker error:`, err.message);
+    Sentry.captureException(err, { tags: { queue: w.name } });
   });
 }
 

@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-13
+updated: 2026-05-16
 ---
 
 # 10 — Platform (Test · CI/CD · Deployment · Environment · Observability · Güvenlik · Performans)
@@ -84,7 +84,8 @@ varsayılan `http://localhost:3001`). Beklenen anahtarlar:
 
 ```txt
 DATABASE_URL  REDIS_URL  AUTH_SECRET  APP_URL  API_URL  API_PORT  WEB_PORT
-NEXT_PUBLIC_API_URL  EXPO_PUBLIC_API_URL  EXPO_ACCESS_TOKEN  SENTRY_DSN
+NEXT_PUBLIC_API_URL  EXPO_PUBLIC_API_URL  EXPO_ACCESS_TOKEN
+NEXT_PUBLIC_SENTRY_DSN  SENTRY_DSN_API  SENTRY_DSN_WORKER  SENTRY_AUTH_TOKEN  SENTRY_ORG
 S3_ENDPOINT  S3_REGION  S3_BUCKET  S3_ACCESS_KEY_ID  S3_SECRET_ACCESS_KEY
 RESEND_API_KEY  EMAIL_FROM  MEILISEARCH_URL  MEILISEARCH_API_KEY
 ```
@@ -100,6 +101,35 @@ Metrikler: API latency, tRPC procedure latency, mutation error rate, drag-drop m
 rate, notification delivery success/failure, queue retry count, websocket connected client count,
 DB slow queries. Araçlar: Sentry, OpenTelemetry, Pino (veya benzeri structured logger), Postgres
 slow query log. Log alanları: `requestId, userId, workspaceId, boardId, procedure, clientMutationId, durationMs, status`.
+
+### 10.5.1 Sentry hata izleme
+
+Sentry'de **3 ayrı proje** tutulur — hatanın hangi katmandan geldiği DSN'den net olsun
+(Sentry'nin kendi önerisi; karar 2026-05-16, [DEM-162](https://linear.app/demirkol/issue/DEM-162)):
+
+| Sentry projesi  | Platform | App           | SDK              | DSN env             |
+| --------------- | -------- | ------------- | ---------------- | ------------------- |
+| `pusula-web`    | Next.js  | `apps/web`    | `@sentry/nextjs` | `NEXT_PUBLIC_SENTRY_DSN` |
+| `pusula-api`    | Node.js  | `apps/api`    | `@sentry/node`   | `SENTRY_DSN_API`    |
+| `pusula-worker` | Node.js  | `apps/worker` | `@sentry/node`   | `SENTRY_DSN_WORKER` |
+
+Kurallar:
+
+- **DSN gizli değildir** — yalnız olay göndermeye izin verir, okumaya değil. Web DSN'i tarayıcı
+  bundle'ına girdiği için `NEXT_PUBLIC_` prefix'lidir (ve `compose.prod.yml`'de web image'ına
+  **build arg** olarak verilir, `NEXT_PUBLIC_API_URL` gibi). API/worker DSN'leri server-side.
+- **DSN boşsa `Sentry.init` no-op** — lokal dev ve test ortamı Sentry'siz çalışır; DSN zorunlu değil.
+- **Node app'lerinde init en üstte**: `apps/api` ve `apps/worker` ilk satırda `instrument.ts`'i
+  import eder (`Sentry.init` diğer modüllerden önce çalışmalı — auto-instrumentation gereği).
+- **Hata yakalama noktaları**: web → `instrumentation.ts` `onRequestError` + `global-error.tsx`;
+  api → Hono `app.onError` içinde `Sentry.captureException`; worker → BullMQ `Worker`'ın
+  `failed`/`error` event'lerinde `captureException`.
+- **Source map yükleme** opsiyonel (`SENTRY_AUTH_TOKEN` + `SENTRY_ORG`); yalnız CI/build'de,
+  token yoksa atlanır. tRPC permission/validation hataları beklenen akış olduğundan Sentry'ye
+  gürültü olarak gitmemeli — yalnız beklenmeyen 5xx/exception raporlanır.
+
+OpenTelemetry standalone export ve Sentry alert/dashboard yapılandırması bu kapsamın dışındadır
+(ileri iş).
 
 ---
 

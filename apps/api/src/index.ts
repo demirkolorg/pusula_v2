@@ -1,3 +1,5 @@
+// Sentry init diğer tüm modüllerden önce çalışmalı — bu import ilk sırada kalmalı.
+import './instrument';
 import { serve } from '@hono/node-server';
 import { app, markApiStartupFailed, markApiStartupReady, setRealtimeEmit } from './app';
 import { closeAttachmentCleanupQueue } from './attachment-cleanup-queue';

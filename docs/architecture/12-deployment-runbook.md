@@ -163,7 +163,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
-      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_DSN_API: ${SENTRY_DSN_API}
     depends_on:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
@@ -189,7 +189,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
-      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_DSN_WORKER: ${SENTRY_DSN_WORKER}
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -201,6 +201,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL} # = https://api.${ROOT_DOMAIN}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN} # build'e inline edilir — boş bırakılabilir
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -337,7 +338,10 @@ Dokploy compose servisinin **Environment** sekmesinde tüm anahtarları gir. Kay
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`           | MinIO root kimliği — güçlü, dev `minioadmin`'den farklı                                                      |
 | `RESEND_API_KEY`                                      | Resend prod API key                                                                                          |
 | `EMAIL_FROM`                                          | `Pusula <no-reply@${ROOT_DOMAIN}>` (gönderen domain Resend'de doğrulanmış olmalı)                            |
-| `SENTRY_DSN`                                          | Sentry prod DSN (opsiyonel)                                                                                  |
+| `NEXT_PUBLIC_SENTRY_DSN`                              | `pusula-web` Sentry DSN — **build arg** (web image'ına inline edilir; opsiyonel)                            |
+| `SENTRY_DSN_API`                                      | `pusula-api` Sentry DSN (opsiyonel; boşsa Sentry kapalı)                                                     |
+| `SENTRY_DSN_WORKER`                                   | `pusula-worker` Sentry DSN (opsiyonel; boşsa Sentry kapalı)                                                  |
+| `SENTRY_AUTH_TOKEN` / `SENTRY_ORG`                    | Source map yükleme — yalnız CI/build; boşsa source map yüklenmez                                             |
 | `MEILISEARCH_URL` / `MEILISEARCH_API_KEY`             | ileri faz — şimdilik boş                                                                                     |
 
 Kurallar: secret'lar yalnızca server/worker tarafında; `NEXT_PUBLIC_` prefix'i **bilerek client'a açılan**
