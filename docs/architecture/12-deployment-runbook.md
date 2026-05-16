@@ -307,7 +307,7 @@ Migration request-path'te değil (CLAUDE.md §2): `migrate` servisi deploy sıra
 
 ## 12.4 Aşama 1 — Dokploy'da v2 "Docker Compose" servisi
 
-1. Dokploy panel → **New Project** → ad: `pusula-v2`.
+1. Dokploy panel → **New Project** → ad: `pusula` (v1 silindiği için ad serbest; `compose.prod.yml` `name: pusula` ile de örtüşür).
 2. Proje içinde **Create Service → Compose** (Application **değil** — bütün stack'i tek serviste tutuyoruz).
 3. **Source:** GitHub → repo `pusula_v2` → branch `main`.
 4. **Compose Path:** `compose.prod.yml` (repo kökü).
