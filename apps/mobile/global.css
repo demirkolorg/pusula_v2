@@ -1,0 +1,48 @@
+/*
+ * Pusula mobil — NativeWind/Tailwind girişi.
+ * Semantik renk token'ları `13-ui-tasarim-dili.md`'den türetildi; uzay
+ * ayrımlı RGB kanalları Tailwind `<alpha-value>` ile uyumludur.
+ * Light = `:root`, dark = `prefers-color-scheme` (sistem). Kullanıcı seçimli
+ * tema (web 2.7 simetrisi) ileri faz işidir.
+ *
+ * SENKRON: buradaki RGB değerleri `src/theme/tokens.ts` hex setlerinin
+ * aynısıdır (className dışı kullanım için). Biri değişince diğeri de
+ * güncellenmeli — tek-kaynak birleştirme ileri faz işidir (bkz. DEM-177 QA).
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-background: 255 255 255;
+    --color-foreground: 31 32 36;
+    --color-card: 255 255 255;
+    --color-card-foreground: 37 39 43;
+    --color-muted: 247 247 247;
+    --color-muted-foreground: 124 124 132;
+    --color-border: 233 233 233;
+    --color-primary: 91 81 216;
+    --color-primary-foreground: 255 255 255;
+    --color-success: 34 160 107;
+    --color-warning: 217 155 0;
+    --color-destructive: 226 72 61;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background: 29 33 37;
+      --color-foreground: 247 247 247;
+      --color-card: 40 44 51;
+      --color-card-foreground: 247 247 247;
+      --color-muted: 49 54 60;
+      --color-muted-foreground: 169 176 184;
+      --color-border: 58 63 69;
+      --color-primary: 111 102 224;
+      --color-primary-foreground: 255 255 255;
+      --color-success: 75 206 151;
+      --color-warning: 226 162 0;
+      --color-destructive: 226 88 77;
+    }
+  }
+}

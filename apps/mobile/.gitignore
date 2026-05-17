@@ -1,0 +1,18 @@
+# Expo
+.expo/
+dist/
+web-build/
+# NOT: expo-env.d.ts repoda tutulur — turbo `typecheck` (`tsc --noEmit`) Expo
+# çalıştırmadan koştuğu için `expo/types` referansı CI'da hazır olmalı.
+
+# Native projeleri (CNG — prebuild ile üretilir, repoda tutulmaz)
+/ios
+/android
+
+# Metro
+.metro-health-check*
+
+# Misc
+*.log
+.DS_Store
+.turbo
