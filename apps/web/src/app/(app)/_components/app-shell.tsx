@@ -41,6 +41,13 @@ type ActiveBoardPayload = {
 const BOARD_ROUTE = /^\/workspaces\/[^/]+\/boards\/[^/]+\/?$/;
 
 /**
+ * The `(app)` landing page (`/`). It renders the workspace-overview layout
+ * (DEM-192) which uses the full viewport width — no centred max-width cap,
+ * unlike the standard child routes that stay at `max-w-5xl`.
+ */
+const HOME_ROUTE = '/';
+
+/**
  * App chrome for signed-in users: a sticky header (brand + workspace/board
  * switchers + user actions) over the page content. The board screen renders full-bleed (so the
  * board surface can reach the viewport edges); all other screens get a centred
@@ -59,6 +66,7 @@ export function AppShell({
   useUserRealtime();
 
   const fullBleed = BOARD_ROUTE.test(pathname);
+  const isHome = pathname === HOME_ROUTE;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
   const activeBoard = useQuery({
     ...trpc.board.get.queryOptions({ boardId: boardId ?? '__none__' }),
@@ -129,7 +137,16 @@ export function AppShell({
       {fullBleed ? (
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       ) : (
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+        <main
+          className={cn(
+            'mx-auto w-full flex-1 py-8',
+            // The landing page (DEM-192) spans the full viewport width; other
+            // child routes stay centred at max-w-5xl.
+            isHome ? 'max-w-none px-6' : 'max-w-5xl px-4',
+          )}
+        >
+          {children}
+        </main>
       )}
     </div>
   );

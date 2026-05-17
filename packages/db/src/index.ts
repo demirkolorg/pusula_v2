@@ -19,4 +19,5 @@ export {
   asc,
   count,
   countDistinct,
+  max,
 } from 'drizzle-orm';

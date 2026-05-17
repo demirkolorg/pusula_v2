@@ -931,6 +931,181 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       code: 'FORBIDDEN',
     });
   });
+
+  // ----------------------------------------------------------- setFavorite
+
+  it('setFavorite: favoriting is idempotent and never writes activity (DEM-192)', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Favorite Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const actsBefore = await actsFor(board.id);
+
+    const first = await callerFor(ownerId).board.setFavorite({
+      boardId: board.id,
+      favorited: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(first).toEqual({ boardId: board.id, favorited: true });
+    // Favoriting again is a no-op (composite PK + onConflictDoNothing).
+    const second = await callerFor(ownerId).board.setFavorite({
+      boardId: board.id,
+      favorited: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(second).toEqual({ boardId: board.id, favorited: true });
+
+    const favRows = await db()
+      .select()
+      .from(dbMod.boardFavorites)
+      .where(dbMod.eq(dbMod.boardFavorites.boardId, board.id));
+    expect(favRows).toHaveLength(1);
+    expect(favRows[0]).toMatchObject({ boardId: board.id, userId: ownerId });
+
+    // Un-favoriting twice is also idempotent.
+    await callerFor(ownerId).board.setFavorite({ boardId: board.id, favorited: false });
+    await callerFor(ownerId).board.setFavorite({ boardId: board.id, favorited: false });
+    const favRowsAfter = await db()
+      .select()
+      .from(dbMod.boardFavorites)
+      .where(dbMod.eq(dbMod.boardFavorites.boardId, board.id));
+    expect(favRowsAfter).toHaveLength(0);
+
+    // No activity events were written by any of the four calls.
+    const actsAfter = await actsFor(board.id);
+    expect(actsAfter.length).toBe(actsBefore.length);
+  });
+
+  it('setFavorite: a viewer-role guest can favorite their own board', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Guest Favorite Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db()
+      .insert(boardMembers)
+      .values({ boardId: board.id, userId: guestId, role: 'viewer' });
+
+    const result = await callerFor(guestId).board.setFavorite({
+      boardId: board.id,
+      favorited: true,
+    });
+    expect(result).toEqual({ boardId: board.id, favorited: true });
+
+    const favRows = await db()
+      .select()
+      .from(dbMod.boardFavorites)
+      .where(
+        dbMod.and(
+          dbMod.eq(dbMod.boardFavorites.boardId, board.id),
+          dbMod.eq(dbMod.boardFavorites.userId, guestId),
+        ),
+      );
+    expect(favRows).toHaveLength(1);
+  });
+
+  it('setFavorite: an outsider is FORBIDDEN and an unknown boardId is NOT_FOUND', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Locked Favorite Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(outsiderId).board.setFavorite({ boardId: board.id, favorited: true }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      callerFor(ownerId).board.setFavorite({ boardId: 'does-not-exist', favorited: true }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  // --------------------------------------------------- list enrichment (DEM-192)
+
+  it('list: rows carry card counts, members, favorited and activity metadata', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Enriched Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Work',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // 2 open cards, 1 completed, 1 archived (the archived one counts nowhere).
+    const [openPos0, openPos1, donePos, archPos] = positionsBetween(null, null, 4);
+    await db()
+      .insert(cards)
+      .values([
+        { boardId: board.id, listId: list.id, title: 'Open A', position: openPos0! },
+        { boardId: board.id, listId: list.id, title: 'Open B', position: openPos1! },
+        {
+          boardId: board.id,
+          listId: list.id,
+          title: 'Done card',
+          position: donePos!,
+          completed: true,
+          completedAt: new Date(),
+        },
+        {
+          boardId: board.id,
+          listId: list.id,
+          title: 'Archived card',
+          position: archPos!,
+          archivedAt: new Date(),
+        },
+      ]);
+
+    // owner favorites the board; member does not.
+    await callerFor(ownerId).board.setFavorite({ boardId: board.id, favorited: true });
+
+    const ownerList = await callerFor(ownerId).board.list({ workspaceId });
+    const ownerRow = ownerList.find((b) => b.id === board.id);
+    expect(ownerRow).toBeDefined();
+    expect(ownerRow).toMatchObject({ openCount: 2, doneCount: 1, favorited: true });
+    expect(ownerRow?.updatedAt).toBeInstanceOf(Date);
+    // board.created activity exists, so lastActivityAt is populated.
+    expect(ownerRow?.lastActivityAt).toBeInstanceOf(Date);
+    // members carry profile fields but never an e-mail.
+    expect(ownerRow?.members.some((m) => m.userId === ownerId && m.role === 'admin')).toBe(true);
+    for (const m of ownerRow?.members ?? []) {
+      expect(m).not.toHaveProperty('email');
+    }
+
+    // favorited is per-user: the member sees the same board with favorited=false.
+    const memberList = await callerFor(memberId).board.list({ workspaceId });
+    const memberRow = memberList.find((b) => b.id === board.id);
+    expect(memberRow?.favorited).toBe(false);
+    expect(memberRow).toMatchObject({ openCount: 2, doneCount: 1 });
+  });
+
+  it('list: the guest branch still works and an empty workspace returns an empty array', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Guest Branch Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db()
+      .insert(boardMembers)
+      .values({ boardId: board.id, userId: guestId, role: 'viewer' });
+    await callerFor(guestId).board.setFavorite({ boardId: board.id, favorited: true });
+
+    const guestList = await callerFor(guestId).board.list({ workspaceId });
+    const guestRow = guestList.find((b) => b.id === board.id);
+    expect(guestRow).toBeDefined();
+    expect(guestRow).toMatchObject({ role: 'viewer', favorited: true });
+    expect(Array.isArray(guestRow?.members)).toBe(true);
+
+    // A brand-new workspace with no boards yields an empty list (aggregates skipped).
+    const emptyWs = await callerFor(ownerId).workspace.create({
+      name: 'Empty WS',
+      slug: newSlug('empty-ws'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    createdWorkspaceIds.push(emptyWs.id);
+    const emptyList = await callerFor(ownerId).board.list({ workspaceId: emptyWs.id });
+    expect(emptyList).toEqual([]);
+  });
 });
 
 describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)', () => {

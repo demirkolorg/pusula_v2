@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-16
+updated: 2026-05-17
 ---
 
 # 08 — Web ve Mobil
@@ -92,14 +92,14 @@ Backend'de hazır olan workspace yönetim procedure'lerinin (`workspace.update`/
 
 ### 8.1.3 Yeni kullanıcı onboarding'i & signup bootstrap (Faz 1)
 
-Yeni kayıt olan kullanıcı boş bir ekrana düşmesin diye signup'ta otomatik bir default workspace + boş "İlk Pano" oluşturulur; login sonrası `(app)/` varış noktası kullanıcının workspace sayısına göre dallanır. Domain kuralı (best-effort default workspace, `workspace.list` boş olabilir) → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) (invariant 11).
+Yeni kayıt olan kullanıcı boş bir ekrana düşmesin diye signup'ta otomatik bir default workspace + boş "İlk Pano" oluşturulur; login sonrası `(app)/` varış noktası kullanıcının workspace sayısına göre dallanır. Domain kuralı (best-effort default workspace, `workspace.list` boş olabilir) → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) (invariant 11). **Anasayfa "Variant A — Rafine Orijinal" yapısındadır (DEM-192, 2026-05-17):** 0 workspace → onboarding boş-durumu; 1+ workspace → sol workspace rayı + sağ içerik (workspace özet başlığı + stat strip + zengin board kart grid'i). Ayrıntılı yerleşim/anatomi (sütun ölçüleri, board kartı, stat strip, favori yıldız) → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.11 "Anasayfa anatomisi"; "Board favorisi" domain kavramı → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md).
 
 - **Signup bootstrap (`apps/api`):** Better Auth instance'ı (`apps/api/src/auth.ts`) `databaseHooks.user.create.after` ile yeni kullanıcı için **tek transaction'da**: `workspaces` (sabit ad `"Çalışma Alanım"` — `@pusula/domain` `ONBOARDING_WORKSPACE_NAME`; benzersiz slug, suffix'li) + `workspace_members` (rol `owner`) + `activity_events`(`workspace.created`) + `boards` (`"İlk Pano"` — `ONBOARDING_BOARD_TITLE`; `background` = `ONBOARDING_BOARD_BACKGROUND` preset gradient'i) + `board_members` (creator `admin`) + `activity_events`(`board.created`, `board.background_changed`) **+ showcase pano şablonu** (kullanıcının ilk girişinde ürün yetkinliklerini "trailer" disiplininde sergiler): `labels` board-scope etiket paleti (`ONBOARDING_LABELS` — ad + renk seti) + 4 liste (`ONBOARDING_LISTS`; 2'si `color`/`icon`/`iconColor` ile özelleştirilmiş + 2'si **default** [renk/ikon `null`] olarak yan yana gelir; `position` fractional, `@pusula/domain/position`) + listelerin içinde dağılmış kartlar (`ONBOARDING_CARDS`; her kart `description`, opsiyonel `dueAt` offset'i, opsiyonel `completed`, çoklu `labels` referansı, opsiyonel `members` rol seti, opsiyonel `checklists`+`items`, opsiyonel `comments` listesi taşır; **`coverColor` yalnızca kapak rengini tanıtan tek bir kartta** — diğer kartlar kapak rengi olmadan gelir [özellik yalnız anlatıldığı yerde görselleştirilsin disiplini, başlıklar emoji'siz] — hepsi sabit deklarasyonda) + ilgili `list.created` / opsiyonel `list.color_changed` / opsiyonel `list.icon_changed` (yalnızca özelleştirilmiş listelerde) / `card.created` / opsiyonel `card.cover_changed` (yalnız tek kart) / `card.due_set` / `card.label_added` / `card.member_added` / `checklist.created` / `checklist.item_added` / `checklist.item_checked` / `comment.created` / `card.completed` activity'leri (actor = yeni kullanıcı; payload `onboarding: true` bayrağı taşır). Aynı tx içinde her board/list/card/comment/label için `search_documents` upsert edilir (`@pusula/db/search-indexer` `upsertSearchDocument`) — showcase içeriği ilk girişte aranabilir. `boards.version` `0` kalır ve realtime publish edilmez (kimse seyretmiyor). Şablon içeriği `@pusula/domain` sabitleri (i18n placeholder; kullanıcı-yüzlü → Türkçe). Bootstrap **best-effort**: hata loglanır, exception **yeniden fırlatılmaz** — signup başarılı sayılır, kullanıcı yine `(app)/`'a düşer (orada 0-workspace onboarding'ini görür). Mantık `apps/api/src/bootstrap.ts`'te; Better Auth tarafı → [`07-auth.md`](07-auth.md). Domain kuralı (best-effort default workspace + showcase pano şablonu) → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md) (invariant 11).
 - **`(app)/page.tsx` varış yüzeyi:** `trpc.workspace.list` yüklenir; sonuca göre:
   - **`pending`** → kısa "yükleniyor" placeholder.
   - **`error`** → hata `Alert`'i + tekrar dene.
   - **0 workspace** → onboarding boş-durumu (`_components/onboarding-empty-state.tsx`: Pusula/workspace kavramını anlatan kart + "Workspace oluştur" CTA → `CreateWorkspaceDialog`). Bootstrap çalıştıysa bu nadirdir, ama kullanıcı son workspace'inden ayrılınca da bu duruma düşer. `PendingInvitations` bu durumda da gösterilir.
-  - **1+ workspace** → sol sütunda workspace listesi, sağ sütunda seçili workspace'in `trpc.board.list({ workspaceId })` panoları gösterilir. İlk workspace varsayılan seçilidir; workspace satırına tıklamak ayar sayfasına gitmez, sadece sağdaki pano listesini değiştirir. Workspace detay/ayar route'u yalnızca satırdaki ayar ikonu (`/workspaces/[id]`) üzerinden açılır. Pano kartları `/workspaces/[id]/boards/[boardId]` rotasına gider; `member+` kullanıcılar için aynı yüzeyde `CreateBoardDialog` bulunur.
+  - **1+ workspace** → "Variant A" iki-sütun düzeni: solda **workspace rayı** (`lg:w-80` — "WORKSPACES" başlığı + workspace satırları [palette avatar + ad + "N pano · M üye" + rol rozeti] + dashed "Yeni alan kur" CTA), sağda seçili workspace'in **içeriği** üç parça hâlinde — (a) workspace özet başlığı (büyük avatar + ad + rol + slug + meta satırı + "Davet et"/"Pano oluştur" aksiyonları), (b) **stat strip** (4 kutu: Açık görev / Bu hafta tamamlanan / Vadesi geçen / Bana atanan — `trpc.workspace.stats({ workspaceId })` aggregate query'sinden), (c) zengin **board kart grid'i** (`trpc.board.list({ workspaceId })` — kapak görseli + favori yıldız toggle + sayaçlar + üye avatar yığını + filtre sekmeleri + dashed "Yeni pano" CTA). İlk workspace varsayılan seçilidir; workspace satırına tıklamak ayar sayfasına gitmez, sadece sağdaki içeriği değiştirir. Workspace detay/ayar route'u yalnızca satırdaki ayar ikonu (`/workspaces/[id]`) üzerinden açılır. Board kartları `/workspaces/[id]/boards/[boardId]` rotasına gider; `member+` kullanıcılar için grid içinde `CreateBoardDialog` bulunur. Tam yerleşim/anatomi + token disiplini → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.11; board favorisi (yıldız toggle) domain kavramı → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md).
 - **Metinler:** onboarding metinleri `strings.onboarding` (+ gerekirse `strings.workspace.redirecting`); hardcode metin yok.
 - **`clientMutationId`:** onboarding'deki workspace oluşturma `CreateWorkspaceDialog` üzerinden (istemcide üretilir); yeni mutation yok.
 - **Test:** `onboarding-empty-state` için React Testing Library (render + CTA); `(app)/page.tsx` varış yüzeyi için RTL (0 workspace / 1+ workspace / pending / error; workspace seçimi; `useTRPC` / `useQuery` mock'lu). Backend bootstrap için ileride tRPC/integration testi opsiyonel (best-effort yol).
@@ -328,15 +328,49 @@ Kart detay modalı sağ panelinde mevcut `Tabs` (Yorumlar / Aktivite / Ekler / T
 
 ## 8.2 Mobil (`apps/mobile`)
 
-Expo + Expo Router. **Henüz iskelet kurulmadı** — ileri faz; kullanıcı açıkça istemeden `apps/mobile` **oluşturulmaz**.
+Expo + Expo Router tabanlı mobil uygulama. **Faz 7 ([DEM-30](https://linear.app/demirkol/issue/DEM-30)) kapsamında inşa edilir** — Faz 7 öncesi `apps/mobile` **oluşturulmaz**. Faz 7 tek epic altında 16 alt işe bölündü (`faz-bol 7`, 2026-05-16); alt iş listesi ve bağımlılık zinciri → [`../process/02-mvp-faz-plani.md`](../process/02-mvp-faz-plani.md) "Faz 7 alt işleri". Bu bölüm 7.0 önce-belge ([DEM-176](https://linear.app/demirkol/issue/DEM-176)) ile sabitlenen mobil mimari kararlarını taşır.
 
-İleride desteklenecek: auth session · board listesi · board görüntüleme · card detail · card
-create/update · notification center · push notification deep link · cache persistence (faydalı yerlerde).
+### Hedef ve kapsam
 
-Mobil teknoloji: Expo, Expo Router, React Native Reanimated, Gesture Handler, Expo Notifications,
-tRPC client, TanStack Query.
+Mobil MVP **store yayını dahil** (App Store + Google Play). Kapsam: auth + oturum · workspace/board listesi · board görüntüleme · kart detay (tam etkileşim) · kart create/update + "move to list" · arama · kart eki · notification center + bildirim ayarları · push + deep link. Web'in Faz 6.5 (arama), Faz 10 (bildirim ayarları), Faz 11 (kart eki) ve workspace/board üye yönetimi & davet kabul yetenekleri mobil MVP'ye **dahildir**.
 
-Mobil drag-drop ilk implementasyonda **öncelikli değildir** — alternatif taşıma modeli daha
-sağlıklı: kart üzerinde "liste değiştir" aksiyonu, kart detayında "move to" picker; gerekirse
-ileride basit long-press reorder. Dikkat: push token yönetimi, foreground/background notification
-davranışı, deep link ile kart açma, offline mutation queue, cache persistence, auth session refresh.
+### Faz 7.0 mimari kararları (2026-05-17)
+
+| Konu              | Karar                                            | Not                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI yaklaşımı      | **NativeWind** (Tailwind for RN)                 | Web Tailwind v4 ile aynı zihniyet; [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) design token'ları (renk/spacing/radius) RN tarafına taşınır. `@pusula/ui` shadcn web bileşenleri mobilde **kullanılmaz** — mobil kendi bileşenlerini NativeWind ile kurar. |
+| Tiptap içerik     | **Zengin render + düz-metin düzenleme**          | Kart açıklaması/yorum Tiptap JSON saklanır; mobilde JSON'u React Native bileşen ağacına render eden bir katman gerekir (7F). Düzenleme/yeni yorum düz metin — tam mobil rich editör yok (7G).  |
+| Realtime          | **Pull-to-refresh + push** (mobil Socket.IO yok) | Board'a giriş/yenilemede fetch; değişiklikleri push bildirimi haber verir. Mobilde socket background/reconnect/pil maliyeti taşımaz. Web Socket.IO katmanı değişmez.                            |
+| Offline           | **Cache persistence — okuma offline**            | TanStack Query persist; offline'da son görülen board/kart görünür. Mutation offline kuyruğu **yok** — değişiklik bağlantı gerektirir. Bağlantı yoksa "bağlantı yok" banner'ı (7M).             |
+| Test              | **Maestro (e2e) + Vitest birim**                 | Maestro YAML tabanlı e2e (kritik akışlar); domain/component birim testleri Vitest + RN Testing Library (7N).                                                                                  |
+| Tema              | **Dark/light**                                   | Web 2.7 tema desteğiyle simetrik; `13-ui-tasarim-dili.md` token'ları üzerinden.                                                                                                               |
+| Hata izleme       | **Sentry mobil** (ayrı DSN)                      | web/api/worker Sentry kurulumuyla simetrik; crash reporting (7A).                                                                                                                             |
+| Dağıtım           | **EAS Build + EAS Update (OTA)**                 | Production build iOS + Android; OTA güncelleme store review'a takılmadan hızlı düzeltme sağlar (7O).                                                                                           |
+
+### Mobil teknoloji yığını
+
+Expo · Expo Router · NativeWind · React Native Reanimated · Gesture Handler · Expo Notifications · `expo-secure-store` · tRPC client (paylaşılan `packages/api` sözleşmesi) · TanStack Query (+ persist) · Sentry · Maestro. `EXPO_PUBLIC_*` env Zod ile doğrulanır (`apps/mobile/src/env.ts`).
+
+### Drag-drop yerine "move to list"
+
+Mobil drag-drop **kapsam dışı** — kart taşıma kart üzerinde/detayında "move to list" picker ile yapılır (7H). Collaborative mutation disiplini web ile aynı: optimistic UI, rollback, `clientMutationId`. Gerekirse ileride basit long-press reorder ayrı iş.
+
+### Alt iş grupları
+
+4 mantıksal grup: **Temel** (7A-7E: scaffold, auth, navigasyon, üye yönetimi, board görüntüleme) · **Kart** (7F-7J: kart detay, etkileşim, create/move, arama, ek) · **Bildirim** (7K-7L: notification center + ayarlar, push + deep link) · **Yayın** (7M-7O: realtime/offline, test, store yayını). Push dilimi (7K/7L) Faz 6 bildirim altyapısına bağlıdır — Faz 6 kapanana dek `Blocked`.
+
+### Dikkat noktaları
+
+Push token yönetimi · foreground/background notification davranışı · deep link + universal links (associated domains / intent filters) · auth session refresh + `expo-secure-store` · cache persistence + bağlantı durumu banner'ı. Auth tarafı → [`07-auth.md`](07-auth.md) (Mobil oturum); push tarafı → [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) (Push kanalı).
+
+### Faz 7A — `apps/mobile` iskeleti (Wired)
+
+Faz 7A ([DEM-177](https://linear.app/demirkol/issue/DEM-177)) `apps/mobile`'ı oluşturdu — iskelet + altyapı; auth (7B), navigasyon (7C) ve ekranlar ayrı alt işlerde gelir. Kurulan katmanlar:
+
+- **Expo SDK 54 + Expo Router 6** scaffold, TypeScript strict (`@pusula/config/tsconfig` tabanlı). Turborepo pipeline'a `build` (`expo export` — JS bundle) · `lint` · `typecheck` · `test` task'larıyla bağlandı; native iOS/Android build EAS'te.
+- **NativeWind 4** + `tailwind.config.js`; [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) renk/spacing/radius token'ları `src/theme/tokens.ts` + Tailwind teması olarak RN tarafına taşındı (light/dark). `@pusula/ui` shadcn web bileşenleri mobilde kullanılmaz.
+- **Paylaşılan tRPC client** — `@pusula/api` `AppRouter` sözleşmesi; `@trpc/client` + `@trpc/tanstack-react-query` + `superjson`. TanStack Query + `@tanstack/react-query-persist-client` & AsyncStorage ile okuma-offline cache persistence (7.0 kararı).
+- **`EXPO_PUBLIC_*` env** — `src/env.ts` Zod doğrulaması (`EXPO_PUBLIC_API_URL` zorunlu varsayılanlı, `EXPO_PUBLIC_SENTRY_DSN` opsiyonel).
+- **EAS** — `eas.json` development / preview / production build profilleri (`app.config.ts` dinamik Expo yapılandırması).
+- **Sentry mobil** — `@sentry/react-native`, ayrı DSN (`EXPO_PUBLIC_SENTRY_DSN`); DSN boşsa `Sentry.init` no-op (web/api/worker simetrisi).
+- **Branding** — app ikonu / adaptive icon / splash + uygulama içi marka token'ları (`apps/mobile/assets`); UI metinleri `src/lib/strings.ts` katmanında (iskelet — hardcode metin yok).

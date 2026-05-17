@@ -12,7 +12,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-16
+updated: 2026-05-17
 ---
 
 # 02 — Yetkilendirme Kuralları
@@ -105,8 +105,9 @@ gerçek email/in-app teslimi worker'la (Faz 6) yapılır — request döngüsün
 | Attachment yükle                                                   | ✓           | ✓            | —            |
 | Board/kartları/yorumları görüntüle, board üye listesi              | ✓           | ✓            | ✓            |
 | Kendini watcher yap / atamayı (kendi `assignee`'liğini) bırak      | ✓           | ✓            | ✓            |
+| Board'u favorile / favorisinden çıkar (kişisel)                    | ✓           | ✓            | ✓            |
 
-> ¹ Son board `admin` board'dan ayrılamaz / rolden düşürülemez. ² Yorum düzenleme/silme: yazan kişi **veya** board `admin`; `viewer` yorum bile ekleyemez.
+> ¹ Son board `admin` board'dan ayrılamaz / rolden düşürülemez. ² Yorum düzenleme/silme: yazan kişi **veya** board `admin`; `viewer` yorum bile ekleyemez. **Board favorisi kişiseldir** — board görüntüleme erişimi (`viewer+`) yeterli; ayrı yetki kuralı yoktur, activity/realtime üretmez (bkz. [`01-urun-modeli.md`](01-urun-modeli.md) invariant 19).
 
 #### Board / List / Card procedure haritası (Faz 2)
 

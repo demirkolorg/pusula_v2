@@ -57,3 +57,6 @@ tmp
 
 # obsidian canvas scratch files (e.g. accidental "Untitled" canvases)
 *.canvas
+
+# tasarım ilham / mockup dosyaları (repo dışı referans)
+ilham/

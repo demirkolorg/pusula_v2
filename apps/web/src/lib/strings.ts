@@ -376,6 +376,71 @@ export const strings = {
       default: 'bir işlem yaptı',
     },
   },
+  /**
+   * Copy for the `(app)` landing page — the workspace-overview layout
+   * (DEM-192 "Anasayfa Variant A"): the workspace rail, the selected
+   * workspace's header, its stat strip and its board grid.
+   */
+  home: {
+    rail: {
+      eyebrow: 'Workspaces',
+      count: (count: number) => `${count} çalışma alanı`,
+      addLabel: 'Yeni çalışma alanı ekle',
+      settingsLabel: (name: string) => `${name} ayarları`,
+      createCardTitle: 'Yeni alan kur',
+      createCardDescription: 'Ekibinle ayrı bir çalışma alanı başlat, üyeleri davet et.',
+    },
+    overview: {
+      roleBadgePrefix: 'Rol ·',
+      boardCount: (count: number) => `${count} pano`,
+      memberCount: (count: number) => `${count} üye`,
+      lastActivity: (relative: string) => `Son aktivite ${relative}`,
+      lastActivityNever: 'Henüz aktivite yok',
+      createBoardButton: 'Pano oluştur',
+    },
+    stats: {
+      sectionLabel: 'Çalışma alanı özeti',
+      loadErrorTitle: 'Özet yüklenemedi',
+      openTasks: {
+        label: 'Açık görev',
+        sub: 'Bu çalışma alanında',
+      },
+      completedThisWeek: {
+        label: 'Bu hafta tamamlanan',
+        deltaUp: (count: number) => `Geçen haftaya göre +${count}`,
+        deltaDown: (count: number) => `Geçen haftaya göre −${count}`,
+        deltaSame: 'Geçen haftayla aynı',
+      },
+      overdue: {
+        label: 'Vadesi geçen',
+        sub: 'Hassasiyet ister',
+        subEmpty: 'Geciken görev yok',
+      },
+      assignedToMe: {
+        label: 'Bana atanan',
+        sub: (count: number) =>
+          count === 0 ? 'Bugün vadeli görevin yok' : `Bugün ${count} görev vadeli`,
+      },
+    },
+    boards: {
+      sectionTitle: 'Panolar',
+      count: (count: number) => `· ${count}`,
+      filterAll: 'Tümü',
+      filterStarred: 'Yıldızlı',
+      filterRecent: 'Son düzenlenen',
+      viewGridLabel: 'Izgara görünümü',
+      viewListLabel: 'Liste görünümü',
+      empty: 'Henüz pano yok — ilkini oluştur.',
+      emptyStarred: 'Yıldızlı pano yok.',
+      newCardTitle: 'Yeni pano',
+      newCardDescription: 'Şablonlardan başla veya boş aç.',
+      taskCounts: (open: number, done: number) => `${open} açık / ${done} bitti`,
+      memberOverflow: (count: number) => `+${count}`,
+      memberStackLabel: (count: number) => `${count} üye`,
+      favoriteAdd: (title: string) => `"${title}" panosunu yıldızla`,
+      favoriteRemove: (title: string) => `"${title}" panosunun yıldızını kaldır`,
+    },
+  },
   workspace: {
     listTitle: 'Workspace’lerin',
     loading: 'Workspace’ler yükleniyor…',

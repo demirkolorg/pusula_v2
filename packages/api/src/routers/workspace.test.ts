@@ -8,12 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as dbMod from '@pusula/db';
 import {
   activityEvents,
+  cardMembers,
+  cards,
   notificationOutbox,
   users,
   workspaceInvitations,
   workspaceMembers,
   workspaces,
 } from '@pusula/db';
+import { positionsBetween } from '@pusula/domain';
 import { createCallerFactory } from '../trpc';
 import { appRouter } from '../root';
 import { createContext } from '../context';
@@ -902,6 +905,231 @@ describe.runIf(dbAvailable)('workspace.delete (permanent deletion, integration)'
         clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe.runIf(dbAvailable)('workspace home metadata (DEM-192, integration)', () => {
+  const db = () => probe!.db;
+
+  const homeOwnerId = newId('u-home-owner');
+  const homeMemberId = newId('u-home-member');
+  const homeOutsiderId = newId('u-home-outsider');
+  const homeUserIds = [homeOwnerId, homeMemberId, homeOutsiderId];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values(homeUserIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+  });
+
+  afterAll(async () => {
+    await db().delete(workspaces).where(dbMod.eq(workspaces.ownerId, homeOwnerId));
+    for (const id of homeUserIds) {
+      await db().delete(users).where(dbMod.eq(users.id, id));
+    }
+  });
+
+  // ---------------------------------------------------- list enrichment (DEM-192)
+
+  it('list: rows carry boardCount (active only), memberCount and lastActivityAt', async () => {
+    const ws = await callerFor(homeOwnerId).workspace.create({
+      name: 'Counted WS',
+      slug: newSlug('counted'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.id, userId: homeMemberId, role: 'member' });
+
+    // Two boards, one archived — only the active one counts.
+    await callerFor(homeOwnerId).board.create({
+      workspaceId: ws.id,
+      title: 'Active Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const toArchive = await callerFor(homeOwnerId).board.create({
+      workspaceId: ws.id,
+      title: 'Archived Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(homeOwnerId).board.archive({
+      boardId: toArchive.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const list = await callerFor(homeOwnerId).workspace.list();
+    const row = list.find((w) => w.id === ws.id);
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({ boardCount: 1, memberCount: 2 });
+    // workspace.created + board.created activities exist ⇒ lastActivityAt populated.
+    expect(row?.lastActivityAt).toBeInstanceOf(Date);
+  });
+
+  it('list: a freshly created workspace with no boards reports boardCount 0', async () => {
+    const ws = await callerFor(homeOwnerId).workspace.create({
+      name: 'Boardless WS',
+      slug: newSlug('boardless'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(homeOwnerId).workspace.list();
+    const row = list.find((w) => w.id === ws.id);
+    expect(row).toMatchObject({ boardCount: 0, memberCount: 1 });
+  });
+
+  // --------------------------------------------------------- stats (DEM-192)
+
+  it('stats: counts open / completed / overdue cards inside the workspace', async () => {
+    const ws = await callerFor(homeOwnerId).workspace.create({
+      name: 'Stats WS',
+      slug: newSlug('stats'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.id, userId: homeMemberId, role: 'member' });
+
+    const activeBoard = await callerFor(homeOwnerId).board.create({
+      workspaceId: ws.id,
+      title: 'Stats Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const archivedBoard = await callerFor(homeOwnerId).board.create({
+      workspaceId: ws.id,
+      title: 'Stats Archived Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const activeList = await callerFor(homeOwnerId).list.create({
+      boardId: activeBoard.id,
+      title: 'Col',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const archivedBoardList = await callerFor(homeOwnerId).list.create({
+      boardId: archivedBoard.id,
+      title: 'Col',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(homeOwnerId).board.archive({
+      boardId: archivedBoard.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const now = Date.now();
+    const thisWeekDone = new Date(now - 60 * 60 * 1000); // 1h ago — this week
+    const lastWeekDone = new Date(now - 8 * 24 * 60 * 60 * 1000); // 8d ago — last week
+    const overdueDue = new Date(now - 3 * 24 * 60 * 60 * 1000); // 3d ago
+    const dueToday = new Date(now + 60 * 60 * 1000); // in 1h — today
+
+    const positions = positionsBetween(null, null, 7);
+    // Cards on the ACTIVE board:
+    //  - open card, no due date
+    //  - open card, overdue
+    //  - completed card this week
+    //  - completed card last week
+    //  - completed card with a past due date (must NOT count as overdue)
+    //  - archived card (counts nowhere)
+    const inserted = await db()
+      .insert(cards)
+      .values([
+        { boardId: activeBoard.id, listId: activeList.id, title: 'Open plain', position: positions[0]! },
+        {
+          boardId: activeBoard.id,
+          listId: activeList.id,
+          title: 'Open overdue',
+          position: positions[1]!,
+          dueAt: overdueDue,
+        },
+        {
+          boardId: activeBoard.id,
+          listId: activeList.id,
+          title: 'Done this week',
+          position: positions[2]!,
+          completed: true,
+          completedAt: thisWeekDone,
+        },
+        {
+          boardId: activeBoard.id,
+          listId: activeList.id,
+          title: 'Done last week',
+          position: positions[3]!,
+          completed: true,
+          completedAt: lastWeekDone,
+        },
+        {
+          boardId: activeBoard.id,
+          listId: activeList.id,
+          title: 'Done but past due',
+          position: positions[4]!,
+          completed: true,
+          completedAt: thisWeekDone,
+          dueAt: overdueDue,
+        },
+        {
+          boardId: activeBoard.id,
+          listId: activeList.id,
+          title: 'Archived open',
+          position: positions[5]!,
+          archivedAt: new Date(),
+        },
+        // Card on the ARCHIVED board — must not count anywhere.
+        {
+          boardId: archivedBoard.id,
+          listId: archivedBoardList.id,
+          title: 'On archived board',
+          position: positions[6]!,
+        },
+      ])
+      .returning({ id: cards.id, title: cards.title });
+
+    const overduePlainCardId = inserted.find((c) => c.title === 'Open overdue')!.id;
+    const dueTodayCardId = inserted.find((c) => c.title === 'Open plain')!.id;
+    // Give the open overdue card a due date today's-window twin for the
+    // assignee due-today counter, and assign both open cards to the owner.
+    await db()
+      .update(cards)
+      .set({ dueAt: dueToday })
+      .where(dbMod.eq(cards.id, dueTodayCardId));
+    await db()
+      .insert(cardMembers)
+      .values([
+        { cardId: dueTodayCardId, userId: homeOwnerId, role: 'assignee' },
+        { cardId: overduePlainCardId, userId: homeOwnerId, role: 'assignee' },
+        // A watcher membership must NOT be counted by the assignee filter.
+        { cardId: overduePlainCardId, userId: homeMemberId, role: 'watcher' },
+      ]);
+
+    const stats = await callerFor(homeOwnerId).workspace.stats({ workspaceId: ws.id });
+    // Open (not completed, not archived, active board): 'Open plain' + 'Open overdue' = 2.
+    expect(stats.openCount).toBe(2);
+    // Completed this week: 'Done this week' + 'Done but past due' = 2.
+    expect(stats.completedThisWeek).toBe(2);
+    // Completed last week: 'Done last week' = 1.
+    expect(stats.completedLastWeek).toBe(1);
+    // Overdue: only open + past due → 'Open overdue' = 1 ('Done but past due' is completed).
+    expect(stats.overdueCount).toBe(1);
+    // Assigned to me + open: both open cards are assigned to the owner = 2.
+    expect(stats.assignedToMeOpen).toBe(2);
+    // Assigned to me + due today: only 'Open plain' has a due date inside today = 1.
+    expect(stats.assignedToMeDueToday).toBe(1);
+
+    // The member is only a `watcher`, so their assignee counters are zero.
+    const memberStats = await callerFor(homeMemberId).workspace.stats({ workspaceId: ws.id });
+    expect(memberStats.assignedToMeOpen).toBe(0);
+    expect(memberStats.assignedToMeDueToday).toBe(0);
+    // Workspace-wide counters are caller-independent.
+    expect(memberStats.openCount).toBe(2);
+  });
+
+  it('stats: a non-member is FORBIDDEN', async () => {
+    const ws = await callerFor(homeOwnerId).workspace.create({
+      name: 'Stats Locked WS',
+      slug: newSlug('stats-locked'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(homeOutsiderId).workspace.stats({ workspaceId: ws.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

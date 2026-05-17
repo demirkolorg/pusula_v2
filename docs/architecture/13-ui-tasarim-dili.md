@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-16
+updated: 2026-05-17
 ---
 
 # 13 — UI Tasarım Dili
@@ -691,3 +691,57 @@ Tile'daki "Önizle" tıklanınca açılan dialog (`@pusula/ui` `Dialog` extend, 
 - **Antivirus tarama** — ClamAV worker job'u Faz 8 sertleştirme.
 - **Office Online viewer** — gizlilik (public erişim gerektirir); V1 dışı.
 - **Misafir attachment görüntüleme** — Faz 9 paylaşım linki SSR'da `forbidden:guest` flag; misafir attachment **görmez**.
+
+## 13.11 Anasayfa anatomisi (`(app)/page.tsx` — Variant A "Rafine Orijinal")
+
+> **DEM-192 (2026-05-17):** Anasayfa (`(app)/` varış yüzeyi) "Variant A — Rafine Orijinal" yapısına geçti. Bu bölüm `(app)/page.tsx`'in **1+ workspace** durumundaki yerleşim/anatomi sözleşmesidir; 0 workspace onboarding boş-durumu §8.1.3'teki gibi kalır. Veri akışı + route davranışı → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.3; "Board favorisi" domain kavramı → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md). Mevcut renkler tümüyle design token (§13.1) üzerinden — ilham mockup'ındaki sabit koyu renkler kullanılmaz; açık + koyu temada (§13.7) çalışır.
+
+### Yerleşim
+
+- AppShell üst başlığı (§13.8 — workspace switcher + board switcher + user nav) **değişmez**; anasayfa onun altındaki `<main>` içeriğidir.
+- `/` rotası içeriği **tam genişlikte** akar (`max-w-none px-6` — `<main>` `usePathname()` ile anasayfayı tanır; diğer çocuk route'lar `max-w-5xl` ortalı kalır, board ekranı `fullBleed`). Anasayfa "geniş, sınırsız".
+- **Sayfa hero'su (`HomeHero`):** içeriğin en üstünde, parlayan sparkle marka rozeti + sayfa başlığı. Rozet: `size-14 rounded-2xl`, `--primary` gradient zemin (`from-primary/35 to-primary/5`) + inset `ring-primary/30` + arkasında bulanık `--primary` glow halo; ikon `lucide SparkleIcon`. Yanında `h1` "Workspace'lerin" (`strings.workspace.listTitle`) + alt açıklama (`strings.board.listSectionDescription`). `rounded-xl border bg-card` panel, üst kenarında ince `--primary`-tonlu gradient highlight çizgisi. Sayfanın tek `h1`'i burasıdır — workspace özet başlığı (aşağıda) `h2`'ye iner.
+- İki sütun: solda **workspace rayı** (`lg:w-80`, ~320px, `shrink-0`), sağda **içerik** (`flex-1 min-w-0`). `lg:` altında sütunlar dikey yığılır (ray üstte, içerik altta).
+- **0 workspace** → bu iki-sütun düzeni (ve hero) render edilmez; onboarding empty state + bekleyen davetler gösterilir (§8.1.3, `onboarding-empty-state.tsx` + `PendingInvitations`).
+- **Atmosferik glow:** hero'nun arkasında `--primary` düşük opaklıkta radial gradient (dekoratif, `pointer-events-none`); light/dark token'la tonlanır, sabit renk yok.
+
+### Sol workspace rayı
+
+`<aside class="lg:w-80 shrink-0 flex flex-col gap-3">`:
+
+- **Başlık bloğu:** "WORKSPACES" eyebrow (`text-[10px] uppercase tracking-wide text-muted-foreground`) + "N çalışma alanı" (`text-sm text-muted-foreground`) + sağda `+` ikon-buton (`Button variant=ghost size=icon` — yeni workspace → `CreateWorkspaceDialog`).
+- **Workspace satırları:** her satır tıklanabilir (`role="button"` + klavye); içerik: palette avatar (workspace adının baş harfi, `avatarPaletteSolidClass` ile deterministik `--palet-*` zemin) + ad (`font-medium truncate`) + alt satır "N pano · M üye" (`text-xs text-muted-foreground`) + rol rozeti (`Badge` — owner/admin/member/guest; §13.1 token'lı). **Aktif workspace** sol kenarda accent şerit (`data-active` → `--primary` `w-0.5` bar) + accent zemin (`bg-primary/8`); satıra tıklamak sağ içeriği değiştirir, workspace ayar route'una **gitmez** (ayar yalnız satır içindeki ayar ikonundan — §8.1.3 disiplini).
+- **Alt CTA:** rayın sonunda dashed "Yeni alan kur" kartı (`border border-dashed border-border rounded-lg p-3 text-muted-foreground hover:bg-muted/40`) → `CreateWorkspaceDialog` (başlık bloğundaki `+` ile aynı işi yapar; ray boş hissettirmesin diye ek görsel CTA).
+
+### Sağ içerik
+
+`flex flex-col gap-5` — üç parça:
+
+**(a) Workspace özet başlığı (`WorkspaceSummaryHeader`)** — seçili workspace'in kimlik bandı: solda büyük palette avatar (52px, `avatarPaletteSolidClass`) + ad (`h2`, `text-2xl font-semibold` — sayfa `h1`'i hero'da) + rol rozeti + slug (`text-xs font-mono text-muted-foreground`); altında meta satırı "N pano / M üye / Son aktivite …" (`text-sm text-muted-foreground`, ayraç `·`). Sağda aksiyonlar: "Davet et" (`Button variant=outline` — workspace davet dialog'u, `admin+` gate'li) + "Pano oluştur" (`Button` — `CreateBoardDialog`, `member+` gate'li).
+
+**(b) Stat strip (`WorkspaceStatStrip`)** — 4 kutu yan yana (`grid grid-cols-2 lg:grid-cols-4 gap-3`); her kutu `rounded-lg border bg-card p-3 flex flex-col gap-1`: ikon rozeti (`size-8 rounded-md` accent zeminli — accent ilgili token) + etiket (`text-xs text-muted-foreground`) + büyük sayı (`text-2xl font-semibold tabular-nums`) + alt metin (`text-[11px] text-muted-foreground`):
+
+| Kutu                  | Accent token    | Alt metin                                          |
+| --------------------- | --------------- | -------------------------------------------------- |
+| Açık görev            | `--warning`     | (yalnız sayı — haftalık delta veri olmadığından yok) |
+| Bu hafta tamamlanan   | `--success`     | geçen haftaya göre delta ("+N" / "-N" / "—")        |
+| Vadesi geçen          | `--destructive` | (yalnız sayı — haftalık delta yok)                 |
+| Bana atanan           | `--primary`     | "bugün N vadeli"                                   |
+
+> **Veri notu:** "Hedef" sayacı ile açık-görev/vadesi-geçen haftalık delta'sı **gösterilmez** — bu metrikler için kaynak veri yok. Yalnız "Bu hafta tamamlanan" kutusu gerçek bir delta alır (`completed_at` haftalık karşılaştırması). Stat verisi `workspace.stats` aggregate tRPC query'sinden gelir (→ [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-17).
+
+**(c) Board kart grid'i (`WorkspaceBoardGrid`)** — seçili workspace'in panoları:
+
+- **Filtre satırı:** solda "Panolar · N" (`SectionHeader` deseni) + sekme grubu (Tümü / Yıldızlı / Son düzenlenen — `inline-flex rounded-md border bg-secondary p-[3px]`, aktif `bg-card shadow-xs`; "Yıldızlı" board favorisine göre süzer); sağda grid/liste görünüm toggle (`LayoutGridIcon` / `ListIcon` ikon-buton çifti).
+- **Grid:** `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4`.
+- **Board kartı (`BoardCard`):** `rounded-lg border bg-card overflow-hidden hover:shadow-card-hover`:
+  1. **Kapak görseli** — `boardBackgroundClass(board.background)` ile boyanan üst şerit (`h-20`; §13.2 gradient/solid token haritası); sağ üstte **favori yıldız toggle** (`StarIcon`; favori → dolu `text-warning`, değil → `text-muted-foreground/60`; `board.favorites.toggle` — viewer+ herkese açık, kişisel).
+  2. **Gövde** (`p-3 flex flex-col gap-2`): board ikon rozeti + başlık link (`Link` `/workspaces/[ws]/boards/[b]`, `font-medium truncate`); alt satır rol rozeti + son aktivite görece zamanı (`text-xs text-muted-foreground`); "N açık / M bitti" sayaçları (`CheckSquareIcon` + sayı, tamamlanan `text-success`); üye avatar yığını (son ~3 `Avatar size-xs` `-space-x-1` + "+N").
+- **Grid sonu CTA:** dashed "Yeni pano" kartı (`border border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/40 min-h-[8rem]`) → `CreateBoardDialog` (`member+`; viewer'a gösterilmez).
+
+### Token disiplini
+
+- Tüm renkler design token (`--primary` / `--success` / `--warning` / `--destructive` / `--card` / `--muted` / `--border` + `--palet-*` paleti) üzerinden; sabit hex/RGB yok. İlham mockup'ındaki sabit koyu zemin değerleri kullanılmaz — anasayfa light + dark temada (§13.7) hatasız çalışır.
+- Stat kutusu accent rozetleri ilgili semantik token'ın düşük-opaklık zeminini kullanır (`bg-warning/12`, `bg-success/12`, `bg-destructive/12`, `bg-primary/12`); ikon rengi tam token.
+- Avatar zeminleri `avatarPaletteSolidClass` (§13.4 `Avatar` ile aynı deterministik isim→palet hash mantığı).
+- Board kartı kapak şeridi `boardBackgroundClass` ile board ekranıyla **aynı** gradient/solid token haritasını paylaşır (§13.2) — tek kaynak.

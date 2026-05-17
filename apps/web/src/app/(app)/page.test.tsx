@@ -1,4 +1,3 @@
-import type { AnchorHTMLAttributes, ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,70 +6,93 @@ import { strings } from '@/lib/strings';
 // Hoisted so the mock factories below can reference them; also handed back to tests.
 const h = vi.hoisted(() => ({
   useQuery: vi.fn(),
-  routerReplace: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: h.routerReplace, push: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
   usePathname: () => '/',
-}));
-
-vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: h.useQuery,
-  useMutation: () => ({
-    mutate: vi.fn(),
-    reset: vi.fn(),
-    isPending: false,
-    isError: false,
-    error: null,
-  }),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     workspace: {
-      list: { queryOptions: () => ({ key: 'workspace.list' }), queryFilter: () => ({}) },
-      create: { mutationOptions: (o: unknown) => o },
-      invitations: {
-        mine: {
-          queryOptions: () => ({ key: 'workspace.invitations.mine' }),
-          queryFilter: () => ({}),
-        },
-        accept: { mutationOptions: (o: unknown) => o },
-        decline: { mutationOptions: (o: unknown) => o },
-      },
+      list: { queryOptions: () => ({ key: 'workspace.list' }) },
     },
     board: {
       list: {
         queryOptions: ({ workspaceId }: { workspaceId: string }) => ({
           key: `board.list:${workspaceId}`,
         }),
-        queryFilter: () => ({}),
-      },
-      create: { mutationOptions: (o: unknown) => o },
-      invitations: {
-        mine: {
-          queryOptions: () => ({ key: 'board.invitations.mine' }),
-          queryFilter: () => ({}),
-        },
-        accept: { mutationOptions: (o: unknown) => o },
-        decline: { mutationOptions: (o: unknown) => o },
       },
     },
   }),
+}));
+
+// Surface invitations are a separate concern; render an inert marker.
+vi.mock('./_components/pending-invitations', () => ({
+  PendingInvitations: () => <div data-testid="pending-invitations" />,
+}));
+vi.mock('./_components/onboarding-empty-state', () => ({
+  OnboardingEmptyState: () => <div>{strings.onboarding.title}</div>,
+}));
+
+// The home layout components own their own tRPC queries / mutations; stub them
+// so this page test focuses on the branching + workspace selection wiring.
+vi.mock('./_components/home/home-hero', () => ({
+  HomeHero: () => <div data-testid="home-hero" />,
+}));
+vi.mock('./_components/home/workspace-rail', () => ({
+  WorkspaceRail: ({
+    workspaces,
+    selectedWorkspaceId,
+    onSelect,
+  }: {
+    workspaces: { id: string; name: string }[];
+    selectedWorkspaceId: string;
+    onSelect: (id: string) => void;
+  }) => (
+    <div data-testid="workspace-rail">
+      {workspaces.map((workspace) => (
+        <button
+          key={workspace.id}
+          type="button"
+          aria-pressed={workspace.id === selectedWorkspaceId}
+          onClick={() => onSelect(workspace.id)}
+        >
+          {workspace.name}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+vi.mock('./_components/home/workspace-overview-header', () => ({
+  WorkspaceOverviewHeader: ({ workspace }: { workspace: { name: string } }) => (
+    <h1>{workspace.name}</h1>
+  ),
+}));
+vi.mock('./_components/home/workspace-stat-strip', () => ({
+  WorkspaceStatStrip: ({ workspaceId }: { workspaceId: string }) => (
+    <div data-testid="stat-strip">{workspaceId}</div>
+  ),
+}));
+vi.mock('./_components/home/board-grid', () => ({
+  BoardGrid: ({
+    workspace,
+    boards,
+  }: {
+    workspace: { id: string };
+    boards: { title: string }[];
+  }) => (
+    <div data-testid="board-grid" data-workspace={workspace.id}>
+      {boards.map((board) => (
+        <span key={board.title}>{board.title}</span>
+      ))}
+    </div>
+  ),
 }));
 
 // Imported after the mocks above are registered (vi.mock/vi.hoisted are hoisted).
@@ -92,14 +114,11 @@ const queryStub = (over: Partial<QueryStub>): QueryStub => ({
   ...over,
 });
 
-/** Wire `useQuery` so the `workspace.list` query yields `result`; every other query resolves empty. */
-function withWorkspaceList(result: QueryStub) {
-  h.useQuery.mockImplementation((opts: { key?: string }) =>
-    opts?.key === 'workspace.list' ? result : queryStub({ isSuccess: true, data: [] }),
-  );
-}
-
-function withWorkspaceHome(workspaceResult: QueryStub, boardResults: Record<string, QueryStub>) {
+/** Wire `useQuery` so `workspace.list` yields `result`; board queries resolve from `boardResults`. */
+function withWorkspaceHome(
+  workspaceResult: QueryStub,
+  boardResults: Record<string, QueryStub> = {},
+) {
   h.useQuery.mockImplementation((opts: { key?: string }) => {
     if (opts?.key === 'workspace.list') return workspaceResult;
     if (opts?.key?.startsWith('board.list:')) {
@@ -116,6 +135,9 @@ const workspace = (id: string, name: string) => ({
   slug: name.toLowerCase(),
   role: 'owner' as const,
   createdAt: new Date('2026-01-01'),
+  boardCount: 0,
+  memberCount: 1,
+  lastActivityAt: null,
 });
 
 const board = (id: string, title: string) => ({
@@ -123,91 +145,70 @@ const board = (id: string, title: string) => ({
   title,
   role: 'admin' as const,
   archivedAt: null,
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-05-01'),
+  openCount: 0,
+  doneCount: 0,
+  members: [],
+  favorited: false,
+  lastActivityAt: null,
 });
 
 describe('<WorkspacesPage> - (app) landing', () => {
   beforeEach(() => {
     h.useQuery.mockReset();
-    h.routerReplace.mockReset();
   });
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('pending -> shows the loading placeholder, no redirect', () => {
-    withWorkspaceList(queryStub({ isPending: true }));
+  it('pending -> shows the loading placeholder', () => {
+    withWorkspaceHome(queryStub({ isPending: true }));
     render(<WorkspacesPage />);
     expect(screen.getByText(strings.workspace.loading)).toBeInTheDocument();
-    expect(h.routerReplace).not.toHaveBeenCalled();
   });
 
   it('error -> shows the error alert with the server message', () => {
-    withWorkspaceList(queryStub({ isError: true, error: { message: 'boom' } }));
+    withWorkspaceHome(queryStub({ isError: true, error: { message: 'boom' } }));
     render(<WorkspacesPage />);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(strings.workspace.loadErrorTitle);
     expect(alert).toHaveTextContent('boom');
-    expect(h.routerReplace).not.toHaveBeenCalled();
   });
 
-  it('0 workspaces -> renders the onboarding empty state, no redirect', () => {
-    withWorkspaceList(queryStub({ isSuccess: true, data: [] }));
+  it('0 workspaces -> renders the onboarding empty state', () => {
+    withWorkspaceHome(queryStub({ isSuccess: true, data: [] }));
     render(<WorkspacesPage />);
     expect(screen.getByText(strings.onboarding.title)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: strings.onboarding.createCta })).toBeInTheDocument();
-    expect(h.routerReplace).not.toHaveBeenCalled();
   });
 
-  it('exactly 1 workspace -> renders its boards instead of redirecting to settings', () => {
+  it('1+ workspaces -> renders the rail, overview header, stat strip and board grid', () => {
     withWorkspaceHome(queryStub({ isSuccess: true, data: [workspace('w1', 'Solo')] }), {
       w1: queryStub({ isSuccess: true, data: [board('b1', 'Sprint')] }),
     });
     render(<WorkspacesPage />);
-    expect(screen.getByRole('button', { name: /Solo/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sprint' })).toHaveAttribute(
-      'href',
-      '/workspaces/w1/boards/b1',
-    );
-    expect(h.routerReplace).not.toHaveBeenCalled();
+    expect(screen.getByTestId('home-hero')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-rail')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Solo' })).toBeInTheDocument();
+    expect(screen.getByTestId('stat-strip')).toHaveTextContent('w1');
+    expect(screen.getByTestId('board-grid')).toHaveTextContent('Sprint');
   });
 
-  it('2+ workspaces -> renders a workspace sidebar and the selected workspace boards, no redirect', async () => {
+  it('selecting another workspace in the rail swaps the overview + boards', async () => {
     const user = userEvent.setup();
     withWorkspaceHome(
       queryStub({ isSuccess: true, data: [workspace('w1', 'Alpha'), workspace('w2', 'Beta')] }),
       {
-        w1: queryStub({
-          isSuccess: true,
-          data: [board('b1', 'Backlog'), board('b2', 'Roadmap')],
-        }),
+        w1: queryStub({ isSuccess: true, data: [board('b1', 'Backlog')] }),
         w2: queryStub({ isSuccess: true, data: [board('b3', 'Operations')] }),
       },
     );
     render(<WorkspacesPage />);
-    expect(screen.getByRole('heading', { name: strings.workspace.listTitle })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Alpha.*ayar/i })).toHaveAttribute(
-      'href',
-      '/workspaces/w1',
-    );
-    expect(screen.getByRole('link', { name: 'Backlog' })).toHaveAttribute(
-      'href',
-      '/workspaces/w1/boards/b1',
-    );
-    expect(
-      screen.getByRole('link', { name: `Backlog ${strings.board.settings.dropdownTitle}` }),
-    ).toHaveAttribute('href', '/workspaces/w1/boards/b1/settings');
-    expect(screen.getByRole('link', { name: 'Roadmap' })).toHaveAttribute(
-      'href',
-      '/workspaces/w1/boards/b2',
-    );
+    expect(screen.getByRole('heading', { name: 'Alpha' })).toBeInTheDocument();
+    expect(screen.getByTestId('board-grid')).toHaveTextContent('Backlog');
 
-    await user.click(screen.getByRole('button', { name: /Beta/ }));
-    expect(screen.getByRole('link', { name: 'Operations' })).toHaveAttribute(
-      'href',
-      '/workspaces/w2/boards/b3',
-    );
-    expect(screen.queryByRole('link', { name: 'Backlog' })).not.toBeInTheDocument();
-    expect(h.routerReplace).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Beta' }));
+    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
+    expect(screen.getByTestId('board-grid')).toHaveTextContent('Operations');
   });
 });

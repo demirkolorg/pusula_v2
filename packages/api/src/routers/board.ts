@@ -10,10 +10,11 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / List / Card procedure
  * haritası) and `docs/architecture/03-backend.md`.
  */
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from '@pusula/db';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, max, or, sql } from '@pusula/db';
 import {
   activityEvents,
   attachments,
+  boardFavorites,
   boardMembers,
   boards,
   cardLabels,
@@ -34,6 +35,7 @@ import {
   createBoardInput,
   effectiveBoardRole,
   idSchema,
+  setBoardFavoriteInput,
   updateBoardInput,
   type BoardRole,
 } from '@pusula/domain';
@@ -108,8 +110,17 @@ export const boardRouter = router({
    * A workspace `guest` sees only boards they're an explicit `board_members`
    * row of; `member+` sees every board (with an inherited or explicit role).
    * Archived boards are returned too (read-only, but still visible).
+   *
+   * DEM-192 (Anasayfa Variant A) — each row is additively enriched with the
+   * lightweight metadata the home screen renders: `updatedAt`, open/done card
+   * counts (active cards only), the board's members (`{ userId, name, image,
+   * role }` — never e-mail), whether the caller has favorited the board, and
+   * the timestamp of the most recent activity. The four aggregates each depend
+   * only on the resolved `boardIds`, so they run in parallel (`Promise.all`)
+   * and are skipped entirely when the workspace has no visible boards.
    */
   list: workspaceProcedure.query(async ({ ctx }) => {
+    const callerId = ctx.session.user.id;
     const listCols = {
       id: boards.id,
       title: boards.title,
@@ -118,6 +129,7 @@ export const boardRouter = router({
       version: boards.version,
       archivedAt: boards.archivedAt,
       createdAt: boards.createdAt,
+      updatedAt: boards.updatedAt,
       boardRole: boardMembers.role,
     } as const;
     const rows =
@@ -127,10 +139,7 @@ export const boardRouter = router({
             .from(boards)
             .innerJoin(
               boardMembers,
-              and(
-                eq(boardMembers.boardId, boards.id),
-                eq(boardMembers.userId, ctx.session.user.id),
-              ),
+              and(eq(boardMembers.boardId, boards.id), eq(boardMembers.userId, callerId)),
             )
             .where(eq(boards.workspaceId, ctx.workspace.id))
             .orderBy(asc(boards.createdAt))
@@ -139,30 +148,119 @@ export const boardRouter = router({
             .from(boards)
             .leftJoin(
               boardMembers,
-              and(
-                eq(boardMembers.boardId, boards.id),
-                eq(boardMembers.userId, ctx.session.user.id),
-              ),
+              and(eq(boardMembers.boardId, boards.id), eq(boardMembers.userId, callerId)),
             )
             .where(eq(boards.workspaceId, ctx.workspace.id))
             .orderBy(asc(boards.createdAt));
 
-    return rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      icon: row.icon,
-      background: row.background,
-      version: row.version,
-      archivedAt: row.archivedAt,
-      createdAt: row.createdAt,
-      // For a guest these rows come from an inner join, so `boardRole` is always
-      // non-null and `effectiveBoardRole` returns it verbatim; for member+ it may
-      // be null and is inherited from the workspace role.
-      role: effectiveBoardRole({
-        workspaceRole: ctx.workspace.role,
-        boardRole: row.boardRole ?? null,
-      }) as BoardRole,
-    }));
+    // --- Per-board aggregates, all keyed by the resolved board ids -----------
+    type CardCountRow = { boardId: string; openCount: number; doneCount: number };
+    type BoardMemberRow = {
+      boardId: string;
+      userId: string;
+      name: string | null;
+      image: string | null;
+      role: BoardRole;
+    };
+    type LastActivityRow = { boardId: string | null; lastActivityAt: Date | null };
+    const boardIds = rows.map((row) => row.id);
+    const [cardCountRows, memberRows, favoriteRows, activityRows]: [
+      CardCountRow[],
+      BoardMemberRow[],
+      { boardId: string }[],
+      LastActivityRow[],
+    ] =
+      boardIds.length === 0
+        ? [[], [], [], []]
+        : await Promise.all([
+            ctx.db
+              .select({
+                boardId: cards.boardId,
+                openCount: sql<number>`(count(*) filter (where not ${cards.completed}))::int`,
+                doneCount: sql<number>`(count(*) filter (where ${cards.completed}))::int`,
+              })
+              .from(cards)
+              .where(and(inArray(cards.boardId, boardIds), isNull(cards.archivedAt)))
+              .groupBy(cards.boardId),
+            ctx.db
+              .select({
+                boardId: boardMembers.boardId,
+                userId: boardMembers.userId,
+                name: users.name,
+                image: users.image,
+                role: boardMembers.role,
+              })
+              .from(boardMembers)
+              .innerJoin(users, eq(users.id, boardMembers.userId))
+              .where(inArray(boardMembers.boardId, boardIds))
+              .orderBy(asc(users.name)),
+            ctx.db
+              .select({ boardId: boardFavorites.boardId })
+              .from(boardFavorites)
+              .where(
+                and(
+                  eq(boardFavorites.userId, callerId),
+                  inArray(boardFavorites.boardId, boardIds),
+                ),
+              ),
+            ctx.db
+              .select({
+                boardId: activityEvents.boardId,
+                lastActivityAt: max(activityEvents.createdAt),
+              })
+              .from(activityEvents)
+              .where(inArray(activityEvents.boardId, boardIds))
+              .groupBy(activityEvents.boardId),
+          ]);
+
+    const cardCountByBoard = new Map<string, { openCount: number; doneCount: number }>();
+    for (const row of cardCountRows) {
+      cardCountByBoard.set(row.boardId, { openCount: row.openCount, doneCount: row.doneCount });
+    }
+
+    const membersByBoard = new Map<
+      string,
+      { userId: string; name: string | null; image: string | null; role: BoardRole }[]
+    >();
+    for (const row of memberRows) {
+      const entry = { userId: row.userId, name: row.name, image: row.image, role: row.role };
+      const bucket = membersByBoard.get(row.boardId);
+      if (bucket) bucket.push(entry);
+      else membersByBoard.set(row.boardId, [entry]);
+    }
+
+    const favoritedBoardIds = new Set(favoriteRows.map((row) => row.boardId));
+
+    const lastActivityByBoard = new Map<string, Date | null>();
+    for (const row of activityRows) {
+      if (row.boardId) lastActivityByBoard.set(row.boardId, row.lastActivityAt);
+    }
+
+    return rows.map((row) => {
+      const cardCount = cardCountByBoard.get(row.id);
+      return {
+        id: row.id,
+        title: row.title,
+        icon: row.icon,
+        background: row.background,
+        version: row.version,
+        archivedAt: row.archivedAt,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        // For a guest these rows come from an inner join, so `boardRole` is always
+        // non-null and `effectiveBoardRole` returns it verbatim; for member+ it may
+        // be null and is inherited from the workspace role.
+        role: effectiveBoardRole({
+          workspaceRole: ctx.workspace.role,
+          boardRole: row.boardRole ?? null,
+        }) as BoardRole,
+        openCount: cardCount?.openCount ?? 0,
+        doneCount: cardCount?.doneCount ?? 0,
+        members: membersByBoard.get(row.id) ?? [],
+        favorited: favoritedBoardIds.has(row.id),
+        lastActivityAt: lastActivityByBoard.get(row.id) ?? null,
+      };
+    });
   }),
 
   /**
@@ -736,6 +834,31 @@ export const boardRouter = router({
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
+  }),
+
+  /**
+   * DEM-192 — toggle the calling user's favorite state for a board. Favorites
+   * are per-user (`board_favorites` junction table), so board *view* permission
+   * is enough — `boardProcedure` already guarantees `viewer+`, and a viewer or
+   * guest may favorite their own boards. This is intentionally a single
+   * statement: no transaction, no `activity_events` / realtime event, and no
+   * `version` bump (a favorite is private state, not a collaborative mutation).
+   * Idempotent both ways — `onConflictDoNothing` on insert (the composite PK
+   * makes a duplicate favorite a no-op) and a `delete` that no-ops when absent.
+   */
+  setFavorite: boardProcedure.input(setBoardFavoriteInput).mutation(async ({ ctx, input }) => {
+    const userId = ctx.session.user.id;
+    if (input.favorited) {
+      await ctx.db
+        .insert(boardFavorites)
+        .values({ boardId: ctx.board.id, userId })
+        .onConflictDoNothing();
+    } else {
+      await ctx.db
+        .delete(boardFavorites)
+        .where(and(eq(boardFavorites.boardId, ctx.board.id), eq(boardFavorites.userId, userId)));
+    }
+    return { boardId: ctx.board.id, favorited: input.favorited };
   }),
 
   // Phase 2.5C (DEM-52) — board member management + token-based board invitations.

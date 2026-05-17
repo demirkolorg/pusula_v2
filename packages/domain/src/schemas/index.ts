@@ -4,6 +4,7 @@ export * from './user';
 export * from './workspace';
 export * from './invitation';
 export * from './board';
+export * from './board-favorite';
 export * from './list';
 export * from './card';
 export * from './label';

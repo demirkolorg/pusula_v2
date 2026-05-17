@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, count, eq, gt, isNull } from '@pusula/db';
+import { and, asc, count, eq, gt, inArray, isNull, max, sql } from '@pusula/db';
 import {
   activityEvents,
+  boards,
+  cardMembers,
+  cards,
   notificationOutbox,
   users,
   workspaceInvitations,
@@ -634,10 +637,18 @@ const workspaceInvitationsRouter = router({
 });
 
 export const workspaceRouter = router({
-  /** Workspaces the current user is a member of (active, i.e. not archived). */
+  /**
+   * Workspaces the current user is a member of (active, i.e. not archived).
+   *
+   * DEM-192 (Anasayfa Variant A) — each row is additively enriched with the
+   * home screen's workspace card metadata: `boardCount` (active boards only),
+   * `memberCount`, and `lastActivityAt`. The three aggregates each depend only
+   * on the resolved `workspaceIds`, run in parallel (`Promise.all`), and are
+   * skipped entirely when the user has no workspaces.
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
-    return ctx.db
+    const rows = await ctx.db
       .select({
         id: workspaces.id,
         name: workspaces.name,
@@ -650,6 +661,55 @@ export const workspaceRouter = router({
       .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
       .where(and(eq(workspaceMembers.userId, userId), isNull(workspaces.archivedAt)))
       .orderBy(workspaces.createdAt);
+
+    type CountRow = { workspaceId: string; value: number };
+    type LastActivityRow = { workspaceId: string; lastActivityAt: Date | null };
+    const workspaceIds = rows.map((row) => row.id);
+    const [boardCountRows, memberCountRows, activityRows]: [
+      CountRow[],
+      CountRow[],
+      LastActivityRow[],
+    ] =
+      workspaceIds.length === 0
+        ? [[], [], []]
+        : await Promise.all([
+            ctx.db
+              .select({ workspaceId: boards.workspaceId, value: count() })
+              .from(boards)
+              .where(and(inArray(boards.workspaceId, workspaceIds), isNull(boards.archivedAt)))
+              .groupBy(boards.workspaceId),
+            ctx.db
+              .select({ workspaceId: workspaceMembers.workspaceId, value: count() })
+              .from(workspaceMembers)
+              .where(inArray(workspaceMembers.workspaceId, workspaceIds))
+              .groupBy(workspaceMembers.workspaceId),
+            ctx.db
+              .select({
+                workspaceId: activityEvents.workspaceId,
+                lastActivityAt: max(activityEvents.createdAt),
+              })
+              .from(activityEvents)
+              .where(inArray(activityEvents.workspaceId, workspaceIds))
+              .groupBy(activityEvents.workspaceId),
+          ]);
+
+    const boardCountByWorkspace = new Map<string, number>();
+    for (const row of boardCountRows) boardCountByWorkspace.set(row.workspaceId, row.value);
+
+    const memberCountByWorkspace = new Map<string, number>();
+    for (const row of memberCountRows) memberCountByWorkspace.set(row.workspaceId, row.value);
+
+    const lastActivityByWorkspace = new Map<string, Date | null>();
+    for (const row of activityRows) {
+      lastActivityByWorkspace.set(row.workspaceId, row.lastActivityAt);
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      boardCount: boardCountByWorkspace.get(row.id) ?? 0,
+      memberCount: memberCountByWorkspace.get(row.id) ?? 0,
+      lastActivityAt: lastActivityByWorkspace.get(row.id) ?? null,
+    }));
   }),
 
   /** Create a workspace. The creator becomes its `owner` member. */
@@ -716,6 +776,64 @@ export const workspaceRouter = router({
       .where(eq(workspaceMembers.workspaceId, ctx.workspace.id));
 
     return { ...workspace, role: ctx.workspace.role, memberCount: memberCountRows[0]?.value ?? 0 };
+  }),
+
+  /**
+   * DEM-192 (Anasayfa Variant A) — workspace card counters for the home screen.
+   * Any workspace member may read them (`workspaceProcedure`). All counters scan
+   * `cards ⋈ boards` filtered to the workspace's *active* boards/cards (archived
+   * boards and archived cards count nowhere). Two parallel queries:
+   *  - the workspace-wide counters via `count(*) filter (...)`,
+   *  - the "assigned to me" counters via a `card_members` (`assignee`) join.
+   * Returns only what the data layer can derive: no "hedef" and no open-task /
+   * overdue weekly delta (not computable from the current schema).
+   */
+  stats: workspaceProcedure.query(async ({ ctx }) => {
+    const callerId = ctx.session.user.id;
+    const activeWorkspaceCards = and(
+      eq(boards.workspaceId, ctx.workspace.id),
+      isNull(boards.archivedAt),
+      isNull(cards.archivedAt),
+    );
+
+    const [overallRows, assignedRows] = await Promise.all([
+      ctx.db
+        .select({
+          openCount: sql<number>`(count(*) filter (where ${cards.completed} = false))::int`,
+          completedThisWeek: sql<number>`(count(*) filter (where ${cards.completed} = true and ${cards.completedAt} >= date_trunc('week', now())))::int`,
+          completedLastWeek: sql<number>`(count(*) filter (where ${cards.completed} = true and ${cards.completedAt} >= date_trunc('week', now()) - interval '1 week' and ${cards.completedAt} < date_trunc('week', now())))::int`,
+          overdueCount: sql<number>`(count(*) filter (where ${cards.completed} = false and ${cards.dueAt} is not null and ${cards.dueAt} < now()))::int`,
+        })
+        .from(cards)
+        .innerJoin(boards, eq(boards.id, cards.boardId))
+        .where(activeWorkspaceCards),
+      ctx.db
+        .select({
+          assignedToMeOpen: sql<number>`(count(*) filter (where ${cards.completed} = false))::int`,
+          assignedToMeDueToday: sql<number>`(count(*) filter (where ${cards.completed} = false and ${cards.dueAt} >= date_trunc('day', now()) and ${cards.dueAt} < date_trunc('day', now()) + interval '1 day'))::int`,
+        })
+        .from(cardMembers)
+        .innerJoin(cards, eq(cards.id, cardMembers.cardId))
+        .innerJoin(boards, eq(boards.id, cards.boardId))
+        .where(
+          and(
+            eq(cardMembers.userId, callerId),
+            eq(cardMembers.role, 'assignee'),
+            activeWorkspaceCards,
+          ),
+        ),
+    ]);
+
+    const overall = overallRows[0];
+    const assigned = assignedRows[0];
+    return {
+      openCount: overall?.openCount ?? 0,
+      completedThisWeek: overall?.completedThisWeek ?? 0,
+      completedLastWeek: overall?.completedLastWeek ?? 0,
+      overdueCount: overall?.overdueCount ?? 0,
+      assignedToMeOpen: assigned?.assignedToMeOpen ?? 0,
+      assignedToMeDueToday: assigned?.assignedToMeDueToday ?? 0,
+    };
   }),
 
   /** Update workspace name and/or slug. Requires `admin+`. */

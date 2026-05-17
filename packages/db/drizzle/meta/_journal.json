@@ -232,6 +232,13 @@
       "when": 1779877200000,
       "tag": "0032_dem175_board_member_added",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1779963600000,
+      "tag": "0033_flowery_toro",
+      "breakpoints": true
     }
   ]
 }
