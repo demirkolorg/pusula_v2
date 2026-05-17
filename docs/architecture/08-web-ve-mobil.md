@@ -385,3 +385,14 @@ Faz 7B ([DEM-178](https://linear.app/demirkol/issue/DEM-178)) mobil kimlik doğr
 - **Signup bootstrap** — yeni kullanıcının default workspace + "İlk Pano"sı sunucu tarafında `databaseHooks.user.create.after` ile oluşur; mobil signup ayrı bootstrap kodu yazmaz, yalnız `authClient.signUp.email` ile tetikler.
 - **Şifre sıfırlama** — `forgot-password` `requestPasswordReset({ email, redirectTo })` çağırır (`redirectTo` = `expo-linking` derin bağlantısı); e-postadaki link mobil `reset-password` ekranını `?token=` ile açar. E-posta var/yok ayırt edilmez (web simetrisi).
 - **Kapsam dışı** — workspace/board listesi + navigasyon ağacı (7C), push deep-link (7L/7M), evrensel bağlantı (universal links) hardening.
+
+### Faz 7C — Navigasyon + workspace/board listesi (Wired)
+
+Faz 7C ([DEM-179](https://linear.app/demirkol/issue/DEM-179)) mobil navigasyon kabuğunu + workspace/board listeleme ekranlarını kurdu.
+
+- **App-shell = alt tab bar (4 sekme)** — korumalı `app/(app)/_layout.tsx` Expo Router `<Tabs>`: **Panolar / Arama / Bildirimler / Hesap** (kullanıcı kararı, 2026-05-17). 7C'de Panolar + Hesap dolu; Arama (7I) ve Bildirimler (7K) "yakında" placeholder ekranıyla gelir — app-shell baştan tam. Oturum kapısı (`<Redirect>`) `(app)/_layout`'ta korunur.
+- **Panolar sekmesi** = `app/(app)/(boards)/` route grubu, kendi `<Stack>`'i: `index` (workspace listesi) → `workspaces/[id]` (o workspace'in board listesi) drill-down. Web'in iki-sütun anasayfası mobilde dikey drill-down olur.
+- **Workspace listesi** — `trpc.workspace.list` (üye olunan workspace'ler + `boardCount`/`memberCount`/rol). 0 workspace → **onboarding empty state** (web §8.1.3 simetrisi — Pusula/workspace kavramını anlatan bilgilendirme; signup bootstrap sayesinde nadir). Workspace/board **oluşturma** mutation'ları 7C kapsamı dışı (sonraki iş).
+- **Board listesi** — `trpc.board.list({ workspaceId })` (board + kapak/sayaç/üye/favori meta). 7C'de board satırına dokunmak "yakında" bilgilendirmesi gösterir; gerçek board ekranı (kolon/kart) + navigasyon bağlantısı Faz 7E.
+- **Hesap sekmesi** — 7B'nin geçici giriş-sonrası ekranı (kullanıcı bilgisi + çıkış) buraya taşındı.
+- **İkonlar** — `@expo/vector-icons` `Feather` (web `lucide-react` ile görsel dil tutarlı; Expo'yla gelir, ek dep yok); `Icon` sarmalayıcı bileşeninden geçer.

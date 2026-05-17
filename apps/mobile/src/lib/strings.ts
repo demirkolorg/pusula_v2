@@ -2,8 +2,8 @@
  * Mobil UI metin katmanı.
  *
  * UI bileşenleri metni hardcode etmez; buradan okur (web
- * `apps/web/src/lib/strings.ts` simetrisi). Ekran/akış metinleri ilgili alt
- * işlerde bu nesneye eklenir.
+ * `apps/web/src/lib/strings.ts` simetrisi). Sayılar Türkçe çoğul almadığı
+ * için `${n} pano` gibi birleştirmeler bileşende yapılır.
  */
 export const strings = {
   app: {
@@ -15,12 +15,45 @@ export const strings = {
     retry: 'Tekrar dene',
     connectionLost: 'Bağlantı yok',
     unknownError: 'Bir şeyler ters gitti. Lütfen tekrar dene.',
+    comingSoon: 'Yakında',
   },
-  home: {
-    title: 'Pusula',
-    signedInAs: 'Giriş yapıldı:',
+  tabs: {
+    boards: 'Panolar',
+    search: 'Arama',
+    notifications: 'Bildirimler',
+    account: 'Hesap',
+  },
+  workspaces: {
+    title: 'Çalışma Alanları',
+    loadError: 'Çalışma alanları yüklenemedi.',
+    boardCountSuffix: 'pano',
+    memberCountSuffix: 'üye',
+  },
+  boards: {
+    loadError: 'Panolar yüklenemedi.',
+    emptyTitle: 'Bu çalışma alanında pano yok',
+    emptyDescription: 'Panolar oluşturuldukça burada listelenir.',
+    archivedBadge: 'Arşiv',
+    openSuffix: 'açık',
+    doneSuffix: 'tamamlandı',
+    comingSoonTitle: 'Board ekranı yakında',
+    comingSoonBody: 'Pano görünümü (kolonlar ve kartlar) bir sonraki güncellemede gelecek.',
+  },
+  onboarding: {
+    title: "Pusula'ya hoş geldin",
     description:
-      'Kimlik doğrulama hazır. Pano listesi ve navigasyon sonraki alt işlerde gelir.',
+      'Çalışma alanların ve panoların burada görünecek. Bir çalışma alanına eklendiğinde ya da oluşturduğunda bu ekran panolarınla dolacak.',
+  },
+  search: {
+    comingSoonTitle: 'Arama yakında',
+    comingSoonBody: 'Pano, liste, kart ve yorumlarda arama bir sonraki güncellemede gelecek.',
+  },
+  notifications: {
+    comingSoonTitle: 'Bildirimler yakında',
+    comingSoonBody: 'Bildirim merkezi bir sonraki güncellemede gelecek.',
+  },
+  account: {
+    description: 'Hesap ayarları ve daha fazlası sonraki güncellemelerde gelecek.',
   },
   auth: {
     emailLabel: 'E-posta',

@@ -1,19 +1,64 @@
-import { Redirect, Stack } from 'expo-router';
+import { useColorScheme } from 'react-native';
+import { Redirect, Tabs } from 'expo-router';
 import { authClient } from '@/lib/auth-client';
+import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
+import { strings } from '@/lib/strings';
+import { themeFor } from '@/theme/tokens';
 
 /**
- * Korumalı kabuk. Oturum çözülürken spinner; oturum yoksa `(auth)/sign-in`'e
- * yönlendirir. Web `apps/web/src/app/(app)/layout.tsx` simetrisi.
+ * Korumalı app-shell — alt tab bar (4 sekme: Panolar / Arama / Bildirimler /
+ * Hesap; kullanıcı kararı 2026-05-17). Oturum çözülürken spinner; oturum yoksa
+ * `(auth)/sign-in`'e yönlendirir.
  *
- * Navigasyon ağacı (workspace/board listesi, sekmeler) Faz 7C'nin işi —
- * 7B yalnız korumalı kabuk iskeletini kurar.
+ * "Panolar" sekmesi `(boards)` route grubu = kendi `<Stack>`'i (workspace
+ * listesi → board listesi). Arama (7I) ve Bildirimler (7K) bu fazda "yakında"
+ * placeholder ekranı gösterir.
  */
 export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
+  const theme = themeFor(useColorScheme());
 
   if (isPending) return <LoadingScreen />;
   if (!session) return <Redirect href="/sign-in" />;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.mutedForeground,
+        tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
+      }}
+    >
+      <Tabs.Screen
+        name="(boards)"
+        options={{
+          title: strings.tabs.boards,
+          tabBarIcon: ({ color, size }) => <Icon name="trello" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: strings.tabs.search,
+          tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: strings.tabs.notifications,
+          tabBarIcon: ({ color, size }) => <Icon name="bell" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: strings.tabs.account,
+          tabBarIcon: ({ color, size }) => <Icon name="user" color={color} size={size} />,
+        }}
+      />
+    </Tabs>
+  );
 }
