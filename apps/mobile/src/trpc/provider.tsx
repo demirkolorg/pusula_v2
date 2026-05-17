@@ -8,6 +8,7 @@ import { createTRPCContext } from '@trpc/tanstack-react-query';
 import superjson from 'superjson';
 import type { AppRouter } from '@pusula/api';
 import { env } from '@/env';
+import { authClient } from '@/lib/auth-client';
 import { makeQueryClient } from './query-client';
 
 /**
@@ -46,8 +47,14 @@ export function AppProviders({ children }: AppProvidersProps) {
         httpBatchLink({
           url: trpcUrl(),
           transformer: superjson,
-          // Oturum/cookie aktarımı 7B (Better Auth Expo) işidir; 7A'da
-          // istek kimliksiz gider.
+          // Oturum aktarımı (Faz 7B): mobilde tarayıcı cookie jar'ı yok —
+          // Better Auth Expo client oturum cookie'sini SecureStore'da tutar,
+          // `getCookie()` onu `Cookie` başlığı olarak verir. Oturum yoksa
+          // başlık eklenmez (istek kimliksiz gider).
+          headers() {
+            const cookie = authClient.getCookie();
+            return cookie ? { Cookie: cookie } : {};
+          },
         }),
       ],
     }),

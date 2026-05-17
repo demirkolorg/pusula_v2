@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { expo } from '@better-auth/expo';
 import { count, eq, getDb, accounts, sessions, users, verifications, workspaces } from '@pusula/db';
 import { canDeleteOwnAccount, userImageUrlSchema, userNameSchema } from '@pusula/domain';
 import { bootstrapNewUser } from './bootstrap';
@@ -31,7 +32,13 @@ import { recordSessionDevice } from './known-devices';
 export const auth = betterAuth({
   secret: env.AUTH_SECRET,
   baseURL: env.API_URL,
-  trustedOrigins: [env.APP_URL],
+  // `env.APP_URL` — web origin; `pusula://` — mobil uygulama scheme'i (Faz 7B).
+  // Mobilde tarayıcı yok; `@better-auth/expo` `expo()` plugin'i SecureStore
+  // tabanlı oturum + scheme redirect akışını sağlar, scheme'in burada
+  // güvenilir origin olması gerekir. Bkz. `docs/architecture/07-auth.md`
+  // (Mobil oturum) + Karar kaydı 2026-05-17 (Faz 7B).
+  trustedOrigins: [env.APP_URL, 'pusula://'],
+  plugins: [expo()],
   database: drizzleAdapter(getDb(), {
     provider: 'pg',
     schema: { user: users, session: sessions, account: accounts, verification: verifications },

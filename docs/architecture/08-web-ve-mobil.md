@@ -374,3 +374,14 @@ Faz 7A ([DEM-177](https://linear.app/demirkol/issue/DEM-177)) `apps/mobile`'ı o
 - **EAS** — `eas.json` development / preview / production build profilleri (`app.config.ts` dinamik Expo yapılandırması).
 - **Sentry mobil** — `@sentry/react-native`, ayrı DSN (`EXPO_PUBLIC_SENTRY_DSN`); DSN boşsa `Sentry.init` no-op (web/api/worker simetrisi).
 - **Branding** — app ikonu / adaptive icon / splash + uygulama içi marka token'ları (`apps/mobile/assets`); UI metinleri `src/lib/strings.ts` katmanında (iskelet — hardcode metin yok).
+
+### Faz 7B — Auth: Better Auth Expo + session (Wired)
+
+Faz 7B ([DEM-178](https://linear.app/demirkol/issue/DEM-178)) mobil kimlik doğrulama + oturum yönetimini kurdu. Yalnız auth + korumalı kabuk iskeleti — navigasyon ağacı / workspace-board listesi 7C'nin işi. Auth altyapısı → [`07-auth.md`](07-auth.md) (Mobil oturum).
+
+- **Better Auth Expo client** — `apps/mobile/src/lib/auth-client.ts`: `createAuthClient` + `@better-auth/expo` `expoClient` plugin (`scheme: 'pusula'`, `storage: expo-secure-store`). Oturum cookie'si SecureStore'da; `authClient.getCookie()` tRPC `httpBatchLink`'ine `Cookie` başlığı olur (`src/trpc/provider.tsx`). Server tarafı `apps/api/src/auth.ts`'e `expo()` plugin + `pusula://` trustedOrigin eklendi (Expo entegrasyonu zorunlu kılar).
+- **Route grupları** — Expo Router: `app/(auth)/*` (public — sign-in / sign-up / forgot-password / reset-password) ve `app/(app)/*` (korumalı). `(app)/_layout.tsx` oturum yoksa `(auth)/sign-in`'e, `(auth)/_layout.tsx` oturum varsa `(app)`'e `<Redirect>` eder — web `(app)`/`(auth)` layout simetrisi. Oturum çözülürken spinner.
+- **Ekranlar** — sign-in / sign-up / sign-out, forgot-password, reset-password. Formlar `@pusula/domain` zod şemalarıyla (`signInInput` / `signUpInput` / `forgotPasswordInput` / `resetPasswordInput`) client-side doğrulanır — web ile aynı sözleşme. NativeWind bileşenleri (`Button`, `TextField`, `FormMessage`) — `@pusula/ui` shadcn kullanılmaz. Metinler `strings.auth.*`.
+- **Signup bootstrap** — yeni kullanıcının default workspace + "İlk Pano"sı sunucu tarafında `databaseHooks.user.create.after` ile oluşur; mobil signup ayrı bootstrap kodu yazmaz, yalnız `authClient.signUp.email` ile tetikler.
+- **Şifre sıfırlama** — `forgot-password` `requestPasswordReset({ email, redirectTo })` çağırır (`redirectTo` = `expo-linking` derin bağlantısı); e-postadaki link mobil `reset-password` ekranını `?token=` ile açar. E-posta var/yok ayırt edilmez (web simetrisi).
+- **Kapsam dışı** — workspace/board listesi + navigasyon ağacı (7C), push deep-link (7L/7M), evrensel bağlantı (universal links) hardening.

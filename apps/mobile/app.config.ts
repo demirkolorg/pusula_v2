@@ -49,6 +49,10 @@ const config: ExpoConfig = {
     // Sentry native config (crash reporting). Source map yükleme org/project
     // gerektirir — yalnız CI/EAS build'de anlamlı, opsiyonel.
     '@sentry/react-native',
+    // Better Auth oturum cookie'sini şifreli cihaz deposunda tutar (Faz 7B).
+    'expo-secure-store',
+    // `@better-auth/expo` peer'i — derin bağlantı/OAuth dönüş akışı için.
+    'expo-web-browser',
   ],
   experiments: {
     typedRoutes: true,
