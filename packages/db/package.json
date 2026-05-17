@@ -16,6 +16,7 @@
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts",
     "seed:kaymakamlik": "tsx scripts/seed-kaymakamlik.ts",
+    "users:list": "tsx scripts/list-users.ts",
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
