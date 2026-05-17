@@ -36,8 +36,13 @@ export const strings = {
     archivedBadge: 'Arşiv',
     openSuffix: 'açık',
     doneSuffix: 'tamamlandı',
-    comingSoonTitle: 'Board ekranı yakında',
-    comingSoonBody: 'Pano görünümü (kolonlar ve kartlar) bir sonraki güncellemede gelecek.',
+  },
+  board: {
+    fallbackTitle: 'Pano',
+    loadError: 'Pano yüklenemedi.',
+    emptyTitle: 'Bu panoda liste yok',
+    emptyDescription: 'Listeler oluşturuldukça pano burada görünür.',
+    emptyList: 'Kart yok',
   },
   onboarding: {
     title: "Pusula'ya hoş geldin",

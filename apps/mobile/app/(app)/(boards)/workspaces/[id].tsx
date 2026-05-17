@@ -1,5 +1,5 @@
-import { Alert, FlatList, RefreshControl, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
@@ -20,6 +20,7 @@ import { themeFor } from '@/theme/tokens';
 export default function WorkspaceBoardsScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const workspaceId = params.id;
+  const router = useRouter();
   const trpc = useTRPC();
   const theme = themeFor(useColorScheme());
   // `workspaceId` runtime'da (bozuk/eksik deep-link) boş gelebilir — tip
@@ -104,7 +105,12 @@ export default function WorkspaceBoardsScreen() {
             subtitle={`${item.openCount} ${strings.boards.openSuffix} · ${item.doneCount} ${strings.boards.doneSuffix}`}
             badge={item.archivedAt ? strings.boards.archivedBadge : undefined}
             leading={<EntityAvatar name={item.title} />}
-            onPress={() => Alert.alert(strings.boards.comingSoonTitle, strings.boards.comingSoonBody)}
+            onPress={() =>
+              router.push({
+                pathname: '/boards/[boardId]',
+                params: { boardId: item.id, title: item.title },
+              })
+            }
           />
         )}
       />

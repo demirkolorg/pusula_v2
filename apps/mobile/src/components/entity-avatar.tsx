@@ -1,14 +1,31 @@
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { avatarColor, avatarInitial } from '@/lib/avatar-color';
 
 type EntityAvatarProps = {
   /** Renk + baş harf bu addan deterministik türetilir. */
   name: string;
   size?: number;
+  /** Verilirse profil görseli render edilir; yoksa baş-harf avatarı. */
+  image?: string | null;
 };
 
-/** Workspace / board için yuvarlatılmış kare avatar (deterministik renk + baş harf). */
-export function EntityAvatar({ name, size = 44 }: EntityAvatarProps) {
+/**
+ * Yuvarlatılmış kare avatar. `image` verilirse profil görseli, yoksa addan
+ * deterministik renk + baş harf. Workspace/board (görselsiz) ve kart/board
+ * üyeleri (görselli) için ortak.
+ */
+export function EntityAvatar({ name, size = 44, image }: EntityAvatarProps) {
+  if (image) {
+    return (
+      <Image
+        source={{ uri: image }}
+        accessibilityLabel={name}
+        className="rounded-xl"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   return (
     <View
       className="items-center justify-center rounded-xl"

@@ -396,3 +396,12 @@ Faz 7C ([DEM-179](https://linear.app/demirkol/issue/DEM-179)) mobil navigasyon k
 - **Board listesi** — `trpc.board.list({ workspaceId })` (board + kapak/sayaç/üye/favori meta). 7C'de board satırına dokunmak "yakında" bilgilendirmesi gösterir; gerçek board ekranı (kolon/kart) + navigasyon bağlantısı Faz 7E.
 - **Hesap sekmesi** — 7B'nin geçici giriş-sonrası ekranı (kullanıcı bilgisi + çıkış) buraya taşındı.
 - **İkonlar** — `@expo/vector-icons` `Feather` (web `lucide-react` ile görsel dil tutarlı; Expo'yla gelir, ek dep yok); `Icon` sarmalayıcı bileşeninden geçer.
+
+### Faz 7E — Board görüntüleme, read-only (Wired)
+
+Faz 7E ([DEM-181](https://linear.app/demirkol/issue/DEM-181)) mobil board ekranını kurdu — salt-okunur.
+
+- **Board ekranı** — `app/(app)/(boards)/boards/[boardId].tsx`; `trpc.board.get({ boardId })` tek seferde board + listeler + kartları döndürür. Listeler yatay `ScrollView` kolonları; her kolon kendi kartlarını dikey listeler (`position` sıralı, web `board.get` sözleşmesiyle aynı). Aktif listeler gösterilir.
+- **Kart yüzü** (`CardFace`) — başlık + etiket chip'leri (renkli) + meta satırı: due tarihi (gecikmişse vurgulu), üye baş harfleri, checklist `✓ tamam/toplam`, yorum ve ek sayısı chip'leri. Tamamlanan kart işaretli. Salt-okunur — kart detayına dokunma Faz 7F.
+- **Navigasyon** — 7C'de "yakında" Alert gösteren board satırı (`(boards)/workspaces/[id]`) artık board ekranına `router.push` eder.
+- **Kapsam dışı** — mobil drag-drop (kart taşıma "move to list" picker ile, 7H); kart detayı (7F); etiket filtresi (7.0'da "opsiyonel" — ertelendi); kapak görseli render'ı (presigned URL — ileri iş).
