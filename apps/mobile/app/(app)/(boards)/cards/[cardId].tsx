@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
+import type {
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -10,14 +15,12 @@ import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
-import { MoveToListSheet } from '@/components/move-to-list-sheet';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
 import { DetailSection } from '@/components/card-detail/section';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
-import { LabelsEditor } from '@/components/card-detail/labels-editor';
-import { DueDateEditor } from '@/components/card-detail/due-date-editor';
-import { MembersEditor } from '@/components/card-detail/members-editor';
+import { CardMetaBar } from '@/components/card-detail/meta-bar';
+import { CardDetailHeaderTitle } from '@/components/card-detail/header-title';
 import { ChecklistSection } from '@/components/card-detail/checklist-section';
 import { AttachmentsSection } from '@/components/card-detail/attachments-section';
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
@@ -37,6 +40,11 @@ import { themeFor } from '@/theme/tokens';
  *
  * Faz 7H başlık düzenlemeyi (`card.update`) ve "move to list" picker'ı
  * (`card.moveToList`) ekler — `useCardMutations` ile optimistic + rollback.
+ *
+ * Faz 7G-2 etiket / son tarih / üye düzenleyicilerini ekranı uzatan tam-genişlik
+ * bölümlerden başlık altındaki kompakt `CardMetaBar`'a taşır — her chip durumu
+ * özetler, dokununca düzenleme bottom sheet'te yapılır. "Listeyi değiştir"
+ * butonu da meta çubuğundaki "Liste" chip'i olur.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ cardId: string; title?: string }>();
@@ -71,7 +79,25 @@ export default function CardDetailScreen() {
   // Faz 7H — başlık düzenleme + "move to list" mutation'ları.
   const cardMutations = useCardMutations(cardId, boardId ?? '');
   const [editingTitle, setEditingTitle] = useState(false);
-  const [moveOpen, setMoveOpen] = useState(false);
+
+  // Faz 7G-3 — collapsing nav başlığı: gövdedeki büyük kart başlığı yukarı
+  // kayınca nav bar liste adından kart başlığına geçer (üst nav ↔ gövde metin
+  // tekrarını giderir). `titleThreshold` gövde başlık bloğunun ölçülen alt
+  // kenarı; scroll bu eşiği geçince `collapsed` 1 kez döner — scroll boyunca
+  // ekran yeniden render olmaz.
+  const [collapsed, setCollapsed] = useState(false);
+  const [titleThreshold, setTitleThreshold] = useState(96);
+
+  function handleTitleLayout(event: LayoutChangeEvent) {
+    const { y, height } = event.nativeEvent.layout;
+    setTitleThreshold(Math.max(y + height - 16, 0));
+  }
+
+  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    const next = event.nativeEvent.contentOffset.y > titleThreshold;
+    // Eşik geçilmediyse setState aynı değeri döndürür → React render'ı atlar.
+    setCollapsed((prev) => (prev === next ? prev : next));
+  }
 
   // Faz 7M — pull-to-refresh: kart detayının tüm sorgularını yeniden çeker
   // (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir). `refreshing`
@@ -183,17 +209,32 @@ export default function CardDetailScreen() {
   }
 
   const card = cardQuery.data.card;
-  // "move to list" picker hedef havuzu — board'un aktif, kalıcı listeleri (Faz 7H).
+  // "Listeyi değiştir" hedef havuzu — board'un aktif, kalıcı listeleri (Faz 7H).
   const boardLists = (boardQuery.data?.lists ?? []).filter(
     (list) => list.archivedAt == null && !isPendingId(list.id),
   );
+  // Kartın bulunduğu listenin adı — meta çubuğundaki "Liste" chip'inde gösterilir.
+  const currentListTitle =
+    boardQuery.data?.lists.find((list) => list.id === card.listId)?.title ?? null;
 
   return (
     <>
-      {header}
+      <Stack.Screen
+        options={{
+          headerTitle: () => (
+            <CardDetailHeaderTitle
+              collapsed={collapsed}
+              listTitle={currentListTitle}
+              cardTitle={card.title}
+            />
+          ),
+        }}
+      />
       <ScrollView
         className="flex-1"
         contentContainerClassName="gap-6 p-4"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -202,8 +243,9 @@ export default function CardDetailScreen() {
           />
         }
       >
-        {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H). */}
-        <View className="gap-2">
+        {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H).
+            `onLayout` collapsing nav başlığının eşiğini ölçer (Faz 7G-3). */}
+        <View className="gap-2" onLayout={handleTitleLayout}>
           {card.completed ? (
             <View className="flex-row items-center gap-1.5 self-start rounded-full bg-success/15 px-2 py-0.5">
               <Icon name="check-circle" size={13} color={theme.success} />
@@ -239,36 +281,22 @@ export default function CardDetailScreen() {
               ) : null}
             </Pressable>
           )}
-          {canEdit ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setMoveOpen(true)}
-              className="mt-1 flex-row items-center gap-2 self-start rounded-lg border border-border bg-card px-3 py-2 active:opacity-70"
-            >
-              <Icon name="corner-up-right" size={16} color={theme.foreground} />
-              <Text className="text-sm text-foreground">{strings.cardDetail.moveAction}</Text>
-            </Pressable>
-          ) : null}
         </View>
 
-        <LabelsEditor
+        {/* Faz 7G-2 — kompakt meta çubuğu: üye / son tarih / etiket / liste
+            chip'leri; her chip dokununca ilgili bottom sheet'i açar. */}
+        <CardMetaBar
           cardId={card.id}
           boardId={card.boardId}
           labels={labels}
-          canEdit={canEdit}
-        />
-
-        <DueDateEditor
-          cardId={card.id}
-          dueAt={card.dueAt}
-          completed={card.completed}
-          canEdit={canEdit}
-        />
-
-        <MembersEditor
-          cardId={card.id}
           members={members}
           boardMembers={boardMembers}
+          dueAt={card.dueAt}
+          completed={card.completed}
+          lists={boardLists}
+          currentListId={card.listId}
+          currentListTitle={currentListTitle}
+          onMoveToList={(listId) => cardMutations.moveToList(listId)}
           canEdit={canEdit}
         />
 
@@ -317,17 +345,6 @@ export default function CardDetailScreen() {
           )}
         </DetailSection>
       </ScrollView>
-
-      <MoveToListSheet
-        visible={moveOpen}
-        lists={boardLists}
-        currentListId={card.listId}
-        onSelect={(listId) => {
-          cardMutations.moveToList(listId);
-          setMoveOpen(false);
-        }}
-        onClose={() => setMoveOpen(false)}
-      />
     </>
   );
 }

@@ -426,6 +426,15 @@ Faz 7G ([DEM-183](https://linear.app/demirkol/issue/DEM-183)) 7F'in salt-okunur 
 - **Düzenleme yetkisi** — editörler yalnız board `member+` için aktif; çağıranın board rolü `board.members.list`'ten çözümlenir (web kart modalı simetrisi — çözülene dek `viewer` varsayılır, salt-okunur). `board.members.list` ayrıca kart üyesi aday havuzudur.
 - **Kapsam dışı** — yeni kontrol listesi oluşturma/silme (7G yalnız madde düzeyi — listesiz kart bilgilendirme metni gösterir); yorum düzenleme/silme; `@`-mention besteleme; tam mobil rich editör (7.0 kararı).
 
+#### Faz 7G-2 — Kart detay meta çubuğu (bottom sheet rafinasyonu, [DEM-194](https://linear.app/demirkol/issue/DEM-194)) (Wired)
+
+7G'nin etiket / son tarih / üye düzenleyicileri kart detayında üç ayrı tam-genişlik `DetailSection`'dı; her birinin satır-içi "ekle" toggle'ı açılınca ekranı uzatıyordu. 7G-2 bunları web kart modalı `CardModalMetaChips` (§13.3) deseninin mobil karşılığına geçirir — yeni backend/procedure yok, mevcut tRPC sözleşmesi tüketilmeye devam eder; 7G'nin collaborative mutation disiplini (optimistic + rollback + `clientMutationId`) aynen korunur.
+
+- **Meta çubuğu** (`src/components/card-detail/meta-bar.tsx` — `CardMetaBar`) — kart başlığının altında kompakt, sarmalanan (`flex-wrap`) chip satırı. Dört chip kartın durumunu **özet** gösterir: **Üyeler** (avatar yığını + sayı), **Son tarih** (kısa tarih; gecikmişse `destructive` ton), **Etiketler** (renk noktaları + sayı), **Liste** (kartın bulunduğu listenin adı). Boş alan placeholder metniyle ("Üye", "Son tarih", "Etiket") yine dokunulabilir.
+- **Bottom sheet düzenleme** — bir chip'e dokununca ilgili düzenleme mevcut `Sheet` bileşeniyle (Modal tabanlı bottom sheet — §8.2 7H'de tanımlı) alttan açılır; kullanıcı kart detayından ayrılmaz. 7G editörleri sheet gövdesine dönüştürüldü: `labels-sheet` / `due-date-sheet` / `members-sheet` (`DetailSection` sarmalayıcısı + "ekle" toggle'ı kaldırıldı — sheet zaten düzenleme yüzeyi, picker doğrudan görünür). Liste chip'i mevcut `MoveToListSheet`'i açar — ayrı "Listeyi değiştir" butonu kaldırıldı; kartın hangi listede olduğu artık sürekli görünür. Sheet gövdeleri yalnız sheet açıkken mount edilir (board etiket/üye aday sorguları gereksiz çalışmaz).
+- **Yeni native bağımlılık yok** — `react-native-reanimated` / `@gorhom/bottom-sheet` eklenmez; 7H'den beri kullanılan `Sheet` (RN `Modal` + NativeWind) yeterli.
+- **Salt-okunur** — `canEdit=false` (board `viewer`) durumunda chip'ler yine dokunulabilir ve sheet'ler salt-okunur açılır (üye/etiket listesi görünür, mutation kontrolleri yok); liste chip'i viewer için dokunulamaz (yalnız ad gösterir). Açıklama / kontrol listeleri / ekler / yorumlar / aktivite bölümleri 7G'deki gibi `DetailSection` olarak kalır (içerik, metadata değil).
+
 ### Faz 7D — Üye yönetimi + davet kabul (Wired)
 
 Faz 7D ([DEM-180](https://linear.app/demirkol/issue/DEM-180)) mobil üye listesi ekranlarını + davet akışını kurdu. Mobilin **ilk mutation'lı** fazı — önceki 7A–7F salt-okunurdu.

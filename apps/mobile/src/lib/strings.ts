@@ -118,6 +118,11 @@ export const strings = {
     editTitleLabel: 'Kart başlığını düzenle',
     titlePlaceholder: 'Kart başlığı',
     moveAction: 'Listeyi değiştir',
+    // Meta çubuğu chip'leri — değer atanmamış (placeholder) durumlar (Faz 7G-2).
+    metaMembersEmpty: 'Üye',
+    metaDueEmpty: 'Son tarih',
+    metaLabelsEmpty: 'Etiket',
+    metaListUnknown: 'Liste',
   },
   attachments: {
     // Kart eki "Ekler" bölümü (Faz 7J).

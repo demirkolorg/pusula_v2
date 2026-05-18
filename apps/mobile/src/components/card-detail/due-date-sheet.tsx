@@ -4,7 +4,6 @@ import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
-import { DetailSection } from '@/components/card-detail/section';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
@@ -12,7 +11,7 @@ import { themeFor } from '@/theme/tokens';
 
 type CardGet = RouterOutputs['card']['get'];
 
-type DueDateEditorProps = {
+type DueDateSheetBodyProps = {
   cardId: string;
   dueAt: Date | null;
   completed: boolean;
@@ -22,15 +21,17 @@ type DueDateEditorProps = {
 
 type PresetKind = 'today' | 'tomorrow' | 'weekend' | 'nextWeek';
 
+/** Hazır-ayar son tarihlerinin sabitlendiği saat — makul bir gün-sonu teslimi. */
+const DUE_PRESET_HOUR = 18;
+
 /**
- * Bir hazır-ayar anahtarını somut son tarihe çevirir — saat 18:00'e sabitlenir
- * (makul bir gün-sonu teslimi). Mobil MVP'de tam takvim seçici yok; ortak
- * senaryolar hazır-ayarlarla karşılanır (drag-drop yerine "move to list"
- * deseniyle aynı pragmatik mobil yaklaşım — Faz 7.0).
+ * Bir hazır-ayar anahtarını somut son tarihe çevirir — saat `DUE_PRESET_HOUR`'a
+ * sabitlenir. Mobil MVP'de tam takvim seçici yok; ortak senaryolar hazır-ayarlarla
+ * karşılanır (Faz 7.0 pragmatik mobil yaklaşımı).
  */
 function presetDate(kind: PresetKind): Date {
   const date = new Date();
-  date.setHours(18, 0, 0, 0);
+  date.setHours(DUE_PRESET_HOUR, 0, 0, 0);
   if (kind === 'tomorrow') {
     date.setDate(date.getDate() + 1);
   } else if (kind === 'nextWeek') {
@@ -51,11 +52,12 @@ const PRESETS: { kind: PresetKind; label: string }[] = [
 ];
 
 /**
- * Kart son tarihi — hazır-ayar seçici (ayarla) + kaldır (Faz 7G). Mutation
- * optimistic: `card.get` cache'indeki `dueAt` anında yamanır, hata olursa geri
- * alınır. `card.update` `dueAt` alanına `Date` ya da `null` (temizle) yazar.
+ * Kart son tarihi — bottom sheet gövdesi (Faz 7G-2; eski `due-date-editor`).
+ * Hazır-ayar seçici (ayarla) + kaldır. Mutation optimistic: `card.get`
+ * cache'indeki `dueAt` anında yamanır, hata olursa geri alınır. `card.update`
+ * `dueAt` alanına `Date` ya da `null` (temizle) yazar.
  */
-export function DueDateEditor({ cardId, dueAt, completed, canEdit }: DueDateEditorProps) {
+export function DueDateSheetBody({ cardId, dueAt, completed, canEdit }: DueDateSheetBodyProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const theme = themeFor(useColorScheme());
@@ -95,48 +97,46 @@ export function DueDateEditor({ cardId, dueAt, completed, canEdit }: DueDateEdit
   const overdue = dueAt != null && !completed && isOverdue(dueAt);
 
   return (
-    <DetailSection icon="clock" title={strings.cardDetail.dueTitle}>
-      <View className="gap-3">
-        <Text className={`text-sm ${overdue ? 'text-destructive' : 'text-foreground'}`}>
-          {dueAt != null ? formatDueDate(dueAt) : strings.cardDetail.dueEmpty}
-        </Text>
+    <View className="gap-4">
+      <Text className={`text-sm ${overdue ? 'text-destructive' : 'text-foreground'}`}>
+        {dueAt != null ? formatDueDate(dueAt) : strings.cardDetail.dueEmpty}
+      </Text>
 
-        {canEdit ? (
-          <View className="gap-2">
-            <View className="flex-row flex-wrap gap-2">
-              {PRESETS.map((preset) => (
-                <Pressable
-                  key={preset.kind}
-                  accessibilityRole="button"
-                  disabled={updateCard.isPending}
-                  onPress={() => setDue(presetDate(preset.kind))}
-                  className={`rounded-full border border-border bg-card px-3 py-1.5 ${
-                    updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
-                  }`}
-                >
-                  <Text className="text-sm text-foreground">{preset.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {dueAt != null ? (
+      {canEdit ? (
+        <View className="gap-3">
+          <View className="flex-row flex-wrap gap-2">
+            {PRESETS.map((preset) => (
               <Pressable
+                key={preset.kind}
                 accessibilityRole="button"
                 disabled={updateCard.isPending}
-                onPress={() => setDue(null)}
-                className={`flex-row items-center gap-1.5 self-start ${
+                onPress={() => setDue(presetDate(preset.kind))}
+                className={`rounded-full border border-border bg-card px-3 py-1.5 ${
                   updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
                 }`}
               >
-                <Icon name="x" size={13} color={theme.destructive} />
-                <Text weight="medium" className="text-sm text-destructive">
-                  {strings.cardDetail.dueClear}
-                </Text>
+                <Text className="text-sm text-foreground">{preset.label}</Text>
               </Pressable>
-            ) : null}
+            ))}
           </View>
-        ) : null}
-      </View>
-    </DetailSection>
+
+          {dueAt != null ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={updateCard.isPending}
+              onPress={() => setDue(null)}
+              className={`flex-row items-center gap-1.5 self-start ${
+                updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
+              }`}
+            >
+              <Icon name="x" size={13} color={theme.destructive} />
+              <Text weight="medium" className="text-sm text-destructive">
+                {strings.cardDetail.dueClear}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
   );
 }
