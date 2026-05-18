@@ -65,6 +65,64 @@ export function parseTiptapValue(value: unknown): TiptapNode | null {
   };
 }
 
+/**
+ * Düz metni Tiptap `doc` JSON string'ine çevirir — kart açıklaması / yorum
+ * yazımı (Faz 7.0 kararı: mobilde tam rich editör yok, düz-metin düzenleme).
+ * Her satır bir paragraf; boş satır boş paragraf olur. Depolama biçimi web
+ * `serializeRichTextValue` (`editor.getJSON()` → `JSON.stringify`) ile uyumlu;
+ * `cards.description` / `comments.body` string kolonuna yazılır.
+ */
+export function serializeTiptapDoc(plainText: string): string {
+  const lines = plainText.replace(/\r\n/g, '\n').split('\n');
+  const content = lines.map((line) =>
+    line.length > 0
+      ? { type: 'paragraph', content: [{ type: 'text', text: line }] }
+      : { type: 'paragraph' },
+  );
+  return JSON.stringify({ type: 'doc', content });
+}
+
+/**
+ * Saklanan rich-text değerini düz metne indirger — editör taslağını tohumlamak
+ * için. Blok düğümleri ve `hardBreak` satır sonuyla, `mention` `@etiket` olarak
+ * düzleştirilir. Biçim (kalın/italik/liste işareti) korunmaz — Faz 7.0 kararı
+ * mobilde düz-metin düzenleme.
+ */
+export function tiptapToPlainText(value: unknown): string {
+  const root = parseTiptapValue(value);
+  if (!root) return '';
+
+  const inline = (node: TiptapNode): string => {
+    if (node.type === 'text' && typeof node.text === 'string') return node.text;
+    if (node.type === 'hardBreak') return '\n';
+    if (node.type === 'mention') {
+      const label = typeof node.attrs?.label === 'string' ? node.attrs.label : '';
+      return label ? `@${label}` : '';
+    }
+    return tiptapChildren(node).map(inline).join('');
+  };
+
+  const lines: string[] = [];
+  const block = (node: TiptapNode): void => {
+    switch (node.type) {
+      case 'paragraph':
+      case 'heading':
+      case 'codeBlock':
+        lines.push(tiptapChildren(node).map(inline).join(''));
+        break;
+      case 'horizontalRule':
+        break;
+      default:
+        // Liste / blockquote / bilinmeyen sarmalayıcı — çocuklarına in.
+        for (const child of tiptapChildren(node)) block(child);
+    }
+  };
+
+  const blocks = root.type === 'doc' ? tiptapChildren(root) : [root];
+  for (const node of blocks) block(node);
+  return lines.join('\n').trim();
+}
+
 /** Tiptap rich-text değerinde görünür içerik var mı (boş doc tespiti). */
 export function tiptapHasContent(doc: unknown): boolean {
   const root = parseTiptapValue(doc);

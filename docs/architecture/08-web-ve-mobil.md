@@ -415,6 +415,17 @@ Faz 7F ([DEM-182](https://linear.app/demirkol/issue/DEM-182)) mobil kart detay e
 - **Bölümler** — checklist (başlık + ilerleme + maddeler, tamamlanan işaretli), etiket, due tarihi, üyeler, **yorum listesi** (yazar + Tiptap gövde + zaman), **aktivite** okuma görünümü (`activity-summary` ile tip→Türkçe etiket). Yorum yazarı adı `card.activity.list` aktör adlarından çözümlenir (`comment.list` yalnız `authorId` döndürür).
 - **Kapsam dışı** — düzenleme / yorum yazma / checklist toggle (read-only — sonraki fazlar); tam mobil rich editör yok (7.0: zengin render + düz-metin düzenleme, düzenleme ileride).
 
+### Faz 7G — Kart detay tam etkileşim (Wired)
+
+Faz 7G ([DEM-183](https://linear.app/demirkol/issue/DEM-183)) 7F'in salt-okunur kart detayını düzenleme aksiyonlarıyla genişletti. Mevcut tRPC procedure'leri tüketilir — yeni backend procedure yok.
+
+- **Bölüm editörleri** — `src/components/card-detail/` altında: `description-editor` (açıklama düz-metin düzenleme), `labels-editor` (etiket ekle/çıkar), `due-date-editor` (son tarih ayarla/temizle), `members-editor` (kart üyesi ekle/çıkar), interaktif `checklist-section` (madde işaretle/ekle/sil), `comment-composer` (yorum yazma). Her biri ilgili bölümün `DetailSection`'ı içinde render edilir.
+- **Collaborative mutation disiplini** — tüm yazmalar optimistic UI: `onMutate` ilgili sorgu cache'ini (`card.get` / `card.labels.list` / `card.members.list` / `checklist.list` / `comment.list`) anında yamar, `onError` snapshot'tan geri alır, `onSettled` invalidate eder (+ `card.activity.list`). Her mutation `clientMutationId` taşır (`expo-crypto` UUID). Tüketilen procedure'ler: `card.update` (açıklama/due), `card.labels.add/remove`, `card.members.add/remove`, `checklist.item.toggle/create/delete`, `comment.create`.
+- **Düz-metin Tiptap yazımı** (7.0 kararı — tam mobil rich editör yok) — `src/lib/tiptap.ts` `serializeTiptapDoc` (düz metin → Tiptap `doc` JSON string, satır başına paragraf) + `tiptapToPlainText` (saklanan değer → editör tohum metni). Açıklama düzenleme web `isSameRichText` simetrisiyle anlamca değişiklik yoksa mutation atmaz. Yeni yorum gövdesi de Tiptap JSON'a serialize edilir.
+- **Son tarih hazır-ayarları** — mobil MVP'de tam takvim seçici yok; "Bugün / Yarın / Hafta sonu / Gelecek hafta" hazır-ayar çipleri (saat 18:00) + "Son tarihi kaldır". Drag-drop yerine "move to list" deseniyle aynı pragmatik mobil yaklaşım.
+- **Düzenleme yetkisi** — editörler yalnız board `member+` için aktif; çağıranın board rolü `board.members.list`'ten çözümlenir (web kart modalı simetrisi — çözülene dek `viewer` varsayılır, salt-okunur). `board.members.list` ayrıca kart üyesi aday havuzudur.
+- **Kapsam dışı** — yeni kontrol listesi oluşturma/silme (7G yalnız madde düzeyi — listesiz kart bilgilendirme metni gösterir); yorum düzenleme/silme; `@`-mention besteleme; tam mobil rich editör (7.0 kararı).
+
 ### Faz 7D — Üye yönetimi + davet kabul (Wired)
 
 Faz 7D ([DEM-180](https://linear.app/demirkol/issue/DEM-180)) mobil üye listesi ekranlarını + davet akışını kurdu. Mobilin **ilk mutation'lı** fazı — önceki 7A–7F salt-okunurdu.
@@ -425,6 +436,30 @@ Faz 7D ([DEM-180](https://linear.app/demirkol/issue/DEM-180)) mobil üye listesi
 - **Aldığım bekleyen davetler** — `(boards)/index.tsx` (workspace listesi) üstüne `PendingInvitations` bölümü: `workspace.invitations.mine` + `board.invitations.mine` tek listede birleşir, her satırda kabul/reddet butonu (`*.invitations.accept` / `decline`). Davet yoksa bölüm tamamen gizli. Kabul sonrası workspace listesi de invalidate edilir (yeni workspace görünür).
 - **Mutation disiplini** — tüm davet/kabul/reddet mutation'ları opsiyonel `clientMutationId` taşır; her çağrıda `expo-crypto` `randomUUID()` ile yeni UUID üretilir (`src/lib/client-mutation-id.ts`). Hata → `Alert` / `FormMessage`; pending sırasında butonlar disabled.
 - **Kapsam dışı** — rol değiştirme, üye çıkarma, gönderilen davet iptali (revoke). Yalnız liste + davet-al + davet-et.
+
+### Faz 7H — Kart create/update + "move to list" (Wired)
+
+Faz 7H ([DEM-184](https://linear.app/demirkol/issue/DEM-184)) mobilin board ekranını ilk kez **yazılabilir** yaptı — 7E/7F salt-okunurdu. Mevcut tRPC procedure'leri tüketildi; yeni backend yok.
+
+- **Yetki** — board ekranı `board.get` `board.role`'ü taşır; düzenleme yüzeyleri (`canEditBoard` helper'ı — board `admin`/`member`) yalnız `member+` için mount edilir. `viewer` board'u salt görür (7E davranışı korunur). Backend her procedure'de yine kendi kontrolünü yapar.
+- **Kart oluşturma** — her kolonun altında satır-içi "Kart ekle" composer'ı (`InlineComposer`); `card.create` ile listenin **sonuna** eklenir. Kart create yüzeyi board kolonudur (docs §8.2 kapsamı; kart detayından ayrı oluşturma giriş noktası yok).
+- **Liste oluşturma** — board şeridinin sonundaki "Liste ekle" kolonu (`ListAddColumn`); `list.create`.
+- **Liste yeniden adlandırma / arşivleme** — kolon başlığındaki ⋮ butonu bottom sheet (`Sheet`) açar: "Yeniden adlandır" (inline composer → `list.update`) ve "Arşivle" (`list.archive`). Arşivlenen liste board görünümünden düşer.
+- **"Move to list" picker** — mobil drag-drop yok: board kartına **uzun basma** veya kart detayındaki "Listeyi taşı" aksiyonu `MoveToListSheet`'i açar (board'un aktif listeleri; kartın mevcut listesi işaretli + pasif). Seçim `card.moveToList` ile hedef listenin **sonuna** taşır. Liste-içi sıra seçimi (reorder) kapsam dışı.
+- **Kart başlık düzenleme** — kart detay ekranında başlık dokunulabilir; `InlineComposer` ile `card.update({ title })`. 7H "temel alan" = başlık; açıklama/due/etiket/üye/checklist düzenleme 7G'nin işi.
+- **Collaborative mutation disiplini** — tüm mutation'lar opsiyonel `clientMutationId` taşır (`expo-crypto` UUID). TanStack Query optimistic akış: `onMutate` ilgili sorguları iptal + snapshot + iyimser uygula → `onError` snapshot'a geri sar → `onSettled` `board.get`/`card.get` invalidate. Optimistic cache dönüşümleri saf fonksiyonlardır (`lib/board-cache.ts`) ve birim test edilir; mutation'lar `useBoardMutations` hook'unda toplanır.
+- **Pozisyon** — tamsayı `order` yok; `@pusula/domain` `positionBetween`/`firstPosition` ile composer ve taşıma iyimser olarak listenin/kolonun sonuna ekler (server kesin `position`'ı `onSettled` refetch'inde reconcile eder).
+- **Kapsam dışı** — liste-içi/listeler-arası kart reorder (sıra seçimi — ileride long-press reorder ayrı iş), liste reorder, liste rengi/ikonu, açıklama/due/etiket/üye/checklist düzenleme (7G), gerçek-zamanlı eş-zamanlılık (7.0: pull-to-refresh + push).
+
+### Faz 7I — Arama, global + board içi (Wired)
+
+Faz 7I ([DEM-185](https://linear.app/demirkol/issue/DEM-185)) mobil arama deneyimini kurdu — 7C'de "yakında" placeholder olan "Arama" sekmesi gerçek ekranla değişti. Faz 6.5 `search.query` procedure'ü tüketildi; yeni backend yok, permission filtresi server-side.
+
+- **İki yüzey, tek gövde** — global arama (alt tab "Arama" sekmesi, `app/(app)/search.tsx`) ve board içi arama (`app/(app)/(boards)/board-search/[boardId].tsx`, board ekranı header'ındaki arama butonundan açılır) ortak `SearchView` bileşenini paylaşır. `boardId` prop'u verilirse arama o board ile sınırlanır; verilmezse global (tüm erişilebilir workspace/board).
+- **Sorgu davranışı** — 2 karakterden önce API çağrılmaz (domain `06-arama-kapsami.md`); 275 ms debounce (web arama diyaloğuyla hizalı); `keepPreviousData` ile sorgu değişirken önceki sonuçlar ekranda kalır. Giriş 200 karakterle sınırlı (`searchQueryInput` şeması).
+- **Sonuç sunumu** — sonuçlar entity tipine göre gruplanır (pano → liste → kart → yorum → ek → etiket; web §8.1.12 sırası); her satır entity ikonu + başlık + düz-metin snippet + bağlam (global'de workspace/board adı, board içinde yalnız bağlı kart). Boş / yükleniyor / hata / "en az 2 karakter" durumları ayrı `EmptyState`.
+- **Derin link navigasyonu** — sonucun `targetUrl` alanı (web rota deseni) mobilde **kullanılmaz**; hedef `entityType` + `boardId`/`cardId`/`workspaceId`'den türetilir (`lib/search-target.ts` — saf modül, birim test edilir): kart/yorum/ek → kart detayı, board/liste/etiket → board ekranı. Board içi aramada bulunulan board'un kendisine işaret eden sonuç stack'e ikinci kez itilmez — `router.back()` ile mevcut board'a dönülür.
+- **Kapsam dışı** — sonuç sayfalama (`search.query` `cursor` döndürür; mobil MVP ilk 25 sonucu gösterir, load-more yok), arşivli kayıt toggle'ı (`includeArchived`), facet/filtre paneli, klavye kısayolları (mobilde anlamsız).
 
 ### Mobil tipografi — Poppins (2026-05-18)
 
