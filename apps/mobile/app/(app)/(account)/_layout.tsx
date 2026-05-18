@@ -33,6 +33,7 @@ export default function AccountLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="profile-edit" options={{ title: strings.profileEdit.title }} />
       <Stack.Screen name="change-password" options={{ title: strings.changePassword.title }} />
+      <Stack.Screen name="delete-account" options={{ title: strings.deleteAccount.title }} />
     </Stack>
   );
 }

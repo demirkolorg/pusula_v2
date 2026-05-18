@@ -136,6 +136,12 @@ export default function AccountScreen() {
             label={strings.account.changePasswordRow}
             onPress={() => router.push('/change-password')}
           />
+          <SettingsRow
+            icon="trash-2"
+            label={strings.account.deleteAccountRow}
+            destructive
+            onPress={() => router.push('/delete-account')}
+          />
         </SettingsGroup>
 
         {/* Hakkında — uygulama sürümü (salt-gösterim). */}

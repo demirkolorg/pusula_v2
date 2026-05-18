@@ -683,10 +683,11 @@ export const strings = {
     notificationSettingsRow: 'Bildirim ayarları',
     securityTitle: 'Hesap ve güvenlik',
     changePasswordRow: 'Şifre değiştir',
+    deleteAccountRow: 'Hesabı sil',
     aboutTitle: 'Hakkında',
     versionRow: 'Sürüm',
   },
-  // Profil düzenleme ekranı (DEM-208).
+  // Profil düzenleme ekranı (DEM-208 + DEM-212 avatar).
   profileEdit: {
     title: 'Profili düzenle',
     description: 'Adın panolarda ve etkinlik akışında görünür.',
@@ -694,6 +695,44 @@ export const strings = {
     namePlaceholder: 'Adın',
     emailHint: 'E-posta şu an değiştirilemez.',
     save: 'Kaydet',
+    // Avatar bölümü (DEM-212).
+    avatarLabel: 'Profil fotoğrafı',
+    avatarChange: 'Fotoğraf değiştir',
+    avatarAdd: 'Fotoğraf ekle',
+    avatarRemove: 'Fotoğrafı kaldır',
+    // Kaynak seçici bottom sheet.
+    avatarSheetTitle: 'Fotoğraf nereden eklensin?',
+    avatarSourceCamera: 'Kamera',
+    avatarSourceGallery: 'Galeriden seç',
+    // Yükleme durumu — yüzde araya konur: "Yükleniyor %42".
+    avatarUploading: 'Yükleniyor',
+    avatarUploadError: 'Fotoğraf yüklenemedi. Lütfen tekrar dene.',
+    // İstemci-tarafı doğrulama (backend allowlist + 10 MB ile aynı).
+    avatarRejectTitle: 'Fotoğraf eklenemedi',
+    avatarRejectMime: 'Yalnızca JPEG, PNG ve WebP görselleri kullanılabilir.',
+    avatarRejectSize: 'Görsel 10 MB boyut sınırını aşıyor.',
+    avatarRejectEmpty: 'Görsel okunamadı veya boş görünüyor.',
+    // Kamera/galeri izin akışı (permission priming) — avatara özel gövde.
+    avatarPermissionCameraBody: 'Profil fotoğrafı çekmek için kamera erişimine izin ver.',
+    avatarPermissionGalleryBody: 'Galeriden profil fotoğrafı seçmek için fotoğraf erişimine izin ver.',
+  },
+  // Hesap silme ekranı (DEM-212).
+  deleteAccount: {
+    title: 'Hesabı sil',
+    // "Hesap ve güvenlik" grubundaki yıkıcı satır etiketi.
+    row: 'Hesabı sil',
+    // Geri-alınamaz uyarısı.
+    warningTitle: 'Bu işlem geri alınamaz',
+    warningBody:
+      'Hesabın ve tüm verilerin kalıcı olarak silinecek. Bu işlemi geri alamazsın.',
+    // Parola doğrulama alanı.
+    passwordLabel: 'Parola',
+    passwordPlaceholder: 'Parolanı gir',
+    // Yıkıcı buton + son onay diyaloğu (Alert).
+    deleteAction: 'Hesabımı sil',
+    confirmTitle: 'Hesabını sil',
+    confirmBody: 'Hesabın kalıcı olarak silinecek. Devam etmek istediğine emin misin?',
+    confirmAction: 'Hesabı sil',
   },
   // Şifre değiştir ekranı (DEM-208).
   changePassword: {
