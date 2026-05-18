@@ -110,7 +110,7 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           }}
         />
         <Tabs.Screen
-          name="account"
+          name="(account)"
           options={{
             title: strings.tabs.account,
             tabBarIcon: ({ color, size }) => <Icon name="user" color={color} size={size} />,

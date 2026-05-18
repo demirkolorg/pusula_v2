@@ -6,8 +6,9 @@
  * splash, navigasyon teması, native ayarlar) kullanım içindir. Light/dark
  * setleri web `theme.css` `:root` / `.dark` ile hizalı.
  *
- * Kullanıcı seçimli tema (web 2.7 simetrisi) ileri faz işidir; 7A iskeleti
- * sistem (`prefers-color-scheme`) temasını izler.
+ * Kullanıcı-seçimli tema (DEM-207): `theme/theme-provider.tsx` açılışta
+ * saklanan tercihi `Appearance.setColorScheme()` ile uygular — `useColorScheme()`
+ * (ve dolayısıyla `themeFor`) etkin şemayı yansıtır; varsayılan = Sistem.
  */
 export type ThemeTokens = {
   background: string;

@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProviders } from '@/trpc/provider';
 import { configureOnlineManager } from '@/lib/online-manager';
+import { ThemeProvider } from '@/theme/theme-provider';
 import { fontMap } from '@/theme/fonts';
 import { initSentry, wrapWithSentry } from '@/sentry';
 
@@ -55,10 +56,14 @@ function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AppProviders>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }} />
-      </AppProviders>
+      {/* ThemeProvider (DEM-207) — açılışta saklanan tema tercihini uygular;
+          StatusBar `style="auto"` ile etkin şemayı izler. */}
+      <ThemeProvider>
+        <AppProviders>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }} />
+        </AppProviders>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

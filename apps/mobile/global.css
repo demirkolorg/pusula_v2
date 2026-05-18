@@ -2,8 +2,10 @@
  * Pusula mobil — NativeWind/Tailwind girişi.
  * Semantik renk token'ları `13-ui-tasarim-dili.md`'den türetildi; uzay
  * ayrımlı RGB kanalları Tailwind `<alpha-value>` ile uyumludur.
- * Light = `:root`, dark = `prefers-color-scheme` (sistem). Kullanıcı seçimli
- * tema (web 2.7 simetrisi) ileri faz işidir.
+ * Light = `:root`, dark = `prefers-color-scheme`. Kullanıcı-seçimli tema
+ * (DEM-207) bu media query'yi DEĞİŞTİRMEZ — `Appearance.setColorScheme()`
+ * çalışma anında etkin şemayı zorlar, NativeWind className teması ve bu
+ * media query onu izler (`theme/theme-provider.tsx`).
  *
  * SENKRON: buradaki RGB değerleri `src/theme/tokens.ts` hex setlerinin
  * aynısıdır (className dışı kullanım için). Biri değişince diğeri de

@@ -637,7 +637,44 @@ export const strings = {
     primerDismiss: 'Şimdi değil',
   },
   account: {
-    description: 'Hesap ayarları ve daha fazlası sonraki güncellemelerde gelecek.',
+    title: 'Hesap',
+    // Görünüm / tema seçici (DEM-207).
+    appearanceTitle: 'Görünüm',
+    theme: {
+      light: 'Açık',
+      dark: 'Koyu',
+      system: 'Sistem',
+    },
+    // Bölüm başlıkları + satırları (DEM-208).
+    notificationsTitle: 'Bildirimler',
+    notificationSettingsRow: 'Bildirim ayarları',
+    securityTitle: 'Hesap ve güvenlik',
+    changePasswordRow: 'Şifre değiştir',
+    aboutTitle: 'Hakkında',
+    versionRow: 'Sürüm',
+  },
+  // Profil düzenleme ekranı (DEM-208).
+  profileEdit: {
+    title: 'Profili düzenle',
+    description: 'Adın panolarda ve etkinlik akışında görünür.',
+    nameLabel: 'Ad',
+    namePlaceholder: 'Adın',
+    emailHint: 'E-posta şu an değiştirilemez.',
+    save: 'Kaydet',
+  },
+  // Şifre değiştir ekranı (DEM-208).
+  changePassword: {
+    title: 'Şifre değiştir',
+    description: 'Yeni şifren en az 8 karakter olmalı.',
+    currentLabel: 'Mevcut şifre',
+    currentPlaceholder: 'Mevcut şifren',
+    newLabel: 'Yeni şifre',
+    newPlaceholder: 'Yeni şifren',
+    confirmLabel: 'Yeni şifre (tekrar)',
+    confirmPlaceholder: 'Yeni şifreni tekrar gir',
+    mismatch: 'Yeni şifreler eşleşmiyor',
+    save: 'Şifreyi güncelle',
+    success: 'Şifren güncellendi.',
   },
   auth: {
     emailLabel: 'E-posta',
