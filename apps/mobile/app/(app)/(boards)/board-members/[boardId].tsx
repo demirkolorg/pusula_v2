@@ -2,35 +2,46 @@ import { useState } from 'react';
 import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { BoardRole } from '@pusula/domain';
 import { useTRPC } from '@/trpc/provider';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { FormMessage } from '@/components/form-message';
 import { LoadingScreen } from '@/components/loading-screen';
+import { MemberActionSheet } from '@/components/member-action-sheet';
 import { MemberInviteForm } from '@/components/member-invite-form';
 import { MemberRow } from '@/components/member-row';
+import { SentInvitationRow } from '@/components/sent-invitation-row';
+import { Text } from '@/components/text';
 import { boardRoleLabel, canManageBoardMembers } from '@/lib/member-roles';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
+import { useBoardMemberMutations } from '@/lib/use-member-mutations';
 import { themeFor } from '@/theme/tokens';
 
-/** Davet formunda sunulan board rolleri (`admin | member | viewer`). */
+/** Davet/rol seçiminde sunulan board rolleri (`admin | member | viewer`). */
 const BOARD_INVITE_ROLES = [
   { value: 'admin', label: strings.members.boardRoleAdmin },
   { value: 'member', label: strings.members.boardRoleMember },
   { value: 'viewer', label: strings.members.boardRoleViewer },
-] as const;
+] as const satisfies readonly { value: BoardRole; label: string }[];
 
-type BoardInviteRole = (typeof BOARD_INVITE_ROLES)[number]['value'];
+type BoardMemberTarget = {
+  userId: string;
+  role: BoardRole;
+  name: string | null;
+  email: string | null;
+};
 
 /**
- * Faz 7D — board üye listesi ekranı. Üyeler ad + rol rozeti ile salt
- * görüntülenir; workspace owner/admin'den devralınan board admin'leri
- * "Devralındı" rozetiyle işaretlenir. Çağıran board `admin` ise üstte
- * satır-içi davet formu (`board.members.add`) görünür. Çağıranın rolü
- * `board.members.list` içinden kendi `userId`'si eşlenerek bulunur. Kapsam:
- * liste + davet-et (rol değiştir / üye çıkar kapsam dışı).
+ * Faz 7D — board üye listesi ekranı; DEM-210 ile üye yönetimi tamamlandı.
+ * Üyeler ad + rol rozeti ile listelenir; workspace owner/admin'den devralınan
+ * board admin'leri "Devralındı" rozetiyle işaretlenir. Çağıran board `admin`
+ * ise üstte davet formu + altta gönderilen davetler ve her *açık* (devralınmamış)
+ * üyenin satırında ⋮ aksiyon yüzeyi (rol değiştir / üye çıkar) görünür.
+ * Devralınan üye ve çağıranın kendi satırında aksiyon gösterilmez — devralınan
+ * board rolü buradan değiştirilemez (web kuralı; backend de reddeder).
  */
 export default function BoardMembersScreen() {
   const params = useLocalSearchParams<{ boardId: string; title?: string }>();
@@ -42,12 +53,21 @@ export default function BoardMembersScreen() {
   const currentUserId = session?.user.id;
   const [inviteOpen, setInviteOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Davet iptali hatası — `MemberActionSheet` kendi hatasını içeride gösterir,
+  // davet satırının (footer) ayrı bir hata yüzeyi yok; burada tutulur.
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMember, setActionMember] = useState<BoardMemberTarget | null>(null);
 
   const query = useQuery(
     trpc.board.members.list.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
   );
 
   const addMember = useMutation(trpc.board.members.add.mutationOptions());
+  const memberMutations = useBoardMemberMutations(boardId);
+
+  const invitationsQuery = useQuery(
+    trpc.board.invitations.list.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
+  );
 
   const header = (
     <Stack.Screen options={{ title: params.title ?? strings.members.boardTitle }} />
@@ -98,9 +118,9 @@ export default function BoardMembersScreen() {
 
   const members = query.data;
   const myRole = members.find((member) => member.userId === currentUserId)?.role;
-  const canInvite = canManageBoardMembers(myRole);
+  const canManage = canManageBoardMembers(myRole);
 
-  const handleInvite = async (email: string, role: BoardInviteRole) => {
+  const handleInvite = async (email: string, role: BoardRole) => {
     setSuccessMessage(null);
     // `board.members.add` hesabı olan kullanıcıyı doğrudan ekler (`added`/
     // `added_as_guest`), hesabı yoksa davet gönderir (`invited`) — mesaj buna
@@ -114,19 +134,25 @@ export default function BoardMembersScreen() {
     await queryClient.invalidateQueries(
       trpc.board.members.list.queryFilter({ boardId }),
     );
+    await queryClient.invalidateQueries(
+      trpc.board.invitations.list.queryFilter({ boardId }),
+    );
     setInviteOpen(false);
     setSuccessMessage(
       result.kind === 'invited' ? strings.members.inviteSuccess : strings.members.memberAdded,
     );
   };
 
-  const listHeader = canInvite ? (
+  // Gönderilen davetler — yalnız board `admin` görür.
+  const pendingInvitations = canManage ? (invitationsQuery.data ?? []) : [];
+
+  const listHeader = canManage ? (
     <View className="gap-3 pb-1">
       {successMessage ? (
         <FormMessage tone="info">{successMessage}</FormMessage>
       ) : null}
       {inviteOpen ? (
-        <MemberInviteForm<BoardInviteRole>
+        <MemberInviteForm<BoardRole>
           roleOptions={BOARD_INVITE_ROLES}
           defaultRole="member"
           onInvite={handleInvite}
@@ -144,6 +170,31 @@ export default function BoardMembersScreen() {
     </View>
   ) : null;
 
+  const listFooter =
+    canManage && pendingInvitations.length > 0 ? (
+      <View className="gap-3 pt-3">
+        <Text weight="semibold" className="text-xs uppercase text-muted-foreground">
+          {strings.invitations.sentSectionTitle}
+        </Text>
+        {errorMessage ? <FormMessage>{errorMessage}</FormMessage> : null}
+        {pendingInvitations.map((invitation) => (
+          <SentInvitationRow
+            key={invitation.id}
+            email={invitation.email}
+            roleLabel={boardRoleLabel(invitation.role)}
+            invitedByName={invitation.invitedByName}
+            pending={memberMutations.invitationPending(invitation.id)}
+            onCancel={() => {
+              setErrorMessage(null);
+              memberMutations.cancelInvitation(invitation.id).catch(() => {
+                setErrorMessage(strings.invitations.actionError);
+              });
+            }}
+          />
+        ))}
+      </View>
+    ) : null;
+
   return (
     <>
       {header}
@@ -151,6 +202,7 @@ export default function BoardMembersScreen() {
         data={members}
         keyExtractor={(member) => member.userId}
         ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
         contentContainerClassName="gap-3 p-4"
         refreshControl={
           <RefreshControl
@@ -159,16 +211,49 @@ export default function BoardMembersScreen() {
             tintColor={theme.mutedForeground}
           />
         }
-        renderItem={({ item }) => (
-          <MemberRow
-            name={item.name ?? item.email ?? strings.cardDetail.unknownUser}
-            image={item.image}
-            roleLabel={boardRoleLabel(item.role)}
-            inherited={item.inherited}
-            inheritedLabel={strings.members.inheritedBadge}
-          />
-        )}
+        renderItem={({ item }) => {
+          // Devralınan (workspace owner/admin) üyenin board rolü buradan
+          // değiştirilemez; çağıran kendi satırında aksiyon görmez.
+          const isSelf = item.userId === currentUserId;
+          const showActions =
+            canManage && Boolean(currentUserId) && !item.inherited && !isSelf;
+          return (
+            <MemberRow
+              name={item.name ?? item.email ?? strings.cardDetail.unknownUser}
+              image={item.image}
+              roleLabel={boardRoleLabel(item.role)}
+              inherited={item.inherited}
+              inheritedLabel={strings.members.inheritedBadge}
+              isSelf={isSelf}
+              onActions={
+                showActions
+                  ? () =>
+                      setActionMember({
+                        userId: item.userId,
+                        role: item.role,
+                        name: item.name,
+                        email: item.email,
+                      })
+                  : undefined
+              }
+            />
+          );
+        }}
       />
+      {actionMember ? (
+        <MemberActionSheet<BoardRole>
+          visible
+          memberName={
+            actionMember.name ?? actionMember.email ?? strings.cardDetail.unknownUser
+          }
+          roleOptions={BOARD_INVITE_ROLES}
+          currentRole={actionMember.role}
+          pending={memberMutations.memberPending(actionMember.userId)}
+          onChangeRole={(role) => memberMutations.changeRole(actionMember.userId, role)}
+          onRemove={() => memberMutations.remove(actionMember.userId)}
+          onClose={() => setActionMember(null)}
+        />
+      ) : null}
     </>
   );
 }

@@ -8,28 +8,35 @@ import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { FormMessage } from '@/components/form-message';
 import { LoadingScreen } from '@/components/loading-screen';
+import { MemberActionSheet } from '@/components/member-action-sheet';
 import { MemberInviteForm } from '@/components/member-invite-form';
 import { MemberRow } from '@/components/member-row';
+import { SentInvitationRow } from '@/components/sent-invitation-row';
+import { Text } from '@/components/text';
 import { canManageWorkspaceMembers, workspaceRoleLabel } from '@/lib/member-roles';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
+import {
+  useWorkspaceMemberMutations,
+  type AssignableWorkspaceRole,
+} from '@/lib/use-member-mutations';
 import { themeFor } from '@/theme/tokens';
 
-/** Davet formunda sunulan workspace rolleri (`owner` atanamaz — domain kuralı). */
+/** Davet/rol seçiminde sunulan workspace rolleri (`owner` atanamaz — domain kuralı). */
 const WORKSPACE_INVITE_ROLES = [
   { value: 'admin', label: strings.members.roleAdmin },
   { value: 'member', label: strings.members.roleMember },
   { value: 'guest', label: strings.members.roleGuest },
 ] as const;
 
-type WorkspaceInviteRole = (typeof WORKSPACE_INVITE_ROLES)[number]['value'];
+type WorkspaceMember = { userId: string; role: AssignableWorkspaceRole | 'owner'; name: string | null; email: string };
 
 /**
- * Faz 7D — workspace üye listesi ekranı. Üyeler ad + rol rozeti ile salt
- * görüntülenir; çağıran `admin+` ise üstte satır-içi davet formu görünür.
- * Çağıranın rolü `workspace.members.list` içinden kendi `userId`'si eşlenerek
- * bulunur (ayrı sorgu yok). Kapsam: liste + davet-et (rol değiştir / üye çıkar
- * kapsam dışı).
+ * Faz 7D — workspace üye listesi ekranı; DEM-210 ile üye yönetimi tamamlandı.
+ * Üyeler ad + rol rozeti ile listelenir; çağıran `admin+` ise üstte davet
+ * formu + altta gönderilen davetler ve her satırda ⋮ aksiyon yüzeyi (rol
+ * değiştir / üye çıkar) görünür. `owner` satırı ve çağıranın kendi satırında
+ * aksiyon gösterilmez (web simetrisi — `owner` rolü ayrıca devir gerektirir).
  */
 export default function WorkspaceMembersScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
@@ -41,6 +48,10 @@ export default function WorkspaceMembersScreen() {
   const currentUserId = session?.user.id;
   const [inviteOpen, setInviteOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Davet iptali hatası — `MemberActionSheet` kendi hatasını içeride gösterir,
+  // davet satırının (footer) ayrı bir hata yüzeyi yok; burada tutulur.
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMember, setActionMember] = useState<WorkspaceMember | null>(null);
 
   const query = useQuery(
     trpc.workspace.members.list.queryOptions(
@@ -50,6 +61,14 @@ export default function WorkspaceMembersScreen() {
   );
 
   const invite = useMutation(trpc.workspace.members.invite.mutationOptions());
+  const memberMutations = useWorkspaceMemberMutations(workspaceId);
+
+  const invitationsQuery = useQuery(
+    trpc.workspace.invitations.list.queryOptions(
+      { workspaceId },
+      { enabled: Boolean(workspaceId) },
+    ),
+  );
 
   const header = (
     <Stack.Screen
@@ -102,9 +121,9 @@ export default function WorkspaceMembersScreen() {
 
   const members = query.data;
   const myRole = members.find((member) => member.userId === currentUserId)?.role;
-  const canInvite = canManageWorkspaceMembers(myRole);
+  const canManage = canManageWorkspaceMembers(myRole);
 
-  const handleInvite = async (email: string, role: WorkspaceInviteRole) => {
+  const handleInvite = async (email: string, role: AssignableWorkspaceRole) => {
     setSuccessMessage(null);
     await invite.mutateAsync({
       workspaceId,
@@ -115,17 +134,23 @@ export default function WorkspaceMembersScreen() {
     await queryClient.invalidateQueries(
       trpc.workspace.members.list.queryFilter({ workspaceId }),
     );
+    await queryClient.invalidateQueries(
+      trpc.workspace.invitations.list.queryFilter({ workspaceId }),
+    );
     setInviteOpen(false);
     setSuccessMessage(strings.members.inviteSuccess);
   };
 
-  const listHeader = canInvite ? (
+  // Gönderilen davetler — yalnız `admin+` görür; veri varsa liste altına eklenir.
+  const pendingInvitations = canManage ? (invitationsQuery.data ?? []) : [];
+
+  const listHeader = canManage ? (
     <View className="gap-3 pb-1">
       {successMessage ? (
         <FormMessage tone="info">{successMessage}</FormMessage>
       ) : null}
       {inviteOpen ? (
-        <MemberInviteForm<WorkspaceInviteRole>
+        <MemberInviteForm<AssignableWorkspaceRole>
           roleOptions={WORKSPACE_INVITE_ROLES}
           defaultRole="member"
           onInvite={handleInvite}
@@ -143,6 +168,31 @@ export default function WorkspaceMembersScreen() {
     </View>
   ) : null;
 
+  const listFooter =
+    canManage && pendingInvitations.length > 0 ? (
+      <View className="gap-3 pt-3">
+        <Text weight="semibold" className="text-xs uppercase text-muted-foreground">
+          {strings.invitations.sentSectionTitle}
+        </Text>
+        {errorMessage ? <FormMessage>{errorMessage}</FormMessage> : null}
+        {pendingInvitations.map((invitation) => (
+          <SentInvitationRow
+            key={invitation.id}
+            email={invitation.email}
+            roleLabel={workspaceRoleLabel(invitation.role)}
+            invitedByName={invitation.invitedByName}
+            pending={memberMutations.invitationPending(invitation.id)}
+            onCancel={() => {
+              setErrorMessage(null);
+              memberMutations.cancelInvitation(invitation.id).catch(() => {
+                setErrorMessage(strings.invitations.actionError);
+              });
+            }}
+          />
+        ))}
+      </View>
+    ) : null;
+
   return (
     <>
       {header}
@@ -150,6 +200,7 @@ export default function WorkspaceMembersScreen() {
         data={members}
         keyExtractor={(member) => member.userId}
         ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
         contentContainerClassName="gap-3 p-4"
         refreshControl={
           <RefreshControl
@@ -158,14 +209,45 @@ export default function WorkspaceMembersScreen() {
             tintColor={theme.mutedForeground}
           />
         }
-        renderItem={({ item }) => (
-          <MemberRow
-            name={item.name ?? item.email}
-            image={item.image}
-            roleLabel={workspaceRoleLabel(item.role)}
-          />
-        )}
+        renderItem={({ item }) => {
+          // `owner` rolü değiştirilemez (devir gerektirir); çağıran kendi
+          // satırında rol değiştiremez/çıkamaz — bu satırlarda aksiyon yok.
+          const isSelf = item.userId === currentUserId;
+          const showActions =
+            canManage && Boolean(currentUserId) && item.role !== 'owner' && !isSelf;
+          return (
+            <MemberRow
+              name={item.name ?? item.email}
+              image={item.image}
+              roleLabel={workspaceRoleLabel(item.role)}
+              isSelf={isSelf}
+              onActions={
+                showActions
+                  ? () =>
+                      setActionMember({
+                        userId: item.userId,
+                        role: item.role as AssignableWorkspaceRole,
+                        name: item.name,
+                        email: item.email,
+                      })
+                  : undefined
+              }
+            />
+          );
+        }}
       />
+      {actionMember && actionMember.role !== 'owner' ? (
+        <MemberActionSheet<AssignableWorkspaceRole>
+          visible
+          memberName={actionMember.name ?? actionMember.email}
+          roleOptions={WORKSPACE_INVITE_ROLES}
+          currentRole={actionMember.role}
+          pending={memberMutations.memberPending(actionMember.userId)}
+          onChangeRole={(role) => memberMutations.changeRole(actionMember.userId, role)}
+          onRemove={() => memberMutations.remove(actionMember.userId)}
+          onClose={() => setActionMember(null)}
+        />
+      ) : null}
     </>
   );
 }

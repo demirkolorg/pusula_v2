@@ -395,6 +395,20 @@ export const strings = {
     memberAdded: 'Üye eklendi.',
     inviteEmailRequired: 'Lütfen bir e-posta adresi gir.',
     inviteEmailInvalid: 'Geçerli bir e-posta adresi gir.',
+    // "Sen" rozeti — çağıranın kendi satırını işaretler.
+    youBadge: 'Sen',
+    // Üye satırı aksiyon menüsü (DEM-210).
+    actionsLabel: 'Üye işlemleri',
+    actionsSheetTitle: 'Üye işlemleri',
+    changeRoleTitle: 'Rolü değiştir',
+    changeRoleSubmit: 'Rolü güncelle',
+    changeRoleSubmitting: 'Güncelleniyor…',
+    removeMember: 'Üyeyi çıkar',
+    removing: 'Çıkarılıyor…',
+    removeConfirmTitle: 'Üyeyi çıkar',
+    removeConfirmMessage: 'Bu üyeyi çıkarmak istediğine emin misin?',
+    removeConfirm: 'Çıkar',
+    actionError: 'İşlem tamamlanamadı. Lütfen tekrar dene.',
   },
   invitations: {
     sectionTitle: 'Bekleyen davetler',
@@ -408,6 +422,14 @@ export const strings = {
     actionError: 'İşlem tamamlanamadı. Lütfen tekrar dene.',
     accepted: 'Davet kabul edildi.',
     declined: 'Davet reddedildi.',
+    // Gönderilen davetler bölümü + iptal (DEM-210).
+    sentSectionTitle: 'Gönderilen davetler',
+    cancel: 'Daveti iptal et',
+    cancelling: 'İptal ediliyor…',
+    cancelConfirmTitle: 'Daveti iptal et',
+    cancelConfirmMessage: 'Bu daveti iptal etmek istediğine emin misin?',
+    cancelConfirm: 'İptal et',
+    actionsLabel: 'Davet işlemleri',
   },
   onboarding: {
     title: "Pusula'ya hoş geldin",
