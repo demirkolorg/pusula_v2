@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="tr">
 <head>
@@ -138,7 +139,7 @@
   .sz-row:last-child{border-bottom:0;}
   .sz-row .tag{font-family:var(--font-mono);font-size:16px;letter-spacing:.16em;color:var(--muted);}
   .sz-row .val{font-family:var(--font-display);font-size:74px;line-height:1;color:var(--fg);font-weight:600;letter-spacing:-.02em;}
-  .sz-row .desc{font-size:18px;color:var(--muted);margin-top:6px;}
+  .sz-row .desc{font-size:20px;color:var(--muted);margin-top:8px;}
 
   /* ============ SLIDE 05 — ÜRÜN ============ */
   .s-product .slide-body{flex-direction:column;}
@@ -150,7 +151,7 @@
   .svc:last-child{border-bottom:0;}
   .svc .sn{font-family:var(--font-mono);font-size:22px;color:var(--accent);font-weight:600;flex:none;width:46px;padding-top:6px;}
   .svc h3{font-family:var(--font-display);font-size:33px;font-weight:600;letter-spacing:-.01em;}
-  .svc p{font-size:20px;line-height:1.56;color:var(--muted);margin-top:8px;}
+  .svc p{font-size:21px;line-height:1.56;color:var(--muted);margin-top:8px;}
 
   /* ============ SLIDE 07 — TRACTION ============ */
   .s-traction .slide-body{flex-direction:column;}
@@ -162,7 +163,7 @@
     letter-spacing:-.03em;color:var(--fg);}
   .metric .ml{font-family:var(--font-mono);font-size:17px;letter-spacing:.13em;text-transform:uppercase;
     color:var(--accent);margin-top:22px;}
-  .metric .md{font-size:19px;line-height:1.5;color:var(--muted);margin-top:10px;}
+  .metric .md{font-size:21px;line-height:1.5;color:var(--muted);margin-top:10px;}
   .ph-note{flex:none;margin-top:36px;font-family:var(--font-mono);font-size:16px;letter-spacing:.08em;
     color:var(--muted);border-top:1px solid var(--hair);padding-top:18px;}
 
@@ -178,7 +179,7 @@
   .member h3{font-family:var(--font-display);font-size:30px;font-weight:600;margin-top:22px;letter-spacing:-.01em;}
   .member .role{font-family:var(--font-mono);font-size:15px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--accent);margin-top:10px;}
-  .member p{font-size:18px;line-height:1.55;color:var(--muted);margin-top:14px;}
+  .member p{font-size:20px;line-height:1.55;color:var(--muted);margin-top:14px;}
 
   /* ============ SLIDE 09 — TALEP ============ */
   .s-ask .slide-body{gap:104px;align-items:center;}
@@ -602,14 +603,12 @@
   }
   function go(n){ i = Math.max(0, Math.min(slides.length-1, n)); render(); }
 
-  // restore position
   try{
     var saved = parseInt(localStorage.getItem(KEY), 10);
     if(!isNaN(saved) && saved>=0 && saved<slides.length) i = saved;
   }catch(e){}
   render();
 
-  // keyboard
   document.addEventListener('keydown', function(e){
     if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); go(i+1); }
     else if(e.key==='ArrowLeft'||e.key==='PageUp'){ e.preventDefault(); go(i-1); }
@@ -618,11 +617,9 @@
     else if(e.key==='f'||e.key==='F'){ window.print(); }
   });
 
-  // click zones
   document.getElementById('navPrev').addEventListener('click', function(){ go(i-1); });
   document.getElementById('navNext').addEventListener('click', function(){ go(i+1); });
 
-  // scale-to-fit
   function scale(){
     var s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
     stage.style.transform = 'scale(' + s + ')';
