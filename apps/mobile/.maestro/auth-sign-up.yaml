@@ -1,0 +1,39 @@
+# Kayıt akışı — sign-up ekranı → form doldur → workspace (Panolar) sekmesine iniş.
+#
+# Signup bootstrap sunucu tarafında ortak (default workspace + "İlk Pano"),
+# başarıda `(auth)` layout oturumu görüp `(app)`'e yönlendirir — bu yüzden
+# kayıt sonrası Panolar sekmesi + "Çalışma Alanları" başlığı görünür.
+#
+# clearState: her koşumda temiz oturum — uygulama açılışta sign-in ekranına düşer.
+appId: com.pusula.app
+---
+- launchApp:
+    clearState: true
+
+# Uygulama oturumsuz açılınca giriş ekranına düşer; oradan "Kayıt ol" linkiyle
+# kayıt ekranına geç.
+- assertVisible: 'Tekrar hoş geldiniz'
+- tapOn: 'Kayıt ol'
+- assertVisible: 'Hesap oluşturun'
+
+# Form: Ad / E-posta / Parola. Alanlar `accessibilityLabel` (label) ile bulunur.
+# E-posta her koşumda benzersiz olmalı — zaman damgalı adres üret.
+- tapOn:
+    id: 'Ad'
+- inputText: 'Maestro Test'
+- tapOn:
+    id: 'E-posta'
+- inputText: 'maestro+${new Date().getTime()}@pusula.test'
+- tapOn:
+    id: 'Parola'
+- inputText: 'Parola1234!'
+- hideKeyboard
+
+# Kayıt gönder — başarıda app-shell'e yönlenir.
+- tapOn: 'Kayıt ol'
+
+# Panolar sekmesi açılır, workspace listesi başlığı görünür.
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+- assertVisible: 'Panolar'

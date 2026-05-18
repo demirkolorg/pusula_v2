@@ -1,36 +1,50 @@
-import { useMemo } from 'react';
-import { ScrollView, View, useColorScheme } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
+import { authClient } from '@/lib/auth-client';
 import { Text } from '@/components/text';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
-import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon } from '@/components/icon';
+import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
-import { TiptapRender } from '@/components/tiptap-render';
-import { tiptapHasContent } from '@/lib/tiptap';
+import { MoveToListSheet } from '@/components/move-to-list-sheet';
+import { isPendingId } from '@/lib/client-mutation-id';
+import { useCardMutations } from '@/lib/use-card-mutations';
 import { DetailSection } from '@/components/card-detail/section';
+import { DescriptionEditor } from '@/components/card-detail/description-editor';
+import { LabelsEditor } from '@/components/card-detail/labels-editor';
+import { DueDateEditor } from '@/components/card-detail/due-date-editor';
+import { MembersEditor } from '@/components/card-detail/members-editor';
 import { ChecklistSection } from '@/components/card-detail/checklist-section';
+import { AttachmentsSection } from '@/components/card-detail/attachments-section';
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
+import { CommentComposer } from '@/components/card-detail/comment-composer';
 import { ActivityList } from '@/components/card-detail/activity-list';
-import { formatDueDate, isOverdue } from '@/lib/format-date';
-import { labelColorHex } from '@/lib/label-color';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
 /**
- * Kart detay ekranı — salt-okunur (Faz 7F). Tek ekranda altı paralel sorgu:
- * `card.get` + `card.labels/members/activity.list` + `checklist.list` +
- * `comment.list`. Açıklama ve yorum gövdeleri Tiptap JSON olarak biçimli
- * render edilir. Düzenleme / yorum yazma kapsam dışı.
+ * Kart detay ekranı (Faz 7G — tam etkileşim). Faz 7F salt-okunur görünümünü
+ * düzenleme aksiyonlarıyla genişletir: açıklama düz-metin düzenleme, etiket /
+ * üye / son tarih ekle-çıkar, checklist madde işaretle/ekle/sil, yorum yazma.
+ * Tüm yazma işlemleri collaborative mutation — optimistic UI + rollback +
+ * `clientMutationId` (alt bileşenlerde). Düzenleme yetkisi (`canEdit`) board
+ * `member+` rolüne bağlı; rol `board.members.list`'ten çözümlenir (web kart
+ * modalı simetrisi — çözülene dek `viewer` varsayılır, salt-okunur).
+ *
+ * Faz 7H başlık düzenlemeyi (`card.update`) ve "move to list" picker'ı
+ * (`card.moveToList`) ekler — `useCardMutations` ile optimistic + rollback.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ cardId: string; title?: string }>();
   const cardId = params.cardId;
   const trpc = useTRPC();
   const theme = themeFor(useColorScheme());
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user.id;
   const enabled = Boolean(cardId);
 
   const cardQuery = useQuery(trpc.card.get.queryOptions({ cardId }, { enabled }));
@@ -40,11 +54,60 @@ export default function CardDetailScreen() {
   const commentsQuery = useQuery(trpc.comment.list.queryOptions({ cardId }, { enabled }));
   const activityQuery = useQuery(trpc.card.activity.list.queryOptions({ cardId }, { enabled }));
 
+  // Pano üye listesi — hem kart üyesi aday havuzu hem çağıranın board rolü
+  // (düzenleme yetkisi). `boardId` ancak kart yüklenince bilinir.
+  const boardId = cardQuery.data?.card.boardId;
+  const boardMembersQuery = useQuery(
+    trpc.board.members.list.queryOptions(
+      { boardId: boardId ?? '' },
+      { enabled: Boolean(boardId) },
+    ),
+  );
+  // Board verisi — "move to list" picker'ı için aktif liste havuzu (Faz 7H).
+  const boardQuery = useQuery(
+    trpc.board.get.queryOptions({ boardId: boardId ?? '' }, { enabled: Boolean(boardId) }),
+  );
+
+  // Faz 7H — başlık düzenleme + "move to list" mutation'ları.
+  const cardMutations = useCardMutations(cardId, boardId ?? '');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+
+  // Faz 7M — pull-to-refresh: kart detayının tüm sorgularını yeniden çeker
+  // (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir). `refreshing`
+  // herhangi bir sorgu uçuştayken spinner gösterir.
+  const refreshing =
+    cardQuery.isFetching ||
+    labelsQuery.isFetching ||
+    membersQuery.isFetching ||
+    checklistsQuery.isFetching ||
+    commentsQuery.isFetching ||
+    activityQuery.isFetching ||
+    boardMembersQuery.isFetching ||
+    boardQuery.isFetching;
+
+  function handleRefresh() {
+    void cardQuery.refetch();
+    void labelsQuery.refetch();
+    void membersQuery.refetch();
+    void checklistsQuery.refetch();
+    void commentsQuery.refetch();
+    void activityQuery.refetch();
+    void boardMembersQuery.refetch();
+    void boardQuery.refetch();
+  }
+
   const labels = labelsQuery.data ?? [];
   const members = membersQuery.data ?? [];
   const checklists = checklistsQuery.data ?? [];
   const comments = commentsQuery.data ?? [];
   const activity = activityQuery.data ?? [];
+  const boardMembers = boardMembersQuery.data ?? [];
+
+  // Çağıranın board rolü → düzenleme yetkisi (board `member+`). Üye listesinde
+  // bulunamazsa `viewer` varsayılır (salt-okunur) — web kart modalı simetrisi.
+  const myBoardRole = boardMembers.find((m) => m.userId === currentUserId)?.role;
+  const canEdit = myBoardRole === 'admin' || myBoardRole === 'member';
 
   // Yorum yazarı çözümleyici: `comment.list` yalnız `authorId` döndürür —
   // ad/görsel kart üyelerinden + aktivite aktörlerinden toplanır.
@@ -59,9 +122,18 @@ export default function CardDetailScreen() {
         map.set(event.actorId, { name: event.actorName, image: event.actorImage });
       }
     }
+    // Optimistic yorum yazarı çağıranın kendisi olabilir; kart üyesi/aktör
+    // değilse haritada yer almaz — oturum bilgisinden ekle, aksi halde yeni
+    // yorum kısa süreliğine "Bir kullanıcı" görünür.
+    if (currentUserId && !map.has(currentUserId)) {
+      map.set(currentUserId, {
+        name: session?.user.name ?? null,
+        image: session?.user.image ?? null,
+      });
+    }
     const empty = { name: null, image: null };
     return (userId) => (userId ? (map.get(userId) ?? empty) : empty);
-  }, [members, activity]);
+  }, [members, activity, currentUserId, session?.user.name, session?.user.image]);
 
   const header = (
     <Stack.Screen options={{ title: params.title ?? strings.cardDetail.fallbackTitle }} />
@@ -111,13 +183,26 @@ export default function CardDetailScreen() {
   }
 
   const card = cardQuery.data.card;
-  const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
+  // "move to list" picker hedef havuzu — board'un aktif, kalıcı listeleri (Faz 7H).
+  const boardLists = (boardQuery.data?.lists ?? []).filter(
+    (list) => list.archivedAt == null && !isPendingId(list.id),
+  );
 
   return (
     <>
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 p-4">
-        {/* Başlık + tamamlandı rozeti */}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.mutedForeground}
+          />
+        }
+      >
+        {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H). */}
         <View className="gap-2">
           {card.completed ? (
             <View className="flex-row items-center gap-1.5 self-start rounded-full bg-success/15 px-2 py-0.5">
@@ -127,78 +212,99 @@ export default function CardDetailScreen() {
               </Text>
             </View>
           ) : null}
-          <Text weight="semibold" className="text-xl text-foreground">
-            {card.title}
-          </Text>
+          {canEdit && editingTitle ? (
+            <InlineComposer
+              placeholder={strings.cardDetail.titlePlaceholder}
+              submitLabel={strings.common.save}
+              initialValue={card.title}
+              onSubmit={(title) => {
+                cardMutations.updateTitle(title);
+                setEditingTitle(false);
+              }}
+              onCancel={() => setEditingTitle(false)}
+            />
+          ) : (
+            <Pressable
+              accessibilityRole={canEdit ? 'button' : undefined}
+              accessibilityLabel={canEdit ? strings.cardDetail.editTitleLabel : undefined}
+              disabled={!canEdit}
+              onPress={() => setEditingTitle(true)}
+              className={`flex-row items-start gap-2 ${canEdit ? 'active:opacity-60' : ''}`}
+            >
+              <Text weight="semibold" className="flex-1 text-xl text-foreground">
+                {card.title}
+              </Text>
+              {canEdit ? (
+                <Icon name="edit-3" size={16} color={theme.mutedForeground} />
+              ) : null}
+            </Pressable>
+          )}
+          {canEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMoveOpen(true)}
+              className="mt-1 flex-row items-center gap-2 self-start rounded-lg border border-border bg-card px-3 py-2 active:opacity-70"
+            >
+              <Icon name="corner-up-right" size={16} color={theme.foreground} />
+              <Text className="text-sm text-foreground">{strings.cardDetail.moveAction}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        {labels.length > 0 ? (
-          <DetailSection icon="tag" title={strings.cardDetail.labelsTitle}>
-            <View className="flex-row flex-wrap gap-2">
-              {labels.map((label) => (
-                <View key={label.labelId} className="flex-row items-center gap-1.5">
-                  <View
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: labelColorHex(label.color) }}
-                  />
-                  <Text className="text-sm text-foreground">{label.name}</Text>
-                </View>
-              ))}
-            </View>
-          </DetailSection>
-        ) : null}
+        <LabelsEditor
+          cardId={card.id}
+          boardId={card.boardId}
+          labels={labels}
+          canEdit={canEdit}
+        />
 
-        {card.dueAt != null ? (
-          <DetailSection icon="clock" title={strings.cardDetail.dueTitle}>
-            <Text className={`text-sm ${overdue ? 'text-destructive' : 'text-foreground'}`}>
-              {formatDueDate(card.dueAt)}
-            </Text>
-          </DetailSection>
-        ) : null}
+        <DueDateEditor
+          cardId={card.id}
+          dueAt={card.dueAt}
+          completed={card.completed}
+          canEdit={canEdit}
+        />
 
-        {members.length > 0 ? (
-          <DetailSection icon="users" title={strings.cardDetail.membersTitle}>
-            <View className="gap-2">
-              {members.map((member) => (
-                <View key={member.userId} className="flex-row items-center gap-2">
-                  <EntityAvatar name={member.name ?? '?'} image={member.image} size={28} />
-                  <Text className="text-sm text-foreground">
-                    {member.name ?? strings.cardDetail.unknownUser}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </DetailSection>
-        ) : null}
+        <MembersEditor
+          cardId={card.id}
+          members={members}
+          boardMembers={boardMembers}
+          canEdit={canEdit}
+        />
 
-        <DetailSection icon="align-left" title={strings.cardDetail.descriptionTitle}>
-          {tiptapHasContent(card.description) ? (
-            <TiptapRender doc={card.description} />
+        <DescriptionEditor cardId={card.id} description={card.description} canEdit={canEdit} />
+
+        <DetailSection icon="check-square" title={strings.cardDetail.checklistsTitle}>
+          {checklistsQuery.isError ? (
+            <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
           ) : (
-            <Text className="text-sm text-muted-foreground">
-              {strings.cardDetail.noDescription}
-            </Text>
+            <ChecklistSection cardId={card.id} checklists={checklists} canEdit={canEdit} />
           )}
         </DetailSection>
 
-        {checklists.length > 0 || checklistsQuery.isError ? (
-          <DetailSection icon="check-square" title={strings.cardDetail.checklistsTitle}>
-            {checklistsQuery.isError ? (
-              <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
-            ) : (
-              <ChecklistSection checklists={checklists} />
-            )}
-          </DetailSection>
-        ) : null}
+        {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme
+            `canEdit`, silme uploader/admin (alt bileşende çözülür). */}
+        <AttachmentsSection
+          cardId={card.id}
+          boardId={card.boardId}
+          canEdit={canEdit}
+          currentUserId={currentUserId}
+          myBoardRole={myBoardRole}
+        />
 
         <DetailSection icon="message-square" title={strings.cardDetail.commentsTitle}>
-          {commentsQuery.isError ? (
-            <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
-          ) : comments.length > 0 ? (
-            <CommentList comments={comments} resolveAuthor={resolveAuthor} />
-          ) : (
-            <Text className="text-sm text-muted-foreground">{strings.cardDetail.noComments}</Text>
-          )}
+          <View className="gap-4">
+            {commentsQuery.isError ? (
+              <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
+            ) : comments.length > 0 ? (
+              <CommentList comments={comments} resolveAuthor={resolveAuthor} />
+            ) : (
+              <Text className="text-sm text-muted-foreground">
+                {strings.cardDetail.noComments}
+              </Text>
+            )}
+            {canEdit ? <CommentComposer cardId={card.id} /> : null}
+          </View>
         </DetailSection>
 
         <DetailSection icon="activity" title={strings.cardDetail.activityTitle}>
@@ -211,6 +317,17 @@ export default function CardDetailScreen() {
           )}
         </DetailSection>
       </ScrollView>
+
+      <MoveToListSheet
+        visible={moveOpen}
+        lists={boardLists}
+        currentListId={card.listId}
+        onSelect={(listId) => {
+          cardMutations.moveToList(listId);
+          setMoveOpen(false);
+        }}
+        onClose={() => setMoveOpen(false)}
+      />
     </>
   );
 }

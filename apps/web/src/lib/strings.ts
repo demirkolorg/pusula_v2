@@ -442,7 +442,6 @@ export const strings = {
     },
   },
   workspace: {
-    listTitle: 'Workspace’lerin',
     loading: 'Workspace’ler yükleniyor…',
     loadErrorTitle: 'Workspace’ler yüklenemedi',
     redirecting: 'Workspace’ine yönlendiriliyorsun…',

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { activityLabel } from '../lib/activity-summary';
-import { parseTiptapValue, tiptapHasContent } from '../lib/tiptap';
+import {
+  parseTiptapValue,
+  serializeTiptapDoc,
+  tiptapHasContent,
+  tiptapToPlainText,
+} from '../lib/tiptap';
 
 /** Faz 7F — kart detay saf helper birim testleri. */
 describe('activityLabel', () => {
@@ -73,5 +78,52 @@ describe('tiptapHasContent', () => {
   it('null / geçersiz girdi → false', () => {
     expect(tiptapHasContent(null)).toBe(false);
     expect(tiptapHasContent(undefined)).toBe(false);
+  });
+});
+
+// Faz 7G — düz metin ↔ Tiptap JSON serialize/extract (açıklama + yorum yazımı).
+describe('serializeTiptapDoc', () => {
+  it('düz metni tek paragraflık Tiptap doc JSON string\'ine çevirir', () => {
+    const node = parseTiptapValue(serializeTiptapDoc('merhaba'));
+    expect(node?.type).toBe('doc');
+    expect(tiptapHasContent(serializeTiptapDoc('merhaba'))).toBe(true);
+  });
+
+  it('satır başına bir paragraf üretir', () => {
+    const doc = JSON.parse(serializeTiptapDoc('birinci\nikinci')) as {
+      content: unknown[];
+    };
+    expect(doc.content).toHaveLength(2);
+  });
+
+  it('boş metin → görünür içeriği olmayan doc', () => {
+    expect(tiptapHasContent(serializeTiptapDoc(''))).toBe(false);
+  });
+});
+
+describe('tiptapToPlainText', () => {
+  it('Tiptap JSON doc → düz metin', () => {
+    expect(tiptapToPlainText(jsonDoc)).toBe('merhaba');
+  });
+
+  it('legacy düz metni olduğu gibi döndürür', () => {
+    expect(tiptapToPlainText('eski düz metin')).toBe('eski düz metin');
+  });
+
+  it('null / boş girdi → boş string', () => {
+    expect(tiptapToPlainText(null)).toBe('');
+    expect(tiptapToPlainText('')).toBe('');
+  });
+
+  it('serialize → extract round-trip metni korur', () => {
+    expect(tiptapToPlainText(serializeTiptapDoc('satır1\nsatır2'))).toBe('satır1\nsatır2');
+  });
+
+  it('mention düğümünü @etiket olarak düzleştirir', () => {
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { label: 'ada' } }] }],
+    });
+    expect(tiptapToPlainText(doc)).toBe('@ada');
   });
 });

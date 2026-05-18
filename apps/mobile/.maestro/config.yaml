@@ -1,0 +1,15 @@
+# Maestro proje yapılandırması — Pusula mobil e2e akışları (Faz 7N).
+#
+# `maestro test .maestro/` bu config'i okur; `flows` deseni .maestro/ kökündeki
+# tüm akış YAML'larını koşar (config.yaml kendisi hariç tutulur).
+#
+# appId: app.config.ts → ios.bundleIdentifier / android.package = com.pusula.app
+# (her iki platformda aynı). Akış dosyaları kendi başlıklarında da `appId`
+# taşır; bu config yalnız hangi dosyaların koşulacağını ve sıralamayı belirler.
+flows:
+  - 'auth-sign-up.yaml'
+  - 'auth-sign-in.yaml'
+  - 'auth-sign-out.yaml'
+  - 'board-view.yaml'
+  - 'card-create-move.yaml'
+  - 'notifications.yaml'

@@ -1,15 +1,11 @@
-import { ActivityIndicator, View, useColorScheme } from 'react-native';
-import { Text } from '@/components/text';
-import { themeFor } from '@/theme/tokens';
-import { strings } from '@/lib/strings';
+import { View } from 'react-native';
+import { AppSpinner } from '@/components/app-spinner';
 
 /** Tam ekran yükleniyor göstergesi — oturum çözülürken route layout'ları kullanır. */
 export function LoadingScreen() {
-  const theme = themeFor(useColorScheme());
   return (
-    <View className="flex-1 items-center justify-center gap-3 bg-background">
-      <ActivityIndicator color={theme.primary} />
-      <Text className="text-sm text-muted-foreground">{strings.common.loading}</Text>
+    <View className="flex-1 items-center justify-center bg-background">
+      <AppSpinner size="lg" showLabel />
     </View>
   );
 }

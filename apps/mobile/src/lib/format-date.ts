@@ -51,3 +51,27 @@ export function isOverdue(value: Date | string): boolean {
   if (Number.isNaN(date.getTime())) return false;
   return date.getTime() < Date.now();
 }
+
+/**
+ * Kompakt Türkçe göreli zaman, örn. "az önce", "3 dk önce", "2 sa önce",
+ * "5 gün önce" (Faz 7K — bildirim merkezi satır zaman damgaları).
+ *
+ * `Intl.RelativeTimeFormat` yerine elle Türkçe: deterministik, test
+ * edilebilir, Hermes/platform farkından bağımsız (web `formatRelativeTime`
+ * `Intl` kullanır; mobil `format-date.ts` deseni elle çeviridir). Geçersiz
+ * tarihte boş string.
+ */
+export function formatRelativeTime(value: Date | string, now: Date = new Date()): string {
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
+  // Gelecek tarih (saat kayması) veya çok yakın geçmiş → "az önce".
+  if (diffSeconds < 45) return 'az önce';
+  if (diffSeconds < 45 * 60) return `${Math.round(diffSeconds / 60)} dk önce`;
+  if (diffSeconds < 22 * 60 * 60) return `${Math.round(diffSeconds / 3600)} sa önce`;
+  if (diffSeconds < 26 * 24 * 60 * 60) return `${Math.round(diffSeconds / 86400)} gün önce`;
+  if (diffSeconds < 320 * 24 * 60 * 60) {
+    return `${Math.round(diffSeconds / (30 * 86400))} ay önce`;
+  }
+  return `${Math.round(diffSeconds / (365 * 86400))} yıl önce`;
+}

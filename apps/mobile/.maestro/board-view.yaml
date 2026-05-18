@@ -1,0 +1,49 @@
+# Board görüntüleme akışı — workspace listesi → board listesi → board ekranı.
+#
+# Liste/kart render doğrulaması. Önkoşul: kayıtlı hesabın en az bir workspace +
+# bir board'u olmalı (signup bootstrap "İlk Pano"yu üretir, bu yüzden taze
+# hesapta bile board mevcuttur).
+appId: com.pusula.app
+env:
+  MAESTRO_EMAIL: 'maestro@pusula.test'
+  MAESTRO_PASSWORD: 'Parola1234!'
+---
+- launchApp:
+    clearState: true
+
+# Giriş yap.
+- assertVisible: 'Tekrar hoş geldiniz'
+- tapOn:
+    id: 'E-posta'
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: 'Parola'
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: 'Giriş yap'
+
+# Workspace listesi — ilk satıra dokun (workspace adı dinamik; ilk satır indexi).
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+- tapOn:
+    index: 0
+    point: '50%,35%'
+
+# Board listesi — ilk board satırına dokun. Header başlığı workspace adıyla
+# değişir; "açık" / "tamamlandı" sayaç metinleri board satırlarını gösterir.
+- extendedWaitUntil:
+    visible:
+      text: 'açık'
+    timeout: 15000
+- tapOn:
+    index: 0
+    point: '50%,30%'
+
+# Board ekranı — liste kolonları + kart yüzeyleri render olur. Boş board'da
+# board `member+` için "Liste ekle" kolonu, kartsız listede "Kart yok" görünür.
+# En az birinin görünmesi board ekranının açıldığını doğrular.
+- extendedWaitUntil:
+    visible:
+      text: 'Liste ekle|Kart ekle|Kart yok'
+    timeout: 15000

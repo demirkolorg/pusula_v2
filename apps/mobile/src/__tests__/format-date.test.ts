@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDueDate, isOverdue } from '../lib/format-date';
+import { formatDueDate, formatRelativeTime, isOverdue } from '../lib/format-date';
 import { labelColorHex } from '../lib/label-color';
 
 /** Faz 7E — kart yüzü saf helper birim testleri. */
@@ -27,6 +27,33 @@ describe('isOverdue', () => {
 
   it('geçersiz tarih → false', () => {
     expect(isOverdue('geçersiz')).toBe(false);
+  });
+});
+
+describe('formatRelativeTime', () => {
+  const now = new Date('2026-05-18T12:00:00');
+
+  it('45 saniyeden yakın geçmiş → "az önce"', () => {
+    expect(formatRelativeTime(new Date('2026-05-18T11:59:30'), now)).toBe('az önce');
+  });
+
+  it('dakika/saat/gün dilimlerini doğru biçimler', () => {
+    expect(formatRelativeTime(new Date('2026-05-18T11:50:00'), now)).toBe('10 dk önce');
+    expect(formatRelativeTime(new Date('2026-05-18T09:00:00'), now)).toBe('3 sa önce');
+    expect(formatRelativeTime(new Date('2026-05-15T12:00:00'), now)).toBe('3 gün önce');
+  });
+
+  it('ay ve yıl dilimlerini biçimler', () => {
+    expect(formatRelativeTime(new Date('2026-03-18T12:00:00'), now)).toBe('2 ay önce');
+    expect(formatRelativeTime(new Date('2024-05-18T12:00:00'), now)).toBe('2 yıl önce');
+  });
+
+  it('gelecek tarih → "az önce" (saat kayması toleransı)', () => {
+    expect(formatRelativeTime(new Date('2026-05-18T12:05:00'), now)).toBe('az önce');
+  });
+
+  it('geçersiz tarih → boş string', () => {
+    expect(formatRelativeTime('bozuk', now)).toBe('');
   });
 });
 

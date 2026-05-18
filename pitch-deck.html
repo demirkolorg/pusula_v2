@@ -1,0 +1,633 @@
+
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atölye Düzlem — Tohum Turu Sunumu</title>
+<style>
+  /* ============================================================
+     EDİTÖRYEL DECK — Monocle/FT yönü · ink kırmızısı vurgu
+     ============================================================ */
+  :root{
+    --bg:      oklch(98% 0.004 95);
+    --surface: oklch(100% 0.002 95);
+    --fg:      oklch(20% 0.018 70);
+    --muted:   oklch(48% 0.012 70);
+    --border:  oklch(90% 0.006 95);
+    --accent:  oklch(52% 0.10 28);
+    --hair:    oklch(85% 0.008 95);
+    --paper:   oklch(97% 0.005 95);
+    --ink-deep:oklch(24% 0.012 62);
+    --ink-photo:oklch(30% 0.012 62);
+
+    --font-display:'Iowan Old Style','Charter',Georgia,'Times New Roman',serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    --font-mono:ui-monospace,'SF Mono','JetBrains Mono','IBM Plex Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{background:#100f0c;font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+
+  /* ---- Deck shell ---- */
+  #deck{position:fixed;inset:0;display:grid;place-items:center;overflow:hidden;background:#100f0c;}
+  #stage{width:1920px;height:1080px;position:relative;transform-origin:center center;background:var(--bg);
+    box-shadow:0 40px 120px -30px rgba(0,0,0,.8);}
+
+  .slide{position:absolute;inset:0;background:var(--bg);color:var(--fg);
+    opacity:0;visibility:hidden;transition:opacity .5s ease,visibility 0s linear .5s;
+    display:flex;flex-direction:column;padding:74px 132px 66px;}
+  .slide.active{opacity:1;visibility:visible;transition:opacity .5s ease;}
+  .slide.active .slide-body{animation:rise .62s cubic-bezier(.2,.7,.2,1) both;}
+  @keyframes rise{from{transform:translateY(20px);}to{transform:translateY(0);}}
+
+  /* ---- Shared editorial type ---- */
+  .mono{font-family:var(--font-mono);font-size:18px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .accent{color:var(--accent);}
+  .dagger{font-family:var(--font-mono);font-size:.5em;color:var(--accent);vertical-align:.7em;font-weight:600;}
+
+  .runhead,.runfoot{display:flex;justify-content:space-between;align-items:baseline;flex:none;}
+  .runhead{border-bottom:1px solid var(--hair);padding-bottom:20px;}
+  .runfoot{border-top:1px solid var(--hair);padding-top:18px;}
+  .slide-body{flex:1;min-height:0;padding:52px 0;display:flex;}
+
+  .kicker{font-family:var(--font-mono);font-size:19px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--muted);display:flex;align-items:baseline;gap:18px;}
+  .kicker .sct{color:var(--accent);font-weight:600;}
+
+  .headline{font-family:var(--font-display);font-weight:600;line-height:1.05;
+    letter-spacing:-.018em;color:var(--fg);}
+  .lead{font-family:var(--font-body);color:var(--muted);font-size:25px;line-height:1.62;
+    text-wrap:pretty;}
+  .lead.tight{font-size:23px;}
+
+  /* Drop cap */
+  .dropcap::first-letter{
+    font-family:var(--font-display);float:left;font-weight:600;
+    font-size:5.6em;line-height:.78;margin:.06em .14em -.04em 0;color:var(--accent);}
+
+  /* ============ SLIDE 01 — KAPAK ============ */
+  .s-cover{padding:0;justify-content:stretch;
+    background:
+      repeating-linear-gradient(90deg,transparent 0 295px,var(--hair) 295px 296px) center/calc(296px*5) 100% no-repeat,
+      var(--bg);}
+  .cover-grid{flex:1;display:flex;flex-direction:column;padding:74px 132px 66px;}
+  .cover-top,.cover-bot{display:flex;justify-content:space-between;align-items:baseline;}
+  .cover-top{border-bottom:1px solid var(--fg);padding-bottom:22px;}
+  .cover-bot{border-top:1px solid var(--hair);padding-top:26px;}
+  .cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 0;}
+  .cover-kick{font-family:var(--font-mono);font-size:21px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:30px;}
+  .cover-kick b{color:var(--accent);font-weight:600;}
+  .wordmark{font-family:var(--font-display);font-weight:600;font-size:188px;line-height:.9;
+    letter-spacing:-.03em;color:var(--fg);}
+  .wordmark .ln2{display:block;padding-left:.02em;}
+  .wordmark em{font-style:italic;color:var(--accent);}
+  .cover-tag{font-family:var(--font-display);font-size:38px;line-height:1.34;font-style:italic;
+    color:var(--muted);max-width:20ch;margin-top:46px;letter-spacing:-.01em;}
+  .cover-bot div{display:flex;flex-direction:column;gap:9px;}
+  .cover-bot .ml{font-family:var(--font-mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);}
+  .cover-bot .mv{font-size:21px;color:var(--fg);}
+
+  /* ============ SLIDE 02 — VİZYON ============ */
+  .s-vision .slide-body{gap:96px;align-items:center;}
+  .vis-mark{flex:none;width:300px;}
+  .vis-num{font-family:var(--font-display);font-size:230px;line-height:.74;color:var(--accent);font-weight:600;}
+  .vis-label{font-family:var(--font-mono);font-size:21px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--fg);margin-top:30px;padding-top:22px;border-top:2px solid var(--fg);}
+  .vis-body{flex:1;}
+  .vis-body .headline{font-size:74px;max-width:18ch;}
+  .vis-body p{margin-top:42px;font-size:27px;line-height:1.66;color:var(--fg);max-width:40ch;text-wrap:pretty;}
+  .vis-body p.sub{margin-top:24px;font-size:23px;color:var(--muted);}
+
+  /* ============ PHOTO SLIDES (03 / 06) ============ */
+  .s-photo{padding:0;background:var(--ink-deep);color:var(--paper);}
+  .photo-fill{flex:1;position:relative;display:flex;flex-direction:column;
+    background:
+      linear-gradient(135deg,var(--ink-photo),var(--ink-deep));}
+  .photo-frame{position:absolute;inset:54px;border:1px solid rgba(255,255,255,.16);}
+  .photo-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;}
+  .reg{width:54px;height:54px;position:relative;opacity:.5;}
+  .reg::before,.reg::after{content:"";position:absolute;background:var(--paper);}
+  .reg::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-.5px);}
+  .reg::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-.5px);}
+  .photo-stub{font-family:var(--font-mono);font-size:18px;letter-spacing:.26em;text-transform:uppercase;
+    color:rgba(255,255,255,.55);}
+  .photo-cap{position:absolute;left:108px;right:108px;bottom:96px;
+    display:flex;justify-content:space-between;align-items:flex-end;
+    padding-top:26px;border-top:1px solid rgba(255,255,255,.28);}
+  .photo-cap .fig{font-family:var(--font-mono);font-size:19px;letter-spacing:.2em;text-transform:uppercase;}
+  .photo-cap .fig b{color:var(--accent);font-weight:600;}
+  .photo-cap .ttl{font-family:var(--font-display);font-size:40px;font-style:italic;line-height:1.2;
+    max-width:24ch;color:var(--paper);}
+  .photo-cap .pg{font-family:var(--font-mono);font-size:19px;letter-spacing:.2em;color:rgba(255,255,255,.6);}
+  .photo-head{position:absolute;left:108px;right:108px;top:78px;display:flex;justify-content:space-between;}
+  .photo-head span{font-family:var(--font-mono);font-size:17px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(255,255,255,.6);}
+
+  /* ============ SLIDE 04 — PAZAR ============ */
+  .head-block{flex:none;}
+  .head-block .headline{font-size:62px;max-width:24ch;margin-top:26px;}
+  .s-market .slide-body{flex-direction:column;gap:0;}
+  .market-grid{flex:1;display:grid;grid-template-columns:1fr 1fr 470px;gap:64px;margin-top:50px;min-height:0;}
+  .market-grid .col p{font-size:22px;line-height:1.62;color:var(--fg);text-wrap:pretty;}
+  .market-grid .col p+p{margin-top:20px;}
+  .market-grid .col .ct{font-family:var(--font-mono);font-size:16px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--hair);}
+  .sizing{border-left:1px solid var(--fg);padding-left:40px;display:flex;flex-direction:column;justify-content:center;gap:0;}
+  .sz-row{padding:24px 0;border-bottom:1px solid var(--hair);}
+  .sz-row:last-child{border-bottom:0;}
+  .sz-row .tag{font-family:var(--font-mono);font-size:16px;letter-spacing:.16em;color:var(--muted);}
+  .sz-row .val{font-family:var(--font-display);font-size:74px;line-height:1;color:var(--fg);font-weight:600;letter-spacing:-.02em;}
+  .sz-row .desc{font-size:20px;color:var(--muted);margin-top:8px;}
+
+  /* ============ SLIDE 05 — ÜRÜN ============ */
+  .s-product .slide-body{flex-direction:column;}
+  .prod-grid{flex:1;display:grid;grid-template-columns:1fr 1.05fr;gap:88px;margin-top:46px;align-items:start;}
+  .prod-intro p{font-size:25px;line-height:1.66;color:var(--fg);text-wrap:pretty;}
+  .prod-intro .note{margin-top:30px;font-size:20px;color:var(--muted);border-top:1px solid var(--hair);padding-top:22px;}
+  .svc{display:flex;gap:30px;padding:28px 0;border-bottom:1px solid var(--hair);}
+  .svc:first-child{padding-top:0;}
+  .svc:last-child{border-bottom:0;}
+  .svc .sn{font-family:var(--font-mono);font-size:22px;color:var(--accent);font-weight:600;flex:none;width:46px;padding-top:6px;}
+  .svc h3{font-family:var(--font-display);font-size:33px;font-weight:600;letter-spacing:-.01em;}
+  .svc p{font-size:21px;line-height:1.56;color:var(--muted);margin-top:8px;}
+
+  /* ============ SLIDE 07 — TRACTION ============ */
+  .s-traction .slide-body{flex-direction:column;}
+  .metric-grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);margin-top:44px;}
+  .metric{padding:0 38px;display:flex;flex-direction:column;justify-content:center;
+    border-left:1px solid var(--hair);}
+  .metric:first-child{padding-left:0;border-left:0;}
+  .metric .mv{font-family:var(--font-display);font-size:104px;line-height:.92;font-weight:600;
+    letter-spacing:-.03em;color:var(--fg);}
+  .metric .ml{font-family:var(--font-mono);font-size:17px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--accent);margin-top:22px;}
+  .metric .md{font-size:21px;line-height:1.5;color:var(--muted);margin-top:10px;}
+  .ph-note{flex:none;margin-top:36px;font-family:var(--font-mono);font-size:16px;letter-spacing:.08em;
+    color:var(--muted);border-top:1px solid var(--hair);padding-top:18px;}
+
+  /* ============ SLIDE 08 — EKİP ============ */
+  .s-team .slide-body{flex-direction:column;}
+  .team-grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:44px;margin-top:46px;}
+  .member{display:flex;flex-direction:column;}
+  .avatar{aspect-ratio:4/5;background:
+      linear-gradient(135deg,var(--ink-photo),var(--ink-deep));
+    display:flex;align-items:flex-end;justify-content:flex-start;padding:18px;}
+  .avatar span{font-family:var(--font-mono);font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+    color:rgba(255,255,255,.5);}
+  .member h3{font-family:var(--font-display);font-size:30px;font-weight:600;margin-top:22px;letter-spacing:-.01em;}
+  .member .role{font-family:var(--font-mono);font-size:15px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent);margin-top:10px;}
+  .member p{font-size:20px;line-height:1.55;color:var(--muted);margin-top:14px;}
+
+  /* ============ SLIDE 09 — TALEP ============ */
+  .s-ask .slide-body{gap:104px;align-items:center;}
+  .ask-left{flex:1;}
+  .ask-amount{font-family:var(--font-display);font-size:188px;line-height:.88;font-weight:600;
+    letter-spacing:-.04em;color:var(--fg);}
+  .ask-amount em{font-style:normal;color:var(--accent);}
+  .ask-sub{font-family:var(--font-mono);font-size:19px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);margin-top:30px;padding-top:24px;border-top:1px solid var(--fg);}
+  .ask-stmt{font-family:var(--font-display);font-size:34px;font-style:italic;line-height:1.42;
+    color:var(--fg);margin-top:36px;max-width:22ch;}
+  .ask-right{flex:none;width:560px;}
+  .ask-right .ct{font-family:var(--font-mono);font-size:16px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);padding-bottom:16px;border-bottom:1px solid var(--fg);}
+  .fund{padding:24px 0;border-bottom:1px solid var(--hair);}
+  .fund:last-child{border-bottom:0;}
+  .fund-top{display:flex;justify-content:space-between;align-items:baseline;}
+  .fund-top h4{font-family:var(--font-display);font-size:25px;font-weight:600;}
+  .fund-top .pct{font-family:var(--font-mono);font-size:22px;color:var(--fg);font-weight:600;}
+  .track{height:5px;background:var(--hair);margin-top:14px;}
+  .track i{display:block;height:100%;background:var(--fg);}
+
+  /* ============ SLIDE 10 — İLETİŞİM ============ */
+  .s-contact .slide-body{flex-direction:column;justify-content:space-between;}
+  .contact-stmt{font-family:var(--font-display);font-size:118px;line-height:.98;font-weight:600;
+    letter-spacing:-.03em;max-width:14ch;}
+  .contact-stmt em{font-style:italic;color:var(--accent);}
+  .contact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:48px;
+    border-top:1px solid var(--fg);padding-top:36px;}
+  .contact-grid .cl{font-family:var(--font-mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);}
+  .contact-grid .cv{font-size:23px;color:var(--fg);margin-top:12px;line-height:1.4;}
+  .thanks{font-family:var(--font-mono);font-size:18px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);}
+
+  /* ---- HUD ---- */
+  #hud{position:fixed;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+    justify-content:space-between;padding:0 30px;font-family:var(--font-mono);font-size:13px;
+    letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.42);pointer-events:none;z-index:20;}
+  #hud .hud-c{color:rgba(255,255,255,.7);}
+  #hud #cur{color:var(--accent);}
+  #bar{position:fixed;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.1);z-index:21;}
+  #barfill{height:100%;background:var(--accent);width:10%;transition:width .5s ease;}
+  .navzone{position:fixed;top:0;bottom:0;width:16%;z-index:15;cursor:pointer;}
+  .navzone.prev{left:0;}.navzone.next{right:0;}
+
+  /* ---- Print ---- */
+  @media print{
+    @page{size:1920px 1080px;margin:0;}
+    body{background:#fff;}
+    #deck{position:static;display:block;background:#fff;}
+    #stage{transform:none!important;width:1920px;height:auto;box-shadow:none;}
+    .slide{position:relative;inset:auto;opacity:1!important;visibility:visible!important;
+      height:1080px;page-break-after:always;}
+    #hud,#bar,.navzone{display:none!important;}
+    .slide.active .slide-body{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div id="deck">
+  <div id="stage">
+
+    <!-- ============ 01 · KAPAK ============ -->
+    <section class="slide s-cover active" data-screen-label="Kapak">
+      <div class="cover-grid">
+        <div class="cover-top">
+          <span class="mono">Atölye Düzlem</span>
+          <span class="mono">Tohum Yatırım Turu</span>
+        </div>
+        <div class="cover-mid">
+          <p class="cover-kick"><b>001</b> &nbsp;—&nbsp; Yatırımcı Sunumu</p>
+          <h1 class="wordmark">Atölye<span class="ln2"><em>Düzlem</em></span></h1>
+          <p class="cover-tag">Büyüyen markalara biçim, sistem ve ticari ivme kazandıran bağımsız bir tasarım stüdyosu.</p>
+        </div>
+        <div class="cover-bot">
+          <div><span class="ml">Belge</span><span class="mv">Tohum turu sunumu</span></div>
+          <div><span class="ml">Tarih</span><span class="mv">Mayıs 2026</span></div>
+          <div><span class="ml">Gizlilik</span><span class="mv">Yatırımcıya özel — dağıtılamaz</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · VİZYON ============ -->
+    <section class="slide s-vision" data-screen-label="Vizyon">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="vis-mark">
+          <div class="vis-num">01</div>
+          <div class="vis-label">Vizyon</div>
+        </div>
+        <div class="vis-body">
+          <h2 class="headline">İyi tasarım bir maliyet kalemi değil, en hızlı çalışan satış ekibidir.</h2>
+          <p class="dropcap">Atölye Düzlem, büyüme aşamasındaki şirketlerin marka, ürün ve iletişim tasarımını tek bir disiplinli sistemde birleştiriyor. Vizyonumuz net: dünya ölçeğinde rekabet eden markaların İstanbul'dan da çıkabileceğini kanıtlamak.</p>
+          <p class="sub">Tasarımı projeden projeye çözülen bir iş kalemi olmaktan çıkarıp, ölçülebilir bir kaldıraca dönüştürüyoruz.</p>
+        </div>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Vizyon</span>
+        <span class="mono"><span class="accent">§</span> 01 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 03 · ŞEKİL I (TAM SAYFA FOTOĞRAF) ============ -->
+    <section class="slide s-photo" data-screen-label="Şekil I">
+      <div class="photo-fill">
+        <div class="photo-frame"></div>
+        <div class="photo-head">
+          <span>Atölye Düzlem</span>
+          <span>Tam Sayfa — 1920 × 1080</span>
+        </div>
+        <div class="photo-center">
+          <div class="reg"></div>
+          <div class="photo-stub">Fotoğraf Alanı</div>
+        </div>
+        <div class="photo-cap">
+          <div>
+            <div class="fig"><b>Şekil 01</b></div>
+            <p class="ttl">Atölye Düzlem stüdyosu — çalışma alanı, İstanbul</p>
+          </div>
+          <span class="pg">003 / 010</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 04 · PAZAR ============ -->
+    <section class="slide s-market" data-screen-label="Pazar">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="head-block">
+          <p class="kicker"><span class="sct">§ 02</span> Pazar</p>
+          <h2 class="headline">Tasarıma ayrılan bütçe büyüyor; nitelikli arz hâlâ dağınık.</h2>
+        </div>
+        <div class="market-grid">
+          <div class="col">
+            <p class="ct">Talep tarafı</p>
+            <p>Seri A ve sonrası şirketler için marka, tasarımı bir farklılaşma aracı olarak görüyor. Ancak çoğu ekip, freelancer ile ajans arasında sıkışmış durumda — ne biri ne öteki sürdürülebilir bir sistem kuruyor.</p>
+            <p>Tek seferlik proje yerine, süreklilik ve operasyon arayan bir alıcı kitlesi oluşuyor.</p>
+          </div>
+          <div class="col">
+            <p class="ct">Boşluk</p>
+            <p>Stüdyo ölçeğinde kalite ile ajans ölçeğinde güvenilirliği aynı anda sunan bağımsız oyuncu az. Atölye Düzlem tam da bu aralığı hedefliyor.</p>
+            <p>Abonelik temelli tasarım operasyonu, pazarın en hızlı büyüyen ve en az doymuş katmanı.</p>
+          </div>
+          <div class="sizing">
+            <div class="sz-row">
+              <span class="tag">TAM</span>
+              <div class="val">$48 mlr<span class="dagger">†</span></div>
+              <p class="desc">Küresel tasarım hizmetleri harcaması</p>
+            </div>
+            <div class="sz-row">
+              <span class="tag">SAM</span>
+              <div class="val">$1,4 mlr<span class="dagger">†</span></div>
+              <p class="desc">Türkiye + bölge dijital & marka tasarımı</p>
+            </div>
+            <div class="sz-row">
+              <span class="tag">SOM</span>
+              <div class="val">$36 mn<span class="dagger">†</span></div>
+              <p class="desc">3 yıllık ulaşılabilir pazar payı</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Pazar &nbsp;·&nbsp; <span class="accent">†</span> Örnek veri</span>
+        <span class="mono"><span class="accent">§</span> 02 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 05 · ÜRÜN ============ -->
+    <section class="slide s-product" data-screen-label="Ürün">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="head-block">
+          <p class="kicker"><span class="sct">§ 03</span> Ürün</p>
+          <h2 class="headline">Tek stüdyo, üç katmanlı bir hizmet sistemi.</h2>
+        </div>
+        <div class="prod-grid">
+          <div class="prod-intro">
+            <p class="dropcap">Stüdyomuz, müşterilerine dağınık tedarikçiler yerine tek bir tasarım ortağı sunar. Her katman bağımsız satılır, birlikte ise bir markanın tüm görsel sistemini uçtan uca kapsar.</p>
+            <p class="note">Katmanlar arası geçiş, müşteriyi stüdyo içinde tutarak yaşam boyu değeri artırır — büyümenin çekirdek mekaniği budur.</p>
+          </div>
+          <div class="prod-list">
+            <div class="svc">
+              <span class="sn">01</span>
+              <div>
+                <h3>Marka sistemleri</h3>
+                <p>Konumlandırma, kimlik, tipografi ve uygulama kılavuzu — markanın değişmeyen omurgası.</p>
+              </div>
+            </div>
+            <div class="svc">
+              <span class="sn">02</span>
+              <div>
+                <h3>Dijital ürün tasarımı</h3>
+                <p>Web, mobil ve arayüz tasarımı; araştırmadan akıcı, üretime hazır ekranlara.</p>
+              </div>
+            </div>
+            <div class="svc">
+              <span class="sn">03</span>
+              <div>
+                <h3>Tasarım operasyonu</h3>
+                <p>Aylık abonelik modeliyle sürekli tasarım desteği — yinelenen, öngörülebilir gelir.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Ürün</span>
+        <span class="mono"><span class="accent">§</span> 03 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 06 · ŞEKİL II (TAM SAYFA FOTOĞRAF) ============ -->
+    <section class="slide s-photo" data-screen-label="Şekil II">
+      <div class="photo-fill">
+        <div class="photo-frame"></div>
+        <div class="photo-head">
+          <span>Atölye Düzlem</span>
+          <span>Tam Sayfa — 1920 × 1080</span>
+        </div>
+        <div class="photo-center">
+          <div class="reg"></div>
+          <div class="photo-stub">Fotoğraf Alanı</div>
+        </div>
+        <div class="photo-cap">
+          <div>
+            <div class="fig"><b>Şekil 02</b></div>
+            <p class="ttl">Seçili işlerden bir kesit — 2021–2026</p>
+          </div>
+          <span class="pg">006 / 010</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 07 · TRACTION ============ -->
+    <section class="slide s-traction" data-screen-label="Traction">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="head-block">
+          <p class="kicker"><span class="sct">§ 04</span> Traction</p>
+          <h2 class="headline">Sözden değil, işten gelen ivme.</h2>
+        </div>
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="mv">120<span class="dagger">†</span></div>
+            <div class="ml">Tamamlanan proje</div>
+            <p class="md">2021'den bu yana teslim edilen marka ve ürün işi.</p>
+          </div>
+          <div class="metric">
+            <div class="mv">₺14 mn<span class="dagger">†</span></div>
+            <div class="ml">Yıllık yinelenen gelir</div>
+            <p class="md">Abonelik katmanından gelen öngörülebilir gelir.</p>
+          </div>
+          <div class="metric">
+            <div class="mv">%92<span class="dagger">†</span></div>
+            <div class="ml">Müşteri elde tutma</div>
+            <p class="md">12 ay sonunda devam eden müşteri oranı.</p>
+          </div>
+          <div class="metric">
+            <div class="mv">11<span class="dagger">†</span></div>
+            <div class="ml">Stüdyo ekibi</div>
+            <p class="md">Tasarım, strateji ve operasyon kadrosu.</p>
+          </div>
+        </div>
+        <p class="ph-note"><span class="accent">†</span> Örnek veri — yatırımcı sunumundan önce gerçek rakamlarla değiştirin.</p>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Traction</span>
+        <span class="mono"><span class="accent">§</span> 04 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 08 · EKİP ============ -->
+    <section class="slide s-team" data-screen-label="Ekip">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="head-block">
+          <p class="kicker"><span class="sct">§ 05</span> Ekip</p>
+          <h2 class="headline">Stüdyoyu kuran ekip.</h2>
+        </div>
+        <div class="team-grid">
+          <div class="member">
+            <div class="avatar"><span>Portre 01</span></div>
+            <h3>[ Ad Soyad ]</h3>
+            <div class="role">Kurucu · Kreatif Direktör</div>
+            <p>Marka stratejisi ve görsel sistemlerde 12+ yıl.</p>
+          </div>
+          <div class="member">
+            <div class="avatar"><span>Portre 02</span></div>
+            <h3>[ Ad Soyad ]</h3>
+            <div class="role">Kurucu Ortak · Tasarım Direktörü</div>
+            <p>Dijital ürün ve arayüz tasarımı liderliği.</p>
+          </div>
+          <div class="member">
+            <div class="avatar"><span>Portre 03</span></div>
+            <h3>[ Ad Soyad ]</h3>
+            <div class="role">Ürün Tasarım Lideri</div>
+            <p>Araştırmadan üretime ürün ekipleri kurar.</p>
+          </div>
+          <div class="member">
+            <div class="avatar"><span>Portre 04</span></div>
+            <h3>[ Ad Soyad ]</h3>
+            <div class="role">Stüdyo & Operasyon Yöneticisi</div>
+            <p>Abonelik operasyonu ve müşteri ilişkileri.</p>
+          </div>
+        </div>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Ekip &nbsp;·&nbsp; İsimler placeholder</span>
+        <span class="mono"><span class="accent">§</span> 05 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 09 · TALEP ============ -->
+    <section class="slide s-ask" data-screen-label="Talep">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div class="ask-left">
+          <p class="kicker"><span class="sct">§ 06</span> Talep</p>
+          <div class="ask-amount">₺25<em> mn</em><span class="dagger">†</span></div>
+          <p class="ask-sub">Tohum turu — 18 aylık runway</p>
+          <p class="ask-stmt">Ekibi büyütmek ve abonelik modelini ölçeklemek için tohum turu açıyoruz.</p>
+        </div>
+        <div class="ask-right">
+          <p class="ct">Kullanım planı</p>
+          <div class="fund">
+            <div class="fund-top"><h4>Ekip & yetenek</h4><span class="pct">%45</span></div>
+            <div class="track"><i style="width:45%"></i></div>
+          </div>
+          <div class="fund">
+            <div class="fund-top"><h4>Stüdyo & operasyon</h4><span class="pct">%25</span></div>
+            <div class="track"><i style="width:25%"></i></div>
+          </div>
+          <div class="fund">
+            <div class="fund-top"><h4>Pazarlama & büyüme</h4><span class="pct">%20</span></div>
+            <div class="track"><i style="width:20%"></i></div>
+          </div>
+          <div class="fund">
+            <div class="fund-top"><h4>Yedek & runway</h4><span class="pct">%10</span></div>
+            <div class="track"><i style="width:10%"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="runfoot">
+        <span class="mono">Talep &nbsp;·&nbsp; <span class="accent">†</span> Örnek değer</span>
+        <span class="mono"><span class="accent">§</span> 06 / 07</span>
+      </div>
+    </section>
+
+    <!-- ============ 10 · İLETİŞİM ============ -->
+    <section class="slide s-contact" data-screen-label="İletişim">
+      <div class="runhead">
+        <span class="mono">Atölye Düzlem</span>
+        <span class="mono">Tohum Turu — 2026</span>
+      </div>
+      <div class="slide-body">
+        <div>
+          <p class="kicker"><span class="sct">§ 07</span> İletişim</p>
+          <h2 class="contact-stmt">Birlikte <em>biçim</em> verelim.</h2>
+        </div>
+        <div class="contact-grid">
+          <div><div class="cl">E-posta</div><div class="cv">merhaba@<br>atolyeduzlem.co<span class="dagger">†</span></div></div>
+          <div><div class="cl">Telefon</div><div class="cv">+90 (—) —— —— ——</div></div>
+          <div><div class="cl">Web</div><div class="cv">atolyeduzlem.co<span class="dagger">†</span></div></div>
+          <div><div class="cl">Stüdyo</div><div class="cv">[ Stüdyo adresi ]<br>İstanbul</div></div>
+        </div>
+        <div class="runfoot" style="border:0;padding:0;">
+          <span class="thanks">Teşekkürler</span>
+          <span class="mono"><span class="accent">†</span> Placeholder iletişim bilgisi</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="navzone prev" id="navPrev"></div>
+<div class="navzone next" id="navNext"></div>
+
+<div id="hud">
+  <div><span id="cur">01</span> &nbsp;/&nbsp; <span id="tot">10</span></div>
+  <div class="hud-c" id="label">Kapak</div>
+  <div>← → · boşluk · F bas yazdır</div>
+</div>
+<div id="bar"><div id="barfill"></div></div>
+
+<script>
+(function(){
+  var stage  = document.getElementById('stage');
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var KEY = 'atolye-duzlem-deck-v1';
+  var i = 0;
+
+  document.getElementById('tot').textContent = String(slides.length).padStart(2,'0');
+
+  function render(){
+    slides.forEach(function(s,idx){ s.classList.toggle('active', idx===i); });
+    document.getElementById('cur').textContent = String(i+1).padStart(2,'0');
+    document.getElementById('label').textContent = slides[i].getAttribute('data-screen-label') || '';
+    document.getElementById('barfill').style.width = ((i+1)/slides.length*100) + '%';
+    try{ localStorage.setItem(KEY, String(i)); }catch(e){}
+  }
+  function go(n){ i = Math.max(0, Math.min(slides.length-1, n)); render(); }
+
+  try{
+    var saved = parseInt(localStorage.getItem(KEY), 10);
+    if(!isNaN(saved) && saved>=0 && saved<slides.length) i = saved;
+  }catch(e){}
+  render();
+
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); go(i+1); }
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){ e.preventDefault(); go(i-1); }
+    else if(e.key==='Home'){ e.preventDefault(); go(0); }
+    else if(e.key==='End'){ e.preventDefault(); go(slides.length-1); }
+    else if(e.key==='f'||e.key==='F'){ window.print(); }
+  });
+
+  document.getElementById('navPrev').addEventListener('click', function(){ go(i-1); });
+  document.getElementById('navNext').addEventListener('click', function(){ go(i+1); });
+
+  function scale(){
+    var s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+    stage.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', scale);
+  scale();
+})();
+</script>
+
+</body>
+</html>

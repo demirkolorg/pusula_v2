@@ -1,0 +1,83 @@
+# Kart oluşturma + "move to list" akışı.
+#
+# Akış: board ekranı → kolon "Kart ekle" composer'ı → kart başlığı gir → "Ekle"
+# → oluşan karta dokun → kart detayında "Listeyi değiştir" → move-to-list
+# sheet → hedef listeye dokun.
+#
+# Önkoşul: hesabın board'u en az 2 aktif liste içermeli (taşıma hedefi gerekir).
+# Tek listeli board'da move-to-list sheet "Taşınacak başka liste yok" gösterir.
+# Çağıran board `member+` olmalı (composer/taşıma yalnız `canEdit`).
+appId: com.pusula.app
+env:
+  MAESTRO_EMAIL: 'maestro@pusula.test'
+  MAESTRO_PASSWORD: 'Parola1234!'
+---
+- launchApp:
+    clearState: true
+
+# Giriş yap.
+- assertVisible: 'Tekrar hoş geldiniz'
+- tapOn:
+    id: 'E-posta'
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: 'Parola'
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: 'Giriş yap'
+
+# Workspace → board ekranına in.
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+- tapOn:
+    index: 0
+    point: '50%,35%'
+- extendedWaitUntil:
+    visible:
+      text: 'açık'
+    timeout: 15000
+- tapOn:
+    index: 0
+    point: '50%,30%'
+
+# Kolon altındaki kart-ekle composer'ını aç ("Kart ekle" Pressable).
+- extendedWaitUntil:
+    visible: 'Kart ekle'
+    timeout: 15000
+- tapOn: 'Kart ekle'
+
+# Composer açılır — başlık alanı placeholder/accessibilityLabel = "Kart başlığı gir".
+- assertVisible:
+    id: 'Kart başlığı gir'
+- tapOn:
+    id: 'Kart başlığı gir'
+- inputText: 'Maestro kartı'
+- hideKeyboard
+
+# "Ekle" ile kartı oluştur (optimistic — kısa sürede gerçek karta döner).
+- tapOn: 'Ekle'
+- extendedWaitUntil:
+    visible: 'Maestro kartı'
+    timeout: 15000
+
+# Karta dokun → kart detay ekranı açılır.
+- tapOn: 'Maestro kartı'
+- extendedWaitUntil:
+    visible: 'Listeyi değiştir'
+    timeout: 15000
+
+# "Listeyi değiştir" → move-to-list sheet açılır ("Kartı taşı" başlığı).
+- tapOn: 'Listeyi değiştir'
+- assertVisible: 'Kartı taşı'
+
+# Sheet'te kartın mevcut listesi "Şu an burada" rozetiyle pasif; başka bir
+# liste satırına dokunmak kartı taşır. İlk seçilebilir listeye dokun.
+- tapOn:
+    index: 0
+    point: '50%,55%'
+
+# Taşıma sonrası sheet kapanır, kart detayına dönülür.
+- extendedWaitUntil:
+    visible: 'Listeyi değiştir'
+    timeout: 15000

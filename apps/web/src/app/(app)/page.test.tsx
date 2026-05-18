@@ -42,9 +42,6 @@ vi.mock('./_components/onboarding-empty-state', () => ({
 
 // The home layout components own their own tRPC queries / mutations; stub them
 // so this page test focuses on the branching + workspace selection wiring.
-vi.mock('./_components/home/home-hero', () => ({
-  HomeHero: () => <div data-testid="home-hero" />,
-}));
 vi.mock('./_components/home/workspace-rail', () => ({
   WorkspaceRail: ({
     workspaces,
@@ -187,7 +184,6 @@ describe('<WorkspacesPage> - (app) landing', () => {
       w1: queryStub({ isSuccess: true, data: [board('b1', 'Sprint')] }),
     });
     render(<WorkspacesPage />);
-    expect(screen.getByTestId('home-hero')).toBeInTheDocument();
     expect(screen.getByTestId('workspace-rail')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Solo' })).toBeInTheDocument();
     expect(screen.getByTestId('stat-strip')).toHaveTextContent('w1');
