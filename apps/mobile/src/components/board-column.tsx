@@ -6,6 +6,7 @@ import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { isPendingId } from '@/lib/client-mutation-id';
+import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 import { CardFace } from './card-face';
@@ -59,6 +60,14 @@ export function BoardColumn({
   // Optimistic (henüz sunucuya yazılmamış) liste — ⋮ menüsü açılmaz.
   const listPending = isPendingId(list.id);
 
+  // Liste görsel kimliği (DEM-209). Web kolonu tüm arka planı renge boyar;
+  // mobilde precedent = ince renk şeridi (DEM-201 kart kapak şeridi gibi).
+  // `null` token → nötr görünüm korunur (regresyon yok).
+  const accentHex = listColorHex(list.color);
+  const listIcon = asListIcon(list.icon);
+  // İkon rengi: `iconColor` set ise palet hex'i, değilse nötr (mutedForeground).
+  const iconHex = listIconColorToHex(list.iconColor) ?? theme.mutedForeground;
+
   const footer = !canEdit ? null : composerOpen ? (
     <InlineComposer
       placeholder={strings.board.addCardPlaceholder}
@@ -81,61 +90,75 @@ export function BoardColumn({
   );
 
   return (
-    <View className="h-full w-72 rounded-xl bg-muted p-2">
-      <View className="flex-row items-center gap-1 px-1 py-2">
-        <Text weight="semibold" className="flex-1 text-sm text-foreground" numberOfLines={1}>
-          {list.title}
-        </Text>
-        <Text className="text-xs text-muted-foreground">{cards.length}</Text>
-        {canEdit && !listPending ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={strings.board.listActions}
-            hitSlop={8}
-            onPress={onOpenListActions}
-            className="ml-1 active:opacity-60"
-          >
-            <Icon name="more-vertical" size={18} color={theme.mutedForeground} />
-          </Pressable>
-        ) : null}
-      </View>
-      <FlatList
-        data={cards}
-        keyExtractor={(card) => card.id}
-        contentContainerClassName="gap-2 pb-2"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.mutedForeground}
-          />
-        }
-        renderItem={({ item }) => {
-          // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-`
-          // id ile kart detayı / taşıma backend'de bulunamaz.
-          const cardPending = isPendingId(item.id);
-          return (
-            <CardFace
-              card={item}
-              onPress={
-                cardPending
-                  ? undefined
-                  : () =>
-                      router.push({
-                        pathname: '/cards/[cardId]',
-                        params: { cardId: item.id, title: item.title },
-                      })
-              }
-              onLongPress={canEdit && !cardPending ? () => onMoveCard(item) : undefined}
+    <View className="h-full w-72 overflow-hidden rounded-xl bg-muted">
+      {/* Liste rengi şeridi — kolonun üstünde, kenara dayalı ince renk bandı
+          (DEM-209). Renk `null` ise şerit çizilmez; kolon nötr kalır. */}
+      {accentHex != null ? (
+        <View className="h-1.5" style={{ backgroundColor: accentHex }} />
+      ) : null}
+      <View className="flex-1 p-2">
+        <View className="flex-row items-center gap-1 px-1 py-2">
+          {/* Liste ikonu — `icon` token'ı geçerliyse başlığın önünde çizilir
+              (DEM-209). Bilinmeyen / `null` token → ikon çizilmez. */}
+          {listIcon != null ? (
+            <Icon name={featherForListIcon(listIcon)} size={15} color={iconHex} />
+          ) : null}
+          <Text weight="semibold" className="flex-1 text-sm text-foreground" numberOfLines={1}>
+            {list.title}
+          </Text>
+          <Text className="text-xs text-muted-foreground">{cards.length}</Text>
+          {canEdit && !listPending ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={strings.board.listActions}
+              hitSlop={8}
+              onPress={onOpenListActions}
+              className="ml-1 active:opacity-60"
+            >
+              <Icon name="more-vertical" size={18} color={theme.mutedForeground} />
+            </Pressable>
+          ) : null}
+        </View>
+        <FlatList
+          data={cards}
+          keyExtractor={(card) => card.id}
+          contentContainerClassName="gap-2 pb-2"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.mutedForeground}
             />
-          );
-        }}
-        ListEmptyComponent={
-          <Text className="px-1 py-3 text-xs text-muted-foreground">{strings.board.emptyList}</Text>
-        }
-        ListFooterComponent={footer}
-        showsVerticalScrollIndicator={false}
-      />
+          }
+          renderItem={({ item }) => {
+            // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-`
+            // id ile kart detayı / taşıma backend'de bulunamaz.
+            const cardPending = isPendingId(item.id);
+            return (
+              <CardFace
+                card={item}
+                onPress={
+                  cardPending
+                    ? undefined
+                    : () =>
+                        router.push({
+                          pathname: '/cards/[cardId]',
+                          params: { cardId: item.id, title: item.title },
+                        })
+                }
+                onLongPress={canEdit && !cardPending ? () => onMoveCard(item) : undefined}
+              />
+            );
+          }}
+          ListEmptyComponent={
+            <Text className="px-1 py-3 text-xs text-muted-foreground">
+              {strings.board.emptyList}
+            </Text>
+          }
+          ListFooterComponent={footer}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
     </View>
   );
 }
