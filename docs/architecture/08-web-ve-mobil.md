@@ -607,3 +607,26 @@ Faz 7.0 test kararının ([`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.m
 - **Kart yüzü şeridi** (issue'da "isteğe bağlı" — yapıldı) — `card-face.tsx` kapak görseli yoksa `coverColor` varsa kartın üstüne kenara dayalı ince bir renk şeridi çizer (web `card-item` kapak şeridi paritesi; kapak görseli önceliklidir).
 - **Collaborative mutation disiplini** — kapak rengi seçimi `card.update` (`coverColor`) optimistic akışını kullanır: `onMutate` `card.get` **ve** `board.get` cache'lerini iyimser günceller (kart detayı + board kart yüzü şeridi birlikte; `board-cache.ts` `setCardCoverColorInCache` saf helper'ı), `onError` ikisini snapshot'tan geri sarar, `onSettled` `card.get` + `card.activity.list` invalidate eder. Her mutation `clientMutationId` taşır. Aynı değer yeniden seçilirse mutation atılmaz (web `card-item` `coverColor !== color` simetrisi).
 - **Kapsam dışı** — kapak görseli seçimi (Faz 7P'de yapıldı — `coverImageAttachmentId`); kart detayında kapak rengi şeridi render'ı (yalnız board kart yüzü + meta chip); board arka plan rengi (DEM-202).
+
+### Merkezi "Ekle" butonu + Hızlı Notlar + oluşturma menüsü ([DEM-203](https://linear.app/demirkol/issue/DEM-203))
+
+[DEM-203](https://linear.app/demirkol/issue/DEM-203) mobil alt tab bar'ına merkezi bir aksiyon butonu, yeni bir **Hızlı Not** domain entity'si ve dört yeni oluşturma akışı getirir. Bu issue yalnız mobil UI + backend kapsar — web tarafı ayrı issue. Bu bölüm DEM-203 önce-belge adımında (kullanıcı onayı 2026-05-18) sabitlenir; somut wiring sonraki turda.
+
+- **Merkezi "Ekle" butonu — sekme değil aksiyon** — alt tab bar'ın **ortasına yükseltilmiş** (FAB tarzı, `primary` renkli, büyük "+") bir aksiyon butonu eklenir. Bu **gezinme sekmesi değildir** — 7C'de sabitlenen "app-shell = 4 sekme" kararı (**Panolar / Arama / Bildirimler / Hesap**) **korunur**; merkezi buton beşinci sekme yaratmaz, navigasyon ağacına girmez, yalnız aksiyon tetikler. Görsel olarak tab bar düzlemi üzerinde yükseltilmiş (`Tabs` `tabBarButton` veya tab bar üzerine absolute konumlu özel bileşen) durur.
+- **Dokunma → Hızlı Notlar ekranı** — butona kısa dokunma "Hızlı Notlar" ekranını açar (aşağıya bkz.).
+- **Uzun basış → oluşturma menüsü** — butona uzun basma mevcut `Sheet` (RN `Modal` tabanlı bottom sheet — §8.2 7H'de tanımlı) ile bir oluşturma menüsü açar: **Kart oluştur · Liste oluştur · Pano oluştur · Workspace oluştur**. Her satır ilgili oluşturma akışını başlatır. Yeni native bağımlılık eklenmez — mevcut `Sheet` yeterli (7G-2/7G-3/7E-2 deseni sürer).
+
+**Hızlı Not — yeni domain entity.** Hızlı Not kişiye özel ve **global**'dir — herhangi bir workspace/board/list/kart bağlamından bağımsızdır; yalnız sahibi erişir. Hafif bir "yakalama" yüzeyidir: activity, notification veya realtime event **üretmez** (kişisel, collaborative değil). Domain modeli + invariant'ları `docs/domain/` ekseninde tanımlanır (bu architecture dosyası yalnız mobil UI ayağını taşır). Bir Hızlı Not "panoya taşı" aksiyonuyla karta dönüştürülebilir: hedef konum seçilir, kart oluşturulur ve Hızlı Not silinir (not → kart tek yönlü dönüşüm).
+
+**Yeni mobil ekran/akışlar:**
+
+1. **Hızlı Notlar ekranı** — merkezi butona dokununca açılır; sahibinin notlarını listeler. Hızlı-ekleme girişi (satır-içi metin → yeni not), her notta düzenle/sil, pull-to-refresh (7M deseni). Notlar global olduğundan workspace/board seçimi yok.
+2. **Not → kart dönüşümü akışı** — bir Hızlı Not'tan "panoya taşı": `LocationPicker` ile hedef workspace→pano→liste seçilir, kart oluşturulur, kaynak not silinir.
+3. **Kart oluştur akışı** — `LocationPicker` ile workspace→pano→liste seçimi + kart başlığı; açıklama/son tarih/etiket gibi opsiyonel alanlar **katlanmış** (varsayılan gizli, isteyen açar). Oluşturma sonrası yeni kartın detay ekranına gidilir.
+4. **Liste oluştur akışı** — `LocationPicker` ile workspace→pano seçimi + liste adı; `list.create` ile panonun sonuna eklenir.
+5. **Pano oluştur ekranı** — mobilde **yeni** (7C'de "kapsam dışı" bırakılmıştı): workspace seçimi + pano adı; `board.create` tüketilir. Bu issue mobilde ilk kez `board.create` çağırır.
+6. **Workspace oluştur ekranı** — mobilde **yeni** (7C'de "kapsam dışı"): workspace adı; `workspace.create` tüketilir. Mobilde ilk kez `workspace.create` çağrılır.
+
+**`LocationPicker` ortak bileşeni.** Kademeli workspace→pano→liste seçici; kart oluştur, liste oluştur ve not→kart dönüşümü akışlarında yeniden kullanılır (her akış ihtiyaç duyduğu derinliğe kadar — liste oluştur pano düzeyinde durur). Tek bir bileşende toplanması seçim UX'ini ve veri çekimini (`workspace.list` → `board.list` → `list.list` zinciri) tekrarsız kılar. `MoveToListSheet`'ten farkı: `MoveToListSheet` tek board içinde liste seçer; `LocationPicker` workspace düzeyinden başlayan tam kademeli seçicidir.
+
+**Backend.** Hızlı Not yeni entity olduğundan yeni tRPC procedure'leri + Drizzle şeması gerektirir (önce-belge: domain ekseni + `04-veri-katmani.md`). Kart/liste/pano/workspace oluşturma mevcut `card.create` / `list.create` / `board.create` / `workspace.create` procedure'lerini tüketir — bunlar için yeni backend yok; mobilde `board.create` ve `workspace.create` ilk kez kullanılır.

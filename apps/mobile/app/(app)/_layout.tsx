@@ -3,6 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { ConnectionBanner } from '@/components/connection-banner';
+import { CreateTabButton } from '@/components/create-tab-button';
 import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PushPermissionPrimer } from '@/components/push-permission-primer';
@@ -84,6 +85,19 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           options={{
             title: strings.tabs.search,
             tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
+          }}
+        />
+        {/*
+          Merkezi "Ekle" — gezinme sekmesi değil, yükseltilmiş aksiyon butonu
+          (DEM-203). `tabBarButton` `CreateTabButton`'a verilir; o `onPress`'i
+          intercept edip Hızlı Notlar'a yönlendirir, `onLongPress`'te oluşturma
+          menüsünü açar. `create` ekranı asla render edilmez.
+        */}
+        <Tabs.Screen
+          name="create"
+          options={{
+            title: strings.create.buttonLabel,
+            tabBarButton: () => <CreateTabButton />,
           }}
         />
         <Tabs.Screen

@@ -15,6 +15,12 @@ type InlineComposerProps = {
   /** Boş-olmayan (trim'lenmiş) metinle çağrılır. Sonrasında alan temizlenir. */
   onSubmit: (text: string) => void;
   onCancel: () => void;
+  /**
+   * Vazgeç/x butonunu gizler — hep-açık (kapanmayan) hızlı-ekleme kullanımı
+   * için. Verilmezse (varsayılan) buton render edilir; mevcut açıl/kapan
+   * kullanımlar bozulmaz.
+   */
+  hideCancel?: boolean;
 };
 
 /**
@@ -29,6 +35,7 @@ export function InlineComposer({
   initialValue = '',
   onSubmit,
   onCancel,
+  hideCancel = false,
 }: InlineComposerProps) {
   const theme = themeFor(useColorScheme());
   const [value, setValue] = useState(initialValue);
@@ -72,15 +79,17 @@ export function InlineComposer({
             {submitLabel}
           </Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={strings.common.cancel}
-          hitSlop={8}
-          onPress={onCancel}
-          className="h-9 w-9 items-center justify-center rounded-md active:opacity-60"
-        >
-          <Icon name="x" size={18} color={theme.mutedForeground} />
-        </Pressable>
+        {hideCancel ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.common.cancel}
+            hitSlop={8}
+            onPress={onCancel}
+            className="h-9 w-9 items-center justify-center rounded-md active:opacity-60"
+          >
+            <Icon name="x" size={18} color={theme.mutedForeground} />
+          </Pressable>
+        )}
       </View>
     </View>
   );

@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-15
+updated: 2026-05-18
 ---
 
 # 04 — Veri Katmanı (PostgreSQL + Drizzle)
@@ -41,6 +41,7 @@ comments · attachments
 activity_events · realtime_events
 notifications · notification_preferences · notification_outbox · push_tokens
 search_documents
+quick_notes                                            (kişiye özel hızlı notlar)
 ```
 
 Örnek kritik kolonlar:
@@ -106,6 +107,14 @@ search_documents: id, workspace_id, board_id, card_id, entity_type, entity_id, t
 > - Mevcut `CARD_COVER_IMAGE_MIME_TYPES` + `CARD_COVER_IMAGE_MAX_BYTES = 5 MiB` **korunur** — kart kapağı picker dar yolu (cover-only image, küçük boyut) genel attachment yoluna paralel kalır; cover picker UI `attachment.list` filtreli `mimeType LIKE 'image/%' AND size <= 5 MiB` ile beslenir.
 >
 > **Transaction disiplini Faz 11:** `attachment.initiate` yalnız draft satır (`committed_at IS NULL`) + presigned PUT URL — `activity_events` / `realtime_events` / `notification_outbox` insert **etmez**. `attachment.commit` aynı tx içinde `committed_at = NOW()` + `activity_events.attachment.added` + `realtime_events` outbox (Faz 5B simetri) + `notification_outbox` (watcher fan-out, Faz 6 simetri) + `boards.version + 1`. `attachment.delete` aynı tx içinde `attachments` satırı DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1`; storage temizliği post-commit `pusula-attachment-cleanup` BullMQ job (best-effort, idempotent — bkz. [`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md)). Activity event tipleri (`attachment.added`/`attachment.removed`) Faz 0 enum'unda zaten var — yeni `ADD VALUE` migration **gerekmez**. `cards.coverImageAttachmentId` FK `ON DELETE SET NULL` korunur (DEM-110); kapak yapılmış attachment silindiğinde kart kapak şeridi otomatik `null`'a düşer. Detay → [`09-depolama-ve-arama.md`](09-depolama-ve-arama.md) §9.1 + [`../domain/07-ek-kurallari.md`](../domain/07-ek-kurallari.md).
+
+> **DEM-203 (Mobil hızlı notlar — yeni tablo `quick_notes`) kapsamı:** Mobil merkezi "Ekle" akışındaki **Hızlı Not** entity'si için yeni `quick_notes` tablosu eklenir. Hızlı Not **kişiye özeldir** ve workspace/board/list'ten bağımsızdır — yalnız sahibi erişir; `activity_events` / `realtime_events` / `notification_outbox` ile ilişkisi yoktur. Şema:
+>
+> - **`quick_notes`**: `id (uuid pk — mevcut id desenine uyar)`, `user_id (text → Better Auth `users`, `ON DELETE CASCADE` — kullanıcı silinince notları da gider)`, `content (text NOT NULL — not metni)`, `created_at (timestamptz default now())`, `updated_at (timestamptz default now())`.
+> - Index: `(user_id)` — bir kullanıcının notlarını listelemek için. `quick_note.list` `created_at DESC` ile yeniden eskiye sıralar.
+> - Tablo hiçbir board/list/workspace'e bağlı değil; tek FK `user_id`'dir. Activity/outbox/realtime tablolarıyla ilişkisi yok.
+>
+> **Transaction disiplini DEM-203:** `quick_note.create/update/delete` tek satır mutasyonudur; activity/outbox/realtime insert **etmez**. `quick_note.convertToCard` istisnadır: bir Hızlı Not hedef listeye dönüştürülürken **tek transaction** içinde `cards` satırı oluşturulur (notun `content`'i kart başlığı) ve `quick_notes` satırı silinir; kart oluşturma normal kart-create transaction'ı gibi `activity_events` + `realtime_events` + `notification_outbox` üretir, not silme ise **sessizdir** (kişiye özel kayıt — activity/event yok). Procedure haritası → [`03-backend.md`](03-backend.md).
 
 ## Sıralama implementasyonu (position)
 

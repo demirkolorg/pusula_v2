@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-15
+updated: 2026-05-18
 ---
 
 # 03 — Backend (Hono + tRPC + Worker)
@@ -42,7 +42,7 @@ Socket.IO mount. Hono burada **kabuk**tur; iş mantığı taşımaz.
 Type-safe query & mutation · client-side inference · web + mobil ortak sözleşme ·
 procedure-level auth & permission · TanStack Query entegrasyonu.
 
-- tRPC paketi: `@pusula/api` (`packages/api`) — root router, board/list/card/comment/notification router'ları, auth context, rate-limit & permission middleware'leri.
+- tRPC paketi: `@pusula/api` (`packages/api`) — root router, board/list/card/comment/notification/quickNote router'ları, auth context, rate-limit & permission middleware'leri.
 - `protectedProcedure` (in `@pusula/api`) non-null session garantiler; üzerine workspace → board → card/list permission kontrollerini katmanla.
 - **Hono RPC ile tRPC aynı anda ana API sözleşmesi yapılmaz.** Source of truth tek: tRPC.
 - **Kullanıcının kendi hesabını yönetmesi** (ad/avatar, parola değiştir, hesap silme) tRPC'de **değildir** — doğrudan Better Auth uçlarına gider (`/api/auth/*`); bkz. [`07-auth.md`](07-auth.md) (Profil & hesap yönetimi). Hesap silme `beforeDelete` hook'u, kullanıcı bir workspace `owner`'ıysa silmeyi engeller (domain kuralı `@pusula/domain` `canDeleteOwnAccount`).
@@ -435,6 +435,18 @@ Faz 0 DEM-110 cover-image-only `attachment.{createUpload, getDownloadUrl}` yolu 
 - Two-phase: initiate sonrası commit'siz orphan 1 saat sonra worker tarafından temizlenir (worker test).
 - Idempotency: aynı `commit({ attachmentId })` iki kez çağrı → tek activity event.
 - Storage key: tahmin edilemez (UUID4 prefix + sanitize fileName).
+
+### DEM-203 — `quickNote` router (mobil hızlı notlar)
+
+> DEM-203, mobil merkezi "Ekle" akışındaki **Hızlı Not** entity'sinin tRPC yüzeyidir. Hızlı Not kişiye özeldir ve workspace/board/list'ten bağımsızdır — yalnız sahibi erişir. Tablo şeması (`quick_notes`) ve transaction disiplini → [`04-veri-katmani.md`](04-veri-katmani.md) (DEM-203 kapsamı). Yeni router `quickNote` (`packages/api`). Tüm procedure'lar `protectedProcedure` tabanlıdır; `list/create/update/delete` ek workspace/board middleware kullanmaz (entity board'a bağlı değil) ama her satır mutasyonunda **sahiplik kontrolü** yapar: `userId === session.user.id` değilse `NOT_FOUND` (varlık gizlenir).
+
+| Router      | Procedure       | Middleware           | Not                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------- | --------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quickNote` | `list`          | `protectedProcedure` | Input yok. Yalnız çağıranın notları (`WHERE user_id = session.user.id`), `created_at DESC` (yeniden eskiye). Çıkış `{ id, content, createdAt, updatedAt }[]`.                                                                                                                                                                                                                                                                                                                                                  |
+| `quickNote` | `create`        | `protectedProcedure` | Input `{ content }` (`z.string().trim().min(1)` — boş not yok; üst sınır Zod katmanında). `quick_notes` INSERT (`user_id = session.user.id`). Çıkış yeni not satırı. Activity/realtime/notification **yazılmaz**.                                                                                                                                                                                                                                                                                               |
+| `quickNote` | `update`        | `protectedProcedure` | Input `{ noteId, content }`. Notu `noteId` ile oku → sahiplik kontrolü (`user_id === session.user.id`, değilse `NOT_FOUND`) → `content` ve `updated_at` güncelle. Activity/realtime/notification **yazılmaz**.                                                                                                                                                                                                                                                                                                  |
+| `quickNote` | `delete`        | `protectedProcedure` | Input `{ noteId }`. Notu oku → sahiplik kontrolü → `quick_notes` satırını DELETE. İdempotent: not zaten yoksa sessiz no-op. Activity/realtime/notification **yazılmaz**.                                                                                                                                                                                                                                                                                                                                        |
+| `quickNote` | `convertToCard` | `protectedProcedure` | Input `{ noteId, listId, clientMutationId }`. Not → kart dönüşümü. Akış: (1) notu oku → sahiplik kontrolü; (2) hedef `listId`'nin board'unu çöz → board `member+` kontrolü (`canEditBoardContent` — kullanıcı board'a yazamıyorsa `FORBIDDEN`); arşivli liste/board reject (`BAD_REQUEST`); (3) **tek transaction**: notun `content`'i kart başlığı olacak şekilde `cards` satırı oluştur (sona ekleme — `@pusula/domain/position`) → normal kart-create gibi `activity_events` (`card.created`) + `realtime_events` outbox + `notification_outbox` + `boards.version + 1` → ardından `quick_notes` satırını **sessizce** sil (not silme için activity/event yok). İdempotent: aynı `clientMutationId` ile tekrar gelen istek duplicate kart/activity üretmez. Çıkış oluşturulan kart. |
 
 ## Worker (background job)
 

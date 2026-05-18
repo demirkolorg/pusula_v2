@@ -7,6 +7,7 @@ export * from './board';
 export * from './board-favorite';
 export * from './list';
 export * from './card';
+export * from './quick-note';
 export * from './label';
 export * from './comment';
 export * from './attachment';

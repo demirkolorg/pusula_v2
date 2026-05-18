@@ -28,6 +28,134 @@ export const strings = {
     notifications: 'Bildirimler',
     account: 'Hesap',
   },
+  // Merkezi "Ekle" butonu + oluşturma menüsü (DEM-203).
+  create: {
+    // Yükseltilmiş tab bar butonu — dokunma Hızlı Notlar'a gider, uzun basış
+    // oluşturma menüsünü açar.
+    buttonLabel: 'Ekle',
+    buttonHint: 'Dokun: Hızlı Notlar · Uzun bas: oluşturma menüsü',
+    // Uzun basışta açılan oluşturma menüsü (bottom sheet) başlığı + satırları.
+    menuTitle: 'Ne oluşturmak istersin?',
+    menuCard: 'Kart oluştur',
+    menuList: 'Liste oluştur',
+    menuBoard: 'Pano oluştur',
+    menuWorkspace: 'Workspace oluştur',
+  },
+  // Hızlı Notlar ekranı (DEM-203 — WP3/WP4: CRUD + not→kart dönüşümü).
+  quickNotes: {
+    title: 'Hızlı Notlar',
+    // Hızlı-ekleme composer'ı.
+    addPlaceholder: 'Hızlı bir not yaz…',
+    addSubmit: 'Ekle',
+    // Boş durum.
+    emptyTitle: 'Henüz not yok',
+    emptyDescription: 'Aklına geleni hızlıca buraya yaz, sonra bir karta dönüştür.',
+    // Yükleniyor / hata.
+    loadError: 'Notlar yüklenemedi.',
+    // Not satırı aksiyonları.
+    editAction: 'Notu düzenle',
+    editPlaceholder: 'Notu düzenle',
+    editSubmit: 'Kaydet',
+    deleteAction: 'Notu sil',
+    deleteConfirmTitle: 'Notu sil',
+    deleteConfirmBody: 'Bu not silinecek. Bu işlem geri alınamaz.',
+    deleteConfirmAction: 'Sil',
+    // Not → kart dönüşümü ("Panoya taşı").
+    convertAction: 'Panoya taşı',
+    convertSheetTitle: 'Notu panoya taşı',
+    convertDescription: 'Notun karta dönüşeceği listeyi seç.',
+    convertSubmit: 'Karta dönüştür',
+    convertError: 'Not karta dönüştürülemedi. Lütfen tekrar dene.',
+  },
+  // Kart oluşturma ekranı (DEM-203 WP5 — oluşturma menüsünden açılır).
+  createCard: {
+    title: 'Kart oluştur',
+    // Konum seçici (workspace→pano→liste) bölüm başlığı.
+    locationLabel: 'Konum',
+    // Kart başlığı girişi.
+    titleLabel: 'Kart başlığı',
+    titlePlaceholder: 'Ne yapılacak?',
+    // Katlanan opsiyonel "son tarih" bölümü tetikleyici satırı.
+    dueSectionLabel: 'Son tarih',
+    dueEmpty: 'Son tarih seçilmedi.',
+    // Seçilen tarih satırı — `formatDueDate` çıktısı araya konur.
+    dueSelected: (date: string) => `Son tarih: ${date}`,
+    // Etiket/üye burada düzenlenmez — kart oluşup detayına geçilince eklenir.
+    detailNote: 'Etiket ve üyeleri kart oluştuktan sonra kart detayından ekleyebilirsin.',
+    // "Oluştur" butonu + hata.
+    submit: 'Kartı oluştur',
+    // `card.create` başarısız — kart hiç oluşmadı.
+    error: 'Kart oluşturulamadı. Lütfen tekrar dene.',
+    // `card.create` başarılı ama ardışık `card.update({ dueAt })` başarısız —
+    // kart oluştu, yalnız son tarih kaydedilemedi (yanıltıcı olmayan mesaj).
+    dueError: 'Kart oluşturuldu ama son tarih kaydedilemedi. Detaydan ekleyebilirsin.',
+  },
+  // Liste oluşturma ekranı (DEM-203 WP5 — oluşturma menüsünden açılır).
+  createList: {
+    title: 'Liste oluştur',
+    // Konum seçici (workspace→pano) bölüm başlığı.
+    locationLabel: 'Konum',
+    // Liste başlığı girişi.
+    titleLabel: 'Liste başlığı',
+    titlePlaceholder: 'Liste adı',
+    // "Oluştur" butonu + hata.
+    submit: 'Listeyi oluştur',
+    error: 'Liste oluşturulamadı. Lütfen tekrar dene.',
+  },
+  // Pano oluşturma ekranı (DEM-203 WP6).
+  createBoard: {
+    title: 'Pano oluştur',
+    // Hedef çalışma alanı seçimi (LocationPicker `depth='workspace'`).
+    workspaceLabel: 'Çalışma alanı',
+    // Pano başlığı girişi.
+    titleLabel: 'Pano başlığı',
+    titlePlaceholder: 'Pano başlığını gir',
+    // İkon seçimi tetikleyici satırı.
+    iconLabel: 'İkon',
+    // Oluştur butonu.
+    submit: 'Pano oluştur',
+    // `board.create` başarısız olduğunda gösterilen Alert gövdesi.
+    error: 'Pano oluşturulamadı. Lütfen tekrar dene.',
+  },
+  // Workspace oluşturma ekranı (DEM-203 WP6).
+  createWorkspace: {
+    title: 'Workspace oluştur',
+    // Workspace adı girişi.
+    nameLabel: 'Çalışma alanı adı',
+    namePlaceholder: 'Çalışma alanı adını gir',
+    // İkon seçimi tetikleyici satırı.
+    iconLabel: 'İkon',
+    // Oluştur butonu.
+    submit: 'Çalışma alanı oluştur',
+    // `workspace.create` başarısız olduğunda gösterilen Alert gövdesi.
+    error: 'Çalışma alanı oluşturulamadı. Lütfen tekrar dene.',
+  },
+  // Entity ikon seçici grid'i (pano / workspace oluşturma — DEM-203 WP6).
+  entityIconPicker: {
+    title: 'İkon seç',
+    // Tetikleyici satırın metni — dokununca ikon grid'i açılır.
+    changeAction: 'İkon değiştir',
+  },
+  // Kademeli konum seçici — workspace → pano → liste (DEM-203 ortak bileşen).
+  locationPicker: {
+    // Adım başlıkları (Sheet title).
+    workspaceTitle: 'Çalışma alanı seç',
+    boardTitle: 'Pano seç',
+    listTitle: 'Liste seç',
+    // Seçili değer gösterilmediğinde tetikleyici satırın etiketi.
+    workspaceEmpty: 'Çalışma alanı seç',
+    boardEmpty: 'Pano seç',
+    listEmpty: 'Liste seç',
+    // Bir önceki adım seçilmeden sonraki adım kilitli.
+    boardLocked: 'Önce çalışma alanı seç',
+    listLocked: 'Önce pano seç',
+    // Yükleniyor / boş / hata durumları.
+    loading: 'Yükleniyor…',
+    workspaceEmptyList: 'Çalışma alanı bulunamadı.',
+    boardEmptyList: 'Bu çalışma alanında pano yok.',
+    listEmptyList: 'Bu panoda liste yok.',
+    loadError: 'Liste yüklenemedi.',
+  },
   workspaces: {
     title: 'Çalışma Alanları',
     loadError: 'Çalışma alanları yüklenemedi.',

@@ -5,6 +5,7 @@ export * from './boards';
 export * from './board-favorites';
 export * from './lists';
 export * from './cards';
+export * from './quick-notes';
 export * from './share-links';
 export * from './comments';
 export * from './activity';

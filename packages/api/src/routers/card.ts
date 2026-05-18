@@ -76,6 +76,7 @@ import {
   updateCardInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { cardCols, createCardInTransaction } from '../lib/card-create';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import {
   dispatchNotificationsForActivity,
@@ -91,25 +92,6 @@ import { cardProcedure } from '../middleware/card';
 import { protectedProcedure, router } from '../trpc';
 import { cardLabelsRouter } from './card-labels';
 import { cardMembersRouter } from './card-members';
-
-/** Columns of a full card row returned to clients. */
-const cardCols = {
-  id: cards.id,
-  boardId: cards.boardId,
-  listId: cards.listId,
-  title: cards.title,
-  description: cards.description,
-  position: cards.position,
-  dueAt: cards.dueAt,
-  completed: cards.completed,
-  completedAt: cards.completedAt,
-  completedBy: cards.completedBy,
-  coverColor: cards.coverColor,
-  coverImageAttachmentId: cards.coverImageAttachmentId,
-  archivedAt: cards.archivedAt,
-  createdAt: cards.createdAt,
-  updatedAt: cards.updatedAt,
-} as const;
 
 /**
  * Resolve the new fractional `position` for a card placed into `toListId`
@@ -234,63 +216,15 @@ export const cardRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart eklenemez.' });
       }
 
-      // Highest-position card in the list (active *and* archived — positions are
-      // a single sequence per list); place the new one right after it.
-      const [last] = await tx
-        .select({ position: cards.position })
-        .from(cards)
-        .where(eq(cards.listId, list.id))
-        .orderBy(desc(cards.position))
-        .limit(1);
-      const position = last ? positionBetween(last.position, null) : firstPosition();
-
-      const [created] = await tx
-        .insert(cards)
-        // `boardId` is the list's board — the card ⊆ list.board invariant.
-        .values({ boardId: list.boardId, listId: list.id, title: input.title, position })
-        .returning(cardCols);
-      if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
-
-      await tx.insert(activityEvents).values({
-        workspaceId: board.workspaceId,
-        boardId: list.boardId,
-        cardId: created.id,
-        actorId: ctx.session.user.id,
-        type: 'card.created',
-        payload: {
-          cardId: created.id,
-          listId: list.id,
-          title: created.title,
-          position: created.position,
-          clientMutationId: ctx.clientMutationId,
-        },
-      });
-
-      const [bumped] = await tx
-        .update(boards)
-        .set({ version: sql`${boards.version} + 1` })
-        .where(eq(boards.id, list.boardId))
-        .returning({ version: boards.version });
-
-      realtimeEventId = await insertRealtimeEvent(tx, {
-        type: 'card.created',
-        workspaceId: board.workspaceId,
-        boardId: list.boardId,
-        cardId: created.id,
+      const result = await createCardInTransaction(tx, {
+        list: { id: list.id, boardId: list.boardId },
+        board: { workspaceId: board.workspaceId },
+        title: input.title,
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
-        seq: bumped?.version ?? 0,
-        data: {
-          cardId: created.id,
-          listId: list.id,
-          title: created.title,
-          position: created.position,
-        },
       });
-
-      await upsertSearchDocument(tx, { entityType: 'card', entityId: created.id });
-
-      return created;
+      realtimeEventId = result.realtimeEventId;
+      return result.card;
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return created;

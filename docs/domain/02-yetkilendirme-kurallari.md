@@ -12,7 +12,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-17
+updated: 2026-05-18
 ---
 
 # 02 — Yetkilendirme Kuralları
@@ -196,6 +196,20 @@ Workspace/board/card rollerinden bağımsız: her kullanıcı yalnızca **kendi*
 | Hesabını sil                           | kendi — **ancak** hiçbir workspace'in `owner`'ı değilse (`@pusula/domain` `canDeleteOwnAccount`)   |
 
 > **Hesap silme:** Kullanıcı bir veya daha fazla workspace'in `owner`'ıysa hesap silme **engellenir** (`BAD_REQUEST` — açıklayıcı mesaj). Ownership transfer henüz yok; kullanıcı önce o workspace'leri silmeli/arşivlemeli/devretmeli. `workspaces.ownerId` FK'sı `onDelete: 'restrict'` olduğundan DB de reddeder; enforcement noktası Better Auth `beforeDelete` hook'u (auth altyapısı + cascade ayrıntısı → [`../architecture/07-auth.md`](../architecture/07-auth.md) (Profil & hesap yönetimi), invariant → [`01-urun-modeli.md`](01-urun-modeli.md) invariant 14). Bu uçlar tRPC'de değil — doğrudan Better Auth (`/api/auth/*`); web ekranı → [`../architecture/08-web-ve-mobil.md`](../architecture/08-web-ve-mobil.md) §8.1.7.
+
+### Hızlı Not (Quick Note) — kişisel kayıt (DEM-203)
+
+Workspace/board/card rollerinden bağımsız: Hızlı Not **kişiye özel ve globaldir** — "Board favorisi"yle aynı _kişisel kayıt_ desenidir (bkz. [`01-urun-modeli.md`](01-urun-modeli.md) invariant 20–22). Yetkilendirme tek kurala dayanır: **sahiplik**. Bir Hızlı Not yalnız sahibi (`quick_notes.user_id === session.user.id`) tarafından listelenir/oluşturulur/düzenlenir/silinir; başka hiçbir kullanıcı — workspace owner/admin dahil — erişemez. Workspace/board üyeliği Hızlı Not'a hiçbir yetki **vermez**.
+
+| İşlem                           | Yetki                                                                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hızlı Notları listele           | yalnız sahip (`protectedProcedure` — yalnızca `user_id === session.user.id` satırlar döner)                                                                            |
+| Hızlı Not oluştur               | yalnız sahip (oturum açmış kullanıcı kendi adına; `user_id` daima `session.user.id`'den gelir, input'tan değil)                                                        |
+| Hızlı Not güncelle (`content`)  | yalnız sahip — başka kullanıcının notu için `NOT_FOUND` (varlık sızdırılmaz; `FORBIDDEN` yerine `NOT_FOUND`)                                                           |
+| Hızlı Not sil                   | yalnız sahip — başka kullanıcının notu için `NOT_FOUND`                                                                                                                |
+| Hızlı Not'u karta dönüştür      | yalnız not sahibi **ve** ek olarak **hedef listenin board'unda `member+`** (`effectiveBoardRole` ∈ {`admin`,`member`} — kart oluşturma yetkisi); hedef liste/board arşivli olamaz |
+
+> **`quickNote.convertToCard` çift kontrol:** caller hem Hızlı Not'un **sahibi** olmalı (aksi `NOT_FOUND`) hem de hedef listenin board'unda **kart oluşturma yetkisine** sahip olmalı — `resolveBoardAccess` ile hedef listenin board'u çözülür ve `canEditBoardContent` (board `member+`) kontrol edilir; `viewer` veya erişimsiz kullanıcı `FORBIDDEN`. Arşivli hedef liste/board `BAD_REQUEST`. Atomik transaction: kart oluşturulur (`card.create` ile aynı invariant'lar + `card.created` activity) + Hızlı Not satırı silinir (sessiz — activity/realtime/outbox üretmez; invariant 22). Kart oluşturma adımı `card.create` yetki/idempotency disiplinine uyar. tRPC enforcement: `protectedProcedure` (sahiplik) → hedef liste board'u `resolveBoardAccess`. Procedure haritası → [`../architecture/03-backend.md`](../architecture/03-backend.md).
 
 ## Enforcement kuralları
 
