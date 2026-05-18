@@ -73,8 +73,13 @@ export function CardFace({
         onPress || onLongPress ? 'active:opacity-70' : ''
       }`}
     >
-      {/* Kapak görseli şeridi — kart yüzünün üstünde, kenara dayalı (Faz 7P). */}
-      {card.coverImage ? <CardCoverImage coverImage={card.coverImage} /> : null}
+      {/* Kapak şeridi — kart yüzünün üstünde, kenara dayalı. Kapak görseli
+          önceliklidir (Faz 7P); yoksa kapak rengi varsa ince renk şeridi (DEM-201). */}
+      {card.coverImage ? (
+        <CardCoverImage coverImage={card.coverImage} />
+      ) : coverColor != null ? (
+        <View className="h-2" style={{ backgroundColor: coverColorHex[coverColor] }} />
+      ) : null}
 
       <View className="gap-2 p-3">
         {card.labels.length > 0 ? (

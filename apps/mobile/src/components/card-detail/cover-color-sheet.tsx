@@ -74,6 +74,9 @@ export function CoverColorSheetBody({
       },
       onSettled: () => {
         void queryClient.invalidateQueries({ queryKey: cardKey });
+        // Board kart yüzü şeridi de iyimser yamandı — sunucu reconcile'ı için
+        // `board.get` invalidate edilir (`attachments-section` kapak deseniyle aynı).
+        void queryClient.invalidateQueries({ queryKey: boardKey });
         void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
       },
     }),
