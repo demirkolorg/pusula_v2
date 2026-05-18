@@ -11,7 +11,11 @@ import { Icon } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { Text } from '@/components/text';
 import { TextArea } from '@/components/text-area';
-import { DetailSection } from '@/components/card-detail/section';
+import {
+  DetailSection,
+  SectionAddTrigger,
+  SectionBadge,
+} from '@/components/card-detail/section';
 import { AttachmentImageViewer } from '@/components/card-detail/attachment-image-viewer';
 import { AttachmentTile } from '@/components/card-detail/attachment-tile';
 import { safeCacheFileName } from '@/lib/attachment-format';
@@ -293,7 +297,13 @@ export function AttachmentsSection({
   const addDisabled = upload.uploadingName !== null || upload.pendingFileName !== null;
 
   return (
-    <DetailSection icon="paperclip" title={strings.attachments.title}>
+    <DetailSection
+      icon="paperclip"
+      title={strings.attachments.title}
+      trailing={
+        attachments.length > 0 ? <SectionBadge label={String(attachments.length)} /> : undefined
+      }
+    >
       <View className="gap-2">
         {attachmentsQuery.isError ? (
           <Text className="text-sm text-destructive">{strings.attachments.loadError}</Text>
@@ -359,19 +369,13 @@ export function AttachmentsSection({
         )}
 
         {canEdit ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={addDisabled}
-            onPress={() => setSheetOpen(true)}
-            className={`mt-1 flex-row items-center gap-1.5 self-start ${
-              addDisabled ? 'opacity-50' : 'active:opacity-70'
-            }`}
-          >
-            <Icon name="plus" size={14} color={theme.primary} />
-            <Text weight="medium" className="text-sm text-primary">
-              {strings.attachments.addAction}
-            </Text>
-          </Pressable>
+          <View className="mt-1">
+            <SectionAddTrigger
+              label={strings.attachments.addAction}
+              onPress={() => setSheetOpen(true)}
+              disabled={addDisabled}
+            />
+          </View>
         ) : null}
       </View>
 

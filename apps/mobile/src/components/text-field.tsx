@@ -22,6 +22,7 @@ type TextFieldProps = {
   | 'returnKeyType'
   | 'onSubmitEditing'
   | 'editable'
+  | 'autoFocus'
 >;
 
 /**

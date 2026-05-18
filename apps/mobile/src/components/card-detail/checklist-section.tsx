@@ -7,6 +7,7 @@ import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
+import { SectionAddTrigger } from '@/components/card-detail/section';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
@@ -298,7 +299,12 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
   );
 }
 
-/** Kart altındaki "kontrol listesi ekle" satır-içi girişi (DEM-198). */
+/**
+ * Kart altındaki "kontrol listesi ekle" girişi (DEM-198 + DEM-204). Varsayılan
+ * kapalı — kompakt "+ ekle" tetikleyicisi; dokununca satır-içi giriş açılır.
+ * Gönderdikten sonra alan temizlenir ama composer açık kalır (art arda liste
+ * eklemeye izin — Trello deseni); "Vazgeç" composer'ı kapatır.
+ */
 function ChecklistComposer({
   pending,
   onCreate,
@@ -306,6 +312,7 @@ function ChecklistComposer({
   pending: boolean;
   onCreate: (title: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
 
   const submit = () => {
@@ -318,32 +325,56 @@ function ChecklistComposer({
     setTitle('');
   };
 
+  const close = () => {
+    setTitle('');
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <SectionAddTrigger label={strings.cardDetail.checklistAdd} onPress={() => setOpen(true)} />
+    );
+  }
+
   return (
-    <View className="flex-row items-end gap-2">
-      <View className="flex-1">
-        <TextField
-          label={strings.cardDetail.checklistAdd}
-          placeholder={strings.cardDetail.checklistTitlePlaceholder}
-          value={title}
-          onChangeText={setTitle}
-          editable={!pending}
-          returnKeyType="done"
-          onSubmitEditing={submit}
-        />
-      </View>
-      <View className="w-24">
-        <Button
-          label={strings.cardDetail.checklistAdd}
-          onPress={submit}
-          pending={pending}
-          disabled={title.trim().length === 0 || pending}
-        />
+    <View className="gap-2">
+      <TextField
+        label={strings.cardDetail.checklistAdd}
+        placeholder={strings.cardDetail.checklistTitlePlaceholder}
+        value={title}
+        onChangeText={setTitle}
+        editable={!pending}
+        returnKeyType="done"
+        onSubmitEditing={submit}
+        autoFocus
+      />
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Button
+            label={strings.cardDetail.cancel}
+            variant="ghost"
+            onPress={close}
+            disabled={pending}
+          />
+        </View>
+        <View className="flex-1">
+          <Button
+            label={strings.cardDetail.checklistAdd}
+            onPress={submit}
+            pending={pending}
+            disabled={title.trim().length === 0 || pending}
+          />
+        </View>
       </View>
     </View>
   );
 }
 
-/** Tek kontrol listesinin altındaki "madde ekle" satır-içi girişi. */
+/**
+ * Tek kontrol listesinin altındaki "madde ekle" girişi (DEM-204). Varsayılan
+ * kapalı — "+ Madde ekle" tetikleyicisi; açılınca satır-içi giriş. Gönderim
+ * sonrası alan temizlenir, composer açık kalır (art arda madde girişi).
+ */
 function ChecklistItemComposer({
   pending,
   onCreate,
@@ -351,6 +382,7 @@ function ChecklistItemComposer({
   pending: boolean;
   onCreate: (content: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [content, setContent] = useState('');
 
   const submit = () => {
@@ -364,26 +396,51 @@ function ChecklistItemComposer({
     setContent('');
   };
 
-  return (
-    <View className="mt-1 flex-row items-end gap-2">
-      <View className="flex-1">
-        <TextField
+  const close = () => {
+    setContent('');
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <View className="mt-0.5">
+        <SectionAddTrigger
           label={strings.cardDetail.checklistItemAdd}
-          placeholder={strings.cardDetail.checklistItemPlaceholder}
-          value={content}
-          onChangeText={setContent}
-          editable={!pending}
-          returnKeyType="done"
-          onSubmitEditing={submit}
+          onPress={() => setOpen(true)}
         />
       </View>
-      <View className="w-24">
-        <Button
-          label={strings.cardDetail.checklistItemAdd}
-          onPress={submit}
-          pending={pending}
-          disabled={content.trim().length === 0 || pending}
-        />
+    );
+  }
+
+  return (
+    <View className="mt-1 gap-2">
+      <TextField
+        label={strings.cardDetail.checklistItemAdd}
+        placeholder={strings.cardDetail.checklistItemPlaceholder}
+        value={content}
+        onChangeText={setContent}
+        editable={!pending}
+        returnKeyType="done"
+        onSubmitEditing={submit}
+        autoFocus
+      />
+      <View className="flex-row gap-2">
+        <View className="flex-1">
+          <Button
+            label={strings.cardDetail.cancel}
+            variant="ghost"
+            onPress={close}
+            disabled={pending}
+          />
+        </View>
+        <View className="flex-1">
+          <Button
+            label={strings.cardDetail.checklistItemAdd}
+            onPress={submit}
+            pending={pending}
+            disabled={content.trim().length === 0 || pending}
+          />
+        </View>
       </View>
     </View>
   );

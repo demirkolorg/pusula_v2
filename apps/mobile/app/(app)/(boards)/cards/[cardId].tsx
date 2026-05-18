@@ -17,7 +17,7 @@ import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
-import { DetailSection } from '@/components/card-detail/section';
+import { DetailSection, SectionBadge } from '@/components/card-detail/section';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
 import { CardMetaBar } from '@/components/card-detail/meta-bar';
 import { CardCompleteToggle } from '@/components/card-detail/complete-toggle';
@@ -50,6 +50,10 @@ import { themeFor } from '@/theme/tokens';
  *
  * DEM-196 başlık yanı ⋮ menüsünü (`CardActionsSheet`) ekler — kartı onayla
  * arşivleme; arşivleme sonrası board ekranına geri navigasyon.
+ *
+ * DEM-204 düz akan bölümleri `bg-muted` zemin üzerine oturan `bg-card` bölüm
+ * kartlarına dönüştürür: başlık + meta çubuğu tek bir "header card"ta toplanır,
+ * her bölüm (`DetailSection`) kart yüzeyinde + başlığında özet rozeti taşır.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ cardId: string; title?: string }>();
@@ -241,6 +245,14 @@ export default function CardDetailScreen() {
   const currentListTitle =
     boardQuery.data?.lists.find((list) => list.id === card.listId)?.title ?? null;
 
+  // Bölüm başlığı özet rozetleri (DEM-204) — kontrol listeleri ilerlemesi
+  // tüm listelerin maddeleri üzerinden toplanır.
+  const checklistItemsTotal = checklists.reduce((sum, cl) => sum + cl.items.length, 0);
+  const checklistItemsDone = checklists.reduce(
+    (sum, cl) => sum + cl.items.filter((item) => item.completed).length,
+    0,
+  );
+
   return (
     <>
       <Stack.Screen
@@ -271,8 +283,8 @@ export default function CardDetailScreen() {
         }}
       />
       <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-6 p-4"
+        className="flex-1 bg-muted"
+        contentContainerClassName="gap-3 p-4"
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -283,10 +295,14 @@ export default function CardDetailScreen() {
           />
         }
       >
-        {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H).
-            Başlık satırında tamamla/geri al toggle'ı (Faz 7G-2 — DEM-195).
-            `onLayout` collapsing nav başlığının eşiğini ölçer (Faz 7G-3). */}
-        <View className="gap-2" onLayout={handleTitleLayout}>
+        {/* Header card (DEM-204) — kart kimliği tek `bg-card` yüzeyde: tamamlandı
+            rozeti + tamamla/geri al toggle + başlık + meta çubuğu. Başlık board
+            `member+` için düzenlenebilir (Faz 7H); tamamla toggle'ı Faz 7G-5
+            (DEM-195). `onLayout` collapsing nav başlığının eşiğini ölçer (7G-3). */}
+        <View
+          className="gap-3 rounded-xl border border-border bg-card p-3.5"
+          onLayout={handleTitleLayout}
+        >
           {card.completed ? (
             <View className="flex-row items-center gap-1.5 self-start rounded-full bg-success/15 px-2 py-0.5">
               <Icon name="check-circle" size={13} color={theme.success} />
@@ -340,29 +356,37 @@ export default function CardDetailScreen() {
               </Pressable>
             )}
           </View>
-        </View>
 
-        {/* Faz 7G-2 — kompakt meta çubuğu: üye / son tarih / etiket / liste
-            chip'leri; her chip dokununca ilgili bottom sheet'i açar. */}
-        <CardMetaBar
-          cardId={card.id}
-          boardId={card.boardId}
-          labels={labels}
-          members={members}
-          boardMembers={boardMembers}
-          dueAt={card.dueAt}
-          completed={card.completed}
-          coverColor={card.coverColor}
-          lists={boardLists}
-          currentListId={card.listId}
-          currentListTitle={currentListTitle}
-          onMoveToList={(listId) => cardMutations.moveToList(listId)}
-          canEdit={canEdit}
-        />
+          {/* Faz 7G-2 — kompakt meta çubuğu: üye / son tarih / etiket / kapak /
+              liste chip'leri; her chip dokununca ilgili bottom sheet'i açar. */}
+          <CardMetaBar
+            cardId={card.id}
+            boardId={card.boardId}
+            labels={labels}
+            members={members}
+            boardMembers={boardMembers}
+            dueAt={card.dueAt}
+            completed={card.completed}
+            coverColor={card.coverColor}
+            lists={boardLists}
+            currentListId={card.listId}
+            currentListTitle={currentListTitle}
+            onMoveToList={(listId) => cardMutations.moveToList(listId)}
+            canEdit={canEdit}
+          />
+        </View>
 
         <DescriptionEditor cardId={card.id} description={card.description} canEdit={canEdit} />
 
-        <DetailSection icon="check-square" title={strings.cardDetail.checklistsTitle}>
+        <DetailSection
+          icon="check-square"
+          title={strings.cardDetail.checklistsTitle}
+          trailing={
+            checklists.length > 0 ? (
+              <SectionBadge label={`${checklistItemsDone}/${checklistItemsTotal}`} />
+            ) : undefined
+          }
+        >
           {checklistsQuery.isError ? (
             <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
           ) : (
@@ -380,7 +404,13 @@ export default function CardDetailScreen() {
           myBoardRole={myBoardRole}
         />
 
-        <DetailSection icon="message-square" title={strings.cardDetail.commentsTitle}>
+        <DetailSection
+          icon="message-square"
+          title={strings.cardDetail.commentsTitle}
+          trailing={
+            comments.length > 0 ? <SectionBadge label={String(comments.length)} /> : undefined
+          }
+        >
           <View className="gap-4">
             {commentsQuery.isError ? (
               <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
@@ -402,7 +432,13 @@ export default function CardDetailScreen() {
           </View>
         </DetailSection>
 
-        <DetailSection icon="activity" title={strings.cardDetail.activityTitle}>
+        <DetailSection
+          icon="activity"
+          title={strings.cardDetail.activityTitle}
+          trailing={
+            activity.length > 0 ? <SectionBadge label={String(activity.length)} /> : undefined
+          }
+        >
           {activityQuery.isError ? (
             <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
           ) : activity.length > 0 ? (

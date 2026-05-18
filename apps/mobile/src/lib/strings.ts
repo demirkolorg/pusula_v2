@@ -214,6 +214,9 @@ export const strings = {
     deletedComment: 'Bu yorum silindi.',
     activityTitle: 'Aktivite',
     noActivity: 'Henüz aktivite yok.',
+    // Aktivite "son N + tümünü gör" genişleticisi (DEM-204).
+    activityShowAll: 'Tüm aktiviteyi gör',
+    activityShowLess: 'Daha az göster',
     sectionError: 'Bu bölüm yüklenemedi.',
     unknownUser: 'Bir kullanıcı',
     editedSuffix: 'düzenlendi',
