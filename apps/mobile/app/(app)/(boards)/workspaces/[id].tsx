@@ -1,10 +1,11 @@
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { EntityAvatar } from '@/components/entity-avatar';
+import { Icon } from '@/components/icon';
 import { ListRow } from '@/components/list-row';
 import { LoadingScreen } from '@/components/loading-screen';
 import { strings } from '@/lib/strings';
@@ -29,8 +30,32 @@ export default function WorkspaceBoardsScreen() {
     trpc.board.list.queryOptions({ workspaceId }, { enabled: Boolean(workspaceId) }),
   );
 
+  // Header'daki "üyeler" butonu — workspace üye yönetimi ekranına geçer
+  // (Faz 7D). `workspaceId` boşsa buton da çizilmez.
   const header = (
-    <Stack.Screen options={{ title: params.name ?? strings.tabs.boards }} />
+    <Stack.Screen
+      options={{
+        title: params.name ?? strings.tabs.boards,
+        headerRight: workspaceId
+          ? () => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.members.workspaceTitle}
+                hitSlop={8}
+                onPress={() =>
+                  router.push({
+                    pathname: '/workspace-members/[id]',
+                    params: { id: workspaceId, name: params.name ?? '' },
+                  })
+                }
+                className="active:opacity-60"
+              >
+                <Icon name="users" size={22} color={theme.foreground} />
+              </Pressable>
+            )
+          : undefined,
+      }}
+    />
   );
 
   if (!workspaceId) {
