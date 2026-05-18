@@ -2,6 +2,7 @@ import { Alert, Pressable, View, useColorScheme } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
+import { MonthCalendar } from '@/components/card-detail/month-calendar';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { newClientMutationId } from '@/lib/client-mutation-id';
@@ -21,13 +22,13 @@ type DueDateSheetBodyProps = {
 
 type PresetKind = 'today' | 'tomorrow' | 'weekend' | 'nextWeek';
 
-/** Hazır-ayar son tarihlerinin sabitlendiği saat — makul bir gün-sonu teslimi. */
+/** Son tarihlerin sabitlendiği saat — makul bir gün-sonu teslimi. */
 const DUE_PRESET_HOUR = 18;
 
 /**
  * Bir hazır-ayar anahtarını somut son tarihe çevirir — saat `DUE_PRESET_HOUR`'a
- * sabitlenir. Mobil MVP'de tam takvim seçici yok; ortak senaryolar hazır-ayarlarla
- * karşılanır (Faz 7.0 pragmatik mobil yaklaşımı).
+ * sabitlenir. Hazır-ayarlar ortak senaryoları (bugün/yarın/hafta sonu/gelecek
+ * hafta) tek dokunuşla karşılar; belirli bir tarih için takvim kullanılır.
  */
 function presetDate(kind: PresetKind): Date {
   const date = new Date();
@@ -52,10 +53,21 @@ const PRESETS: { kind: PresetKind; label: string }[] = [
 ];
 
 /**
+ * Takvimden gelen yerel gece-yarısı tarihini `DUE_PRESET_HOUR`'a (18:00)
+ * sabitler — hazır-ayarlarla aynı gün-sonu saati; mobilde saat seçimi yok.
+ */
+function dateAtPresetHour(date: Date): Date {
+  const result = new Date(date);
+  result.setHours(DUE_PRESET_HOUR, 0, 0, 0);
+  return result;
+}
+
+/**
  * Kart son tarihi — bottom sheet gövdesi (Faz 7G-2; eski `due-date-editor`).
- * Hazır-ayar seçici (ayarla) + kaldır. Mutation optimistic: `card.get`
- * cache'indeki `dueAt` anında yamanır, hata olursa geri alınır. `card.update`
- * `dueAt` alanına `Date` ya da `null` (temizle) yazar.
+ * Hazır-ayar çipleri + ay-grid takvim (Faz 7G-3 — belirli tarih seçimi) +
+ * kaldır. Mutation optimistic: `card.get` cache'indeki `dueAt` anında yamanır,
+ * hata olursa geri alınır. `card.update` `dueAt` alanına `Date` ya da `null`
+ * (temizle) yazar; hazır-ayar ve takvim aynı `setDue` yolunu paylaşır.
  */
 export function DueDateSheetBody({ cardId, dueAt, completed, canEdit }: DueDateSheetBodyProps) {
   const trpc = useTRPC();
@@ -103,21 +115,43 @@ export function DueDateSheetBody({ cardId, dueAt, completed, canEdit }: DueDateS
       </Text>
 
       {canEdit ? (
-        <View className="gap-3">
-          <View className="flex-row flex-wrap gap-2">
-            {PRESETS.map((preset) => (
-              <Pressable
-                key={preset.kind}
-                accessibilityRole="button"
-                disabled={updateCard.isPending}
-                onPress={() => setDue(presetDate(preset.kind))}
-                className={`rounded-full border border-border bg-card px-3 py-1.5 ${
-                  updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
-                }`}
-              >
-                <Text className="text-sm text-foreground">{preset.label}</Text>
-              </Pressable>
-            ))}
+        <View className="gap-4">
+          <View className="gap-2">
+            <Text className="text-xs text-muted-foreground">
+              {strings.cardDetail.duePresetsLabel}
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {PRESETS.map((preset) => (
+                <Pressable
+                  key={preset.kind}
+                  accessibilityRole="button"
+                  disabled={updateCard.isPending}
+                  onPress={() => setDue(presetDate(preset.kind))}
+                  className={`rounded-full border border-border bg-card px-3 py-1.5 ${
+                    updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
+                  }`}
+                >
+                  <Text className="text-sm text-foreground">{preset.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View className="gap-2">
+            <Text className="text-xs text-muted-foreground">
+              {strings.cardDetail.dueCalendarLabel}
+            </Text>
+            {/*
+              `key` `dueAt`'e bağlı: son tarih değişince (preset ya da takvim)
+              takvim remount olur ve görüntülenen ay seçili güne atlar — kullanıcı
+              seçimini hep görür, manuel ay gezintisi eski seçimde takılı kalmaz.
+            */}
+            <MonthCalendar
+              key={dueAt != null ? dueAt.toISOString() : 'empty'}
+              selected={dueAt}
+              disabled={updateCard.isPending}
+              onSelectDate={(date) => setDue(dateAtPresetHour(date))}
+            />
           </View>
 
           {dueAt != null ? (

@@ -207,11 +207,11 @@ Kapsam kararları (kullanıcı onayı 2026-05-16): mobil MVP **store yayını da
 
 - **[DEM-194](https://linear.app/demirkol/issue/DEM-194)** (`In Progress`) — kart detay meta çubuğu (7G-2): etiket/son tarih/üye düzenleyicileri kompakt chip satırı + bottom sheet'e taşındı; "Listeyi değiştir" → "Liste" chip'i.
 - **[DEM-195](https://linear.app/demirkol/issue/DEM-195)** (`Todo`, High) — kart tamamla/geri al toggle'ı (`card.complete`/`uncomplete`) — işlevsel boşluk, mobilde kart bitirilemiyor.
-- **[DEM-196](https://linear.app/demirkol/issue/DEM-196)** (`Todo`, High) — kart arşivleme (`card.archive`) — işlevsel boşluk.
+- **[DEM-196](https://linear.app/demirkol/issue/DEM-196)** (`Review`, High) — kart arşivleme (`card.archive`). Kart detay başlık yanı ⋮ menüsü → onaylı "Kartı arşivle" + board'a geri navigasyon; optimistic + rollback.
 - **[DEM-197](https://linear.app/demirkol/issue/DEM-197)** (`Todo`) — son tarih tam tarih seçici (preset'lere ek; native dep kararı pre-dev'de).
-- **[DEM-198](https://linear.app/demirkol/issue/DEM-198)** (`Todo`) — checklist oluşturma/silme (7G yalnız madde düzeyiydi).
-- **[DEM-199](https://linear.app/demirkol/issue/DEM-199)** (`Todo`) — yorum düzenleme/silme (web-parity).
-- **[DEM-200](https://linear.app/demirkol/issue/DEM-200)** (`Todo`) — board etiket filtresi (7E'de ertelenmişti).
+- **[DEM-198](https://linear.app/demirkol/issue/DEM-198)** (`In Progress`) — checklist oluşturma/silme (7G yalnız madde düzeyiydi).
+- **[DEM-199](https://linear.app/demirkol/issue/DEM-199)** (`Review`) — yorum düzenleme/silme (web-parity). 7G-4 — `comment-list.tsx` satır-içi düzenleme + onaylı silme; code-reviewer Approve, doğrulama bekliyor.
+- **[DEM-200](https://linear.app/demirkol/issue/DEM-200)** (`In Progress`) — board etiket filtresi (7E'de ertelenmişti). 7E-2 — board header `filter` ikonu + `LabelFilterSheet` çoklu etiket seçimi, istemci tarafı OR filtre (`src/lib/board-filter.ts`).
 - **[DEM-201](https://linear.app/demirkol/issue/DEM-201)** (`Todo`, Low) — kart kapak rengi seçici (`CardMetaBar`'a chip).
 
 ## Faz 8 alt işleri

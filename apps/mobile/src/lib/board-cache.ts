@@ -185,6 +185,17 @@ export function archiveListInCache(data: BoardData, listId: string): BoardData {
 }
 
 /**
+ * Bir kartı board cache'inden çıkarır (DEM-196). Kart arşivlenince board ekranı
+ * (yalnız aktif kartları tutar) onu göstermemeli — iyimser olarak diziden düşer;
+ * `onSettled` refetch'i `board.get`'in arşivli-kart-dışı sözleşmesini doğrular.
+ */
+export function removeCardFromCache(data: BoardData, cardId: string): BoardData {
+  const rest = data.cards.filter((card) => card.id !== cardId);
+  if (rest.length === data.cards.length) return data;
+  return { ...data, cards: rest };
+}
+
+/**
  * Bir kartı iyimser olarak hedef listenin sonuna taşır. Kart diziden çıkarılıp
  * yeni `listId` + sona-ekleme pozisyonuyla tekrar eklenir — böylece hedef
  * kolonun `position` sıralı filtresinde en sonda görünür.
@@ -218,6 +229,26 @@ export function setCardCoverImageInCache(
       card.id === cardId
         ? { ...card, coverImage, coverImageAttachmentId: coverImage?.attachmentId ?? null }
         : card,
+    ),
+  };
+}
+
+/**
+ * Bir kartın kapak rengini iyimser değiştirir (DEM-201 — `card.update`
+ * `coverColor`). `coverColor` `null` ise kapak rengi kaldırılır. Board kart
+ * yüzü (`card-face.tsx`), kapak görseli yokken `coverColor`'a göre ince bir
+ * şerit çizer — kullanıcı board'a döndüğünde tutarlı olsun diye kart detayı
+ * mutation'ı `board.get` cache'ini de bu helper'la günceller.
+ */
+export function setCardCoverColorInCache(
+  data: BoardData,
+  cardId: string,
+  coverColor: BoardCard['coverColor'],
+): BoardData {
+  return {
+    ...data,
+    cards: data.cards.map((card) =>
+      card.id === cardId ? { ...card, coverColor } : card,
     ),
   };
 }

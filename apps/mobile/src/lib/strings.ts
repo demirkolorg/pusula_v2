@@ -63,6 +63,14 @@ export const strings = {
     // Kart taşıma (long-press → "move to list").
     moveCardAction: 'Kartı taşı',
   },
+  // Board etiket filtresi (Faz 7E-2 — DEM-200).
+  boardFilter: {
+    headerLabel: 'Etikete göre filtrele',
+    title: 'Etikete göre filtrele',
+    description: 'Seçili etiketlerden en az birini taşıyan kartlar gösterilir.',
+    clear: 'Tümünü temizle',
+    empty: 'Bu panoda etiket yok.',
+  },
   cardDetail: {
     fallbackTitle: 'Kart',
     loadError: 'Kart yüklenemedi.',
@@ -106,14 +114,30 @@ export const strings = {
     dueWeekend: 'Hafta sonu',
     dueNextWeek: 'Gelecek hafta',
     dueClear: 'Son tarihi kaldır',
+    duePresetsLabel: 'Hazır ayarlar',
+    dueCalendarLabel: 'Tarih seç',
+    dueCalendarPrevMonth: 'Önceki ay',
+    dueCalendarNextMonth: 'Sonraki ay',
     // Kontrol listeleri.
     checklistsEmpty: 'Bu kartta kontrol listesi yok.',
     checklistItemAdd: 'Madde ekle',
     checklistItemPlaceholder: 'Yeni madde…',
+    checklistAdd: 'Kontrol listesi ekle',
+    checklistTitlePlaceholder: 'Liste başlığı…',
+    checklistDelete: 'Kontrol listesini sil',
+    checklistDeleteConfirmTitle: 'Kontrol listesini sil',
+    checklistDeleteConfirmBody:
+      'Bu kontrol listesi ve içindeki tüm maddeler silinecek. Bu işlem geri alınamaz.',
+    checklistDeleteAction: 'Sil',
     // Yorum yazma.
     commentPlaceholder: 'Bir yorum yaz…',
     commentSubmit: 'Yorum gönder',
     commentSubmitting: 'Gönderiliyor…',
+    // Yorum düzenleme / silme (Faz 7G-4).
+    commentEdit: 'Düzenle',
+    commentDelete: 'Sil',
+    commentDeleteConfirmTitle: 'Yorumu sil',
+    commentDeleteConfirmBody: 'Bu yorum silinecek. Bu işlem geri alınamaz.',
     // Başlık düzenleme + liste taşıma (Faz 7H).
     editTitleLabel: 'Kart başlığını düzenle',
     titlePlaceholder: 'Kart başlığı',
@@ -123,6 +147,36 @@ export const strings = {
     metaDueEmpty: 'Son tarih',
     metaLabelsEmpty: 'Etiket',
     metaListUnknown: 'Liste',
+    // Tamamla / geri al toggle'ı (Faz 7G-2 — DEM-195).
+    markComplete: 'Kartı tamamlandı işaretle',
+    markIncomplete: 'Tamamlandı işaretini kaldır',
+    // Kart işlemleri menüsü — başlık yanı ⋮ (DEM-196).
+    cardActions: 'Kart işlemleri',
+    cardActionsTitle: 'Kart işlemleri',
+    archiveAction: 'Kartı arşivle',
+    archiveConfirmTitle: 'Kartı arşivle',
+    archiveConfirmBody: 'Bu kart panodan kaldırılacak. Arşivden geri yükleyebilirsin.',
+    archiveConfirmAction: 'Arşivle',
+    archiveError: 'Kart arşivlenemedi. Lütfen tekrar dene.',
+    // Kart kapak rengi seçici (DEM-201).
+    metaCoverEmpty: 'Kapak',
+    coverTitle: 'Kapak rengi',
+    coverEmpty: 'Kapak rengi seçilmemiş.',
+    coverClear: 'Rengi kaldır',
+    coverColorNames: {
+      kirmizi: 'Kırmızı',
+      turuncu: 'Turuncu',
+      sari: 'Sarı',
+      lime: 'Lime',
+      yesil: 'Yeşil',
+      sky: 'Gök mavisi',
+      mavi: 'Mavi',
+      indigo: 'İndigo',
+      mor: 'Mor',
+      pembe: 'Pembe',
+      gri: 'Gri',
+      siyah: 'Siyah',
+    },
   },
   attachments: {
     // Kart eki "Ekler" bölümü (Faz 7J).

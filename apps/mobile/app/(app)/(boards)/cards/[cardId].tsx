@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import type {
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { authClient } from '@/lib/auth-client';
@@ -20,6 +20,8 @@ import { useCardMutations } from '@/lib/use-card-mutations';
 import { DetailSection } from '@/components/card-detail/section';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
 import { CardMetaBar } from '@/components/card-detail/meta-bar';
+import { CardCompleteToggle } from '@/components/card-detail/complete-toggle';
+import { CardActionsSheet } from '@/components/card-detail/card-actions-sheet';
 import { CardDetailHeaderTitle } from '@/components/card-detail/header-title';
 import { ChecklistSection } from '@/components/card-detail/checklist-section';
 import { AttachmentsSection } from '@/components/card-detail/attachments-section';
@@ -45,6 +47,9 @@ import { themeFor } from '@/theme/tokens';
  * bölümlerden başlık altındaki kompakt `CardMetaBar`'a taşır — her chip durumu
  * özetler, dokununca düzenleme bottom sheet'te yapılır. "Listeyi değiştir"
  * butonu da meta çubuğundaki "Liste" chip'i olur.
+ *
+ * DEM-196 başlık yanı ⋮ menüsünü (`CardActionsSheet`) ekler — kartı onayla
+ * arşivleme; arşivleme sonrası board ekranına geri navigasyon.
  */
 export default function CardDetailScreen() {
   const params = useLocalSearchParams<{ cardId: string; title?: string }>();
@@ -79,6 +84,25 @@ export default function CardDetailScreen() {
   // Faz 7H — başlık düzenleme + "move to list" mutation'ları.
   const cardMutations = useCardMutations(cardId, boardId ?? '');
   const [editingTitle, setEditingTitle] = useState(false);
+  // DEM-196 — başlık yanı ⋮ "Kart işlemleri" bottom sheet'i.
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  // DEM-196 — kartı arşivle: `Alert` ile onayla, optimistic mutation tetikle,
+  // board ekranına geri dön (arşivlenen kart board görünümünde görünmez).
+  function handleArchive() {
+    setActionsOpen(false);
+    Alert.alert(strings.cardDetail.archiveConfirmTitle, strings.cardDetail.archiveConfirmBody, [
+      { text: strings.common.cancel, style: 'cancel' },
+      {
+        text: strings.cardDetail.archiveConfirmAction,
+        style: 'destructive',
+        onPress: () => {
+          cardMutations.archive();
+          router.back();
+        },
+      },
+    ]);
+  }
 
   // Faz 7G-3 — collapsing nav başlığı: gövdedeki büyük kart başlığı yukarı
   // kayınca nav bar liste adından kart başlığına geçer (üst nav ↔ gövde metin
@@ -228,6 +252,22 @@ export default function CardDetailScreen() {
               cardTitle={card.title}
             />
           ),
+          // DEM-196 — ⋮ "Kart işlemleri" menüsü; yalnız board `member+` ve kart
+          // arşivli değilken (arşivli karta yalnız arama/derin link ulaşır).
+          headerRight:
+            canEdit && card.archivedAt == null
+              ? () => (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={strings.cardDetail.cardActions}
+                    hitSlop={8}
+                    onPress={() => setActionsOpen(true)}
+                    className="active:opacity-60"
+                  >
+                    <Icon name="more-vertical" size={22} color={theme.foreground} />
+                  </Pressable>
+                )
+              : undefined,
         }}
       />
       <ScrollView
@@ -244,6 +284,7 @@ export default function CardDetailScreen() {
         }
       >
         {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H).
+            Başlık satırında tamamla/geri al toggle'ı (Faz 7G-2 — DEM-195).
             `onLayout` collapsing nav başlığının eşiğini ölçer (Faz 7G-3). */}
         <View className="gap-2" onLayout={handleTitleLayout}>
           {card.completed ? (
@@ -254,33 +295,51 @@ export default function CardDetailScreen() {
               </Text>
             </View>
           ) : null}
-          {canEdit && editingTitle ? (
-            <InlineComposer
-              placeholder={strings.cardDetail.titlePlaceholder}
-              submitLabel={strings.common.save}
-              initialValue={card.title}
-              onSubmit={(title) => {
-                cardMutations.updateTitle(title);
-                setEditingTitle(false);
-              }}
-              onCancel={() => setEditingTitle(false)}
-            />
-          ) : (
-            <Pressable
-              accessibilityRole={canEdit ? 'button' : undefined}
-              accessibilityLabel={canEdit ? strings.cardDetail.editTitleLabel : undefined}
-              disabled={!canEdit}
-              onPress={() => setEditingTitle(true)}
-              className={`flex-row items-start gap-2 ${canEdit ? 'active:opacity-60' : ''}`}
-            >
-              <Text weight="semibold" className="flex-1 text-xl text-foreground">
-                {card.title}
-              </Text>
-              {canEdit ? (
-                <Icon name="edit-3" size={16} color={theme.mutedForeground} />
-              ) : null}
-            </Pressable>
-          )}
+          <View className="flex-row items-start gap-2.5">
+            {/* Tamamla/geri al toggle'ı — text-xl başlıkla optik hiza için pt-0.5. */}
+            <View className="pt-0.5">
+              <CardCompleteToggle
+                completed={card.completed}
+                canEdit={canEdit}
+                pending={cardMutations.completePending}
+                onToggle={() => cardMutations.toggleComplete(card.completed)}
+              />
+            </View>
+            {canEdit && editingTitle ? (
+              <View className="flex-1">
+                <InlineComposer
+                  placeholder={strings.cardDetail.titlePlaceholder}
+                  submitLabel={strings.common.save}
+                  initialValue={card.title}
+                  onSubmit={(title) => {
+                    cardMutations.updateTitle(title);
+                    setEditingTitle(false);
+                  }}
+                  onCancel={() => setEditingTitle(false)}
+                />
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole={canEdit ? 'button' : undefined}
+                accessibilityLabel={canEdit ? strings.cardDetail.editTitleLabel : undefined}
+                disabled={!canEdit}
+                onPress={() => setEditingTitle(true)}
+                className={`flex-1 flex-row items-start gap-2 ${canEdit ? 'active:opacity-60' : ''}`}
+              >
+                <Text
+                  weight="semibold"
+                  className={`flex-1 text-xl ${
+                    card.completed ? 'text-muted-foreground line-through' : 'text-foreground'
+                  }`}
+                >
+                  {card.title}
+                </Text>
+                {canEdit ? (
+                  <Icon name="edit-3" size={16} color={theme.mutedForeground} />
+                ) : null}
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* Faz 7G-2 — kompakt meta çubuğu: üye / son tarih / etiket / liste
@@ -293,6 +352,7 @@ export default function CardDetailScreen() {
           boardMembers={boardMembers}
           dueAt={card.dueAt}
           completed={card.completed}
+          coverColor={card.coverColor}
           lists={boardLists}
           currentListId={card.listId}
           currentListTitle={currentListTitle}
@@ -325,7 +385,14 @@ export default function CardDetailScreen() {
             {commentsQuery.isError ? (
               <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
             ) : comments.length > 0 ? (
-              <CommentList comments={comments} resolveAuthor={resolveAuthor} />
+              <CommentList
+                cardId={card.id}
+                comments={comments}
+                resolveAuthor={resolveAuthor}
+                currentUserId={currentUserId}
+                myBoardRole={myBoardRole}
+                canEdit={canEdit}
+              />
             ) : (
               <Text className="text-sm text-muted-foreground">
                 {strings.cardDetail.noComments}
@@ -345,6 +412,13 @@ export default function CardDetailScreen() {
           )}
         </DetailSection>
       </ScrollView>
+
+      {/* DEM-196 — başlık yanı ⋮ menüsü: kartı arşivle. */}
+      <CardActionsSheet
+        visible={actionsOpen}
+        onArchive={handleArchive}
+        onClose={() => setActionsOpen(false)}
+      />
     </>
   );
 }

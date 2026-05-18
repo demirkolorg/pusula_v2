@@ -25,11 +25,12 @@ type ChecklistSectionProps = {
 };
 
 /**
- * Kart kontrol listeleri — madde işaretleme + ekleme/silme (Faz 7G). Mutation'lar
- * (`checklist.item.toggle` / `.create` / `.delete`) optimistic: `checklist.list`
- * cache'i anında yamanır, hata olursa geri alınır. Yeni kontrol listesi
- * oluşturma / silme **kapsam dışı** (7G yalnız madde düzeyi) — listesi olmayan
- * kart bilgilendirme metni gösterir. `canEdit` `false` ise salt-okunur.
+ * Kart kontrol listeleri — checklist oluştur/sil + madde işaretle/ekle/sil
+ * (Faz 7G + DEM-198). Tüm mutation'lar (`checklist.create` / `.delete`,
+ * `checklist.item.toggle` / `.create` / `.delete`) optimistic: `checklist.list`
+ * cache'i anında yamanır, hata olursa snapshot'tan geri alınır. `canEdit`
+ * `false` ise salt-okunur. Listesi olmayan kart, düzenleyebilen kullanıcıya
+ * doğrudan "kontrol listesi ekle" girişini gösterir.
  */
 export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSectionProps) {
   const trpc = useTRPC();
@@ -121,15 +122,66 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
     }),
   );
 
-  if (checklists.length === 0) {
-    return (
-      <Text className="text-sm text-muted-foreground">{strings.cardDetail.checklistsEmpty}</Text>
+  const createChecklist = useMutation(
+    trpc.checklist.create.mutationOptions({
+      onMutate: (vars) => {
+        const now = new Date();
+        const optimistic: Checklists[number] = {
+          id: `${OPTIMISTIC_PREFIX}${vars.clientMutationId ?? newClientMutationId()}`,
+          cardId: vars.cardId,
+          title: vars.title,
+          // Sona eklenir — gerçek pozisyon `onSettled` invalidate ile gelir.
+          position: 'zzzzzz',
+          createdAt: now,
+          updatedAt: now,
+          items: [],
+        };
+        return patch((lists) => [...lists, optimistic]);
+      },
+      onError: (_error, _vars, ctx) => rollback(ctx),
+      onSettled: invalidate,
+    }),
+  );
+
+  const deleteChecklist = useMutation(
+    trpc.checklist.delete.mutationOptions({
+      onMutate: (vars) => patch((lists) => lists.filter((list) => list.id !== vars.checklistId)),
+      onError: (_error, _vars, ctx) => rollback(ctx),
+      onSettled: invalidate,
+    }),
+  );
+
+  /** Onaylı kontrol listesi silme — liste + tüm maddeleri kalıcı kaldırır. */
+  const confirmDeleteChecklist = (checklist: Checklists[number]) => {
+    Alert.alert(
+      strings.cardDetail.checklistDeleteConfirmTitle,
+      strings.cardDetail.checklistDeleteConfirmBody,
+      [
+        { text: strings.common.cancel, style: 'cancel' },
+        {
+          text: strings.cardDetail.checklistDeleteAction,
+          style: 'destructive',
+          onPress: () =>
+            deleteChecklist.mutate({
+              cardId,
+              checklistId: checklist.id,
+              clientMutationId: newClientMutationId(),
+            }),
+        },
+      ],
     );
-  }
+  };
 
   return (
     <View className="gap-4">
+      {checklists.length === 0 && !canEdit ? (
+        <Text className="text-sm text-muted-foreground">
+          {strings.cardDetail.checklistsEmpty}
+        </Text>
+      ) : null}
+
       {checklists.map((checklist) => {
+        const optimisticList = checklist.id.startsWith(OPTIMISTIC_PREFIX);
         const doneCount = checklist.items.filter((item) => item.completed).length;
         return (
           <View key={checklist.id} className="gap-2">
@@ -144,6 +196,17 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
               <Text className="text-xs text-muted-foreground">
                 {doneCount}/{checklist.items.length}
               </Text>
+              {canEdit && !optimisticList ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.cardDetail.checklistDelete}
+                  disabled={deleteChecklist.isPending}
+                  onPress={() => confirmDeleteChecklist(checklist)}
+                  className="active:opacity-60"
+                >
+                  <Icon name="trash-2" size={15} color={theme.mutedForeground} />
+                </Pressable>
+              ) : null}
             </View>
 
             {checklist.items.map((item) => {
@@ -202,7 +265,7 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
               );
             })}
 
-            {canEdit ? (
+            {canEdit && !optimisticList ? (
               <ChecklistItemComposer
                 pending={createItem.isPending}
                 onCreate={(content) =>
@@ -218,6 +281,64 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
           </View>
         );
       })}
+
+      {canEdit ? (
+        <ChecklistComposer
+          pending={createChecklist.isPending}
+          onCreate={(title) =>
+            createChecklist.mutate({
+              cardId,
+              title,
+              clientMutationId: newClientMutationId(),
+            })
+          }
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** Kart altındaki "kontrol listesi ekle" satır-içi girişi (DEM-198). */
+function ChecklistComposer({
+  pending,
+  onCreate,
+}: {
+  pending: boolean;
+  onCreate: (title: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+
+  const submit = () => {
+    const trimmed = title.trim();
+    // `checklist.create` idempotent değil — uçuştaki istek varken ya da boş
+    // başlıkla yeni liste gönderme (çift liste oluşmasın).
+    if (trimmed.length === 0 || pending) return;
+    onCreate(trimmed);
+    // Optimistic ekleme anında görünür; alanı hemen temizle.
+    setTitle('');
+  };
+
+  return (
+    <View className="flex-row items-end gap-2">
+      <View className="flex-1">
+        <TextField
+          label={strings.cardDetail.checklistAdd}
+          placeholder={strings.cardDetail.checklistTitlePlaceholder}
+          value={title}
+          onChangeText={setTitle}
+          editable={!pending}
+          returnKeyType="done"
+          onSubmitEditing={submit}
+        />
+      </View>
+      <View className="w-24">
+        <Button
+          label={strings.cardDetail.checklistAdd}
+          onPress={submit}
+          pending={pending}
+          disabled={title.trim().length === 0 || pending}
+        />
+      </View>
     </View>
   );
 }

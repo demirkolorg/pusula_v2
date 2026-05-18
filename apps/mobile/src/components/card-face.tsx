@@ -3,6 +3,7 @@ import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
+import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 import { CardCoverImage } from './card-cover-image';
@@ -49,6 +50,8 @@ export function CardFace({
 }) {
   const theme = themeFor(useColorScheme());
   const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
+  // Kapak görseli önceliklidir; yoksa kapak rengi varsa ince şerit çizilir (DEM-201).
+  const coverColor = asCoverColor(card.coverColor);
   const visibleMembers = card.members.slice(0, MAX_VISIBLE_MEMBERS);
   const extraMembers = card.members.length - visibleMembers.length;
 

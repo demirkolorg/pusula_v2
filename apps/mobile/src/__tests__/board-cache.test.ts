@@ -4,10 +4,12 @@ import {
   addOptimisticList,
   archiveListInCache,
   moveCardInCache,
+  removeCardFromCache,
   renameCardInCache,
   renameListInCache,
   replaceOptimisticCard,
   replaceOptimisticList,
+  setCardCoverColorInCache,
   setCardCoverImageInCache,
   type BoardCard,
   type BoardData,
@@ -193,6 +195,29 @@ describe('archiveListInCache', () => {
   });
 });
 
+describe('removeCardFromCache', () => {
+  it('hedef kartı board cache dizisinden çıkarır, diğerlerini korur', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [
+        makeCard({ id: 'c1', listId: 'list-1', position: 'a0' }),
+        makeCard({ id: 'c2', listId: 'list-1', position: 'a1' }),
+      ],
+    );
+    const next = removeCardFromCache(board, 'c1');
+    expect(next.cards.map((card) => card.id)).toEqual(['c2']);
+    expect(board.cards).toHaveLength(2); // immutability
+  });
+
+  it('bilinmeyen kart id → veri değişmeden (aynı referans) döner', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [makeCard({ id: 'c1', listId: 'list-1', position: 'a0' })],
+    );
+    expect(removeCardFromCache(board, 'yok')).toBe(board);
+  });
+});
+
 describe('moveCardInCache', () => {
   it('kartı hedef listenin sonuna taşır', () => {
     const board = makeBoard(
@@ -271,5 +296,40 @@ describe('setCardCoverImageInCache', () => {
     const c1 = next.cards.find((card) => card.id === 'c1');
     expect(c1?.coverImage).toBeNull();
     expect(c1?.coverImageAttachmentId).toBeNull();
+  });
+});
+
+describe('setCardCoverColorInCache', () => {
+  it('hedef kartın kapak rengini set eder, diğer kartlara dokunmaz', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [
+        makeCard({ id: 'c1', listId: 'list-1', position: 'a0' }),
+        makeCard({ id: 'c2', listId: 'list-1', position: 'a1' }),
+      ],
+    );
+    const next = setCardCoverColorInCache(board, 'c1', 'mavi');
+    expect(next.cards.find((card) => card.id === 'c1')?.coverColor).toBe('mavi');
+    expect(next.cards.find((card) => card.id === 'c2')?.coverColor).toBeNull();
+    // İmmutability — kaynak değişmez.
+    expect(board.cards[0]?.coverColor).toBeNull();
+  });
+
+  it('null → kapak rengini temizler', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [makeCard({ id: 'c1', listId: 'list-1', position: 'a0', coverColor: 'mavi' })],
+    );
+    const next = setCardCoverColorInCache(board, 'c1', null);
+    expect(next.cards.find((card) => card.id === 'c1')?.coverColor).toBeNull();
+  });
+
+  it('bilinmeyen cardId → hiçbir kartın rengi değişmez', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [makeCard({ id: 'c1', listId: 'list-1', position: 'a0' })],
+    );
+    const next = setCardCoverColorInCache(board, 'yok', 'mavi');
+    expect(next.cards.find((card) => card.id === 'c1')?.coverColor).toBeNull();
   });
 });

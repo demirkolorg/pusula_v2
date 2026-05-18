@@ -7,11 +7,14 @@ import { BoardColumn } from '@/components/board-column';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { LabelFilterSheet } from '@/components/label-filter-sheet';
 import { ListActionsSheet } from '@/components/list-actions-sheet';
 import { ListAddColumn } from '@/components/list-add-column';
 import { LoadingScreen } from '@/components/loading-screen';
 import { MoveToListSheet } from '@/components/move-to-list-sheet';
+import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
+import { filterCardsByLabels } from '@/lib/board-filter';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { canEditBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
@@ -45,6 +48,22 @@ export default function BoardScreen() {
   const [moveTarget, setMoveTarget] = useState<BoardCard | null>(null);
   const [listActionsTarget, setListActionsTarget] = useState<BoardList | null>(null);
 
+  // Etiket filtresi (Faz 7E-2) — geçici istemci-tarafı state; ekran değişince
+  // sıfırlanır. Seçili etiketlerden en az birini taşıyan kartlar gösterilir.
+  // Not: başka bir istemci seçili bir etiketi silerse id state'te "stale"
+  // kalabilir (rozet sayısı sheet'le uyuşmaz) — web istemci-tarafı filtresiyle
+  // aynı kabul edilen sınır; "Tümünü temizle" ile çözülür.
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedLabelIds, setSelectedLabelIds] = useState<ReadonlySet<string>>(new Set());
+
+  const toggleLabelFilter = (labelId: string) =>
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) next.delete(labelId);
+      else next.add(labelId);
+      return next;
+    });
+
   // Header aksiyonları — board içi arama (Faz 7I) + board üye yönetimi (Faz 7D).
   const header = (
     <Stack.Screen
@@ -53,6 +72,30 @@ export default function BoardScreen() {
         headerRight: boardId
           ? () => (
               <View className="flex-row items-center gap-4">
+                {/* Etiket filtresi — yalnız board yüklendiğinde (sheet de o an mount). */}
+                {query.data ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={strings.boardFilter.headerLabel}
+                    accessibilityState={{ selected: selectedLabelIds.size > 0 }}
+                    hitSlop={8}
+                    onPress={() => setFilterOpen(true)}
+                    className="active:opacity-60"
+                  >
+                    <Icon
+                      name="filter"
+                      size={21}
+                      color={selectedLabelIds.size > 0 ? theme.primary : theme.foreground}
+                    />
+                    {selectedLabelIds.size > 0 ? (
+                      <View className="absolute -right-2 -top-1.5 min-w-4 items-center rounded-full bg-primary px-1">
+                        <Text weight="semibold" className="text-[10px] text-primary-foreground">
+                          {selectedLabelIds.size}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={strings.search.boardTitle}
@@ -159,7 +202,10 @@ export default function BoardScreen() {
           <BoardColumn
             key={list.id}
             list={list}
-            cards={query.data.cards.filter((card) => card.listId === list.id)}
+            cards={filterCardsByLabels(
+              query.data.cards.filter((card) => card.listId === list.id),
+              selectedLabelIds,
+            )}
             canEdit={canEdit}
             onCreateCard={(title) => mutations.createCard(list.id, title)}
             onOpenListActions={() => setListActionsTarget(list)}
@@ -195,6 +241,15 @@ export default function BoardScreen() {
           setListActionsTarget(null);
         }}
         onClose={() => setListActionsTarget(null)}
+      />
+
+      <LabelFilterSheet
+        visible={filterOpen}
+        boardId={boardId}
+        selectedLabelIds={selectedLabelIds}
+        onToggle={toggleLabelFilter}
+        onClear={() => setSelectedLabelIds(new Set())}
+        onClose={() => setFilterOpen(false)}
       />
     </>
   );

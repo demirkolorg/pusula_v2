@@ -8,7 +8,9 @@ import { CardMetaChip } from '@/components/card-detail/meta-chip';
 import { LabelsSheetBody } from '@/components/card-detail/labels-sheet';
 import { DueDateSheetBody } from '@/components/card-detail/due-date-sheet';
 import { MembersSheetBody } from '@/components/card-detail/members-sheet';
+import { CoverColorSheetBody } from '@/components/card-detail/cover-color-sheet';
 import { labelColorHex } from '@/lib/label-color';
+import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
 
@@ -27,6 +29,8 @@ type CardMetaBarProps = {
   boardMembers: BoardMembers;
   dueAt: Date | null;
   completed: boolean;
+  /** Kartın kapak rengi (`card.get` -> `card.coverColor`; düz `text`). */
+  coverColor: string | null;
   /** "Listeyi değiştir" hedef havuzu — board'un aktif listeleri. */
   lists: readonly ListOption[];
   currentListId: string;
@@ -37,7 +41,7 @@ type CardMetaBarProps = {
   canEdit: boolean;
 };
 
-type OpenSheet = 'members' | 'due' | 'labels' | 'list' | null;
+type OpenSheet = 'members' | 'due' | 'labels' | 'cover' | 'list' | null;
 
 /** Üye avatar yığını — chip içinde son ~3 üye, üst üste binmiş. */
 function MemberAvatarStack({ members }: { members: CardMembers }) {
@@ -87,6 +91,7 @@ export function CardMetaBar({
   boardMembers,
   dueAt,
   completed,
+  coverColor,
   lists,
   currentListId,
   currentListTitle,
@@ -95,6 +100,8 @@ export function CardMetaBar({
 }: CardMetaBarProps) {
   const [open, setOpen] = useState<OpenSheet>(null);
   const close = () => setOpen(null);
+  // `coverColor` düz `text` gelir — geçerli 12-renk palet adına daraltılır.
+  const cover = asCoverColor(coverColor);
 
   // Aynı kullanıcı birden çok rolle (assignee + watcher) görünebilir — chip
   // sayısı ve avatar yığını kullanıcı bazında benzersizleştirilir.
@@ -145,6 +152,26 @@ export function CardMetaBar({
         />
 
         <CardMetaChip
+          icon="image"
+          accessory={
+            cover != null ? (
+              <View
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: coverColorHex[cover] }}
+              />
+            ) : undefined
+          }
+          label={
+            cover != null
+              ? strings.cardDetail.coverColorNames[cover]
+              : strings.cardDetail.metaCoverEmpty
+          }
+          muted={cover == null}
+          onPress={() => setOpen('cover')}
+          accessibilityLabel={strings.cardDetail.coverTitle}
+        />
+
+        <CardMetaChip
           icon="list"
           label={currentListTitle ?? strings.cardDetail.metaListUnknown}
           muted={currentListTitle == null}
@@ -182,6 +209,17 @@ export function CardMetaBar({
             cardId={cardId}
             boardId={boardId}
             labels={labels}
+            canEdit={canEdit}
+          />
+        ) : null}
+      </Sheet>
+
+      <Sheet visible={open === 'cover'} title={strings.cardDetail.coverTitle} onClose={close}>
+        {open === 'cover' ? (
+          <CoverColorSheetBody
+            cardId={cardId}
+            boardId={boardId}
+            coverColor={cover}
             canEdit={canEdit}
           />
         ) : null}
