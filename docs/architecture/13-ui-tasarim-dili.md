@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-17
+updated: 2026-05-18
 ---
 
 # 13 — UI Tasarım Dili
@@ -91,7 +91,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 | `--radius` (base) | `0.5rem` (8px)                                                                                                                                                                                                       | `-sm` = `calc(--radius - 2px)` = 6px, `-md` = `--radius`, `-lg` = `calc(--radius + 2px)` = 10px, `-xl` = `calc(--radius + 6px)` = 14px. Kart `rounded-md`, kolon `rounded-lg`, modal `rounded-xl`, chip `rounded-sm`/`rounded-full`                                                                                                                                                                                                                                                                   |
 | Shadow            | `--shadow-card` (≈ `0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04)`), `--shadow-card-hover` (biraz daha derin), `--shadow-popover` (md — dropdown/modal/popover), `--shadow-drag` (2xl — drag overlay) | Tailwind `shadow-xs/sm/md` token'larıyla hizalanır; kartlarda `shadow-card`, sürüklemede `shadow-drag`                                                                                                                                                                                                                                                                                                                                                                                                |
 | Spacing           | Tailwind 4px ölçeği                                                                                                                                                                                                  | Kart `p-2`; kart-içi dikey `gap-1`/`gap-1.5`; kart başlık satırı `gap-1.5`; metadata satırı `gap-x-2 gap-y-1`; kolon `p-2`, başlık `p-2`, gövde `px-2 py-2 gap-2`; kolonlar arası `gap-3`; modal sol kolon `px-5 py-4 space-y-5`, section başlık `mb-2`                                                                                                                                                                                                                                               |
-| Tipografi         | Font = **Inter** (`--font-sans`, next/font self-host)                                                                                                                                                                | Ölçek: `text-[10px]`/`leading-tight` (kart metadata), `text-xs` 12px (chip, kolon meta, aktivite satırı), `text-sm` 14px (kart başlığı `leading-snug`, gövde, kolon başlığı `font-semibold`), `text-base` 16px (modal section/yorum), `text-lg` 18px (modal kart başlığı `font-semibold`), `text-xl` 20px (sayfa başlığı `tracking-tight`). Ağırlıklar 400/500/600 (heading 600). Kart başlığı `line-clamp-3`; section başlık `uppercase tracking-wide` `text-xs font-semibold text-muted-foreground` |
+| Tipografi         | Font = **Poppins** (`--font-sans` → `--font-poppins`, next/font self-host; 2026-05-18'de Inter'den değişti — bkz. `02-teknoloji-kararlari.md` Karar kaydı)                                                                                                                                                                | Ölçek: `text-[10px]`/`leading-tight` (kart metadata), `text-xs` 12px (chip, kolon meta, aktivite satırı), `text-sm` 14px (kart başlığı `leading-snug`, gövde, kolon başlığı `font-semibold`), `text-base` 16px (modal section/yorum), `text-lg` 18px (modal kart başlığı `font-semibold`), `text-xl` 20px (sayfa başlığı `tracking-tight`). Ağırlıklar 400/500/600/700 (next/font ile yüklenenler). Kart başlığı `line-clamp-3`; section başlık `uppercase tracking-wide` `text-xs font-semibold text-muted-foreground` |
 
 `packages/ui/src/styles/theme.css` hedef şekli (özet):
 
@@ -122,7 +122,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
   --palet-yesil-foreground: oklch(0.99 0 0);
   /* ...12 etiket rengi + -foreground eşleri... */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 }
 .dark {
   /* L değerleri ayarlı aynı set */

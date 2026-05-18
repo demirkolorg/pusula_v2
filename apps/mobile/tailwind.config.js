@@ -6,6 +6,14 @@
  * değişkenlerinden okunur — light/dark `@media (prefers-color-scheme)` ile
  * değişir. Sabit `palet-*` etiket renkleri tema-bağımsız.
  *
+ * TİPOGRAFİ: Proje geneli tek-tip font Poppros'tir (web simetrisi —
+ * `02-teknoloji-kararlari.md` 2026-05-18). Poppins değişken font DEĞİL; her
+ * ağırlık ayrı aileyle gelir ve RN `fontWeight` non-variable fontta aileyi
+ * seçmez. Bu yüzden font ailesi burada `fontFamily` anahtarıyla DEĞİL,
+ * `Text` sarmalayıcısı (`src/components/text.tsx`) `weight` prop'u +
+ * `src/theme/fonts.ts` ağırlık→aile eşlemesiyle uygulanır. `font-medium`/
+ * `font-semibold` gibi ağırlık sınıfları kullanılmaz (fake-bold önlenir).
+ *
  * SENKRON: `palet-*` hex'leri `src/theme/tokens.ts` `paletteColors` ile
  * aynıdır; biri değişince diğeri de güncellenmeli.
  *

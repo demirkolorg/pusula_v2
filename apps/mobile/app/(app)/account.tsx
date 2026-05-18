@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from '@/components/text';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { Button } from '@/components/button';
@@ -39,7 +40,9 @@ export default function AccountScreen() {
           <EntityAvatar name={displayName || strings.app.name} size={72} />
           <View className="items-center gap-1">
             {displayName ? (
-              <Text className="text-xl font-semibold text-foreground">{displayName}</Text>
+              <Text weight="semibold" className="text-xl text-foreground">
+                {displayName}
+              </Text>
             ) : null}
             {email ? <Text className="text-sm text-muted-foreground">{email}</Text> : null}
           </View>

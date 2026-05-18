@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, Text, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, useColorScheme } from 'react-native';
+import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
 
 type ButtonVariant = 'primary' | 'ghost';
@@ -41,7 +42,9 @@ export function Button({
       }`}
     >
       {pending && <ActivityIndicator size="small" color={spinnerColor} />}
-      <Text className={`text-base font-semibold ${textTone}`}>{label}</Text>
+      <Text weight="semibold" className={`text-base ${textTone}`}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

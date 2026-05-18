@@ -1,4 +1,5 @@
-import { Image, Text, View } from 'react-native';
+import { Image, View } from 'react-native';
+import { Text } from '@/components/text';
 import { avatarColor, avatarInitial } from '@/lib/avatar-color';
 
 type EntityAvatarProps = {
@@ -31,7 +32,7 @@ export function EntityAvatar({ name, size = 44, image }: EntityAvatarProps) {
       className="items-center justify-center rounded-xl"
       style={{ width: size, height: size, backgroundColor: avatarColor(name) }}
     >
-      <Text className="font-semibold text-white" style={{ fontSize: Math.round(size * 0.4) }}>
+      <Text weight="semibold" className="text-white" style={{ fontSize: Math.round(size * 0.4) }}>
         {avatarInitial(name)}
       </Text>
     </View>

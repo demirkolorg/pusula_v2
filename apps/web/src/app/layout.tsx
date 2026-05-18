@@ -1,15 +1,20 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Inter } from 'next/font/google';
+import { Poppins } from 'next/font/google';
 import { Toaster } from '@pusula/ui';
 import { TRPCReactProvider } from '@/trpc/client';
 import { FontSizeProvider } from './_components/font-size-provider';
 import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+// Poppins is the single project typeface. It is not a variable font on Google
+// Fonts, so the weights actually used across the UI (regular / medium /
+// semibold / bold) are requested explicitly. `latin-ext` covers Turkish
+// glyphs (ğ ş ı İ ç ö ü).
+const poppins = Poppins({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
   display: 'swap',
 });
 
@@ -53,7 +58,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="tr" className={inter.variable} suppressHydrationWarning>
+    <html lang="tr" className={poppins.variable} suppressHydrationWarning>
       <body className="bg-background text-foreground min-h-svh font-sans antialiased">
         <ThemeProvider>
           <FontSizeProvider>

@@ -1,5 +1,6 @@
 import { useColorScheme } from 'react-native';
 import { Stack } from 'expo-router';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 /**
@@ -14,7 +15,11 @@ export default function BoardsLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.foreground,
-        headerTitleStyle: { color: theme.foreground },
+        // Native header başlığı `Text` değildir — Poppins'i style ile uygula.
+        headerTitleStyle: {
+          color: theme.foreground,
+          fontFamily: fontFamilyForWeight.semibold,
+        },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: theme.background },
       }}

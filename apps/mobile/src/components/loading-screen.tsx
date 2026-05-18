@@ -1,4 +1,5 @@
-import { ActivityIndicator, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
 import { strings } from '@/lib/strings';
 

@@ -4,6 +4,7 @@ import { authClient } from '@/lib/auth-client';
 import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { strings } from '@/lib/strings';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 /**
@@ -29,6 +30,8 @@ export default function AppLayout() {
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.mutedForeground,
         tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
+        // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
+        tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
       }}
     >
       <Tabs.Screen

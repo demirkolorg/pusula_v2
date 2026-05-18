@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'expo-router';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { signInInput } from '@pusula/domain';
+import { Text } from '@/components/text';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { AuthScreen } from '@/components/auth-screen';
@@ -84,14 +86,22 @@ export default function SignInScreen() {
           onPress={handleSubmit}
           pending={pending}
         />
-        <Link href="/forgot-password" className="text-center text-sm text-muted-foreground">
+        <Link
+          href="/forgot-password"
+          style={{ fontFamily: fontFamilyForWeight.regular }}
+          className="text-center text-sm text-muted-foreground"
+        >
           {copy.forgotPassword}
         </Link>
       </View>
 
       <View className="mt-8 flex-row justify-center gap-1">
         <Text className="text-sm text-muted-foreground">{copy.noAccount}</Text>
-        <Link href="/sign-up" className="text-sm font-medium text-foreground">
+        <Link
+          href="/sign-up"
+          style={{ fontFamily: fontFamilyForWeight.medium }}
+          className="text-sm text-foreground"
+        >
           {copy.goToSignUp}
         </Link>
       </View>

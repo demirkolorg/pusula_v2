@@ -1,5 +1,7 @@
-import { Text, TextInput, View, useColorScheme } from 'react-native';
+import { TextInput, View, useColorScheme } from 'react-native';
 import type { TextInputProps } from 'react-native';
+import { Text } from '@/components/text';
+import { defaultFontFamily } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 type TextFieldProps = {
@@ -31,13 +33,17 @@ export function TextField({ label, value, onChangeText, error, ...inputProps }: 
 
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-medium text-foreground">{label}</Text>
+      <Text weight="medium" className="text-sm text-foreground">
+        {label}
+      </Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor={theme.mutedForeground}
         selectionColor={theme.primary}
         accessibilityLabel={label}
+        // `TextInput` `Text` değildir — Poppins'i style ile açıkça uygula.
+        style={{ fontFamily: defaultFontFamily }}
         className={`h-12 rounded-lg border bg-card px-3 text-base text-foreground ${
           error ? 'border-destructive' : 'border-border'
         }`}

@@ -1,5 +1,6 @@
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
+import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
 import { CardFace } from './card-face';
 
@@ -21,7 +22,7 @@ export function BoardColumn({ list, cards }: BoardColumnProps) {
   return (
     <View className="h-full w-72 rounded-xl bg-muted p-2">
       <View className="flex-row items-center justify-between px-1 py-2">
-        <Text className="flex-1 text-sm font-semibold text-foreground" numberOfLines={1}>
+        <Text weight="semibold" className="flex-1 text-sm text-foreground" numberOfLines={1}>
           {list.title}
         </Text>
         <Text className="text-xs text-muted-foreground">{cards.length}</Text>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from '@/components/text';
 import { BrandMark } from './brand-mark';
 
 type AuthScreenProps = {
@@ -28,7 +29,9 @@ export function AuthScreen({ title, subtitle, children }: AuthScreenProps) {
           <View className="mx-auto w-full max-w-sm">
             <View className="mb-8 items-center gap-3">
               <BrandMark size={56} />
-              <Text className="text-center text-2xl font-semibold text-foreground">{title}</Text>
+              <Text weight="semibold" className="text-center text-2xl text-foreground">
+                {title}
+              </Text>
               <Text className="text-center text-sm text-muted-foreground">{subtitle}</Text>
             </View>
             {children}

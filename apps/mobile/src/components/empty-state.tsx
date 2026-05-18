@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Text, View, useColorScheme } from 'react-native';
+import { View, useColorScheme } from 'react-native';
+import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
 import { Icon, type IconName } from './icon';
 
@@ -22,7 +23,9 @@ export function EmptyState({ icon, title, description, children }: EmptyStatePro
       <View className="h-16 w-16 items-center justify-center rounded-2xl bg-muted">
         <Icon name={icon} size={26} color={theme.mutedForeground} />
       </View>
-      <Text className="text-center text-lg font-semibold text-foreground">{title}</Text>
+      <Text weight="semibold" className="text-center text-lg text-foreground">
+        {title}
+      </Text>
       <Text className="text-center text-sm text-muted-foreground">{description}</Text>
       {children}
     </View>

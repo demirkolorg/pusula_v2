@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'expo-router';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { signUpInput } from '@pusula/domain';
+import { Text } from '@/components/text';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { AuthScreen } from '@/components/auth-screen';
@@ -104,7 +106,11 @@ export default function SignUpScreen() {
 
       <View className="mt-8 flex-row justify-center gap-1">
         <Text className="text-sm text-muted-foreground">{copy.hasAccount}</Text>
-        <Link href="/sign-in" className="text-sm font-medium text-foreground">
+        <Link
+          href="/sign-in"
+          style={{ fontFamily: fontFamilyForWeight.medium }}
+          className="text-sm text-foreground"
+        >
           {copy.goToSignIn}
         </Link>
       </View>

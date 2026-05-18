@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { View } from 'react-native';
 import { forgotPasswordInput } from '@pusula/domain';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { authClient } from '@/lib/auth-client';
 import { AuthScreen } from '@/components/auth-screen';
 import { Button } from '@/components/button';
@@ -55,7 +56,11 @@ export default function ForgotPasswordScreen() {
     return (
       <AuthScreen title={copy.successTitle} subtitle={copy.successBody}>
         <View className="items-center">
-          <Link href="/sign-in" className="text-sm font-medium text-foreground">
+          <Link
+            href="/sign-in"
+            style={{ fontFamily: fontFamilyForWeight.medium }}
+            className="text-sm text-foreground"
+          >
             {copy.backToSignIn}
           </Link>
         </View>
@@ -88,7 +93,11 @@ export default function ForgotPasswordScreen() {
       </View>
 
       <View className="mt-8 items-center">
-        <Link href="/sign-in" className="text-sm text-muted-foreground">
+        <Link
+          href="/sign-in"
+          style={{ fontFamily: fontFamilyForWeight.regular }}
+          className="text-sm text-muted-foreground"
+        >
           {copy.backToSignIn}
         </Link>
       </View>

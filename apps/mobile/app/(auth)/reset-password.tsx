@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { resetPasswordInput } from '@pusula/domain';
+import { fontFamilyForWeight } from '@/theme/fonts';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { AuthScreen } from '@/components/auth-screen';
@@ -35,10 +36,18 @@ export default function ResetPasswordScreen() {
     return (
       <AuthScreen title={copy.missingTokenTitle} subtitle={copy.missingTokenBody}>
         <View className="items-center gap-2">
-          <Link href="/forgot-password" className="text-sm font-medium text-foreground">
+          <Link
+            href="/forgot-password"
+            style={{ fontFamily: fontFamilyForWeight.medium }}
+            className="text-sm text-foreground"
+          >
             {copy.requestNewLink}
           </Link>
-          <Link href="/sign-in" className="text-sm text-muted-foreground">
+          <Link
+            href="/sign-in"
+            style={{ fontFamily: fontFamilyForWeight.regular }}
+            className="text-sm text-muted-foreground"
+          >
             {copy.backToSignIn}
           </Link>
         </View>
@@ -115,6 +124,7 @@ export default function ResetPasswordScreen() {
       <View className="mt-8 items-center">
         <Link
           href={error ? '/forgot-password' : '/sign-in'}
+          style={{ fontFamily: fontFamilyForWeight.regular }}
           className="text-sm text-muted-foreground"
         >
           {error ? copy.requestNewLink : copy.backToSignIn}

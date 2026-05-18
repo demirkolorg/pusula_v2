@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Pressable, View, useColorScheme } from 'react-native';
+import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
 import { Icon } from './icon';
 
@@ -31,7 +32,7 @@ export function ListRow({ title, subtitle, badge, leading, onPress }: ListRowPro
       {leading}
       <View className="flex-1 gap-0.5">
         <View className="flex-row items-center gap-2">
-          <Text className="flex-1 text-base font-semibold text-foreground" numberOfLines={1}>
+          <Text weight="semibold" className="flex-1 text-base text-foreground" numberOfLines={1}>
             {title}
           </Text>
           {badge ? (

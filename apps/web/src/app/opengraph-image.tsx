@@ -16,19 +16,19 @@ export const contentType = 'image/png';
 const HEADLINE = 'Ekibinizin işlerini tek yönde toplayın.';
 const EYEBROW = 'GÖREV VE PANO YÖNETİMİ';
 
-/** Google Fonts'tan Inter alt kümesi (TTF) çeker — Türkçe glifler için. */
-async function loadInter(weight: 400 | 700, text: string): Promise<ArrayBuffer> {
-  const url = `https://fonts.googleapis.com/css2?family=Inter:wght@${weight}&text=${encodeURIComponent(text)}`;
+/** Google Fonts'tan Poppins alt kümesi (TTF) çeker — Türkçe glifler için. */
+async function loadPoppins(weight: 400 | 700, text: string): Promise<ArrayBuffer> {
+  const url = `https://fonts.googleapis.com/css2?family=Poppins:wght@${weight}&text=${encodeURIComponent(text)}`;
   const css = await (await fetch(url)).text();
   const match = css.match(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/);
   const fontUrl = match?.[1];
-  if (!fontUrl) throw new Error('Inter font kaynağı çözümlenemedi');
+  if (!fontUrl) throw new Error('Poppins font kaynağı çözümlenemedi');
   return (await fetch(fontUrl)).arrayBuffer();
 }
 
 export default async function OpengraphImage() {
   const glyphs = `${HEADLINE}${EYEBROW}Pusulapusulaportal.com`;
-  const [regular, bold] = await Promise.all([loadInter(400, glyphs), loadInter(700, glyphs)]);
+  const [regular, bold] = await Promise.all([loadPoppins(400, glyphs), loadPoppins(700, glyphs)]);
 
   return new ImageResponse(
     (
@@ -44,7 +44,7 @@ export default async function OpengraphImage() {
           backgroundColor: '#5a66d6',
           backgroundImage:
             'radial-gradient(circle at 18% 12%, rgba(148,156,228,0.55) 0%, rgba(90,102,214,0) 55%), radial-gradient(circle at 85% 88%, rgba(31,36,80,0.85) 0%, rgba(90,102,214,0) 60%), linear-gradient(135deg, #5a66d6 0%, #3f4796 100%)',
-          fontFamily: 'Inter',
+          fontFamily: 'Poppins',
         }}
       >
         {/* Marka satırı: pusula ikonu + sözcük işareti */}
@@ -100,8 +100,8 @@ export default async function OpengraphImage() {
     {
       ...size,
       fonts: [
-        { name: 'Inter', data: regular, weight: 400, style: 'normal' },
-        { name: 'Inter', data: bold, weight: 700, style: 'normal' },
+        { name: 'Poppins', data: regular, weight: 400, style: 'normal' },
+        { name: 'Poppins', data: bold, weight: 700, style: 'normal' },
       ],
     },
   );

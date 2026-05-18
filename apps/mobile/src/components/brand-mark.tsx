@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/text';
 
 type BrandMarkProps = {
   /** Kare kenar uzunluğu (px). Varsayılan 64. */
@@ -17,7 +18,8 @@ export function BrandMark({ size = 64 }: BrandMarkProps) {
       style={{ width: size, height: size }}
     >
       <Text
-        className="font-bold text-primary-foreground"
+        weight="bold"
+        className="text-primary-foreground"
         style={{ fontSize: size * 0.5 }}
       >
         P

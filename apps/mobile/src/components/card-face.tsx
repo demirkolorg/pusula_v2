@@ -1,5 +1,6 @@
-import { Text, View, useColorScheme } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
+import { Text } from '@/components/text';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
 import { themeFor } from '@/theme/tokens';
@@ -63,7 +64,8 @@ export function CardFace({ card }: { card: BoardCard }) {
       ) : null}
 
       <Text
-        className={`text-sm font-medium ${
+        weight="medium"
+        className={`text-sm ${
           card.completed ? 'text-muted-foreground line-through' : 'text-foreground'
         }`}
       >
