@@ -9,6 +9,9 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "mobile": "pnpm --filter @pusula/mobile start",
+    "mobile:android": "pnpm --filter @pusula/mobile android",
+    "mobile:ios": "pnpm --filter @pusula/mobile ios",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:e2e": "eslint e2e/",

@@ -414,6 +414,18 @@ Faz 7F ([DEM-182](https://linear.app/demirkol/issue/DEM-182)) mobil kart detay e
 - **Tiptap JSON render katmanı** (`TiptapRender`) — 7.0 kararı: kart açıklaması ve yorum gövdeleri Tiptap JSON saklanır; bu bileşen JSON ağacını RN bileşenlerine çevirir (paragraf, başlık, madde/numaralı liste, blockquote, kod, `bold`/`italic`/`strike`/`code` mark'ları, `mention`, `hardBreak`). Açıklama + her yorum gövdesi biçimli gösterilir.
 - **Bölümler** — checklist (başlık + ilerleme + maddeler, tamamlanan işaretli), etiket, due tarihi, üyeler, **yorum listesi** (yazar + Tiptap gövde + zaman), **aktivite** okuma görünümü (`activity-summary` ile tip→Türkçe etiket). Yorum yazarı adı `card.activity.list` aktör adlarından çözümlenir (`comment.list` yalnız `authorId` döndürür).
 - **Kapsam dışı** — düzenleme / yorum yazma / checklist toggle (read-only — sonraki fazlar); tam mobil rich editör yok (7.0: zengin render + düz-metin düzenleme, düzenleme ileride).
+
+### Faz 7D — Üye yönetimi + davet kabul (Wired)
+
+Faz 7D ([DEM-180](https://linear.app/demirkol/issue/DEM-180)) mobil üye listesi ekranlarını + davet akışını kurdu. Mobilin **ilk mutation'lı** fazı — önceki 7A–7F salt-okunurdu.
+
+- **Üye listesi ekranları** — `app/(app)/(boards)/workspace-members/[id].tsx` (`trpc.workspace.members.list`) ve `app/(app)/(boards)/board-members/[boardId].tsx` (`trpc.board.members.list`). Üyeler avatar + ad + rol rozetiyle salt görüntülenir; board listesinde workspace owner/admin'den devralınan admin'ler ikinci "Devralındı" rozetiyle işaretlenir. Çağıranın rolü ayrı sorgu yerine üye listesi içinden kendi `userId`'si eşlenerek bulunur.
+- **Giriş noktaları** — board listesi (`workspaces/[id].tsx`) ve board ekranı (`boards/[boardId].tsx`) header'larına `users` ikonlu `headerRight` butonu; ilgili üye ekranına `router.push` eder.
+- **Üye davet etme** — `admin+` workspace rolü / `admin` board rolü ise üye ekranında satır-içi açılan davet formu (`MemberInviteForm` — e-posta `TextField` + rol çip seçici `RoleSelect` + gönder). Workspace daveti `workspace.members.invite`, board daveti `board.members.add`. Başarıda form kapanır, üye listesi invalidate edilir, bilgi mesajı gösterilir.
+- **Aldığım bekleyen davetler** — `(boards)/index.tsx` (workspace listesi) üstüne `PendingInvitations` bölümü: `workspace.invitations.mine` + `board.invitations.mine` tek listede birleşir, her satırda kabul/reddet butonu (`*.invitations.accept` / `decline`). Davet yoksa bölüm tamamen gizli. Kabul sonrası workspace listesi de invalidate edilir (yeni workspace görünür).
+- **Mutation disiplini** — tüm davet/kabul/reddet mutation'ları opsiyonel `clientMutationId` taşır; her çağrıda `expo-crypto` `randomUUID()` ile yeni UUID üretilir (`src/lib/client-mutation-id.ts`). Hata → `Alert` / `FormMessage`; pending sırasında butonlar disabled.
+- **Kapsam dışı** — rol değiştirme, üye çıkarma, gönderilen davet iptali (revoke). Yalnız liste + davet-al + davet-et.
+
 ### Mobil tipografi — Poppins (2026-05-18)
 
 Proje geneli tek-tip font kararının ([`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-18) `apps/mobile` ayağı. Daha önce mobil OS sistem fontunu kullanıyordu; artık tüm görünür metin **Poppins**.

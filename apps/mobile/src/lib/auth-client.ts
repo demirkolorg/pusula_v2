@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { expoClient } from '@better-auth/expo/client';
 import { createAuthClient } from 'better-auth/react';
-import { env } from '@/env';
+import { apiBaseUrl } from '@/lib/api-url';
 
 /**
  * Mobil Better Auth client. Web `apps/web/src/lib/auth-client.ts` ile aynı API
@@ -18,7 +18,7 @@ import { env } from '@/env';
  * Bkz. `docs/architecture/07-auth.md` (Mobil oturum — Faz 7B).
  */
 export const authClient = createAuthClient({
-  baseURL: env.EXPO_PUBLIC_API_URL,
+  baseURL: apiBaseUrl,
   plugins: [
     expoClient({
       scheme: 'pusula',

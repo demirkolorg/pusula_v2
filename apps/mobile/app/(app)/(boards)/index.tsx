@@ -1,4 +1,4 @@
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/empty-state';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { ListRow } from '@/components/list-row';
 import { LoadingScreen } from '@/components/loading-screen';
+import { PendingInvitations } from '@/components/pending-invitations';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -52,15 +53,33 @@ export default function WorkspacesScreen() {
     );
   }
 
+  // Hiç workspace yok: bekleyen davetler hâlâ görünmeli (davet kabul edilince
+  // ilk workspace bu yoldan gelir). Davet varsa scroll'lu liste + onboarding
+  // boş durumu; davet yoksa salt onboarding.
   if (query.data.length === 0) {
     return (
       <>
         {header}
-        <EmptyState
-          icon="compass"
-          title={strings.onboarding.title}
-          description={strings.onboarding.description}
-        />
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="grow gap-4 p-4"
+          refreshControl={
+            <RefreshControl
+              refreshing={query.isFetching}
+              onRefresh={() => query.refetch()}
+              tintColor={theme.mutedForeground}
+            />
+          }
+        >
+          <PendingInvitations />
+          <View className="grow justify-center">
+            <EmptyState
+              icon="compass"
+              title={strings.onboarding.title}
+              description={strings.onboarding.description}
+            />
+          </View>
+        </ScrollView>
       </>
     );
   }
@@ -71,6 +90,7 @@ export default function WorkspacesScreen() {
       <FlatList
         data={query.data}
         keyExtractor={(workspace) => workspace.id}
+        ListHeaderComponent={PendingInvitations}
         contentContainerClassName="gap-3 p-4"
         refreshControl={
           <RefreshControl

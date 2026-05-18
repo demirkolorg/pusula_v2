@@ -11,8 +11,10 @@ const envSchema = z.object({
   // Üretim sertleştirmesi: prod yapılarında `https://` zorunlu — oturum
   // cookie'si (`Cookie` başlığı) cleartext gitmesin (api `env.ts`
   // `assertProductionHardening` disiplinine paralel).
-  // Dev/Expo Go fiziksel cihazda `localhost` makineye ulaşmaz; `.env`'de
-  // makinenin LAN IP'sine ayarlanmalı (örn. `http://192.168.x.x:3001`).
+  // Dev'de gerçek host `src/lib/api-url.ts` ile Expo Metro `hostUri`'sinden
+  // türetilir — emulator ve fiziksel cihaz tek değerle çalışır, `.env`'i elle
+  // LAN IP'ye çekmek gerekmez. Üretim build'inde (`__DEV__` false) bu değer
+  // (https URL) doğrudan kullanılır.
   EXPO_PUBLIC_API_URL: z
     .url()
     .default('http://localhost:3001')
