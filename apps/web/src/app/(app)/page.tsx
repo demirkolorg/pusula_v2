@@ -9,7 +9,6 @@ import { useTRPC } from '@/trpc/client';
 import { OnboardingEmptyState } from './_components/onboarding-empty-state';
 import { PendingInvitations } from './_components/pending-invitations';
 import { BoardGrid } from './_components/home/board-grid';
-import { HomeHero } from './_components/home/home-hero';
 import { WorkspaceOverviewHeader } from './_components/home/workspace-overview-header';
 import { WorkspaceRail } from './_components/home/workspace-rail';
 import { WorkspaceStatStrip } from './_components/home/workspace-stat-strip';
@@ -72,11 +71,9 @@ export default function WorkspacesPage() {
         className="pointer-events-none absolute -top-28 left-0 -z-10 h-72 w-[44rem] rounded-full bg-primary/15 blur-3xl dark:bg-primary/25"
       />
 
-      <HomeHero />
-
       <PendingInvitations />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
         <div className="lg:sticky lg:top-20 lg:max-h-[calc(100svh-7rem)]">
           <WorkspaceRail
             workspaces={workspaceList}
