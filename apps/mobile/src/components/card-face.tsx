@@ -3,6 +3,7 @@ import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
+import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 import { EntityAvatar } from './entity-avatar';
 import { Icon, type IconName } from './icon';
@@ -33,9 +34,18 @@ function MetaChip({ icon, label, color }: MetaChipProps) {
 /**
  * Board kolonundaki tek kartın yüzü. Başlık + etiket renk şeritleri + meta
  * satırı (due / checklist / yorum / ek / üye). `onPress` verilirse karta
- * dokunmak kart detayını açar (Faz 7F).
+ * dokunmak kart detayını açar (Faz 7F); `onLongPress` verilirse uzun basma
+ * "move to list" picker'ını açar (Faz 7H — mobil drag-drop yerine).
  */
-export function CardFace({ card, onPress }: { card: BoardCard; onPress?: () => void }) {
+export function CardFace({
+  card,
+  onPress,
+  onLongPress,
+}: {
+  card: BoardCard;
+  onPress?: () => void;
+  onLongPress?: () => void;
+}) {
   const theme = themeFor(useColorScheme());
   const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
   const visibleMembers = card.members.slice(0, MAX_VISIBLE_MEMBERS);
@@ -51,10 +61,12 @@ export function CardFace({ card, onPress }: { card: BoardCard; onPress?: () => v
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
-      disabled={!onPress}
+      accessibilityHint={onLongPress ? strings.board.moveCardAction : undefined}
+      disabled={!onPress && !onLongPress}
       onPress={onPress}
+      onLongPress={onLongPress}
       className={`gap-2 rounded-lg border border-border bg-card p-3 ${
-        onPress ? 'active:opacity-70' : ''
+        onPress || onLongPress ? 'active:opacity-70' : ''
       }`}
     >
       {card.labels.length > 0 ? (

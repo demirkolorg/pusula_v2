@@ -44,3 +44,13 @@ export function canManageWorkspaceMembers(role: WorkspaceRole | null | undefined
 export function canManageBoardMembers(role: BoardRole | null | undefined): boolean {
   return role === 'admin';
 }
+
+/**
+ * Board içeriğini (liste / kart) düzenleyebilir mi? Board `member+` (`admin`
+ * veya `member`); `viewer` salt-okunur. Backend her procedure'de yine kendi
+ * kontrolünü yapar — bu yalnız düzenleme yüzeylerinin görünürlüğü içindir
+ * (`docs/domain/02-yetkilendirme-kurallari.md` — `canEditBoardContent`).
+ */
+export function canEditBoard(role: BoardRole | null | undefined): boolean {
+  return role === 'admin' || role === 'member';
+}

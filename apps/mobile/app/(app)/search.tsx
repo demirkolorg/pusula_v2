@@ -1,19 +1,18 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { EmptyState } from '@/components/empty-state';
+import { SearchView } from '@/components/search/search-view';
 import { strings } from '@/lib/strings';
 
 /**
- * "Arama" sekmesi — placeholder. Gerçek arama UI'si Faz 7I
- * ([DEM-185](https://linear.app/demirkol/issue/DEM-185)) ile gelir.
+ * "Arama" sekmesi — global arama (Faz 7I). Tüm erişilebilir workspace/board
+ * kapsamında pano/liste/kart/yorum/etiket/ek araması; permission filtresi
+ * `search.query` (Faz 6.5) tarafından server-side uygulanır.
+ *
+ * Sekmenin native header'ı yok — başlık `SearchView` içinde ekran-içi çizilir.
  */
 export default function SearchScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <EmptyState
-        icon="search"
-        title={strings.search.comingSoonTitle}
-        description={strings.search.comingSoonBody}
-      />
+      <SearchView title={strings.search.globalTitle} />
     </SafeAreaView>
   );
 }

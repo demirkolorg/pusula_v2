@@ -15,3 +15,23 @@ import { randomUUID } from 'expo-crypto';
 export function newClientMutationId(): string {
   return randomUUID();
 }
+
+/**
+ * İyimser (optimistic) kart/liste için geçici istemci-tarafı id üretir
+ * (Faz 7H). `card.create` / `list.create` sunucudan dönene kadar cache'te
+ * bu id kullanılır; dönüşte gerçek id ile değiştirilir. Sunucu id'leriyle
+ * çakışmaması için ayırt edici `tmp-` öneki taşır.
+ */
+export function newTempId(): string {
+  return `tmp-${randomUUID()}`;
+}
+
+/**
+ * Bir id'nin {@link newTempId} ile üretilmiş geçici (henüz sunucuya yazılmamış)
+ * bir id olup olmadığını söyler. Optimistic kart/liste sunucudan dönene kadar
+ * etkileşime (kart detayı açma, taşıma, ⋮ menü) kapatılır — geçici id ile
+ * yapılan istek backend'de bulunamaz.
+ */
+export function isPendingId(id: string): boolean {
+  return id.startsWith('tmp-');
+}
