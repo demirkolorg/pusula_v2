@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
+import { BoardActionsSheet } from '@/components/board-actions-sheet';
 import { BoardColumn } from '@/components/board-column';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
@@ -16,7 +17,7 @@ import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
 import { filterCardsByLabels } from '@/lib/board-filter';
 import { isPendingId } from '@/lib/client-mutation-id';
-import { canEditBoard } from '@/lib/member-roles';
+import { canEditBoard, canManageBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
 import { useBoardMutations } from '@/lib/use-board-mutations';
 import { themeFor } from '@/theme/tokens';
@@ -48,6 +49,14 @@ export default function BoardScreen() {
   const [moveTarget, setMoveTarget] = useState<BoardCard | null>(null);
   const [listActionsTarget, setListActionsTarget] = useState<BoardList | null>(null);
 
+  // Board ⋮ menüsü (DEM-211 — yeniden adlandır / arşivle).
+  const [boardActionsOpen, setBoardActionsOpen] = useState(false);
+  // Nav başlığı tek kaynaktan: `board.get` cache'i. Yeniden adlandırma optimistic
+  // olarak bu cache'i yamalar (anında güncel) ve hata olursa rollback başlığı da
+  // geri alır; `board.get` henüz yüklenmediyse route query (`?title=`) fallback.
+  const displayTitle =
+    query.data?.board.title ?? params.title ?? strings.board.fallbackTitle;
+
   // Etiket filtresi (Faz 7E-2) — geçici istemci-tarafı state; ekran değişince
   // sıfırlanır. Seçili etiketlerden en az birini taşıyan kartlar gösterilir.
   // Not: başka bir istemci seçili bir etiketi silerse id state'te "stale"
@@ -64,11 +73,40 @@ export default function BoardScreen() {
       return next;
     });
 
-  // Header aksiyonları — board içi arama (Faz 7I) + board üye yönetimi (Faz 7D).
+  // Board ⋮ menüsü yalnız board `admin` ve board arşivli değilken çizilir
+  // (DEM-211 — DEM-196 kart ⋮ görünürlük deseninin board karşılığı).
+  const canManageThisBoard =
+    query.data != null &&
+    canManageBoard(query.data.board.role) &&
+    query.data.board.archivedAt == null;
+
+  // Board arşivleme — `Alert` ile onayla, optimistic mutation tetikle, board
+  // listesine geri dön (arşivlenen board listede salt-okunur görünür).
+  function handleArchiveBoard() {
+    setBoardActionsOpen(false);
+    Alert.alert(
+      strings.board.archiveBoardConfirmTitle,
+      strings.board.archiveBoardConfirmBody,
+      [
+        { text: strings.common.cancel, style: 'cancel' },
+        {
+          text: strings.board.archiveBoardConfirmAction,
+          style: 'destructive',
+          onPress: () => {
+            mutations.archiveBoard();
+            router.back();
+          },
+        },
+      ],
+    );
+  }
+
+  // Header aksiyonları — board içi arama (Faz 7I) + board üye yönetimi (Faz 7D)
+  // + board ⋮ işlemler menüsü (DEM-211).
   const header = (
     <Stack.Screen
       options={{
-        title: params.title ?? strings.board.fallbackTitle,
+        title: displayTitle,
         headerRight: boardId
           ? () => (
               <View className="flex-row items-center gap-4">
@@ -117,13 +155,25 @@ export default function BoardScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/board-members/[boardId]',
-                      params: { boardId, title: params.title ?? '' },
+                      params: { boardId, title: displayTitle },
                     })
                   }
                   className="active:opacity-60"
                 >
                   <Icon name="users" size={22} color={theme.foreground} />
                 </Pressable>
+                {/* Board ⋮ işlemler — yalnız board admin + arşivli değilken. */}
+                {canManageThisBoard ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={strings.board.boardActionsLabel}
+                    hitSlop={8}
+                    onPress={() => setBoardActionsOpen(true)}
+                    className="active:opacity-60"
+                  >
+                    <Icon name="more-vertical" size={22} color={theme.foreground} />
+                  </Pressable>
+                ) : null}
               </View>
             )
           : undefined,
@@ -250,6 +300,20 @@ export default function BoardScreen() {
         onToggle={toggleLabelFilter}
         onClear={() => setSelectedLabelIds(new Set())}
         onClose={() => setFilterOpen(false)}
+      />
+
+      {/* DEM-211 — board ⋮ menüsü: yeniden adlandır / arşivle. */}
+      <BoardActionsSheet
+        visible={boardActionsOpen}
+        boardTitle={displayTitle}
+        onRename={(title) => {
+          // `renameBoard` `board.get` cache'ini optimistic yamalar → nav başlığı
+          // (`displayTitle`) anında güncellenir; ayrı bir local state gerekmez.
+          mutations.renameBoard(title);
+          setBoardActionsOpen(false);
+        }}
+        onArchive={handleArchiveBoard}
+        onClose={() => setBoardActionsOpen(false)}
       />
     </>
   );

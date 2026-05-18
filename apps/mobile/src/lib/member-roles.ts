@@ -46,6 +46,16 @@ export function canManageBoardMembers(role: BoardRole | null | undefined): boole
 }
 
 /**
+ * Board-seviyesi ayarları (yeniden adlandır / arşivle) yönetebilir mi? Board
+ * `admin` only — `viewer`/`member` board ayarına dokunamaz. Backend her
+ * procedure'de yine `canManageBoard` kontrolü yapar (DEM-211 — bu yalnız board
+ * ⋮ menüsünün görünürlüğü içindir).
+ */
+export function canManageBoard(role: BoardRole | null | undefined): boolean {
+  return role === 'admin';
+}
+
+/**
  * Board içeriğini (liste / kart) düzenleyebilir mi? Board `member+` (`admin`
  * veya `member`); `viewer` salt-okunur. Backend her procedure'de yine kendi
  * kontrolünü yapar — bu yalnız düzenleme yüzeylerinin görünürlüğü içindir

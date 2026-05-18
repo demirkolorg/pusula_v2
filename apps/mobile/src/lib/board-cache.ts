@@ -155,6 +155,24 @@ export function replaceOptimisticList(
   };
 }
 
+/**
+ * Board başlığını iyimser değiştirir (DEM-211 — `board.update` `title`). Board
+ * ekranı nav başlığını kendi local state'inden çizer; bu helper `board.get`
+ * cache'ini de tutarlı tutar (kullanıcı board'a tekrar girdiğinde doğru).
+ */
+export function renameBoardInCache(data: BoardData, title: string): BoardData {
+  return { ...data, board: { ...data.board, title } };
+}
+
+/**
+ * Board'u iyimser arşivler (DEM-211 — `board.archive`). `archivedAt` set edilir;
+ * board ekranı arşivleme sonrası listeye geri döner, `onSettled` refetch'i
+ * server `version`/`archivedAt` ile reconcile eder.
+ */
+export function archiveBoardInCache(data: BoardData): BoardData {
+  return { ...data, board: { ...data.board, archivedAt: new Date() } };
+}
+
 /** Bir listenin başlığını iyimser değiştirir. */
 export function renameListInCache(data: BoardData, listId: string, title: string): BoardData {
   return {

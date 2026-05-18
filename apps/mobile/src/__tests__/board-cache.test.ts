@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   addOptimisticCard,
   addOptimisticList,
+  archiveBoardInCache,
   archiveListInCache,
   moveCardInCache,
   removeCardFromCache,
+  renameBoardInCache,
   renameCardInCache,
   renameListInCache,
   replaceOptimisticCard,
@@ -60,9 +62,13 @@ function makeList(over: Partial<BoardList> & { id: string; position: string }): 
   };
 }
 
-function makeBoard(lists: BoardList[], cards: BoardCard[]): BoardData {
+function makeBoard(
+  lists: BoardList[],
+  cards: BoardCard[],
+  boardOver: Partial<BoardData['board']> = {},
+): BoardData {
   return {
-    board: { id: 'board-1' } as BoardData['board'],
+    board: { id: 'board-1', title: 'Pano', archivedAt: null, ...boardOver } as BoardData['board'],
     lists,
     cards,
   };
@@ -192,6 +198,32 @@ describe('archiveListInCache', () => {
     const board = makeBoard([makeList({ id: 'list-1', position: 'a0' })], []);
     const next = archiveListInCache(board, 'list-1');
     expect(next.lists[0]?.archivedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe('renameBoardInCache', () => {
+  it('board başlığını değiştirir, liste/kartlara dokunmaz', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [makeCard({ id: 'c1', listId: 'list-1', position: 'a0' })],
+      { title: 'Eski Pano' },
+    );
+    const next = renameBoardInCache(board, 'Yeni Pano');
+    expect(next.board.title).toBe('Yeni Pano');
+    expect(next.lists).toBe(board.lists);
+    expect(next.cards).toBe(board.cards);
+    // İmmutability — kaynak değişmez.
+    expect(board.board.title).toBe('Eski Pano');
+  });
+});
+
+describe('archiveBoardInCache', () => {
+  it('board archivedAt değerini set eder', () => {
+    const board = makeBoard([makeList({ id: 'list-1', position: 'a0' })], []);
+    const next = archiveBoardInCache(board);
+    expect(next.board.archivedAt).toBeInstanceOf(Date);
+    // İmmutability — kaynak değişmez.
+    expect(board.board.archivedAt).toBeNull();
   });
 });
 

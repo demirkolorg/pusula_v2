@@ -190,6 +190,17 @@ export const strings = {
     archiveList: 'Listeyi arşivle',
     // Kart taşıma (long-press → "move to list").
     moveCardAction: 'Kartı taşı',
+    // Board ⋮ menüsü — board-seviyesi işlemler (DEM-211).
+    boardActions: 'Pano işlemleri',
+    boardActionsLabel: 'Pano işlemleri',
+    renameBoard: 'Yeniden adlandır',
+    renameBoardPlaceholder: 'Yeni pano başlığı',
+    archiveBoard: 'Panoyu arşivle',
+    archiveBoardConfirmTitle: 'Panoyu arşivle',
+    archiveBoardConfirmBody:
+      'Bu pano arşivlenecek ve salt-okunur olacak. Arşivden geri yükleyebilirsin.',
+    archiveBoardConfirmAction: 'Arşivle',
+    archiveBoardError: 'Pano arşivlenemedi. Lütfen tekrar dene.',
   },
   // Board etiket filtresi (Faz 7E-2 — DEM-200).
   boardFilter: {

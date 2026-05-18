@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   boardRoleLabel,
+  canManageBoard,
   canManageBoardMembers,
   canManageWorkspaceMembers,
   workspaceRoleLabel,
@@ -52,5 +53,18 @@ describe('canManageBoardMembers', () => {
     expect(canManageBoardMembers('viewer')).toBe(false);
     expect(canManageBoardMembers(null)).toBe(false);
     expect(canManageBoardMembers(undefined)).toBe(false);
+  });
+});
+
+describe('canManageBoard', () => {
+  it('yalnız board admin için true döner (DEM-211 — board ⋮ menüsü)', () => {
+    expect(canManageBoard('admin')).toBe(true);
+  });
+
+  it('member, viewer ve tanımsız rol için false döner', () => {
+    expect(canManageBoard('member')).toBe(false);
+    expect(canManageBoard('viewer')).toBe(false);
+    expect(canManageBoard(null)).toBe(false);
+    expect(canManageBoard(undefined)).toBe(false);
   });
 });

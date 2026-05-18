@@ -1,6 +1,7 @@
 /**
  * Faz 7H — board ekranı collaborative mutation'ları (kart/liste oluştur, liste
- * yeniden adlandır/arşivle, kart taşı).
+ * yeniden adlandır/arşivle, kart taşı). DEM-211 board-seviyesi yeniden
+ * adlandırma/arşivlemeyi (`board.update` / `board.archive`) ekler.
  *
  * Hepsi TanStack Query optimistic akışında çalışır: `onMutate` `board.get`
  * cache'ini iyimser günceller (saf `board-cache` dönüşümleriyle) + snapshot
@@ -15,8 +16,10 @@ import { useTRPC } from '@/trpc/provider';
 import {
   addOptimisticCard,
   addOptimisticList,
+  archiveBoardInCache,
   archiveListInCache,
   moveCardInCache,
+  renameBoardInCache,
   renameListInCache,
   replaceOptimisticCard,
   replaceOptimisticList,
@@ -150,6 +153,49 @@ export function useBoardMutations(boardId: string) {
     }),
   );
 
+  // --- Board yeniden adlandırma (DEM-211) ----------------------------------
+  // `board.get` cache'i iyimser yamanır; board ekranı nav başlığını kendi
+  // local state'inden çizdiği için ekran de eşzamanlı tazelenir (çağıran taraf).
+  const renameBoardMutation = useMutation(
+    trpc.board.update.mutationOptions({
+      onMutate: async (vars) => {
+        await queryClient.cancelQueries(boardFilter);
+        const previous = queryClient.getQueryData(boardKey);
+        if (previous && vars.title !== undefined) {
+          queryClient.setQueryData(boardKey, renameBoardInCache(previous, vars.title));
+        }
+        return { previous };
+      },
+      onError: (_error, _vars, ctx) => {
+        if (ctx?.previous) queryClient.setQueryData(boardKey, ctx.previous);
+        fail();
+      },
+      onSettled: invalidateBoard,
+    }),
+  );
+
+  // --- Board arşivleme (DEM-211) -------------------------------------------
+  // `board.get` cache'i iyimser `archivedAt` set edilir; ekran arşivleme
+  // sonrası `router.back()` ile board listesine döner — mutation callback'leri
+  // ekran unmount olsa da çalışır (TanStack Query observer'dan bağımsız).
+  const archiveBoardMutation = useMutation(
+    trpc.board.archive.mutationOptions({
+      onMutate: async () => {
+        await queryClient.cancelQueries(boardFilter);
+        const previous = queryClient.getQueryData(boardKey);
+        if (previous) {
+          queryClient.setQueryData(boardKey, archiveBoardInCache(previous));
+        }
+        return { previous };
+      },
+      onError: (_error, _vars, ctx) => {
+        if (ctx?.previous) queryClient.setQueryData(boardKey, ctx.previous);
+        Alert.alert(strings.common.errorTitle, strings.board.archiveBoardError);
+      },
+      onSettled: invalidateBoard,
+    }),
+  );
+
   return {
     createCard: (listId: string, title: string) => {
       createCardMutation.mutate({ listId, title, clientMutationId: newClientMutationId() });
@@ -170,6 +216,18 @@ export function useBoardMutations(boardId: string) {
     },
     moveCard: (cardId: string, toListId: string) => {
       moveCardMutation.mutate({ cardId, toListId, clientMutationId: newClientMutationId() });
+    },
+    /** Board başlığını günceller (DEM-211). */
+    renameBoard: (title: string) => {
+      renameBoardMutation.mutate({ boardId, title, clientMutationId: newClientMutationId() });
+    },
+    /** Board'u arşivler (DEM-211) — board listesine geri dönülür. */
+    archiveBoard: () => {
+      archiveBoardMutation.mutate({
+        boardId,
+        archived: true,
+        clientMutationId: newClientMutationId(),
+      });
     },
   };
 }
