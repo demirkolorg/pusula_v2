@@ -7,7 +7,7 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import superjson from 'superjson';
 import type { AppRouter } from '@pusula/api';
-import { env } from '@/env';
+import { apiBaseUrl } from '@/lib/api-url';
 import { authClient } from '@/lib/auth-client';
 import { makeQueryClient } from './query-client';
 
@@ -20,7 +20,7 @@ import { makeQueryClient } from './query-client';
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 function trpcUrl(): string {
-  return `${env.EXPO_PUBLIC_API_URL.replace(/\/$/, '')}/trpc`;
+  return `${apiBaseUrl}/trpc`;
 }
 
 /**
