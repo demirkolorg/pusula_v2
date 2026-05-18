@@ -205,14 +205,15 @@ Kapsam kararları (kullanıcı onayı 2026-05-16): mobil MVP **store yayını da
 
 `faz-bol 7`'nin 17 alt işine **dahil değil** — DEM-194 turunda yapılan ürün boşluğu taramasından çıkan, bağımsız iyileştirme issue'ları (kullanıcı kararı 2026-05-18: bağımsız issue'lar, epic altında değil). Hepsi `Faz 7 — Mobil` milestone'unda, mevcut tRPC sözleşmesini tüketir (yeni backend yok); her biri kendi pre-dev "önce-belge"siyle başlar.
 
-- **[DEM-194](https://linear.app/demirkol/issue/DEM-194)** (`In Progress`) — kart detay meta çubuğu (7G-2): etiket/son tarih/üye düzenleyicileri kompakt chip satırı + bottom sheet'e taşındı; "Listeyi değiştir" → "Liste" chip'i.
-- **[DEM-195](https://linear.app/demirkol/issue/DEM-195)** (`Todo`, High) — kart tamamla/geri al toggle'ı (`card.complete`/`uncomplete`) — işlevsel boşluk, mobilde kart bitirilemiyor.
-- **[DEM-196](https://linear.app/demirkol/issue/DEM-196)** (`Review`, High) — kart arşivleme (`card.archive`). Kart detay başlık yanı ⋮ menüsü → onaylı "Kartı arşivle" + board'a geri navigasyon; optimistic + rollback.
-- **[DEM-197](https://linear.app/demirkol/issue/DEM-197)** (`Todo`) — son tarih tam tarih seçici (preset'lere ek; native dep kararı pre-dev'de).
-- **[DEM-198](https://linear.app/demirkol/issue/DEM-198)** (`In Progress`) — checklist oluşturma/silme (7G yalnız madde düzeyiydi).
-- **[DEM-199](https://linear.app/demirkol/issue/DEM-199)** (`Review`) — yorum düzenleme/silme (web-parity). 7G-4 — `comment-list.tsx` satır-içi düzenleme + onaylı silme; code-reviewer Approve, doğrulama bekliyor.
-- **[DEM-200](https://linear.app/demirkol/issue/DEM-200)** (`In Progress`) — board etiket filtresi (7E'de ertelenmişti). 7E-2 — board header `filter` ikonu + `LabelFilterSheet` çoklu etiket seçimi, istemci tarafı OR filtre (`src/lib/board-filter.ts`).
-- **[DEM-201](https://linear.app/demirkol/issue/DEM-201)** (`Todo`, Low) — kart kapak rengi seçici (`CardMetaBar`'a chip).
+- **[DEM-194](https://linear.app/demirkol/issue/DEM-194)** (`Done`) — kart detay meta çubuğu (7G-2): etiket/son tarih/üye düzenleyicileri kompakt chip satırı + bottom sheet'e taşındı; "Listeyi değiştir" → "Liste" chip'i.
+- **[DEM-195](https://linear.app/demirkol/issue/DEM-195)** (`Done`) — kart tamamla/geri al toggle'ı (`card.complete`/`uncomplete`).
+- **[DEM-196](https://linear.app/demirkol/issue/DEM-196)** (`Done`) — kart arşivleme (`card.archive`). Kart detay başlık yanı ⋮ menüsü → onaylı "Kartı arşivle" + board'a geri navigasyon; optimistic + rollback.
+- **[DEM-197](https://linear.app/demirkol/issue/DEM-197)** (`Done`) — son tarih tam tarih seçici (bağımlılıksız `MonthCalendar`).
+- **[DEM-198](https://linear.app/demirkol/issue/DEM-198)** (`Done`) — checklist oluşturma/silme (7G yalnız madde düzeyiydi).
+- **[DEM-199](https://linear.app/demirkol/issue/DEM-199)** (`Done`) — yorum düzenleme/silme (web-parity). 7G-4 — `comment-list.tsx` satır-içi düzenleme + onaylı silme.
+- **[DEM-200](https://linear.app/demirkol/issue/DEM-200)** (`Done`) — board etiket filtresi (7E'de ertelenmişti). 7E-2 — board header `filter` ikonu + `LabelFilterSheet` çoklu etiket seçimi, istemci tarafı OR filtre (`src/lib/board-filter.ts`).
+- **[DEM-201](https://linear.app/demirkol/issue/DEM-201)** (`Done`) — kart kapak rengi seçici (`CardMetaBar`'a chip).
+- **[DEM-203](https://linear.app/demirkol/issue/DEM-203)** (`In Progress`, Medium) — mobil alt tab bar ortasında yükseltilmiş "Ekle" aksiyon butonu: dokunma → Hızlı Notlar ekranı, uzun basış → oluşturma menüsü (Kart/Liste/Pano/Workspace). Yeni domain entity **Hızlı Not** (kişiye özel + global) + yeni `quick_notes` DB tablosu + `quickNote` tRPC router + not → kart dönüşümü (dönüşümde not tüketilir). Bu rafinasyon listesinin diğer issue'larından (DEM-194…202) farklı olarak **yeni backend içerir** (yeni tablo + tRPC) — diğerleri mevcut tRPC sözleşmesini tüketiyordu. Web tarafı ayrı issue olarak açılacak (mobil-öncelikli kapsam).
 
 ## Faz 8 alt işleri
 
