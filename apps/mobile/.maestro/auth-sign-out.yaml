@@ -1,0 +1,37 @@
+# Çıkış akışı — giriş yap → Hesap sekmesi → "Çıkış yap" → sign-in ekranı.
+#
+# signOut sonrası `useSession` boşalır → `(app)/_layout` `(auth)/sign-in`'e
+# yönlendirir. Önkoşul auth-sign-in.yaml ile aynı (kayıtlı hesap).
+appId: com.pusula.app
+env:
+  MAESTRO_EMAIL: 'maestro@pusula.test'
+  MAESTRO_PASSWORD: 'Parola1234!'
+---
+- launchApp:
+    clearState: true
+
+# Önce giriş yap (çıkış akışı oturumlu durum gerektirir).
+- assertVisible: 'Tekrar hoş geldiniz'
+- tapOn:
+    id: 'E-posta'
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: 'Parola'
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: 'Giriş yap'
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+
+# Hesap sekmesine geç — alt tab bar etiketi "Hesap".
+- tapOn: 'Hesap'
+
+# Hesap ekranında çıkış butonu görünür.
+- assertVisible: 'Çıkış yap'
+- tapOn: 'Çıkış yap'
+
+# Çıkış sonrası giriş ekranına yönlenir.
+- extendedWaitUntil:
+    visible: 'Tekrar hoş geldiniz'
+    timeout: 15000

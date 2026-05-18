@@ -1,0 +1,35 @@
+# Giriş akışı — sign-in ekranı → form → board (Panolar) listesi.
+#
+# Önkoşul: ${MAESTRO_EMAIL} / ${MAESTRO_PASSWORD} env değişkenleri kayıtlı bir
+# hesabı göstermeli. Koşum:
+#   maestro test -e MAESTRO_EMAIL=... -e MAESTRO_PASSWORD=... .maestro/auth-sign-in.yaml
+# Env verilmezse aşağıdaki varsayılanlar kullanılır (lokal seed hesabıyla
+# eşleşmeli — 7O'da CI secret'ı olarak bağlanacak).
+appId: com.pusula.app
+env:
+  MAESTRO_EMAIL: 'maestro@pusula.test'
+  MAESTRO_PASSWORD: 'Parola1234!'
+---
+- launchApp:
+    clearState: true
+
+# Oturumsuz açılış → giriş ekranı.
+- assertVisible: 'Tekrar hoş geldiniz'
+
+# Form: E-posta / Parola (`accessibilityLabel` = label).
+- tapOn:
+    id: 'E-posta'
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: 'Parola'
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+
+# Giriş gönder — başarıda app-shell'e yönlenir.
+- tapOn: 'Giriş yap'
+
+# Panolar sekmesi açılır; workspace listesi başlığı doğrular.
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+- assertVisible: 'Panolar'

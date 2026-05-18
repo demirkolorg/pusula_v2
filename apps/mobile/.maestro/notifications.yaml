@@ -1,0 +1,50 @@
+# Bildirim akışı — Bildirimler sekmesi → notification center → satıra dokun.
+#
+# Bildirim merkezi listeyi tarih gruplarıyla (Bugün/Dün/Bu hafta/Daha eski)
+# gösterir; satıra dokunmak `markRead` + hedefe yönlendirir. Hesabın hiç
+# bildirimi yoksa boş durum ("Henüz bildirim yok") görünür — akış her iki
+# durumu da kabul eder (satır dokunuşu yalnız bildirim varsa anlamlı).
+appId: com.pusula.app
+env:
+  MAESTRO_EMAIL: 'maestro@pusula.test'
+  MAESTRO_PASSWORD: 'Parola1234!'
+---
+- launchApp:
+    clearState: true
+
+# Giriş yap.
+- assertVisible: 'Tekrar hoş geldiniz'
+- tapOn:
+    id: 'E-posta'
+- inputText: ${MAESTRO_EMAIL}
+- tapOn:
+    id: 'Parola'
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: 'Giriş yap'
+- extendedWaitUntil:
+    visible: 'Çalışma Alanları'
+    timeout: 15000
+
+# Bildirimler sekmesine geç — alt tab etiketi "Bildirimler".
+- tapOn: 'Bildirimler'
+
+# Bildirim merkezi açılır — ekran-içi başlık "Bildirimler".
+- extendedWaitUntil:
+    visible: 'Bildirimler'
+    timeout: 15000
+
+# Bildirim varsa bir tarih grubu + satır görünür; yoksa boş durum.
+# İkisinden biri görünmeli — bildirim merkezinin yüklendiğini doğrular.
+- assertVisible:
+    text: 'Henüz bildirim yok|Bugün|Dün|Bu hafta|Daha eski'
+
+# Bildirim varsa ilk satıra dokun (markRead + hedefe yönlendirme). Boş durumda
+# bu adım koşmaz — runFlow `when` ile koşullu çalıştırılır.
+- runFlow:
+    when:
+      visible: 'Bugün'
+    commands:
+      - tapOn:
+          index: 0
+          point: '50%,30%'
