@@ -3,15 +3,33 @@ import '../global.css';
 import { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProviders } from '@/trpc/provider';
+import { configureOnlineManager } from '@/lib/online-manager';
 import { fontMap } from '@/theme/fonts';
 import { initSentry, wrapWithSentry } from '@/sentry';
 
 // Sentry init herhangi bir ekran yüklenmeden önce çalışmalı.
 initSentry();
+
+// TanStack Query `onlineManager`'ı cihaz ağ durumuna bağla (Faz 7M) — RN'de
+// `navigator.onLine` yok; bu olmadan çevrimdışı sorgular boşuna retry'lar.
+configureOnlineManager();
+
+// Faz 7L: foreground bildirim sunumu. Uygulama açıkken gelen push da banner +
+// bildirim listesinde gösterilir (SDK 54 alan adları — `shouldShowAlert`
+// deprecated). Ses/badge kapalı; uygulama arka plandayken bildirimi OS gösterir.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 // Fontlar yüklenene kadar splash ekranı açık tutulur — sistem fontuyla
 // kısa bir "flash" yaşanmaması için (proje geneli Poppins kararı).

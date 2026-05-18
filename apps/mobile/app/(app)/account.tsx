@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMutation } from '@tanstack/react-query';
 import { Text } from '@/components/text';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { Button } from '@/components/button';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { FormMessage } from '@/components/form-message';
+import { clearRegisteredPushToken, getRegisteredPushToken } from '@/lib/push-token-store';
 import { strings } from '@/lib/strings';
+import { useTRPC } from '@/trpc/provider';
 
 /**
  * "Hesap" sekmesi — oturumdaki kullanıcı + çıkış. Hesap ayarları (profil,
@@ -16,6 +19,8 @@ import { strings } from '@/lib/strings';
  */
 export default function AccountScreen() {
   const { data: session } = authClient.useSession();
+  const trpc = useTRPC();
+  const revokeToken = useMutation(trpc.push.tokens.revoke.mutationOptions());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +31,20 @@ export default function AccountScreen() {
     setPending(true);
     setError(null);
     try {
+      // Faz 7K: oturum kapanmadan ÖNCE bu cihazın push token'ını iptal et —
+      // signOut sonrası istek kimliksiz gider, revoke başarısız olurdu. Token
+      // yoksa (izin verilmemiş / kayıt olmamış) adım atlanır. Revoke best-effort;
+      // hatası logout'u bloklamaz.
+      const token = getRegisteredPushToken();
+      if (token) {
+        try {
+          await revokeToken.mutateAsync({ token });
+        } catch {
+          // Revoke başarısız olsa da çıkışa devam — token sunucuda kalsa bile
+          // bir sonraki cihaz açılışında yeniden register edilebilir.
+        }
+        clearRegisteredPushToken();
+      }
       await authClient.signOut();
     } catch (caught) {
       setError(authErrorMessage(caught));

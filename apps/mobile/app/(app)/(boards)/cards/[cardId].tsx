@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -19,6 +19,7 @@ import { LabelsEditor } from '@/components/card-detail/labels-editor';
 import { DueDateEditor } from '@/components/card-detail/due-date-editor';
 import { MembersEditor } from '@/components/card-detail/members-editor';
 import { ChecklistSection } from '@/components/card-detail/checklist-section';
+import { AttachmentsSection } from '@/components/card-detail/attachments-section';
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
 import { CommentComposer } from '@/components/card-detail/comment-composer';
 import { ActivityList } from '@/components/card-detail/activity-list';
@@ -71,6 +72,30 @@ export default function CardDetailScreen() {
   const cardMutations = useCardMutations(cardId, boardId ?? '');
   const [editingTitle, setEditingTitle] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+
+  // Faz 7M — pull-to-refresh: kart detayının tüm sorgularını yeniden çeker
+  // (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir). `refreshing`
+  // herhangi bir sorgu uçuştayken spinner gösterir.
+  const refreshing =
+    cardQuery.isFetching ||
+    labelsQuery.isFetching ||
+    membersQuery.isFetching ||
+    checklistsQuery.isFetching ||
+    commentsQuery.isFetching ||
+    activityQuery.isFetching ||
+    boardMembersQuery.isFetching ||
+    boardQuery.isFetching;
+
+  function handleRefresh() {
+    void cardQuery.refetch();
+    void labelsQuery.refetch();
+    void membersQuery.refetch();
+    void checklistsQuery.refetch();
+    void commentsQuery.refetch();
+    void activityQuery.refetch();
+    void boardMembersQuery.refetch();
+    void boardQuery.refetch();
+  }
 
   const labels = labelsQuery.data ?? [];
   const members = membersQuery.data ?? [];
@@ -166,7 +191,17 @@ export default function CardDetailScreen() {
   return (
     <>
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 p-4">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-6 p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.mutedForeground}
+          />
+        }
+      >
         {/* Başlık + tamamlandı rozeti — başlık board `member+` için düzenlenebilir (Faz 7H). */}
         <View className="gap-2">
           {card.completed ? (
@@ -246,6 +281,16 @@ export default function CardDetailScreen() {
             <ChecklistSection cardId={card.id} checklists={checklists} canEdit={canEdit} />
           )}
         </DetailSection>
+
+        {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme
+            `canEdit`, silme uploader/admin (alt bileşende çözülür). */}
+        <AttachmentsSection
+          cardId={card.id}
+          boardId={card.boardId}
+          canEdit={canEdit}
+          currentUserId={currentUserId}
+          myBoardRole={myBoardRole}
+        />
 
         <DetailSection icon="message-square" title={strings.cardDetail.commentsTitle}>
           <View className="gap-4">

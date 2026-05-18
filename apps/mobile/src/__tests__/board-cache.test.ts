@@ -8,6 +8,7 @@ import {
   renameListInCache,
   replaceOptimisticCard,
   replaceOptimisticList,
+  setCardCoverImageInCache,
   type BoardCard,
   type BoardData,
   type BoardList,
@@ -215,5 +216,60 @@ describe('moveCardInCache', () => {
   it('bilinmeyen kart id → veri değişmeden döner', () => {
     const board = makeBoard([makeList({ id: 'list-1', position: 'a0' })], []);
     expect(moveCardInCache(board, 'yok', 'list-1')).toBe(board);
+  });
+});
+
+describe('setCardCoverImageInCache', () => {
+  const cover = {
+    attachmentId: 'att-1',
+    fileName: 'kapak.png',
+    mimeType: 'image/png',
+    size: 1024,
+  };
+
+  it('hedef kartın kapak görselini ve ham id alanını set eder', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [
+        makeCard({ id: 'c1', listId: 'list-1', position: 'a0' }),
+        makeCard({ id: 'c2', listId: 'list-1', position: 'a1' }),
+      ],
+    );
+    const next = setCardCoverImageInCache(board, 'c1', cover);
+    const c1 = next.cards.find((card) => card.id === 'c1');
+    expect(c1?.coverImage).toEqual(cover);
+    expect(c1?.coverImageAttachmentId).toBe('att-1');
+    // Diğer kart dokunulmaz.
+    expect(next.cards.find((card) => card.id === 'c2')?.coverImage).toBeNull();
+    // İmmutability — kaynak değişmez.
+    expect(board.cards[0]?.coverImage).toBeNull();
+  });
+
+  it('bilinmeyen cardId → hiçbir kartın kapağı değişmez', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [makeCard({ id: 'c1', listId: 'list-1', position: 'a0' })],
+    );
+    const next = setCardCoverImageInCache(board, 'yok', cover);
+    expect(next.cards.find((card) => card.id === 'c1')?.coverImage).toBeNull();
+  });
+
+  it('null kapak hem coverImage hem coverImageAttachmentId alanını temizler', () => {
+    const board = makeBoard(
+      [makeList({ id: 'list-1', position: 'a0' })],
+      [
+        makeCard({
+          id: 'c1',
+          listId: 'list-1',
+          position: 'a0',
+          coverImage: cover,
+          coverImageAttachmentId: 'att-1',
+        }),
+      ],
+    );
+    const next = setCardCoverImageInCache(board, 'c1', null);
+    const c1 = next.cards.find((card) => card.id === 'c1');
+    expect(c1?.coverImage).toBeNull();
+    expect(c1?.coverImageAttachmentId).toBeNull();
   });
 });

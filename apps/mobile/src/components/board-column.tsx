@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, Pressable, View, useColorScheme } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
@@ -26,6 +26,10 @@ type BoardColumnProps = {
   onOpenListActions: () => void;
   /** Kart uzun basma — "move to list" picker'ını açar. */
   onMoveCard: (card: BoardCard) => void;
+  /** `board.get` yeniden çekiliyor mu — kolon `RefreshControl` spinner'ı (Faz 7M). */
+  refreshing: boolean;
+  /** Pull-to-refresh — board verisini yeniden çeker (Faz 7M). */
+  onRefresh: () => void;
 };
 
 /**
@@ -33,6 +37,11 @@ type BoardColumnProps = {
  * kart listesi. Genişlik sabit; yükseklik kapsayıcı yatay scroll'u doldurur.
  * Faz 7H: board `member+` için kolon ⋮ menüsü + kart-ekle composer'ı + kart
  * uzun basma taşıma. `viewer` için kolon salt-okunur kalır (7E davranışı).
+ *
+ * Faz 7M: kart `FlatList`'i pull-to-refresh taşır — board ekranının dış scroll'u
+ * yatay olduğundan (`RefreshControl` yatay scroll'da çalışmaz) yenileme jesti
+ * dikey kolon listelerine konur; herhangi bir kolonu aşağı çekmek `board.get`'i
+ * tazeler (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir).
  */
 export function BoardColumn({
   list,
@@ -41,6 +50,8 @@ export function BoardColumn({
   onCreateCard,
   onOpenListActions,
   onMoveCard,
+  refreshing,
+  onRefresh,
 }: BoardColumnProps) {
   const router = useRouter();
   const theme = themeFor(useColorScheme());
@@ -92,6 +103,13 @@ export function BoardColumn({
         data={cards}
         keyExtractor={(card) => card.id}
         contentContainerClassName="gap-2 pb-2"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.mutedForeground}
+          />
+        }
         renderItem={({ item }) => {
           // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-`
           // id ile kart detayı / taşıma backend'de bulunamaz.

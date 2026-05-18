@@ -11,7 +11,7 @@ type TextAreaProps = {
   label?: string;
   /** Minimum yükseklik Tailwind sınıfı — varsayılan `min-h-24`. */
   minHeightClassName?: string;
-} & Pick<TextInputProps, 'placeholder' | 'editable' | 'autoFocus'>;
+} & Pick<TextInputProps, 'placeholder' | 'editable' | 'autoFocus' | 'maxLength'>;
 
 /**
  * Çok satırlı metin girişi — NativeWind. `TextField` tek satırlık (`h-12`);

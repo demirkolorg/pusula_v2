@@ -200,3 +200,24 @@ export function moveCardInCache(data: BoardData, cardId: string, toListId: strin
   };
   return { ...data, cards: [...rest, moved] };
 }
+
+/**
+ * Bir kartın kapak görselini iyimser değiştirir (Faz 7P — `card.update`
+ * `coverImageAttachmentId`). `coverImage` `null` ise kapak kaldırılır. Hem
+ * `coverImage` (kart yüzü şeridi) hem `coverImageAttachmentId` (ham alan)
+ * birlikte güncellenir — kullanıcı board'a döndüğünde kart yüzü tutarlı olsun.
+ */
+export function setCardCoverImageInCache(
+  data: BoardData,
+  cardId: string,
+  coverImage: BoardCard['coverImage'],
+): BoardData {
+  return {
+    ...data,
+    cards: data.cards.map((card) =>
+      card.id === cardId
+        ? { ...card, coverImage, coverImageAttachmentId: coverImage?.attachmentId ?? null }
+        : card,
+    ),
+  };
+}

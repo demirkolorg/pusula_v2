@@ -164,6 +164,8 @@ export default function BoardScreen() {
             onCreateCard={(title) => mutations.createCard(list.id, title)}
             onOpenListActions={() => setListActionsTarget(list)}
             onMoveCard={(card) => setMoveTarget(card)}
+            refreshing={query.isFetching}
+            onRefresh={() => void query.refetch()}
           />
         ))}
         {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}
