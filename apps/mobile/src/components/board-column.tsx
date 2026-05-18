@@ -1,4 +1,5 @@
 import { FlatList, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
@@ -19,6 +20,7 @@ type BoardColumnProps = {
  * kart listesi. Genişlik sabit; yükseklik kapsayıcı yatay scroll'u doldurur.
  */
 export function BoardColumn({ list, cards }: BoardColumnProps) {
+  const router = useRouter();
   return (
     <View className="h-full w-72 rounded-xl bg-muted p-2">
       <View className="flex-row items-center justify-between px-1 py-2">
@@ -31,7 +33,17 @@ export function BoardColumn({ list, cards }: BoardColumnProps) {
         data={cards}
         keyExtractor={(card) => card.id}
         contentContainerClassName="gap-2 pb-2"
-        renderItem={({ item }) => <CardFace card={item} />}
+        renderItem={({ item }) => (
+          <CardFace
+            card={item}
+            onPress={() =>
+              router.push({
+                pathname: '/cards/[cardId]',
+                params: { cardId: item.id, title: item.title },
+              })
+            }
+          />
+        )}
         ListEmptyComponent={
           <Text className="px-1 py-3 text-xs text-muted-foreground">{strings.board.emptyList}</Text>
         }

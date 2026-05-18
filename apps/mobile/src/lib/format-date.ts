@@ -29,6 +29,18 @@ export function formatDueDate(value: Date | string): string {
   return `${date.getDate()} ${TR_MONTHS_SHORT[date.getMonth()]}`;
 }
 
+function pad2(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
+}
+
+/** Tarih + saat, örn. "12 May, 14:30" — yorum/aktivite zaman damgaları için. */
+export function formatTimestamp(value: Date | string): string {
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = `${date.getDate()} ${TR_MONTHS_SHORT[date.getMonth()]}`;
+  return `${day}, ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 /**
  * Verilen tarih şu andan önce mi (gecikmiş due tespiti). `cards.dueAt` tam
  * timestamp olduğundan ms hassasiyetli karşılaştırma kullanılır — due anı

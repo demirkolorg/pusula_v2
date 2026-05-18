@@ -1,4 +1,4 @@
-import { View, useColorScheme } from 'react-native';
+import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
@@ -31,11 +31,11 @@ function MetaChip({ icon, label, color }: MetaChipProps) {
 }
 
 /**
- * Board kolonundaki tek kartın yüzü — salt-okunur (Faz 7E). Başlık + etiket
- * renk şeritleri + meta satırı (due / checklist / yorum / ek / üye).
- * Kart detayına dokunma Faz 7F.
+ * Board kolonundaki tek kartın yüzü. Başlık + etiket renk şeritleri + meta
+ * satırı (due / checklist / yorum / ek / üye). `onPress` verilirse karta
+ * dokunmak kart detayını açar (Faz 7F).
  */
-export function CardFace({ card }: { card: BoardCard }) {
+export function CardFace({ card, onPress }: { card: BoardCard; onPress?: () => void }) {
   const theme = themeFor(useColorScheme());
   const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
   const visibleMembers = card.members.slice(0, MAX_VISIBLE_MEMBERS);
@@ -49,7 +49,14 @@ export function CardFace({ card }: { card: BoardCard }) {
     card.members.length > 0;
 
   return (
-    <View className="gap-2 rounded-lg border border-border bg-card p-3">
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      className={`gap-2 rounded-lg border border-border bg-card p-3 ${
+        onPress ? 'active:opacity-70' : ''
+      }`}
+    >
       {card.labels.length > 0 ? (
         <View className="flex-row flex-wrap gap-1">
           {card.labels.map((label) => (
@@ -119,6 +126,6 @@ export function CardFace({ card }: { card: BoardCard }) {
           ) : null}
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
