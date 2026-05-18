@@ -24,6 +24,9 @@ export default function NotificationsLayout() {
           fontFamily: fontFamilyForWeight.semibold,
         },
         headerShadowVisible: false,
+        // Geri butonu uygulama genelinde gizli (DEM-206) — geri gitme iOS'ta
+        // kenardan kaydırma gesture'ı, Android'de OS-seviyesi geri ile sağlanır.
+        headerBackVisible: false,
         contentStyle: { backgroundColor: theme.background },
       }}
     >

@@ -75,7 +75,7 @@ API `attachment.initiate` MIME validasyonu Zod (`z.enum(ATTACHMENT_MIME_TYPES)`)
 
 `@pusula/domain` `ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024` (50 MiB tek limit). Kategori-bazlı ayrım V1'de yok (basit; kullanıcı kararı 2026-05-15). Aşan istek presigned URL almadan reddedilir.
 
-Mevcut kart kapak resmi dar yolu (`CARD_COVER_IMAGE_MAX_BYTES = 5 MiB`) korunur — cover picker küçük image attachment'ları sergiler (`size <= 5 MiB AND mimeType LIKE 'image/%'`).
+Kart kapak resmi dar yolu (`CARD_COVER_IMAGE_MAX_BYTES = 50 MiB`) — cover picker image attachment'ları sergiler (`size <= 50 MiB AND mimeType LIKE 'image/%'`). Kapak limiti genel attachment limitiyle (`ATTACHMENT_MAX_BYTES`) hizalı.
 
 ### Dosya adı + storage key
 

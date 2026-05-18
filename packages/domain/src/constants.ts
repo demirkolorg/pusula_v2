@@ -629,8 +629,8 @@ export type CardCoverColor = (typeof CARD_COVER_COLORS)[number];
 export const CARD_COVER_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type CardCoverImageMimeType = (typeof CARD_COVER_IMAGE_MIME_TYPES)[number];
 
-/** Maximum card cover image upload size: 5 MiB. */
-export const CARD_COVER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+/** Maximum card cover image upload size: 50 MiB. */
+export const CARD_COVER_IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
 /**
  * Allowed MIME types for avatar uploads (DEM-160). Narrower than the general
@@ -653,7 +653,7 @@ export const AVATAR_IMAGE_EXTENSIONS: Record<AvatarImageMimeType, string> = {
 /**
  * Faz 11 (DEM-147) — V1 allowlist for general card attachment uploads. Eight
  * MIME types across three "kinds" (image / pdf / office). The cover-image
- * path (`CARD_COVER_IMAGE_MIME_TYPES` + 5 MiB) is a strict subset and stays
+ * path (`CARD_COVER_IMAGE_MIME_TYPES` + 50 MiB) is a strict subset and stays
  * its own narrow gate — see `docs/architecture/04-veri-katmani.md` "Faz 11"
  * + `docs/domain/07-ek-kurallari.md`. SVG / ODF / text / csv / archives are
  * intentionally out of V1.

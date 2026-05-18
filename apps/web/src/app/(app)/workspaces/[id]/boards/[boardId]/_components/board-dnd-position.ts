@@ -138,6 +138,54 @@ export function planCardMove(args: {
 }
 
 /**
+ * The plan for converting a Hızlı Not (DEM-205) into a card: which list it
+ * lands in, the cards it sits between, and the computed `newPosition`. Unlike
+ * {@link CardMovePlan} there is never a "no-op" — a quick note always becomes a
+ * new card somewhere — so this never returns `null`. `newPosition` may still be
+ * `null` if the fractional math fails for degenerate sibling positions; the
+ * server then recomputes from `beforeCardId` / `afterCardId`.
+ */
+export type QuickNoteConvertPlan = {
+  toListId: string;
+  beforeCardId: string | null;
+  afterCardId: string | null;
+  newPosition: string | null;
+};
+
+/**
+ * Build a {@link QuickNoteConvertPlan} for dropping a quick note relative to
+ * `targetCardId` in `toListId` (`null` target ⇒ end of the column). The note is
+ * not a card, so there is no dragged-item to exclude from `siblings` and no
+ * self-drop / no-op case. `cardsByListId(listId)` returns that list's active
+ * cards (any order — sorted here).
+ */
+export function planQuickNoteConvert(args: {
+  toListId: string;
+  /** Target card id under the cursor, or `null` for "end of the column". */
+  targetCardId: string | null;
+  /** Which edge of the target card the cursor is closest to. Ignored when `targetCardId` is `null`. */
+  edge: CardEdge;
+  cardsByListId: (listId: string) => readonly CardSibling[];
+}): QuickNoteConvertPlan {
+  const { toListId, targetCardId, edge } = args;
+  const siblings = byPosition(args.cardsByListId(toListId));
+  const dropIndex =
+    targetCardId == null
+      ? siblings.length
+      : dropIndexFromEdge(siblings, targetCardId, edge === 'bottom');
+
+  const before = dropIndex > 0 ? siblings[dropIndex - 1] : undefined;
+  const after = dropIndex < siblings.length ? siblings[dropIndex] : undefined;
+
+  return {
+    toListId,
+    beforeCardId: before?.id ?? null,
+    afterCardId: after?.id ?? null,
+    newPosition: safePositionBetween(before?.position ?? null, after?.position ?? null),
+  };
+}
+
+/**
  * Build a {@link ListMovePlan} for dropping column `listId` relative to
  * `targetListId` (closest edge `left`/`right`) given the board's `position`-
  * sorted lists. Returns `null` when the move is a no-op.

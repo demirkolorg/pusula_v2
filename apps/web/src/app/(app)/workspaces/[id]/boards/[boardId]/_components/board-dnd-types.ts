@@ -29,6 +29,18 @@ export type ListCardsDropData = {
   listId: string;
 };
 
+/**
+ * `getInitialData` payload for a draggable quick note (DEM-205 — the "Hızlı
+ * Notlar" panel). A quick note is not a board card: it has no list/position,
+ * only an id + its body text (carried for the native drag preview). Dropping it
+ * onto a card / list-cards target converts it to a card via `quickNote.convertToCard`.
+ */
+export type QuickNoteDragData = {
+  type: 'quick-note';
+  noteId: string;
+  content: string;
+};
+
 /** `getInitialData` payload for a draggable column. */
 export type ListDragData = {
   type: 'list';
@@ -65,6 +77,12 @@ export function isListDragData(data: Record<string | symbol, unknown>): data is 
   );
 }
 
+export function isQuickNoteDragData(
+  data: Record<string | symbol, unknown>,
+): data is QuickNoteDragData {
+  return data.type === 'quick-note' && typeof data.noteId === 'string';
+}
+
 export function isListDropData(data: Record<string | symbol, unknown>): data is ListDropData {
   return (
     data.type === 'list' && typeof data.listId === 'string' && typeof data.position === 'string'
@@ -77,4 +95,5 @@ export type { Edge };
 export type BoardDragState =
   | { kind: 'idle' }
   | { kind: 'card'; cardId: string; fromListId: string }
-  | { kind: 'list'; listId: string };
+  | { kind: 'list'; listId: string }
+  | { kind: 'quick-note'; noteId: string };

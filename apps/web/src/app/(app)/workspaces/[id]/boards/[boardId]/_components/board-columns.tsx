@@ -149,7 +149,9 @@ export function BoardColumns({
       ? dndCopy.announceCardGrabbed
       : dnd.dragState.kind === 'list'
         ? dndCopy.announceListGrabbed
-        : '';
+        : dnd.dragState.kind === 'quick-note'
+          ? dndCopy.announceQuickNoteGrabbed
+          : '';
 
   // Announce when a drag ends (item dropped). We watch dragState going from
   // non-idle → idle and emit announceDropped into a separate assertive region

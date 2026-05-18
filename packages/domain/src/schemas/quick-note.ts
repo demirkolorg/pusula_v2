@@ -25,14 +25,23 @@ export const deleteQuickNoteInput = z.object({
 });
 
 /**
- * `quickNote.convertToCard` — turn a note into a card at the end of `listId`.
- * The note's `content` becomes the card title; the note is deleted in the same
+ * `quickNote.convertToCard` — turn a note into a card in `listId`. The note's
+ * `content` becomes the card title; the note is deleted in the same
  * transaction. Carries `clientMutationId` like every collaborative mutation
  * (the card-creation step writes activity / realtime / outbox rows).
+ *
+ * Card placement (DEM-205 — web "Hızlı Notlar" panel drag-to-list): when
+ * `beforeCardId` / `afterCardId` are given, the card lands between them
+ * (`moveCardInput` shape — the server validates both are active cards in
+ * `listId` and recomputes `newPosition` against them); when omitted, the card
+ * is appended to the end of `listId` (the mobile flow's behaviour).
  */
 export const convertQuickNoteToCardInput = z.object({
   noteId: idSchema,
   listId: idSchema,
+  beforeCardId: idSchema.nullish(),
+  afterCardId: idSchema.nullish(),
+  newPosition: z.string().optional(),
   ...withClientMutationId,
 });
 

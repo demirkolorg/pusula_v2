@@ -14,12 +14,16 @@ import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
 import { BoardAccessRequestScreen } from './_components/board-access-request-screen';
 import { BoardColumns } from './_components/board-columns';
+import { QuickNotesPanel } from './_components/quick-notes-panel';
 import { countArchivedLists, type DueDateFilter } from './_components/board-filter';
 import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
 import { ShortcutHelpDialog } from './_components/shortcut-help-dialog';
+
+/** `localStorage` key for the "Hızlı Notlar" panel open state (DEM-205). */
+const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
 
 function BoardShortcutScope({
   enabled,
@@ -124,6 +128,15 @@ export default function BoardDetailPage({
   const [showArchivedCards, setShowArchivedCards] = useState(false);
   const [boardSearchOpen, setBoardSearchOpen] = useState(false);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  // "Hızlı Notlar" panel (DEM-205). Starts closed to keep the SSR/first render
+  // deterministic, then adopts the persisted preference on mount.
+  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
+  useEffect(() => {
+    setQuickNotesOpen(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
+  }, [quickNotesOpen]);
   const [openFirstCardComposerToken, setOpenFirstCardComposerToken] = useState(0);
   const [openAddListComposerToken, setOpenAddListComposerToken] = useState(0);
   const archivedCards = useQuery(
@@ -248,94 +261,109 @@ export default function BoardDetailPage({
 
   return (
     <div
-      className={cn('flex min-h-0 flex-1 flex-col', boardBackgroundClass(b.background ?? null))}
+      className={cn('flex min-h-0 flex-1', boardBackgroundClass(b.background ?? null))}
       data-realtime-board-id={boardId}
       data-realtime-board-joined={realtime.joined ? 'true' : 'false'}
     >
-      <BoardTopBar
-        boardId={boardId}
-        workspaceId={workspaceId}
-        title={b.title}
-        icon={b.icon}
-        background={b.background ?? null}
-        archived={archived}
-        isBoardAdmin={isBoardAdmin}
-        boardSearchOpen={boardSearchOpen}
-        onBoardSearchOpenChange={setBoardSearchOpen}
-        filter={{
-          labels: boardLabels,
-          selectedLabelIds: liveSelectedLabelIds,
-          onToggleLabel: toggleLabelFilter,
-          onClearLabels: () => setSelectedLabelIds(new Set()),
-          dueDateFilter,
-          onDueDateFilterChange: setDueDateFilter,
-        }}
-        assignedToMe={{
-          active: assignedToMeOnly,
-          onToggle: () => setAssignedToMeOnly((value) => !value),
-        }}
-        archive={{
-          lists,
-          canEdit: canEditBoardContent,
-          showArchivedLists,
-          onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
-          showArchivedCards,
-          onToggleArchivedCards: () => setShowArchivedCards((value) => !value),
-          archivedListCount,
-        }}
-      />
-
-      {!realtime.connected && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="border-b border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-700 dark:text-amber-300"
-        >
-          {strings.realtime.disconnected}
-        </div>
+      {/* Hızlı Notlar paneli — pano başlık çubuğu dâhil tüm pano yüzeyinin
+          soluna, ayrı bir parça olarak oturur (yalnız app-shell header sabit). */}
+      {quickNotesOpen && (
+        <QuickNotesPanel
+          canConvert={canEditBoardContent}
+          onClose={() => setQuickNotesOpen(false)}
+        />
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden p-4">
-        <BoardColumns
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <BoardTopBar
           boardId={boardId}
-          board={{ role: b.role, archivedAt: b.archivedAt }}
-          lists={lists}
-          cards={cards}
-          archivedCards={showArchivedCards ? (archivedCards.data ?? []) : []}
-          selectedLabelIds={liveSelectedLabelIds}
-          dueDateFilter={dueDateFilter}
-          assignedToMeUserId={assignedToMeOnly ? currentUserId : null}
-          showArchivedLists={showArchivedLists}
-          showArchivedCards={showArchivedCards}
-          boardLabels={labelList.data ?? boardLabels}
-          boardMembers={(boardMembers.data ?? []).map((member) => ({
-            userId: member.userId,
-            name: member.name,
-          }))}
-          openFirstCardComposerToken={openFirstCardComposerToken}
-          openAddListComposerToken={openAddListComposerToken}
+          workspaceId={workspaceId}
+          title={b.title}
+          icon={b.icon}
+          background={b.background ?? null}
+          archived={archived}
+          isBoardAdmin={isBoardAdmin}
+          boardSearchOpen={boardSearchOpen}
+          onBoardSearchOpenChange={setBoardSearchOpen}
+          filter={{
+            labels: boardLabels,
+            selectedLabelIds: liveSelectedLabelIds,
+            onToggleLabel: toggleLabelFilter,
+            onClearLabels: () => setSelectedLabelIds(new Set()),
+            dueDateFilter,
+            onDueDateFilterChange: setDueDateFilter,
+          }}
+          assignedToMe={{
+            active: assignedToMeOnly,
+            onToggle: () => setAssignedToMeOnly((value) => !value),
+          }}
+          quickNotes={{
+            open: quickNotesOpen,
+            onToggle: () => setQuickNotesOpen((value) => !value),
+          }}
+          archive={{
+            lists,
+            canEdit: canEditBoardContent,
+            showArchivedLists,
+            onToggleArchivedLists: () => setShowArchivedLists((value) => !value),
+            showArchivedCards,
+            onToggleArchivedCards: () => setShowArchivedCards((value) => !value),
+            archivedListCount,
+          }}
+        />
+
+        {!realtime.connected && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="border-b border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-700 dark:text-amber-300"
+          >
+            {strings.realtime.disconnected}
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-hidden p-4">
+          <BoardColumns
+            boardId={boardId}
+            board={{ role: b.role, archivedAt: b.archivedAt }}
+            lists={lists}
+            cards={cards}
+            archivedCards={showArchivedCards ? (archivedCards.data ?? []) : []}
+            selectedLabelIds={liveSelectedLabelIds}
+            dueDateFilter={dueDateFilter}
+            assignedToMeUserId={assignedToMeOnly ? currentUserId : null}
+            showArchivedLists={showArchivedLists}
+            showArchivedCards={showArchivedCards}
+            boardLabels={labelList.data ?? boardLabels}
+            boardMembers={(boardMembers.data ?? []).map((member) => ({
+              userId: member.userId,
+              name: member.name,
+            }))}
+            openFirstCardComposerToken={openFirstCardComposerToken}
+            openAddListComposerToken={openAddListComposerToken}
+          />
+        </div>
+
+        {/* Card detail modal — driven by `?card=<id>`; needs a Suspense boundary
+            for `useSearchParams` (App Router). */}
+        <Suspense fallback={null}>
+          <BoardShortcutScope
+            enabled
+            canEditBoardContent={canEditBoardContent}
+            hasActiveList={hasActiveList}
+            onOpenBoardSearch={() => setBoardSearchOpen(true)}
+            onOpenHelp={() => setShortcutHelpOpen(true)}
+            onOpenFirstCardComposer={() => setOpenFirstCardComposerToken((value) => value + 1)}
+            onOpenAddListComposer={() => setOpenAddListComposerToken((value) => value + 1)}
+          />
+          <CardDetailRoute boardId={boardId} />
+        </Suspense>
+        <ShortcutHelpDialog
+          open={shortcutHelpOpen}
+          onOpenChange={setShortcutHelpOpen}
+          includeCardModal={false}
         />
       </div>
-
-      {/* Card detail modal — driven by `?card=<id>`; needs a Suspense boundary
-          for `useSearchParams` (App Router). */}
-      <Suspense fallback={null}>
-        <BoardShortcutScope
-          enabled
-          canEditBoardContent={canEditBoardContent}
-          hasActiveList={hasActiveList}
-          onOpenBoardSearch={() => setBoardSearchOpen(true)}
-          onOpenHelp={() => setShortcutHelpOpen(true)}
-          onOpenFirstCardComposer={() => setOpenFirstCardComposerToken((value) => value + 1)}
-          onOpenAddListComposer={() => setOpenAddListComposerToken((value) => value + 1)}
-        />
-        <CardDetailRoute boardId={boardId} />
-      </Suspense>
-      <ShortcutHelpDialog
-        open={shortcutHelpOpen}
-        onOpenChange={setShortcutHelpOpen}
-        includeCardModal={false}
-      />
     </div>
   );
 }

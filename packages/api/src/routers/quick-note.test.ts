@@ -410,4 +410,62 @@ describe.runIf(dbAvailable)('quickNote router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
+
+  // ---------------------------------------- convertToCard placement (DEM-205)
+
+  it('convertToCard: with before/after neighbours the card lands between them (DEM-205)', async () => {
+    // Two anchor cards appended to the target list (positions ascending).
+    const first = await callerFor(memberId).card.create({
+      listId,
+      title: 'placement anchor 1',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const second = await callerFor(memberId).card.create({
+      listId,
+      title: 'placement anchor 2',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(first.position < second.position).toBe(true);
+    const note = await callerFor(memberId).quickNote.create({ content: 'between anchors' });
+
+    const card = await callerFor(memberId).quickNote.convertToCard({
+      noteId: note.id,
+      listId,
+      beforeCardId: first.id,
+      afterCardId: second.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    expect(card).toMatchObject({ listId, boardId, title: 'between anchors' });
+    // the resolved position is strictly between the two anchors
+    expect(card.position > first.position && card.position < second.position).toBe(true);
+    expect(await noteRow(note.id)).toBeUndefined();
+  });
+
+  it('convertToCard: a placement neighbour not in the target list is BAD_REQUEST; the note survives', async () => {
+    // A card that lives in a *different* list of the same board.
+    const otherList = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'Placement Other List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const strayCard = await callerFor(memberId).card.create({
+      listId: otherList.id,
+      title: 'stray',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const note = await callerFor(memberId).quickNote.create({ content: 'bad neighbour' });
+
+    await expect(
+      callerFor(memberId).quickNote.convertToCard({
+        noteId: note.id,
+        listId,
+        beforeCardId: strayCard.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // the transaction rolled back — the note is still there
+    expect((await noteRow(note.id))?.content).toBe('bad neighbour');
+  });
 });

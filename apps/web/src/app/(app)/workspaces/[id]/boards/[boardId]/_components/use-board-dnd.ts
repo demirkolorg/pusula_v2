@@ -29,11 +29,13 @@ import { toast } from '@pusula/ui';
 import { useTRPC } from '@/trpc/client';
 import { strings } from '@/lib/strings';
 import { applyCardMove, applyListMove, useOptimisticBoardMutation } from '@/lib/board-cache';
+import { useQuickNoteConvert } from '@/lib/use-quick-note-convert';
 import {
   planCardMove,
   planCardMoveToListEnd,
   planListMove,
   planListMoveByOne,
+  planQuickNoteConvert,
   type CardEdge,
   type ColumnEdge,
 } from './board-dnd-position';
@@ -43,6 +45,7 @@ import {
   isListCardsDropData,
   isListDragData,
   isListDropData,
+  isQuickNoteDragData,
   type BoardDragState,
 } from './board-dnd-types';
 import { CardDragPreview } from './card-drag-preview';
@@ -362,11 +365,17 @@ export function useBoardDnd(opts: {
     onMutationError,
   });
 
+  // Hızlı Not → kart dönüşümü (DEM-205). Panelden sürüklenen bir not bir pano
+  // listesine bırakılınca tetiklenir; `quickNote.convertToCard` mutation'ı.
+  const quickNoteConvert = useQuickNoteConvert(boardId);
+
   // Keep stable refs so the monitor effect doesn't re-register on every render.
   const cardMoveRef = useRef(cardMove);
   const listMoveRef = useRef(listMove);
+  const quickNoteConvertRef = useRef(quickNoteConvert);
   cardMoveRef.current = cardMove;
   listMoveRef.current = listMove;
+  quickNoteConvertRef.current = quickNoteConvert;
 
   // --- Stable helpers used by the monitor + imperative moves --------------
   const isListActive = useCallback(
@@ -450,6 +459,38 @@ export function useBoardDnd(opts: {
     [isListActive, cardsByListId],
   );
 
+  /**
+   * Resolve where a dragged quick note (DEM-205) would convert to a card —
+   * which list + the before/after neighbours. `null` when the target isn't a
+   * card / list-cards drop zone or the target list is archived.
+   */
+  const resolveQuickNoteDropPlan = useCallback(
+    (target: { data: Record<string | symbol, unknown> } | undefined) => {
+      if (!target) return null;
+      const td = target.data;
+      let toListId: string;
+      let targetCardId: string | null = null;
+      let edge: CardEdge = 'bottom';
+      if (isCardDropData(td)) {
+        toListId = td.listId;
+        targetCardId = td.cardId;
+        edge = extractClosestEdge(td) === 'top' ? 'top' : 'bottom';
+      } else if (isListCardsDropData(td)) {
+        toListId = td.listId;
+      } else {
+        return null;
+      }
+      if (!isListActive(toListId)) return null;
+      return {
+        toListId,
+        targetCardId,
+        edge,
+        plan: planQuickNoteConvert({ toListId, targetCardId, edge, cardsByListId }),
+      };
+    },
+    [isListActive, cardsByListId],
+  );
+
   const finishSettlingCardDrop = useCallback(() => {
     settlingCardDropRef.current = null;
     draggedCardHeightRef.current = null;
@@ -504,12 +545,23 @@ export function useBoardDnd(opts: {
     if (!enabled) return;
     const cleanups = [
       monitorForElements({
-        canMonitor: ({ source }) => isCardDragData(source.data) || isListDragData(source.data),
+        canMonitor: ({ source }) =>
+          isCardDragData(source.data) ||
+          isListDragData(source.data) ||
+          isQuickNoteDragData(source.data),
         onDragStart: ({ source }) => {
           const data = source.data;
           settlingCardDropRef.current = null;
           clearCardPlaceholder();
           clearListPlaceholder();
+          if (isQuickNoteDragData(data)) {
+            // The quick note carries its own native drag preview (panel row);
+            // no board-card ghost height to track.
+            draggedCardHeightRef.current = null;
+            draggedListSizeRef.current = { width: null, height: null };
+            setDragState({ kind: 'quick-note', noteId: data.noteId });
+            return;
+          }
           if (isCardDragData(data)) {
             const height = source.element.getBoundingClientRect().height;
             draggedCardHeightRef.current = height > 0 ? height : null;
@@ -559,6 +611,27 @@ export function useBoardDnd(opts: {
           }
 
           clearListPlaceholder();
+
+          // Quick note drag (DEM-205) — reuse the card drop placeholder so the
+          // user sees exactly where the converted card will land.
+          if (isQuickNoteDragData(source.data)) {
+            const resolved = resolveQuickNoteDropPlan(location.current.dropTargets[0]);
+            if (!resolved) {
+              clearCardPlaceholder();
+              return;
+            }
+            const targetEl = location.current.dropTargets[0]?.element;
+            const targetHeight =
+              targetEl instanceof HTMLElement ? targetEl.getBoundingClientRect().height : 0;
+            showCardPlaceholder({
+              listId: resolved.toListId,
+              targetCardId: resolved.targetCardId,
+              edge: resolved.edge,
+              height: targetHeight > 0 ? targetHeight : null,
+            });
+            return;
+          }
+
           if (!isCardDragData(source.data)) {
             return;
           }
@@ -665,6 +738,25 @@ export function useBoardDnd(opts: {
             return;
           }
 
+          // --- Quick note drop (DEM-205) → convert to a card at the drop spot ---
+          if (isQuickNoteDragData(source.data)) {
+            const resolved = resolveQuickNoteDropPlan(target);
+            setDragState({ kind: 'idle' });
+            clearCardPlaceholder();
+            clearListPlaceholder();
+            draggedCardHeightRef.current = null;
+            if (resolved) {
+              quickNoteConvertRef.current.convert({
+                noteId: source.data.noteId,
+                listId: resolved.plan.toListId,
+                beforeCardId: resolved.plan.beforeCardId,
+                afterCardId: resolved.plan.afterCardId,
+                newPosition: resolved.plan.newPosition ?? undefined,
+              });
+            }
+            return;
+          }
+
           setDragState({ kind: 'idle' });
           settlingCardDropRef.current = null;
           clearCardPlaceholder();
@@ -714,6 +806,7 @@ export function useBoardDnd(opts: {
     showListPlaceholder,
     cardOverlay,
     resolveCardDropPlan,
+    resolveQuickNoteDropPlan,
   ]);
 
   // --- Registrars (called from each column/card component's effect) --------
@@ -749,7 +842,11 @@ export function useBoardDnd(opts: {
         cleanups.push(
           dropTargetForElements({
             element,
-            canDrop: ({ source }) => isCardDragData(source.data) && source.data.cardId !== cardId,
+            // Cards accept other cards (not themselves) and quick notes
+            // dragged from the panel (DEM-205 — convert-to-card).
+            canDrop: ({ source }) =>
+              (isCardDragData(source.data) && source.data.cardId !== cardId) ||
+              isQuickNoteDragData(source.data),
             getData: ({ input, element: el }) =>
               attachClosestEdge(
                 { type: 'card', cardId, listId, position },
@@ -770,7 +867,10 @@ export function useBoardDnd(opts: {
       const { element, listId } = args;
       return dropTargetForElements({
         element,
-        canDrop: ({ source }) => isCardDragData(source.data) && isListActive(listId),
+        // The end-of-list zone accepts a moved card or a quick note (DEM-205).
+        canDrop: ({ source }) =>
+          (isCardDragData(source.data) || isQuickNoteDragData(source.data)) &&
+          isListActive(listId),
         getData: () => ({ type: 'list-cards', listId }),
         getIsSticky: () => true,
       });

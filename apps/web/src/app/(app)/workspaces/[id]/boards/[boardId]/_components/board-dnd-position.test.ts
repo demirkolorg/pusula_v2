@@ -4,6 +4,7 @@ import {
   planCardMoveToListEnd,
   planListMove,
   planListMoveByOne,
+  planQuickNoteConvert,
   type CardSibling,
 } from './board-dnd-position';
 
@@ -343,3 +344,76 @@ describe('planListMoveByOne', () => {
     expect(planListMoveByOne({ listId: 'zzz', direction: 'left', lists })).toBeNull();
   });
 });
+
+describe('planQuickNoteConvert', () => {
+  // List A: a (a0), b (a1), c (a2). List C: empty.
+  const cardsByListId = makeCards({
+    A: [
+      { id: 'a', position: 'a0' },
+      { id: 'b', position: 'a1' },
+      { id: 'c', position: 'a2' },
+    ],
+    C: [],
+  });
+
+  it('drop above `a` ⇒ before=∅, after=a, position before a0', () => {
+    const plan = planQuickNoteConvert({
+      toListId: 'A',
+      targetCardId: 'a',
+      edge: 'top',
+      cardsByListId,
+    });
+    expect(plan.toListId).toBe('A');
+    expect(plan.beforeCardId).toBeNull();
+    expect(plan.afterCardId).toBe('a');
+    expect(plan.newPosition! < 'a0').toBe(true);
+  });
+
+  it('drop below `b` ⇒ between b and c', () => {
+    const plan = planQuickNoteConvert({
+      toListId: 'A',
+      targetCardId: 'b',
+      edge: 'bottom',
+      cardsByListId,
+    });
+    expect(plan.beforeCardId).toBe('b');
+    expect(plan.afterCardId).toBe('c');
+    expect(plan.newPosition! > 'a1' && plan.newPosition! < 'a2').toBe(true);
+  });
+
+  it('drop below the last card `c` ⇒ before=c, after=∅', () => {
+    const plan = planQuickNoteConvert({
+      toListId: 'A',
+      targetCardId: 'c',
+      edge: 'bottom',
+      cardsByListId,
+    });
+    expect(plan.beforeCardId).toBe('c');
+    expect(plan.afterCardId).toBeNull();
+    expect(plan.newPosition! > 'a2').toBe(true);
+  });
+
+  it('drop on the end-of-list zone (null target) ⇒ append after the last card', () => {
+    const plan = planQuickNoteConvert({
+      toListId: 'A',
+      targetCardId: null,
+      edge: 'bottom',
+      cardsByListId,
+    });
+    expect(plan.beforeCardId).toBe('c');
+    expect(plan.afterCardId).toBeNull();
+  });
+
+  it('drop into an empty list ⇒ before=∅, after=∅', () => {
+    const plan = planQuickNoteConvert({
+      toListId: 'C',
+      targetCardId: null,
+      edge: 'bottom',
+      cardsByListId,
+    });
+    expect(plan.toListId).toBe('C');
+    expect(plan.beforeCardId).toBeNull();
+    expect(plan.afterCardId).toBeNull();
+    expect(plan.newPosition).not.toBeNull();
+  });
+})

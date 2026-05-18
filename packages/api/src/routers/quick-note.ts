@@ -95,7 +95,10 @@ export const quickNoteRouter = router({
   }),
 
   /**
-   * Convert a quick note into a card at the end of `listId`. Flow, all in one
+   * Convert a quick note into a card in `listId`. With no placement neighbours
+   * the card is appended to the list end (the mobile flow); with
+   * `before`/`afterCardId` it lands at the resolved position (DEM-205 — web
+   * "Hızlı Notlar" panel drag-to-list). Flow, all in one
    * transaction: (1) delete the note ownership-scoped with `RETURNING` — the
    * `DELETE` takes a row lock, so a concurrent second call sees 0 rows and gets
    * `NOT_FOUND`, closing both the TOCTOU race and the "one note → one card"
@@ -146,13 +149,22 @@ export const quickNoteRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart eklenemez.' });
         }
 
-        // (3) Create the card (same side effects as `card.create`).
+        // (3) Create the card (same side effects as `card.create`). Placement
+        // is forwarded as-is: with no neighbours the card is appended to the
+        // list end (the mobile flow); with `before`/`afterCardId` it lands at
+        // the resolved position (DEM-205 — web panel drag-to-list). The
+        // neighbours are validated against `list.id` inside `createCardInTransaction`.
         const result = await createCardInTransaction(tx, {
           list: { id: list.id, boardId: list.boardId },
           board: { workspaceId: board.workspaceId },
           title: note.content,
           actorId: ctx.session.user.id,
           clientMutationId: ctx.clientMutationId,
+          placement: {
+            beforeCardId: input.beforeCardId ?? null,
+            afterCardId: input.afterCardId ?? null,
+            newPosition: input.newPosition,
+          },
         });
         realtimeEventId = result.realtimeEventId;
 

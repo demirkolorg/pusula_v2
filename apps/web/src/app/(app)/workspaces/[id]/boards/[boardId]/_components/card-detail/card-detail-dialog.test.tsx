@@ -246,7 +246,7 @@ describe('<CardDetailDialog>', () => {
 
     expect(h.mutationMutateAsync).not.toHaveBeenCalled();
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Kapak fotoğrafı en fazla 5 MB olabilir.',
+      'Kapak fotoğrafı en fazla 50 MB olabilir.',
     );
   });
 

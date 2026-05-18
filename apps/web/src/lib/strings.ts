@@ -964,7 +964,36 @@ export const strings = {
       // aria-live announcements while dragging (best-effort).
       announceCardGrabbed: 'Kart kaldırıldı. Bırakmak için fareyi taşıyın.',
       announceListGrabbed: 'Liste kaldırıldı. Bırakmak için fareyi taşıyın.',
+      announceQuickNoteGrabbed:
+        'Hızlı not kaldırıldı. Karta çevirmek için bir listeye bırakın.',
       announceDropped: 'Bırakıldı.',
+    },
+    // Hızlı Notlar paneli (DEM-205) — pano ekranında açılıp kapanan kişisel
+    // "Gelen Kutusu" paneli; bir not listeye sürüklenince karta dönüşür.
+    quickNotes: {
+      panelTitle: 'Hızlı Notlar',
+      toggle: 'Hızlı Notlar',
+      open: 'Hızlı Notlar panelini aç',
+      close: 'Hızlı Notlar panelini kapat',
+      addPlaceholder: 'Bir hızlı not yazın…',
+      addSubmit: 'Ekle',
+      addSubmitting: 'Ekleniyor…',
+      editPlaceholder: 'Notu düzenle…',
+      editSubmit: 'Kaydet',
+      editSaving: 'Kaydediliyor…',
+      editAction: 'Düzenle',
+      deleteAction: 'Sil',
+      deleteConfirmTitle: 'Not silinsin mi?',
+      deleteConfirmBody: 'Bu hızlı not kalıcı olarak silinir. Bu işlem geri alınamaz.',
+      deleteConfirmAction: 'Sil',
+      emptyTitle: 'Henüz hızlı not yok',
+      emptyDescription:
+        'Yukarıdan bir not ekleyin; sonra panodaki bir listeye sürükleyerek karta çevirin.',
+      loadErrorTitle: 'Hızlı notlar yüklenemedi',
+      dragHint: 'Bir listeye sürükleyerek karta çevir',
+      dragLabel: (content: string) => `Hızlı notu sürükle: ${content}`,
+      convertError: 'Not karta dönüştürülemedi. Lütfen tekrar deneyin.',
+      actionError: 'İşlem tamamlanamadı. Lütfen tekrar deneyin.',
     },
     // Phase 4 optimistic UI — shared destructive / neutral toast copy used by every
     // board/list/card collaborative mutation (08-web-ve-mobil.md §8.1.9, 05-board-mekanigi.md §5.2).
@@ -1103,7 +1132,7 @@ export const strings = {
         coverImageClear: 'Kapak fotoğrafını kaldır',
         coverImageCurrent: 'Kapak fotoğrafı',
         coverImageUploadFailed: 'Kapak fotoğrafı yüklenemedi.',
-        coverImageTooLarge: 'Kapak fotoğrafı en fazla 5 MB olabilir.',
+        coverImageTooLarge: 'Kapak fotoğrafı en fazla 50 MB olabilir.',
         addMeta: 'Ekle',
         membersChip: 'Üye',
         labelsChip: 'Etiket',

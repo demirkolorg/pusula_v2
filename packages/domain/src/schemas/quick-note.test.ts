@@ -135,4 +135,46 @@ describe('convertQuickNoteToCardInput', () => {
   it('rejects a missing `listId`', () => {
     expect(() => convertQuickNoteToCardInput.parse({ noteId: 'qn_1' })).toThrow();
   });
+
+  // DEM-205 — web "Hızlı Notlar" panel drag-to-list adds optional placement.
+  it('accepts placement neighbours + `newPosition` (DEM-205)', () => {
+    expect(
+      convertQuickNoteToCardInput.parse({
+        noteId: 'qn_1',
+        listId: 'list_1',
+        beforeCardId: 'card_a',
+        afterCardId: 'card_b',
+        newPosition: 'a4',
+      }),
+    ).toEqual({
+      noteId: 'qn_1',
+      listId: 'list_1',
+      beforeCardId: 'card_a',
+      afterCardId: 'card_b',
+      newPosition: 'a4',
+    });
+  });
+
+  it('accepts `null` placement neighbours (idSchema.nullish — end of list)', () => {
+    expect(
+      convertQuickNoteToCardInput.parse({
+        noteId: 'qn_1',
+        listId: 'list_1',
+        beforeCardId: null,
+        afterCardId: null,
+      }),
+    ).toEqual({ noteId: 'qn_1', listId: 'list_1', beforeCardId: null, afterCardId: null });
+  });
+
+  it('rejects an empty `beforeCardId` (idSchema min = 1)', () => {
+    expect(() =>
+      convertQuickNoteToCardInput.parse({ noteId: 'qn_1', listId: 'list_1', beforeCardId: '' }),
+    ).toThrow();
+  });
+
+  it('rejects a non-string `newPosition`', () => {
+    expect(() =>
+      convertQuickNoteToCardInput.parse({ noteId: 'qn_1', listId: 'list_1', newPosition: 4 }),
+    ).toThrow();
+  });
 });
