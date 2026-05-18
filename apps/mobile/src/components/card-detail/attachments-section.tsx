@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View, useColorScheme } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
+import { AppSpinner } from '@/components/app-spinner';
 import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
@@ -304,7 +305,7 @@ export function AttachmentsSection({
               <View className="gap-2 rounded-lg border border-border bg-card p-3">
                 <View className="flex-row items-center gap-3">
                   {upload.uploadProgress === null ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
+                    <AppSpinner size="sm" color={theme.primary} />
                   ) : null}
                   <Text
                     className="flex-1 text-sm text-muted-foreground"

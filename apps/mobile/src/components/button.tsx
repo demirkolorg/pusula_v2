@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, useColorScheme } from 'react-native';
+import { Pressable, useColorScheme } from 'react-native';
 import { Text } from '@/components/text';
+import { AppSpinner } from '@/components/app-spinner';
 import { themeFor } from '@/theme/tokens';
 
 type ButtonVariant = 'primary' | 'ghost';
@@ -41,7 +42,7 @@ export function Button({
         isDisabled ? 'opacity-50' : 'active:opacity-80'
       }`}
     >
-      {pending && <ActivityIndicator size="small" color={spinnerColor} />}
+      {pending ? <AppSpinner size="sm" color={spinnerColor} /> : null}
       <Text weight="semibold" className={`text-base ${textTone}`}>
         {label}
       </Text>

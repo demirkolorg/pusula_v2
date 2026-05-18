@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, View } from 'react-native';
+import { Image, Modal, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import { AppSpinner } from '@/components/app-spinner';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
@@ -62,7 +63,7 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
 
         <View className="flex-1 items-center justify-center px-2 pb-6">
           {urlQuery.isPending ? (
-            <ActivityIndicator size="large" color="#ffffff" />
+            <AppSpinner size="lg" color="#ffffff" />
           ) : urlQuery.isError ? (
             <Text className="px-6 text-center text-base text-white">
               {strings.attachments.previewError}
@@ -78,7 +79,7 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
               />
               {imageLoading ? (
                 <View className="absolute">
-                  <ActivityIndicator size="large" color="#ffffff" />
+                  <AppSpinner size="lg" color="#ffffff" />
                 </View>
               ) : null}
             </>

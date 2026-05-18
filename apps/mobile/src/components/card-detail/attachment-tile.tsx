@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
+import { AppSpinner } from '@/components/app-spinner';
 import { Button } from '@/components/button';
 import { Icon, type IconName } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
@@ -171,7 +172,7 @@ export function AttachmentTile({
             className="h-8 w-8 items-center justify-center rounded-md active:bg-muted"
           >
             {downloading ? (
-              <ActivityIndicator size="small" color={theme.mutedForeground} />
+              <AppSpinner size="sm" color={theme.mutedForeground} />
             ) : (
               <Icon name="download" size={17} color={theme.mutedForeground} />
             )}
@@ -188,7 +189,7 @@ export function AttachmentTile({
               }`}
             >
               {busy ? (
-                <ActivityIndicator size="small" color={theme.mutedForeground} />
+                <AppSpinner size="sm" color={theme.mutedForeground} />
               ) : (
                 <Icon name="more-vertical" size={17} color={theme.mutedForeground} />
               )}
