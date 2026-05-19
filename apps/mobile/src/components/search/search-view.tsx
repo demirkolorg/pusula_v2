@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, TextInput, View, useColorScheme } from 'react-native';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -184,6 +191,13 @@ export function SearchView({ boardId, title, autoFocus = false }: SearchViewProp
           contentContainerClassName="gap-5 p-4"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          refreshControl={
+            <RefreshControl
+              refreshing={search.isFetching}
+              onRefresh={() => search.refetch()}
+              tintColor={theme.mutedForeground}
+            />
+          }
         >
           {groups.map((group) => (
             <View key={group.entityType} className="gap-2">

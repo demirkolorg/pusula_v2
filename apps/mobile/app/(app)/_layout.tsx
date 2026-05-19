@@ -7,6 +7,7 @@ import { CreateTabButton } from '@/components/create-tab-button';
 import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PushPermissionPrimer } from '@/components/push-permission-primer';
+import { useForegroundNotificationRefresh } from '@/lib/use-foreground-notification-refresh';
 import { useNotificationDeepLink } from '@/lib/use-notification-deep-link';
 import { useTRPC } from '@/trpc/provider';
 import { strings } from '@/lib/strings';
@@ -31,6 +32,9 @@ import { themeFor } from '@/theme/tokens';
  * Faz 7L: izin isteme cilalı bir priming `Sheet`'iyle (`PushPermissionPrimer`)
  * yapılır; ayrıca `useNotificationDeepLink` push'a dokunma + universal/şema
  * link'leri içerik ekranına yönlendirir.
+ *
+ * DEM-219: `useForegroundNotificationRefresh` foreground'da gelen push'u açık
+ * board/kart ekranı ve rozet için sessiz cache invalidate'e bağlar.
  */
 export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
@@ -52,6 +56,8 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
 
   // Push'a dokunma + universal/şema link → içerik ekranına yönlendirme (7L).
   useNotificationDeepLink();
+  // Foreground'da gelen push → açık board/kart ekranı + rozet tazeleme (DEM-219).
+  useForegroundNotificationRefresh();
 
   // Okunmamış bildirim rozeti. Hata/0 durumunda rozet gizlenir; bildirim
   // merkezi `markRead`/`markAllRead` mutation'ları bu sorguyu invalidate eder.
