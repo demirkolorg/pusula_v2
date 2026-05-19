@@ -16,7 +16,7 @@ parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/10-platform|10 — Platform]]'
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
-updated: 2026-05-16
+updated: 2026-05-19
 ---
 
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
@@ -279,6 +279,18 @@ Migration request-path'te değil (CLAUDE.md §2): `migrate` servisi deploy sıra
 (`pnpm db:migrate` = `@pusula/db` `tsx src/migrate.ts`), `restart: "no"`; `api`/`worker` onun
 `service_completed_successfully` durumunu bekler. Alternatif: Dokploy "pre-deploy command" alanında
 `pnpm db:migrate` çalıştırmak — ama compose içinde tutmak deploy'u tek üniteye sokar, tercih bu.
+
+> **⚠️ Journal `when` damgaları monotonik artmalı.** Drizzle bir migration'ın "pending" olup
+> olmadığına `drizzle/meta/_journal.json`'daki `when` zaman damgasına bakarak karar verir: yeni
+> migration'ın `when`'i son uygulanandan KÜÇÜKSE Drizzle onu "zaten uygulanmış" sayıp **sessizce
+> atlar** — tablo hiç oluşmaz. (DEM-205, 2026-05-19: `quick_notes` tablosu canlıda oluşmadı,
+> `migrate` "applied" dedi ama 0034'ü atladı.) `drizzle-kit generate` `when`'i gerçek `Date.now()`
+> ile damgalar; bazı eski migration'lar elle gelecek-tarihli yazıldığından taze üretilen bir
+> migration onların altına düşebilir. **Her `pnpm db:generate` sonrası** yeni entry'nin `when`
+> değerinin `_journal.json`'daki en büyük değer olduğunu doğrula; değilse mevcut en üst değerin
+> üzerine elle çek. Koruma: `migrate.ts` çalışmadan önce `assertJournalMonotonic` ile journal'ı
+> doğrular (bozuksa deploy gürültülü kırılır), aynı kontrol `journal-monotonic.test.ts` ile
+> CI'da da koşar.
 
 ---
 
