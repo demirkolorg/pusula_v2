@@ -224,10 +224,13 @@ function patchCardDetail(
   qc: QueryClient,
   filters: RealtimeFilters,
   cardId: string,
-  patch: Partial<CardDetailCache>,
+  patch: Partial<CardDetailCache['card']>,
 ): void {
+  // `card.get` çıktısı `{ card, relations }` — kart alanları `.card` altında
+  // nested. Patch top-level'a değil `.card`'a merge edilmeli; aksi halde kart
+  // detay modalı (`card.get` cache'inden okur) realtime patch'i görmez.
   qc.setQueriesData<CardDetailCache>(filters.card(cardId), (data) =>
-    data == null ? data : { ...data, ...patch },
+    data == null ? data : { ...data, card: { ...data.card, ...patch } },
   );
 }
 
@@ -428,12 +431,16 @@ export function dispatchRealtimeEvent(
     case 'card.updated': {
       const { cardId, patch } = payload as { cardId: string; patch: Partial<CardCache> };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
-      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
+      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache['card']>);
       return;
     }
     case 'card.archived': {
       const cardId = stringField(payload, 'cardId');
       if (!cardId) return;
+      // Kart detay modalı açıksa `card.get`'i tazele — modal `archivedAt`'i
+      // oradan okuyup salt-okunur kararını verir; refetch güncel durumu getirir
+      // (arşivle ve arşivden çıkar dallarının ikisinde de gerekli).
+      void qc.invalidateQueries(filters.card(cardId));
       if (booleanField(payload, 'archived') === false) {
         void qc.invalidateQueries(filters.board);
         return;
@@ -453,12 +460,16 @@ export function dispatchRealtimeEvent(
       const { cardId, completedAt, completedBy } = parsed.data;
       // `CardCache.completedAt` is `Date` (superjson reifies it client-side);
       // wire format is ISO-8601 from the producer. Convert here.
+      // `completed` boolean'ı da yamanmalı — kart yüzü (`card-item.tsx`) bu
+      // alanı okur; yalnız `completedAt` yamanırsa diğer kullanıcıda kart
+      // "tamamlanmamış" görünmeye devam eder (event tipi durumu belirtir).
       const patch: Partial<CardCache> = {
+        completed: true,
         completedAt: new Date(completedAt),
         completedBy,
       };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
-      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
+      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache['card']>);
       return;
     }
     case 'card.uncompleted': {
@@ -468,9 +479,10 @@ export function dispatchRealtimeEvent(
         return;
       }
       const { cardId } = parsed.data;
-      const patch: Partial<CardCache> = { completedAt: null, completedBy: null };
+      // `completed: false` — bkz. `card.completed` case'indeki not.
+      const patch: Partial<CardCache> = { completed: false, completedAt: null, completedBy: null };
       setBoard(qc, filters, (data) => applyCardPatch(data, cardId, patch));
-      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache>);
+      patchCardDetail(qc, filters, cardId, patch as Partial<CardDetailCache['card']>);
       return;
     }
     case 'list.moved': {

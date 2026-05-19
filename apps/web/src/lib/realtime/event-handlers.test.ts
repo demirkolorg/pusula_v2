@@ -25,6 +25,7 @@ type FixCard = {
   listId: string;
   position: string;
   title: string;
+  completed?: boolean;
   completedAt: Date | null;
   labels?: FixCardLabel[];
   checklistTotal?: number;
@@ -369,7 +370,7 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(next.cards.find((c) => c.id === 'c2')).toBeUndefined();
   });
 
-  it('card.completed → patches completedAt on the card', () => {
+  it('card.completed → patches completed + completedAt on the card', () => {
     const completedAt = '2026-05-13T10:00:00.000Z';
     dispatchRealtimeEvent(
       qc,
@@ -379,17 +380,22 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
         completedAt,
       }),
     );
-    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
+    const card = qc.getQueryData<FixCache>(boardKey('b1'))!.cards.find((c) => c.id === 'c1')!;
     // Producer ships ISO-8601; dispatcher reifies to `Date` (matches the
     // tRPC + superjson cache shape).
-    expect(next.cards.find((c) => c.id === 'c1')!.completedAt).toEqual(new Date(completedAt));
+    expect(card.completedAt).toEqual(new Date(completedAt));
+    // Regresyon (DEM-222): kart yüzü `completed` boolean'ını okur — yalnız
+    // `completedAt` yamanırsa diğer kullanıcı tamamlanmayı görmez.
+    expect(card.completed).toBe(true);
   });
 
-  it('card.uncompleted → clears completedAt on the card', () => {
+  it('card.uncompleted → clears completed + completedAt on the card', () => {
     qc.setQueryData(boardKey('b1'), {
       ...fixture(),
       cards: fixture().cards.map((c) =>
-        c.id === 'c1' ? { ...c, completedAt: new Date('2026-05-13T10:00:00.000Z') } : c,
+        c.id === 'c1'
+          ? { ...c, completed: true, completedAt: new Date('2026-05-13T10:00:00.000Z') }
+          : c,
       ),
     });
     dispatchRealtimeEvent(
@@ -397,8 +403,71 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
       { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
       envelope('card.uncompleted', { cardId: 'c1' }),
     );
-    const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
-    expect(next.cards.find((c) => c.id === 'c1')!.completedAt).toBeNull();
+    const card = qc.getQueryData<FixCache>(boardKey('b1'))!.cards.find((c) => c.id === 'c1')!;
+    expect(card.completedAt).toBeNull();
+    // Regresyon (DEM-222): `completed` boolean'ı da false'a dönmeli.
+    expect(card.completed).toBe(false);
+  });
+
+  // DEM-223: kart detay modalı `card.get` cache'inden (`{ card, relations }`)
+  // okur; realtime patch'i `.card`'a inmeli. Aşağıdaki testler patchCardDetail'in
+  // doğru nesting katmanına yazdığını doğrular (önceki testler yalnız board
+  // cache'ine baktığı için bu katmanı kaçırmıştı).
+  it('card.completed → patches the open card-detail modal cache (.card)', () => {
+    qc.setQueryData(cardKey('c1'), {
+      card: { id: 'c1', title: 'bir', completed: false, completedAt: null, archivedAt: null },
+      relations: {},
+    });
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.completed', { cardId: 'c1', completedAt: '2026-05-13T10:00:00.000Z' }),
+    );
+    const detail = qc.getQueryData<{ card: { completed: boolean; completedAt: Date | null } }>(
+      cardKey('c1'),
+    )!;
+    expect(detail.card.completed).toBe(true);
+    expect(detail.card.completedAt).toEqual(new Date('2026-05-13T10:00:00.000Z'));
+  });
+
+  it('card.uncompleted → clears completion on the open card-detail modal cache', () => {
+    qc.setQueryData(cardKey('c1'), {
+      card: {
+        id: 'c1',
+        title: 'bir',
+        completed: true,
+        completedAt: new Date('2026-05-13T10:00:00.000Z'),
+        archivedAt: null,
+      },
+      relations: {},
+    });
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.uncompleted', { cardId: 'c1' }),
+    );
+    const detail = qc.getQueryData<{ card: { completed: boolean; completedAt: Date | null } }>(
+      cardKey('c1'),
+    )!;
+    expect(detail.card.completed).toBe(false);
+    expect(detail.card.completedAt).toBeNull();
+  });
+
+  it('card.updated → patches the open card-detail modal cache (.card)', () => {
+    qc.setQueryData(cardKey('c1'), { card: { id: 'c1', title: 'bir' }, relations: {} });
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.updated', { cardId: 'c1', patch: { title: 'birinci (yeni)' } }),
+    );
+    const detail = qc.getQueryData<{ card: { title: string } }>(cardKey('c1'))!;
+    expect(detail.card.title).toBe('birinci (yeni)');
+  });
+
+  it('card.archived → invalidates the card-detail modal query', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    dispatchRealtimeEvent(qc, makeFilters(), envelope('card.archived', { cardId: 'c1', archived: true }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: cardKey('c1') });
   });
 
   it('list.moved → re-positions the list', () => {
@@ -629,22 +698,6 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(after).toBe(before);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
-  });
-
-  it('card.updated also patches the card.get cache when present', () => {
-    qc.setQueryData(cardKey('c1'), { id: 'c1', title: 'bir', description: '' });
-    dispatchRealtimeEvent(
-      qc,
-      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
-      envelope('card.updated', {
-        cardId: 'c1',
-        patch: { title: 'patched' },
-      }),
-    );
-    const detail = qc.getQueryData<{ id: string; title: string; description: string }>(
-      cardKey('c1'),
-    )!;
-    expect(detail.title).toBe('patched');
   });
 
   it('comment.created -> prepends the comment list cache', () => {
