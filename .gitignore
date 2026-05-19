@@ -60,3 +60,6 @@ tmp
 
 # tasarım ilham / mockup dosyaları (repo dışı referans)
 ilham/
+
+# Apple/Play ikon üreticisinden gelen ham set — Expo yalnız assets/icon.png kullanır
+AppIcons/

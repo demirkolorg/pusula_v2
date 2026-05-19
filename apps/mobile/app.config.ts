@@ -9,7 +9,7 @@ const config: ExpoConfig = {
   name: 'Pusula',
   slug: 'pusula',
   scheme: 'pusula',
-  version: '0.1.0',
+  version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
@@ -18,6 +18,12 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.pusula.app',
+    // App Store gönderiminde "ihracat uyumu / şifreleme" sorusunu otomatik
+    // yanıtlar: uygulama yalnız standart HTTPS/TLS kullanıyor (muaf) — her
+    // gönderimde elle yanıtlamak gerekmez. Faz 7O.
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
     // Faz 7L — universal links. iOS, uygulama kuruluyken `pusulaportal.com`
     // linklerini uygulamada açar (tüm yollar — kullanıcı kararı 2026-05-18).
     // Domain doğrulaması `apple-app-site-association` dosyasını ister; o dosya
