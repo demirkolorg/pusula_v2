@@ -466,6 +466,113 @@ Hepsi yeşilse → Aşama 6.
 
 ---
 
+## 12.14 Mobil iOS yayını (EAS Build + App Store) — Faz 7O
+
+Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür ([DEM-191](https://linear.app/demirkol/issue/DEM-191)). Android (Google Play) ilk turda **ertelendi** (kullanıcı kararı 2026-05-19) — iOS öncelikli; Google Play adımları sonraki turda ayrı yazılır. Adımları sırayla uygula.
+
+### 12.14.1 Önkoşullar
+
+- Apple Developer Program üyeliği **aktif** (Individual / Sole Proprietor) — "Welcome to the Apple Developer Program" e-postası geldi, App Store Connect erişimi açık.
+- Expo hesabı + EAS CLI: `pnpm dlx eas-cli@latest` (ya da global `eas-cli`).
+- `app.config.ts` `extra.eas.projectId` bağlı (✓ 2026-05-18) · 1024×1024 opak `assets/icon.png` (✓ DEM-191) · `eas.json` production profili `EXPO_PUBLIC_API_URL=https://api.pusulaportal.com` (✓ DEM-191) · `version: '1.0.0'` + `ITSAppUsesNonExemptEncryption=false` (✓ DEM-191).
+
+### 12.14.2 Adımlar
+
+1. **EAS hesap girişi** — `eas login` (interaktif, Expo kimliği), `eas whoami` ile doğrula. `projectId` config'te zaten bağlı; ayrı `eas init` gerekmez.
+2. **İlk dev build** — `eas build --profile development --platform ios`. EAS, Apple ile iletişime geçip imzalama sertifikası + provisioning profile üretir (interaktif Apple ID girişi); bu noktada **Apple Team ID** kesinleşir. Build cihaza kurulduktan sonra **7L doğrulaması**: gerçek-cihaz push teslimi (telefona bildirim düşüyor mu) + deep link açılışı.
+3. **Universal link doğrulama dosyası** — Team ID belli olunca `apps/web` altında `.well-known/apple-app-site-association` (uzantısız JSON: `appID = <TeamID>.com.pusula.app`, `paths: ["*"]` — tüm yollar, kullanıcı kararı 2026-05-18). `https://pusulaportal.com/.well-known/apple-app-site-association` `application/json` ile, yönlendirmesiz erişilebilir olmalı. (`assetlinks.json` Android — ertelendi.)
+4. **Production build** — `eas build --profile production --platform ios`. `appVersionSource: remote` + `autoIncrement: true` → build numarası EAS'te otomatik artar.
+5. **App Store Connect kaydı** — [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Apps → yeni app: ad "Pusula", bundle id `com.pusula.app`, birincil dil Türkçe. Metadata (alt başlık / açıklama / anahtar kelimeler — App Store metin asset'leri) · kategori Productivity · yaş derecelendirme · ekran görüntüleri (zorunlu iPhone + iPad boyutları — `supportsTablet: true`) · **App Privacy** veri-toplama beyanı · gizlilik politikası URL'i (zorunlu).
+6. **Gönderim** — `eas submit --platform ios`. `eas.json` `submit.production` boş → interaktif Apple kimliği sorar; tekrar edilebilirlik için App Store Connect API key (`ascApiKeyPath` + key id) `eas.json`'a yazılabilir.
+7. **App Review** — önce TestFlight internal test (önerilir), sonra "Submit for Review". Apple incelemesi genelde 24–48 saat. Onay sonrası elle ya da otomatik yayın.
+
+### 12.14.3 OTA güncellemeler (EAS Update)
+
+`eas.json` her profilde `channel` taşır (`production` → `production`). **Native değişmeyen** (yalnız JS/asset) güncellemeler store'a uğramadan: `eas update --branch production`. Native bağımlılık, izin ya da `app.config.ts` değişirse yeni store build'i + review gerekir.
+
+### 12.14.4 İlerleme
+
+| # | Adım | Durum |
+| - | ---- | ----- |
+| 0 | Apple Developer üyeliği aktif | ⏳ kimlik incelemesi (≤2 iş günü) |
+| 0 | Build-öncesi config sertleştirme (DEM-191) | ✅ commit `e70acb7` |
+| 1 | `eas login` | ⬜ |
+| 2 | İlk dev build + 7L doğrulama | ⬜ |
+| 3 | `apple-app-site-association` | ⬜ |
+| 4 | Production build | ⬜ |
+| 5 | App Store Connect kaydı + metadata + App Privacy | ⬜ |
+| 6 | `eas submit` | ⬜ |
+| 7 | App Review + yayın | ⬜ |
+
+### 12.14.5 App Store metin asset'leri (taslak)
+
+Adım 5'te App Store Connect'e girilir. Karakter sınırları Apple kuralıdır. **Taslaktır** — kullanıcı yayından önce gözden geçirip onaylar; ürün konumlandırması netleşince güncellenir.
+
+| Alan              | TR                                                              | EN                                                            | Sınır |
+| ----------------- | --------------------------------------------------------------- | ------------------------------------------------------------- | ----- |
+| Uygulama adı      | Pusula                                                          | Pusula                                                        | 30    |
+| Alt başlık        | Panolarla ekip iş yönetimi                                      | Boards for team task flow                                     | 30    |
+| Anahtar kelimeler | pano,görev,kart,liste,kanban,proje,ekip,işbirliği,planlama,takip | board,task,card,list,kanban,project,team,collaboration,planner,todo | 100   |
+| Kategori          | Verimlilik (Productivity)                                       | —                                                             | —     |
+
+**Tanıtım metni** (170 karakter — build'siz sonradan değişebilir):
+
+- TR: "İşlerini panolara, listelere ve kartlara dök; ekibinle gerçek zamanlı planla, sürükle-bırak ile düzenle."
+- EN: "Organize your work into boards, lists and cards; plan with your team in real time and arrange it all with drag and drop."
+
+**Açıklama** (4000 karakter):
+
+TR:
+
+> Pusula, ekiplerin işlerini panolar, listeler ve kartlarla düzenlediği bir görev yönetim uygulamasıdır.
+>
+> • **Panolar & listeler** — işini görsel sütunlara ayır, akışını bir bakışta gör.
+> • **Kartlar** — her iş bir kart: kontrol listesi, etiket, son tarih, üye, ek dosya, yorum ve zengin açıklama.
+> • **Sürükle-bırak** — kartları akıcı şekilde taşı, sıralamayı anında düzenle.
+> • **Gerçek zamanlı** — ekip arkadaşının değişikliği anında panonda görünür.
+> • **Bildirimler** — atandığın iş, yaklaşan son tarih ve yorumlar için anlık bildirim.
+> • **Çalışma alanları & roller** — workspace ve pano düzeyinde rol-bazlı erişim.
+> • **Arama** — kart, pano ve içerikte hızlı arama.
+> • **Açık & koyu tema.**
+>
+> Pusula web ve mobilde aynı hesapla çalışır.
+
+EN:
+
+> Pusula is a task management app where teams organize their work with boards, lists and cards.
+>
+> • **Boards & lists** — split your work into visual columns and see your flow at a glance.
+> • **Cards** — every task is a card: checklist, labels, due date, members, attachments, comments and a rich description.
+> • **Drag and drop** — move cards smoothly and reorder instantly.
+> • **Real time** — a teammate's change appears on your board immediately.
+> • **Notifications** — instant alerts for assigned work, upcoming due dates and comments.
+> • **Workspaces & roles** — role-based access at workspace and board level.
+> • **Search** — fast search across cards, boards and content.
+> • **Light & dark theme.**
+>
+> Pusula works with the same account on web and mobile.
+
+### 12.14.6 App Privacy beyanı (taslak)
+
+App Store Connect "App Privacy" bölümünde her veri tipi için: toplanıyor mu · kimliğe bağlı mı · izleme için mi · hangi amaç. Pusula **kullanıcı izleme (tracking) yapmaz** ve üçüncü-taraf reklam SDK'sı içermez → "Data Not Used to Track You".
+
+| Veri tipi (Apple kategorisi)   | Pusula'daki karşılığı                       | Amaç                          | Kimliğe bağlı | İzleme |
+| ------------------------------ | ------------------------------------------- | ----------------------------- | ------------- | ------ |
+| Contact Info — E-posta         | Better Auth hesabı                          | App Functionality             | Evet          | Hayır  |
+| Contact Info — Ad              | Kullanıcı profili adı                       | App Functionality             | Evet          | Hayır  |
+| User Content — Fotoğraf/Video  | Kart eki (kamera/galeri yüklemesi)          | App Functionality             | Evet          | Hayır  |
+| User Content — Diğer içerik    | Kart başlık/açıklama/yorum/kontrol listesi  | App Functionality             | Evet          | Hayır  |
+| Identifiers — Kullanıcı ID     | Hesap kimliği                               | App Functionality             | Evet          | Hayır  |
+| Diagnostics — Çökme verisi     | Sentry çökme/performans raporu              | App Functionality / Analytics | Sentry yapılandırmasına göre | Hayır |
+
+Notlar:
+
+- Push bildirim token'ı cihaz bildirimi içindir — Apple beyanında ayrı "data type" değil; bildirim altyapısının parçası.
+- **Gizlilik politikası URL'i zorunlu** (Adım 5). `pusulaportal.com` üzerinde bir gizlilik politikası sayfası yayınlanmış olmalı — yoksa Adım 5 öncesi oluşturulmalı (**açık iş**).
+- Konum, kişi rehberi, sağlık, finans ve reklam verisi **toplanmaz**.
+
+---
+
 ## İlgili belgeler
 
 - Deployment kararı + mimari özet: [`10-platform.md`](10-platform.md) §10.3, [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) (ADR-lite 2026-05-12).
