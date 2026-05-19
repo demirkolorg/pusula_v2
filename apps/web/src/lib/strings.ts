@@ -1828,4 +1828,12 @@ export const strings = {
     },
     metaTooltip: 'Ekler',
   },
+  // 404 — bulunamayan rota sayfası (`app/not-found.tsx`).
+  notFound: {
+    badge: '404',
+    title: 'Yolunu mu kaybettin?',
+    description:
+      'Aradığın sayfa burada değil — taşınmış ya da hiç var olmamış olabilir. Pusula seni geri götürür.',
+    backHome: 'Ana sayfaya dön',
+  },
 } as const;
