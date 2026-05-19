@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
-import { Icon } from '@/components/icon';
+import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
 import { TextArea } from '@/components/text-area';
 import { EntityAvatar } from '@/components/entity-avatar';
@@ -13,7 +13,6 @@ import { formatTimestamp } from '@/lib/format-date';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { serializeTiptapDoc, tiptapToPlainText } from '@/lib/tiptap';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
 
 type Comments = RouterOutputs['comment']['list'];
 type Comment = Comments[number];
@@ -189,8 +188,12 @@ export function CommentList({
 
 /**
  * Tek yorum satırı — yazar + zaman + Tiptap gövde (ya da "silindi" yer
- * tutucusu). Yetkili kullanıcıda düzenle/sil aksiyonlarını gösterir; düzenleme
- * satır-içi `TextArea` ile düz metni Tiptap JSON'a serialize eder (7G deseni).
+ * tutucusu). DEM-224 ile kontrol listesi maddesi (DEM-221) etkileşim
+ * simetrisine geçti: yetkili kullanıcıda satır-altı "Düzenle/Sil" buton ikilisi
+ * yerine **gövdeye dokun → satır-içi düzenleme**, **sola kaydır → Sil**
+ * (`SwipeRow`). Düzenleme `TextArea` ile düz metni Tiptap JSON'a serialize eder
+ * (7G deseni). Yetkisi olmayan / silinmiş / optimistic yorumda kaydırma ve
+ * gövdeye dokunma etkisizdir. Silme yine `Alert` ile onaylanır.
  */
 function CommentRow({
   comment,
@@ -209,7 +212,6 @@ function CommentRow({
   onEdit: (plainText: string) => void;
   onDelete: () => void;
 }) {
-  const theme = themeFor(useColorScheme());
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
@@ -228,7 +230,11 @@ function CommentRow({
     setEditing(false);
   };
 
-  return (
+  // Gövdeye dokunma → düzenleme (kontrol listesi maddesi simetrisi). Yetki
+  // yoksa / silinmişse / düzenleme açıkken / mutation uçuşurken etkisizdir.
+  const bodyEditable = canManage && !deleted && !editing && !busy;
+
+  const rowContent = (
     <View className="flex-row gap-3">
       <EntityAvatar name={authorName} image={authorImage} size={32} />
       <View className="flex-1 gap-1">
@@ -279,43 +285,38 @@ function CommentRow({
               </View>
             </View>
           </View>
+        ) : bodyEditable ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.cardDetail.commentEdit}
+            onPress={startEditing}
+            // En az 44dp dokunma yüksekliği — kısa tek satır yorumda da
+            // gövde rahat hedeflenir.
+            className="min-h-11 justify-center active:opacity-70"
+          >
+            <TiptapRender doc={comment.body} />
+          </Pressable>
         ) : (
           <TiptapRender doc={comment.body} />
         )}
-
-        {canManage && !deleted && !editing ? (
-          <View className="flex-row gap-4 pt-0.5">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.cardDetail.commentEdit}
-              disabled={busy}
-              onPress={startEditing}
-              className={`flex-row items-center gap-1.5 ${
-                busy ? 'opacity-50' : 'active:opacity-70'
-              }`}
-            >
-              <Icon name="edit-2" size={13} color={theme.primary} />
-              <Text weight="medium" className="text-sm text-primary">
-                {strings.cardDetail.commentEdit}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.cardDetail.commentDelete}
-              disabled={busy}
-              onPress={onDelete}
-              className={`flex-row items-center gap-1.5 ${
-                busy ? 'opacity-50' : 'active:opacity-70'
-              }`}
-            >
-              <Icon name="trash-2" size={13} color={theme.destructive} />
-              <Text weight="medium" className="text-sm text-destructive">
-                {strings.cardDetail.commentDelete}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
       </View>
     </View>
+  );
+
+  // Yetkili + silinmemiş yorum → kaydırarak sil; aksi halde düz satır.
+  if (!canManage || deleted) return rowContent;
+
+  return (
+    <SwipeRow
+      onDelete={onDelete}
+      deleteLabel={strings.cardDetail.commentDelete}
+      // Onay başlığı ("Yorumu sil") aynı zamanda doğru bir erişilebilirlik
+      // aksiyon etiketidir — bilinçli yeniden kullanım.
+      deleteAccessibilityLabel={strings.cardDetail.commentDeleteConfirmTitle}
+      // Düzenleme açıkken / mutation uçuşurken kaydırma devre dışı.
+      enabled={!editing && !busy}
+    >
+      {rowContent}
+    </SwipeRow>
   );
 }

@@ -123,7 +123,7 @@ export function CoverColorSheetBody({
           accessibilityLabel={strings.cardDetail.coverClear}
           disabled={updateCover.isPending}
           onPress={() => select(null)}
-          className="flex-row items-center gap-1.5 self-start active:opacity-70"
+          className="min-h-11 flex-row items-center gap-1.5 self-start active:opacity-70"
         >
           <Icon name="x" size={15} color={theme.mutedForeground} />
           <Text className="text-sm text-muted-foreground">{strings.cardDetail.coverClear}</Text>

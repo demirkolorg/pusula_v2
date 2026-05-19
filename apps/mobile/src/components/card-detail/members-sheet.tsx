@@ -83,6 +83,28 @@ export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: Mem
     }),
   );
 
+  /** Onaylı kart üyesi çıkarma — küçük `x`'e yanlış dokunmada anında kaybı önler. */
+  const confirmRemoveMember = (member: CardMembers[number]) => {
+    Alert.alert(
+      strings.cardDetail.memberRemoveConfirmTitle,
+      strings.cardDetail.memberRemoveConfirmBody,
+      [
+        { text: strings.cardDetail.cancel, style: 'cancel' },
+        {
+          text: strings.cardDetail.memberRemoveAction,
+          style: 'destructive',
+          onPress: () =>
+            removeMember.mutate({
+              cardId,
+              userId: member.userId,
+              role: member.role,
+              clientMutationId: newClientMutationId(),
+            }),
+        },
+      ],
+    );
+  };
+
   // Henüz kart üyesi olmayan pano kullanıcıları (userId bazlı).
   const candidates = boardMembers.filter(
     (boardMember) => !members.some((m) => m.userId === boardMember.userId),
@@ -93,7 +115,10 @@ export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: Mem
       {members.length > 0 ? (
         <View className="gap-2">
           {members.map((member) => (
-            <View key={`${member.userId}:${member.role}`} className="flex-row items-center gap-2">
+            <View
+              key={`${member.userId}:${member.role}`}
+              className="min-h-12 flex-row items-center gap-2"
+            >
               <EntityAvatar name={member.name ?? '?'} image={member.image} size={28} />
               <Text className="flex-1 text-sm text-foreground">
                 {member.name ?? strings.cardDetail.unknownUser}
@@ -101,19 +126,15 @@ export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: Mem
               {canEdit ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={strings.cardDetail.remove}
+                  // Onay başlığı ("Üyeyi çıkar") doğru a11y aksiyon etiketi —
+                  // bilinçli yeniden kullanım.
+                  accessibilityLabel={strings.cardDetail.memberRemoveConfirmTitle}
                   disabled={removeMember.isPending}
-                  onPress={() =>
-                    removeMember.mutate({
-                      cardId,
-                      userId: member.userId,
-                      role: member.role,
-                      clientMutationId: newClientMutationId(),
-                    })
-                  }
-                  className="active:opacity-60"
+                  onPress={() => confirmRemoveMember(member)}
+                  hitSlop={8}
+                  className="h-11 w-11 items-center justify-center active:opacity-60"
                 >
-                  <Icon name="x" size={16} color={theme.mutedForeground} />
+                  <Icon name="x" size={18} color={theme.mutedForeground} />
                 </Pressable>
               ) : null}
             </View>
@@ -143,7 +164,7 @@ export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: Mem
                       clientMutationId: newClientMutationId(),
                     })
                   }
-                  className={`flex-row items-center gap-2 rounded-lg px-2 py-1.5 ${
+                  className={`min-h-12 flex-row items-center gap-2 rounded-lg px-2 py-2 ${
                     addMember.isPending ? 'opacity-50' : 'active:bg-muted'
                   }`}
                 >

@@ -66,7 +66,7 @@ export function SectionAddTrigger({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      className={`flex-row items-center gap-1.5 self-start ${
+      className={`min-h-11 flex-row items-center gap-1.5 self-start ${
         disabled ? 'opacity-50' : 'active:opacity-70'
       }`}
     >

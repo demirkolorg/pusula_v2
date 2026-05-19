@@ -98,7 +98,7 @@ export function LabelsSheetBody({ cardId, boardId, labels, canEdit }: LabelsShee
           {labels.map((label) => (
             <View
               key={label.labelId}
-              className="flex-row items-center gap-1.5 rounded-full bg-muted px-2.5 py-1"
+              className="flex-row items-center gap-1.5 rounded-full bg-muted py-1.5 pl-2.5 pr-1"
             >
               <View
                 className="h-3 w-3 rounded-full"
@@ -119,9 +119,10 @@ export function LabelsSheetBody({ cardId, boardId, labels, canEdit }: LabelsShee
                       clientMutationId: newClientMutationId(),
                     })
                   }
-                  className="active:opacity-60"
+                  hitSlop={10}
+                  className="h-7 w-7 items-center justify-center active:opacity-60"
                 >
-                  <Icon name="x" size={14} color={theme.mutedForeground} />
+                  <Icon name="x" size={15} color={theme.mutedForeground} />
                 </Pressable>
               ) : null}
             </View>

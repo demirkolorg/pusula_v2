@@ -91,7 +91,7 @@ export function QuickNoteRow({ note, onUpdate, onDelete, onConvert }: QuickNoteR
           accessibilityState={{ disabled: pending }}
           disabled={pending}
           onPress={onConvert}
-          className={`h-9 flex-row items-center gap-2 rounded-md bg-primary px-3 ${
+          className={`h-11 flex-row items-center gap-2 rounded-md bg-primary px-3 ${
             pending ? 'opacity-50' : 'active:opacity-80'
           }`}
         >
@@ -127,7 +127,7 @@ function RowAction({
       disabled={disabled}
       hitSlop={6}
       onPress={onPress}
-      className="h-9 w-9 items-center justify-center rounded-md border border-border bg-background active:opacity-60"
+      className="h-11 w-11 items-center justify-center rounded-md border border-border bg-background active:opacity-60"
     >
       <Icon name={icon} size={16} color={tint} />
     </Pressable>

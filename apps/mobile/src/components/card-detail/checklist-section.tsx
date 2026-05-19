@@ -8,6 +8,7 @@ import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { SectionAddTrigger } from '@/components/card-detail/section';
+import { ChecklistItemRow } from '@/components/card-detail/checklist-item-row';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
@@ -108,6 +109,26 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
     }),
   );
 
+  const updateItem = useMutation(
+    trpc.checklist.item.update.mutationOptions({
+      onMutate: (vars) =>
+        patch((lists) =>
+          lists.map((list) =>
+            list.id === vars.checklistId
+              ? {
+                  ...list,
+                  items: list.items.map((item) =>
+                    item.id === vars.itemId ? { ...item, content: vars.content } : item,
+                  ),
+                }
+              : list,
+          ),
+        ),
+      onError: (_error, _vars, ctx) => rollback(ctx),
+      onSettled: invalidate,
+    }),
+  );
+
   const deleteItem = useMutation(
     trpc.checklist.item.delete.mutationOptions({
       onMutate: (vars) =>
@@ -186,7 +207,7 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
         const doneCount = checklist.items.filter((item) => item.completed).length;
         return (
           <View key={checklist.id} className="gap-2">
-            <View className="flex-row items-center justify-between gap-2">
+            <View className="min-h-11 flex-row items-center justify-between gap-2">
               <Text
                 weight="medium"
                 className="flex-1 text-sm text-foreground"
@@ -203,68 +224,52 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
                   accessibilityLabel={strings.cardDetail.checklistDelete}
                   disabled={deleteChecklist.isPending}
                   onPress={() => confirmDeleteChecklist(checklist)}
+                  hitSlop={10}
                   className="active:opacity-60"
                 >
-                  <Icon name="trash-2" size={15} color={theme.mutedForeground} />
+                  <Icon name="trash-2" size={16} color={theme.mutedForeground} />
                 </Pressable>
               ) : null}
             </View>
 
-            {checklist.items.map((item) => {
-              const optimistic = item.id.startsWith(OPTIMISTIC_PREFIX);
-              return (
-                <View key={item.id} className="flex-row items-start gap-2">
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: item.completed, disabled: !canEdit }}
-                    disabled={!canEdit || optimistic}
-                    onPress={() =>
+            {checklist.items.length > 0 ? (
+              <View>
+                {checklist.items.map((item) => (
+                  <ChecklistItemRow
+                    key={item.id}
+                    item={item}
+                    optimistic={item.id.startsWith(OPTIMISTIC_PREFIX)}
+                    canEdit={canEdit}
+                    onToggle={(completed) =>
                       toggleItem.mutate({
                         cardId,
                         checklistId: checklist.id,
                         itemId: item.id,
-                        completed: !item.completed,
+                        completed,
                         clientMutationId: newClientMutationId(),
                       })
                     }
-                    className="pt-0.5 active:opacity-60"
-                  >
-                    <Icon
-                      name={item.completed ? 'check-square' : 'square'}
-                      size={16}
-                      color={item.completed ? theme.success : theme.mutedForeground}
-                    />
-                  </Pressable>
-                  <Text
-                    className={`flex-1 text-sm ${
-                      item.completed
-                        ? 'text-muted-foreground line-through'
-                        : 'text-foreground'
-                    }`}
-                  >
-                    {item.content}
-                  </Text>
-                  {canEdit && !optimistic ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={strings.cardDetail.remove}
-                      disabled={deleteItem.isPending}
-                      onPress={() =>
-                        deleteItem.mutate({
-                          cardId,
-                          checklistId: checklist.id,
-                          itemId: item.id,
-                          clientMutationId: newClientMutationId(),
-                        })
-                      }
-                      className="pt-0.5 active:opacity-60"
-                    >
-                      <Icon name="x" size={15} color={theme.mutedForeground} />
-                    </Pressable>
-                  ) : null}
-                </View>
-              );
-            })}
+                    onRename={(content) =>
+                      updateItem.mutate({
+                        cardId,
+                        checklistId: checklist.id,
+                        itemId: item.id,
+                        content,
+                        clientMutationId: newClientMutationId(),
+                      })
+                    }
+                    onDelete={() =>
+                      deleteItem.mutate({
+                        cardId,
+                        checklistId: checklist.id,
+                        itemId: item.id,
+                        clientMutationId: newClientMutationId(),
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            ) : null}
 
             {canEdit && !optimisticList ? (
               <ChecklistItemComposer

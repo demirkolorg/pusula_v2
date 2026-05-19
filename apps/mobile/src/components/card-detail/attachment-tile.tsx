@@ -158,7 +158,7 @@ export function AttachmentTile({
               hitSlop={6}
               disabled={downloading}
               onPress={onPreview}
-              className="h-8 w-8 items-center justify-center rounded-md active:bg-muted"
+              className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
             >
               <Icon name="eye" size={17} color={theme.mutedForeground} />
             </Pressable>
@@ -169,7 +169,7 @@ export function AttachmentTile({
             hitSlop={6}
             disabled={downloading}
             onPress={onDownload}
-            className="h-8 w-8 items-center justify-center rounded-md active:bg-muted"
+            className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
           >
             {downloading ? (
               <AppSpinner size="sm" color={theme.mutedForeground} />
@@ -184,7 +184,7 @@ export function AttachmentTile({
               hitSlop={6}
               disabled={downloading || busy}
               onPress={() => setMenuOpen(true)}
-              className={`h-8 w-8 items-center justify-center rounded-md active:bg-muted ${
+              className={`h-10 w-10 items-center justify-center rounded-md active:bg-muted ${
                 busy ? 'opacity-50' : ''
               }`}
             >

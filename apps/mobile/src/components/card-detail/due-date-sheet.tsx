@@ -157,9 +157,10 @@ export function DueDateSheetBody({ cardId, dueAt, completed, canEdit }: DueDateS
           {dueAt != null ? (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={strings.cardDetail.dueClear}
               disabled={updateCard.isPending}
               onPress={() => setDue(null)}
-              className={`flex-row items-center gap-1.5 self-start ${
+              className={`min-h-11 flex-row items-center gap-1.5 self-start ${
                 updateCard.isPending ? 'opacity-50' : 'active:opacity-70'
               }`}
             >
