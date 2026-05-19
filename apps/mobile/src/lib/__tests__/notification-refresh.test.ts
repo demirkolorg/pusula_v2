@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { notificationRefreshScope } from '@/lib/notification-refresh';
+import { cardRefreshTargets, notificationRefreshScope } from '@/lib/notification-refresh';
 
 /**
  * `notification-refresh.ts` birim testleri (DEM-219) — foreground push
@@ -67,5 +67,76 @@ describe('notificationRefreshScope', () => {
       boardId: 'b-4',
       cardId: 'c-4',
     });
+  });
+});
+
+/**
+ * `cardRefreshTargets` birim testleri (DEM-229) — foreground push'un bildirim
+ * tipinden açık kart detayının hangi alt sorgularının tazeleneceğinin çıkarımı.
+ * `activity` her kart bildiriminde tazelenir; geri kalanı tipe daraltılır.
+ */
+describe('cardRefreshTargets', () => {
+  const ALL = ['card', 'labels', 'members', 'comment', 'checklist', 'activity'];
+
+  it('yorum tipi yalnız comment + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'comment_reply', cardId: 'c-1' })).toEqual([
+      'comment',
+      'activity',
+    ]);
+  });
+
+  it('mention tipi yalnız comment + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'mention' })).toEqual(['comment', 'activity']);
+  });
+
+  it('atama tipi yalnız members + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'card_assigned' })).toEqual(['members', 'activity']);
+  });
+
+  it('etiket tipi yalnız labels + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'card_label_added' })).toEqual(['labels', 'activity']);
+  });
+
+  it('checklist tipi yalnız checklist + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'checklist_item_completed' })).toEqual([
+      'checklist',
+      'activity',
+    ]);
+  });
+
+  it('kart-alanı tipi (yeniden adlandırma) yalnız card + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'card_renamed' })).toEqual(['card', 'activity']);
+  });
+
+  it('teslim tarihi tipi yalnız card + activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'due_approaching' })).toEqual(['card', 'activity']);
+  });
+
+  it('ek tipi yalnız activity döndürür', () => {
+    expect(cardRefreshTargets({ type: 'attachment_added' })).toEqual(['activity']);
+  });
+
+  it('bilinmeyen tip için tam fallback döndürür', () => {
+    expect(cardRefreshTargets({ type: 'watched_activity' })).toEqual(ALL);
+  });
+
+  it('tip taşımayan payload için tam fallback döndürür', () => {
+    expect(cardRefreshTargets({ cardId: 'c-1' })).toEqual(ALL);
+  });
+
+  it('boş tip için tam fallback döndürür', () => {
+    expect(cardRefreshTargets({ type: '' })).toEqual(ALL);
+  });
+
+  it('string olmayan tip için tam fallback döndürür', () => {
+    expect(cardRefreshTargets({ type: 123 })).toEqual(ALL);
+  });
+
+  it('null payload için tam fallback döndürür', () => {
+    expect(cardRefreshTargets(null)).toEqual(ALL);
+  });
+
+  it('nesne olmayan payload için tam fallback döndürür', () => {
+    expect(cardRefreshTargets('bozuk')).toEqual(ALL);
   });
 });

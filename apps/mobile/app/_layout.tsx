@@ -6,6 +6,7 @@ import { Stack } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProviders } from '@/trpc/provider';
 import { configureOnlineManager } from '@/lib/online-manager';
@@ -55,16 +56,22 @@ function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      {/* ThemeProvider (DEM-207) — açılışta saklanan tema tercihini uygular;
-          StatusBar `style="auto"` ile etkin şemayı izler. */}
-      <ThemeProvider>
-        <AppProviders>
-          <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false }} />
-        </AppProviders>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    // `GestureHandlerRootView` (DEM-228) — `react-native-gesture-handler`
+    // jest sisteminin köküdür; `SwipeRow` gibi `Gesture.Pan()` kullanan
+    // bileşenler bu sarmalayıcı olmadan jest almaz. Kökte tek kez uygulanır,
+    // `flex: 1` ile tüm uygulamayı kaplar.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {/* ThemeProvider (DEM-207) — açılışta saklanan tema tercihini uygular;
+            StatusBar `style="auto"` ile etkin şemayı izler. */}
+        <ThemeProvider>
+          <AppProviders>
+            <StatusBar style="auto" />
+            <Stack screenOptions={{ headerShown: false }} />
+          </AppProviders>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

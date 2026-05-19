@@ -9,7 +9,7 @@
  * `ENTITY_ICONS` genişlerse buraya yeni satır eklenir — eksik anahtar tip
  * hatası verir (`Record<EntityIcon, IconName>` tam kapsama zorlar).
  */
-import type { EntityIcon } from '@pusula/domain';
+import { DEFAULT_WORKSPACE_ICON, ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import type { IconName } from '@/components/icon';
 
 /** Domain ikon adından mobil Feather ikon adına tam eşleme. */
@@ -84,4 +84,18 @@ export const entityIconToFeather: Record<EntityIcon, IconName> = {
 /** Bir `EntityIcon`'u mobil `Icon` bileşeninin beklediği Feather adına çevirir. */
 export function featherForEntityIcon(icon: EntityIcon): IconName {
   return entityIconToFeather[icon];
+}
+
+/** `ENTITY_ICONS` üyelik kümesi — serbest `string` doğrulaması için. */
+const ENTITY_ICON_SET = new Set<string>(ENTITY_ICONS);
+
+/**
+ * Güvenli varyant — DB `text` kolonundan serbest `string` olarak gelen ikon
+ * adını (`workspaces.icon` / `boards.icon`) Feather adına çevirir. Tanınmayan
+ * değer (eski/silinmiş ikon adı) `DEFAULT_WORKSPACE_ICON` fallback'ine düşer.
+ */
+export function featherForEntityName(icon: string | null | undefined): IconName {
+  return entityIconToFeather[
+    icon && ENTITY_ICON_SET.has(icon) ? (icon as EntityIcon) : DEFAULT_WORKSPACE_ICON
+  ];
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
@@ -27,14 +27,25 @@ type AttachmentTileProps = {
   downloading: boolean;
   /** Bu ek üzerinde açıklama/kapak mutation'ı uçuşta mı — menü işlemleri kilitli. */
   busy: boolean;
-  /** Resim eki önizleme (lightbox) — yalnız `kind === 'image'` için verilir. */
-  onPreview?: () => void;
-  onDownload: () => void;
-  onDelete: () => void;
-  /** Açıklamayı kaydeder (boş değer → `undefined` = açıklama silme). */
-  onSaveDescription: (description: string | undefined) => void;
-  /** Kapak yap / kaldır — yön `attachment.isCover`'a göre. */
-  onToggleCover: () => void;
+  /**
+   * Resim eki önizleme (lightbox) — yalnız `kind === 'image'` için verilir.
+   * Stabil callback: argüman olarak `attachment` alır (DEM-226 #2).
+   */
+  onPreview?: (attachment: Attachment) => void;
+  /** Stabil callback: argüman olarak `attachment` alır (DEM-226 #2). */
+  onDownload: (attachment: Attachment) => void;
+  /** Stabil callback: argüman olarak `attachment` alır (DEM-226 #2). */
+  onDelete: (attachment: Attachment) => void;
+  /**
+   * Açıklamayı kaydeder (boş değer → `undefined` = açıklama silme).
+   * Stabil callback: argüman olarak `attachmentId` + `description` alır (DEM-226 #2).
+   */
+  onSaveDescription: (attachmentId: string, description: string | undefined) => void;
+  /**
+   * Kapak yap / kaldır — yön `attachment.isCover`'a göre.
+   * Stabil callback: argüman olarak `attachment` alır (DEM-226 #2).
+   */
+  onToggleCover: (attachment: Attachment) => void;
 };
 
 /** Kebab menüsündeki tek aksiyon satırı. */
@@ -73,7 +84,7 @@ function MenuRow({
  * beş ikon sığdırmak yerine (web §8.1.14 `MoreHorizontal` deseni). Açıklama
  * düzenleme satır-içi açılır; mutation çağıran tarafta optimistic + rollback.
  */
-export function AttachmentTile({
+function AttachmentTileImpl({
   attachment,
   canDelete,
   canEditDescription,
@@ -103,6 +114,26 @@ export function AttachmentTile({
   const showCoverAction = canSetCover && isImage;
   const hasMenu = canEditDescription || showCoverAction || canDelete;
 
+  // İç useCallback sarmalayıcılar — çağırandan gelen stabil prop callback'leri
+  // bu tile'ın `attachment`'ına bağlar. CommentRow/CardRow deseni (DEM-226 #2).
+  const handlePreview = useCallback(() => {
+    onPreview?.(attachment);
+  }, [onPreview, attachment]);
+
+  const handleDownload = useCallback(() => {
+    onDownload(attachment);
+  }, [onDownload, attachment]);
+
+  const handleDelete = useCallback(() => {
+    setMenuOpen(false);
+    onDelete(attachment);
+  }, [onDelete, attachment]);
+
+  const handleToggleCover = useCallback(() => {
+    setMenuOpen(false);
+    onToggleCover(attachment);
+  }, [onToggleCover, attachment]);
+
   const startEditing = () => {
     setMenuOpen(false);
     setDraft(attachment.description ?? '');
@@ -116,7 +147,7 @@ export function AttachmentTile({
       setEditing(false);
       return;
     }
-    onSaveDescription(trimmed.length > 0 ? trimmed : undefined);
+    onSaveDescription(attachment.id, trimmed.length > 0 ? trimmed : undefined);
     setEditing(false);
   };
 
@@ -157,7 +188,7 @@ export function AttachmentTile({
               accessibilityLabel={strings.attachments.actionPreview}
               hitSlop={6}
               disabled={downloading}
-              onPress={onPreview}
+              onPress={handlePreview}
               className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
             >
               <Icon name="eye" size={17} color={theme.mutedForeground} />
@@ -168,7 +199,7 @@ export function AttachmentTile({
             accessibilityLabel={strings.attachments.actionDownload}
             hitSlop={6}
             disabled={downloading}
-            onPress={onDownload}
+            onPress={handleDownload}
             className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
           >
             {downloading ? (
@@ -255,10 +286,7 @@ export function AttachmentTile({
                   : strings.attachments.actionMakeCover
               }
               color={theme.foreground}
-              onPress={() => {
-                setMenuOpen(false);
-                onToggleCover();
-              }}
+              onPress={handleToggleCover}
             />
           ) : null}
           {canDelete ? (
@@ -267,10 +295,7 @@ export function AttachmentTile({
               label={strings.attachments.actionDelete}
               destructive
               color={theme.destructive}
-              onPress={() => {
-                setMenuOpen(false);
-                onDelete();
-              }}
+              onPress={handleDelete}
             />
           ) : null}
         </View>
@@ -278,3 +303,10 @@ export function AttachmentTile({
     </View>
   );
 }
+
+/**
+ * Ek tile'ı — `React.memo` ile sarılı (DEM-226 #2). Çağıran ek listesinde
+ * `attachment` referansı değişmeyen ve callback'leri stabil olan satırlar,
+ * liste yeniden render olsa bile yeniden çizilmez.
+ */
+export const AttachmentTile = memo(AttachmentTileImpl);

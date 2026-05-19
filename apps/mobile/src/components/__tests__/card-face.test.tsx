@@ -45,6 +45,7 @@ function makeCard(over: Partial<BoardCard> = {}): BoardCard {
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    coverImageUrl: null,
     ...over,
   } as BoardCard;
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ENTITY_ICONS } from '@pusula/domain';
+import { DEFAULT_WORKSPACE_ICON, ENTITY_ICONS } from '@pusula/domain';
 import featherGlyphs from '@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Feather.json';
-import { entityIconToFeather, featherForEntityIcon } from '../lib/entity-icon';
+import {
+  entityIconToFeather,
+  featherForEntityIcon,
+  featherForEntityName,
+} from '../lib/entity-icon';
 
 /**
  * DEM-203 WP7 — `EntityIcon` → Feather ikon köprüsü birim testleri.
@@ -54,5 +58,21 @@ describe('featherForEntityIcon', () => {
       expect(featherForEntityIcon(icon)).toBeTypeOf('string');
       expect(featherForEntityIcon(icon).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('featherForEntityName', () => {
+  it('tanınan ikon adını featherForEntityIcon ile aynı glyphe çevirir', () => {
+    for (const icon of ENTITY_ICONS) {
+      expect(featherForEntityName(icon)).toBe(featherForEntityIcon(icon));
+    }
+  });
+
+  it('tanınmayan / boş değer DEFAULT_WORKSPACE_ICON fallback glyphine düşer', () => {
+    const fallback = featherForEntityIcon(DEFAULT_WORKSPACE_ICON);
+    expect(featherForEntityName('olmayan-ikon')).toBe(fallback);
+    expect(featherForEntityName('')).toBe(fallback);
+    expect(featherForEntityName(null)).toBe(fallback);
+    expect(featherForEntityName(undefined)).toBe(fallback);
   });
 });

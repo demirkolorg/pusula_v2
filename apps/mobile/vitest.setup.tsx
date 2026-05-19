@@ -109,6 +109,11 @@ vi.mock('expo-constants', () => ({
   default: { expoConfig: { extra: {} }, manifest: {} },
 }));
 
+// --- expo-crypto — native rastgele/UUID üretimi, testte deterministik stub ---
+vi.mock('expo-crypto', () => ({
+  randomUUID: () => '00000000-0000-0000-0000-000000000000',
+}));
+
 // --- expo-secure-store — native keychain/keystore, testte bellek mock'u ---
 vi.mock('expo-secure-store', () => {
   const store = new Map<string, string>();
@@ -116,6 +121,89 @@ vi.mock('expo-secure-store', () => {
     getItemAsync: vi.fn(async (k: string) => store.get(k) ?? null),
     setItemAsync: vi.fn(async (k: string, v: string) => void store.set(k, v)),
     deleteItemAsync: vi.fn(async (k: string) => void store.delete(k)),
+  };
+});
+
+// --- expo-image — native görsel motoru (disk/bellek cache), testte mock ---
+// DEM-228: `RemoteImage` `expo-image` `<Image>` kullanır. Testte gerçek native
+// görsel motoru çalışmaz; `<Image>` basit bir host elemanına indirgenir.
+// `accessibilityLabel` `aria-label` olarak yansıtılır — `RemoteImage` testi
+// `getByLabelText` ile görseli sorgular. `onLoad`/`onError` çağrılmaz; testler
+// görsel "inme" anını değil görselin/placeholder'ın render'ını doğrular.
+vi.mock('expo-image', () => {
+  const Image = (props: Record<string, unknown>) => {
+    const { accessibilityLabel, style } = props as {
+      accessibilityLabel?: string;
+      style?: unknown;
+    };
+    return React.createElement('expo-image-stub', {
+      'aria-label': accessibilityLabel,
+      style,
+    });
+  };
+  return { Image };
+});
+
+// --- react-native-reanimated — UI-thread animasyon motoru, testte mock ---
+// DEM-228: `SwipeRow` + kart detay scroll handler reanimated kullanır. Testte
+// worklet/UI-thread yok; shared value düz bir nesneye, `Animated.View`/
+// `Animated.ScrollView` sıradan RN bileşenlerine indirgenir, hook'lar boş/sabit
+// değer döndürür. Bileşen testleri animasyonu değil görünürlük/callback'i doğrular.
+vi.mock('react-native-reanimated', async () => {
+  const rn = (await vi.importActual('react-native')) as {
+    View: unknown;
+    ScrollView: unknown;
+  };
+  const AnimatedComponent = (component: unknown) => component;
+  return {
+    default: {
+      View: rn.View,
+      ScrollView: rn.ScrollView,
+      createAnimatedComponent: AnimatedComponent,
+    },
+    View: rn.View,
+    ScrollView: rn.ScrollView,
+    createAnimatedComponent: AnimatedComponent,
+    useSharedValue: (initial: unknown) => ({ value: initial }),
+    useAnimatedStyle: () => ({}),
+    useAnimatedScrollHandler: () => () => {},
+    withTiming: (toValue: unknown) => toValue,
+    withSpring: (toValue: unknown) => toValue,
+    runOnJS:
+      (fn: (...args: unknown[]) => unknown) =>
+      (...args: unknown[]) =>
+        fn(...args),
+  };
+});
+
+// --- react-native-gesture-handler — native jest motoru, testte mock ---
+// DEM-228: `SwipeRow` `Gesture.Pan()` + `GestureDetector` kullanır. Testte
+// gerçek jest tanıma yok; `GestureDetector` çocuğunu olduğu gibi render eder,
+// `Gesture.Pan()` zincirlenebilir no-op bir builder döndürür. `SwipeRow` testi
+// sil butonunun `onPress`'ini doğrular — jest simülasyonu kapsam dışı.
+vi.mock('react-native-gesture-handler', () => {
+  const chainable = (): Record<string, unknown> => {
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get: (_target, prop) => {
+        if (prop === 'then') return undefined;
+        return () => proxy;
+      },
+    };
+    const proxy = new Proxy({}, handler);
+    return proxy;
+  };
+  return {
+    GestureHandlerRootView: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    GestureDetector: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    Gesture: {
+      Pan: chainable,
+      Tap: chainable,
+      Pinch: chainable,
+      Race: chainable,
+      Simultaneous: chainable,
+    },
   };
 });
 

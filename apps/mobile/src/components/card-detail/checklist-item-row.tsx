@@ -131,9 +131,16 @@ export function ChecklistItemRow({
 
   return (
     <SwipeRow
-      onDelete={onDelete}
-      deleteLabel={strings.cardDetail.checklistDeleteAction}
-      deleteAccessibilityLabel={strings.cardDetail.checklistItemDelete}
+      actions={[
+        {
+          key: 'delete',
+          icon: 'trash-2',
+          variant: 'destructive',
+          label: strings.cardDetail.checklistDeleteAction,
+          accessibilityLabel: strings.cardDetail.checklistItemDelete,
+          onPress: onDelete,
+        },
+      ]}
       // Satır-içi düzenleme açıkken kaydırma devre dışı.
       enabled={!editing}
     >

@@ -45,6 +45,7 @@ function makeCard(
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    coverImageUrl: null,
     ...over,
   };
 }
@@ -129,6 +130,8 @@ describe('replaceOptimisticCard', () => {
     expect(card?.checklistTotal).toBe(0);
     expect(card?.members).toEqual([]);
     expect(card?.coverImage).toBeNull();
+    // DEM-227 — ham karttan zenginleştirilen kartın kapak URL'i de null başlar.
+    expect(card?.coverImageUrl).toBeNull();
   });
 });
 
@@ -296,6 +299,8 @@ describe('setCardCoverImageInCache', () => {
     const c1 = next.cards.find((card) => card.id === 'c1');
     expect(c1?.coverImage).toEqual(cover);
     expect(c1?.coverImageAttachmentId).toBe('att-1');
+    // DEM-227 — optimistic anda presigned URL yok; board.get refetch'i getirir.
+    expect(c1?.coverImageUrl).toBeNull();
     // Diğer kart dokunulmaz.
     expect(next.cards.find((card) => card.id === 'c2')?.coverImage).toBeNull();
     // İmmutability — kaynak değişmez.

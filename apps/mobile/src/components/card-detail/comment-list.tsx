@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
@@ -119,20 +119,26 @@ export function CommentList({
     }),
   );
 
-  const handleEdit = (comment: Comment, plainText: string) => {
-    // Anlamca değişiklik yoksa mutation atma — aktivite akışını / "düzenlendi"
-    // damgasını gereksiz kirletmemek için (web `isSameRichText` simetrisi).
-    if (plainText === tiptapToPlainText(comment.body)) return;
-    setBusyCommentId(comment.id);
-    updateComment.mutate({
-      cardId,
-      commentId: comment.id,
-      body: serializeTiptapDoc(plainText),
-      clientMutationId: newClientMutationId(),
-    });
-  };
+  // `useCallback` ile stabil (DEM-226 #3) — `CommentRow` `React.memo` olduğundan
+  // satır callback'leri referans olarak sabit kalmalı. `comment` argümanla
+  // geçer; mutation nesneleri ve `cardId` zaten stabildir.
+  const handleEdit = useCallback(
+    (comment: Comment, plainText: string) => {
+      // Anlamca değişiklik yoksa mutation atma — aktivite akışını / "düzenlendi"
+      // damgasını gereksiz kirletmemek için (web `isSameRichText` simetrisi).
+      if (plainText === tiptapToPlainText(comment.body)) return;
+      setBusyCommentId(comment.id);
+      updateComment.mutate({
+        cardId,
+        commentId: comment.id,
+        body: serializeTiptapDoc(plainText),
+        clientMutationId: newClientMutationId(),
+      });
+    },
+    [cardId, updateComment],
+  );
 
-  const confirmDelete = (comment: Comment) => {
+  const confirmDelete = useCallback((comment: Comment) => {
     Alert.alert(
       strings.cardDetail.commentDeleteConfirmTitle,
       strings.cardDetail.commentDeleteConfirmBody,
@@ -152,7 +158,7 @@ export function CommentList({
         },
       ],
     );
-  };
+  }, [cardId, deleteComment]);
 
   return (
     <View className="gap-4">
@@ -177,8 +183,8 @@ export function CommentList({
             authorImage={author.image}
             canManage={canManage}
             busy={busyCommentId === comment.id}
-            onEdit={(plainText) => handleEdit(comment, plainText)}
-            onDelete={() => confirmDelete(comment)}
+            onEdit={handleEdit}
+            onDelete={confirmDelete}
           />
         );
       })}
@@ -195,7 +201,7 @@ export function CommentList({
  * (7G deseni). Yetkisi olmayan / silinmiş / optimistic yorumda kaydırma ve
  * gövdeye dokunma etkisizdir. Silme yine `Alert` ile onaylanır.
  */
-function CommentRow({
+const CommentRow = memo(function CommentRow({
   comment,
   authorName,
   authorImage,
@@ -209,8 +215,10 @@ function CommentRow({
   authorImage: string | null;
   canManage: boolean;
   busy: boolean;
-  onEdit: (plainText: string) => void;
-  onDelete: () => void;
+  /** Yorumu ilgili `comment` ile düzenler (stabil callback — DEM-226 #3). */
+  onEdit: (comment: Comment, plainText: string) => void;
+  /** Yorumu ilgili `comment` ile siler (stabil callback — DEM-226 #3). */
+  onDelete: (comment: Comment) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -225,7 +233,7 @@ function CommentRow({
   const handleSave = () => {
     const trimmed = draft.trim();
     if (trimmed.length === 0) return;
-    onEdit(trimmed);
+    onEdit(comment, trimmed);
     // Optimistic — yamalı gövde anında `TiptapRender` ile gösterilir.
     setEditing(false);
   };
@@ -308,15 +316,22 @@ function CommentRow({
 
   return (
     <SwipeRow
-      onDelete={onDelete}
-      deleteLabel={strings.cardDetail.commentDelete}
-      // Onay başlığı ("Yorumu sil") aynı zamanda doğru bir erişilebilirlik
-      // aksiyon etiketidir — bilinçli yeniden kullanım.
-      deleteAccessibilityLabel={strings.cardDetail.commentDeleteConfirmTitle}
+      actions={[
+        {
+          key: 'delete',
+          icon: 'trash-2',
+          variant: 'destructive',
+          label: strings.cardDetail.commentDelete,
+          // Onay başlığı ("Yorumu sil") aynı zamanda doğru bir erişilebilirlik
+          // aksiyon etiketidir — bilinçli yeniden kullanım.
+          accessibilityLabel: strings.cardDetail.commentDeleteConfirmTitle,
+          onPress: () => onDelete(comment),
+        },
+      ]}
       // Düzenleme açıkken / mutation uçuşurken kaydırma devre dışı.
       enabled={!editing && !busy}
     >
       {rowContent}
     </SwipeRow>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { MoveToListSheet } from '@/components/move-to-list-sheet';
 import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
-import { filterCardsByLabels } from '@/lib/board-filter';
+import { cardPassesLabelFilter } from '@/lib/board-filter';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { canEditBoard, canManageBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
@@ -34,6 +34,12 @@ import { themeFor } from '@/theme/tokens';
  * basma → "move to list" picker (`card.moveToList`). Hepsi optimistic UI +
  * rollback + `clientMutationId` (bkz. `useBoardMutations`).
  */
+/**
+ * Kartsız kolonlar için stabil boş dizi referansı — her render'da yeni `[]`
+ * üretmek `BoardColumn`'un `React.memo`'sunu kırardı (DEM-226 #2).
+ */
+const EMPTY_CARDS: BoardCard[] = [];
+
 export default function BoardScreen() {
   const params = useLocalSearchParams<{ boardId: string; title?: string }>();
   const boardId = params.boardId;
@@ -44,6 +50,10 @@ export default function BoardScreen() {
     trpc.board.get.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
   );
   const mutations = useBoardMutations(boardId);
+  // `useBoardMutations` her render'da yeni nesne döndürür — kolonlara geçen
+  // handler'ları stabil tutmak için ref üzerinden okuruz (DEM-226 #2/#3).
+  const mutationsRef = useRef(mutations);
+  mutationsRef.current = mutations;
 
   // "move to list" picker ve kolon ⋮ menüsü için seçili hedefler.
   const [moveTarget, setMoveTarget] = useState<BoardCard | null>(null);
@@ -72,6 +82,40 @@ export default function BoardScreen() {
       else next.add(labelId);
       return next;
     });
+
+  // Kartları kolon başına bir kez grupla + etiket filtresinden geçir (DEM-226
+  // #4). Önceden her render'da her kolon için `cards.filter(listId)` +
+  // `filterCardsByLabels` çağrılıyordu (O(liste×kart)); artık tek geçişte
+  // `Map<listId, BoardCard[]>` üretiliyor ve kolonlar bu map'ten okuyor.
+  // `board.get` zaten `position` sıralı döndürür — tek geçiş sırayı korur.
+  const cardsByList = useMemo(() => {
+    const map = new Map<string, BoardCard[]>();
+    if (!query.data) return map;
+    for (const card of query.data.cards) {
+      if (!cardPassesLabelFilter(card, selectedLabelIds)) continue;
+      const bucket = map.get(card.listId);
+      if (bucket) bucket.push(card);
+      else map.set(card.listId, [card]);
+    }
+    return map;
+  }, [query.data, selectedLabelIds]);
+
+  // Kolonlara geçen stabil handler'lar (DEM-226 #3) — `BoardColumn` `React.memo`
+  // olduğundan referansları her render'da sabit kalmalı. Mutation'lar ref
+  // üzerinden okunur; `setMoveTarget`/`setListActionsTarget` zaten stabildir.
+  const handleCreateCard = useCallback((listId: string, title: string) => {
+    mutationsRef.current.createCard(listId, title);
+  }, []);
+  const handleOpenListActions = useCallback((list: BoardList) => {
+    setListActionsTarget(list);
+  }, []);
+  const handleMoveCard = useCallback((card: BoardCard) => {
+    setMoveTarget(card);
+  }, []);
+  const refetchBoard = query.refetch;
+  const handleRefresh = useCallback(() => {
+    void refetchBoard();
+  }, [refetchBoard]);
 
   // Board ⋮ menüsü yalnız board `admin` ve board arşivli değilken çizilir
   // (DEM-211 — DEM-196 kart ⋮ görünürlük deseninin board karşılığı).
@@ -252,16 +296,13 @@ export default function BoardScreen() {
           <BoardColumn
             key={list.id}
             list={list}
-            cards={filterCardsByLabels(
-              query.data.cards.filter((card) => card.listId === list.id),
-              selectedLabelIds,
-            )}
+            cards={cardsByList.get(list.id) ?? EMPTY_CARDS}
             canEdit={canEdit}
-            onCreateCard={(title) => mutations.createCard(list.id, title)}
-            onOpenListActions={() => setListActionsTarget(list)}
-            onMoveCard={(card) => setMoveTarget(card)}
+            onCreateCard={handleCreateCard}
+            onOpenListActions={handleOpenListActions}
+            onMoveCard={handleMoveCard}
             refreshing={query.isFetching}
-            onRefresh={() => void query.refetch()}
+            onRefresh={handleRefresh}
           />
         ))}
         {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}

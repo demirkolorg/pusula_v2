@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
+import type { ListRenderItem } from 'react-native';
 import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
@@ -21,10 +22,13 @@ type BoardColumnProps = {
   cards: BoardCard[];
   /** Board `member+` ise düzenleme yüzeyleri (composer / ⋮ / taşıma) gösterilir. */
   canEdit: boolean;
-  /** Kolon altındaki composer'dan kart oluşturma (Faz 7H). */
-  onCreateCard: (title: string) => void;
-  /** Kolon ⋮ — liste işlemleri sheet'ini açar. */
-  onOpenListActions: () => void;
+  /**
+   * Kolon altındaki composer'dan kart oluşturma (Faz 7H). `listId` argümanla
+   * geçer — böylece çağıran tek bir stabil callback verir (DEM-226 #3).
+   */
+  onCreateCard: (listId: string, title: string) => void;
+  /** Kolon ⋮ — liste işlemleri sheet'ini açar (hedef liste argümanla). */
+  onOpenListActions: (list: BoardList) => void;
   /** Kart uzun basma — "move to list" picker'ını açar. */
   onMoveCard: (card: BoardCard) => void;
   /** `board.get` yeniden çekiliyor mu — kolon `RefreshControl` spinner'ı (Faz 7M). */
@@ -44,7 +48,7 @@ type BoardColumnProps = {
  * dikey kolon listelerine konur; herhangi bir kolonu aşağı çekmek `board.get`'i
  * tazeler (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir).
  */
-export function BoardColumn({
+function BoardColumnImpl({
   list,
   cards,
   canEdit,
@@ -54,11 +58,28 @@ export function BoardColumn({
   refreshing,
   onRefresh,
 }: BoardColumnProps) {
-  const router = useRouter();
   const theme = themeFor(useColorScheme());
   const [composerOpen, setComposerOpen] = useState(false);
   // Optimistic (henüz sunucuya yazılmamış) liste — ⋮ menüsü açılmaz.
   const listPending = isPendingId(list.id);
+
+  // Composer / ⋮ callback'leri — `list.id` sabit kaldığı sürece stabil
+  // (DEM-226 #3): `FlatList renderItem` ve alt bileşenler bunlara bağlı.
+  const handleCreateCard = useCallback(
+    (title: string) => onCreateCard(list.id, title),
+    [onCreateCard, list.id],
+  );
+  const handleOpenListActions = useCallback(
+    () => onOpenListActions(list),
+    [onOpenListActions, list],
+  );
+
+  // Kart satırı render'ı — `useCallback` ile stabil; `CardRow` `React.memo`'lu
+  // olduğundan kart prop'u değişmeyen satırlar yeniden çizilmez (DEM-226 #2/#3).
+  const renderItem = useCallback<ListRenderItem<BoardCard>>(
+    ({ item }) => <CardRow card={item} canEdit={canEdit} onMoveCard={onMoveCard} />,
+    [canEdit, onMoveCard],
+  );
 
   // Liste görsel kimliği (DEM-209). Web kolonu tüm arka planı renge boyar;
   // mobilde precedent = ince renk şeridi (DEM-201 kart kapak şeridi gibi).
@@ -72,7 +93,7 @@ export function BoardColumn({
     <InlineComposer
       placeholder={strings.board.addCardPlaceholder}
       submitLabel={strings.board.addCardSubmit}
-      onSubmit={onCreateCard}
+      onSubmit={handleCreateCard}
       onCancel={() => setComposerOpen(false)}
     />
   ) : (
@@ -112,7 +133,7 @@ export function BoardColumn({
               accessibilityRole="button"
               accessibilityLabel={strings.board.listActions}
               hitSlop={8}
-              onPress={onOpenListActions}
+              onPress={handleOpenListActions}
               className="ml-1 active:opacity-60"
             >
               <Icon name="more-vertical" size={18} color={theme.mutedForeground} />
@@ -130,26 +151,7 @@ export function BoardColumn({
               tintColor={theme.mutedForeground}
             />
           }
-          renderItem={({ item }) => {
-            // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-`
-            // id ile kart detayı / taşıma backend'de bulunamaz.
-            const cardPending = isPendingId(item.id);
-            return (
-              <CardFace
-                card={item}
-                onPress={
-                  cardPending
-                    ? undefined
-                    : () =>
-                        router.push({
-                          pathname: '/cards/[cardId]',
-                          params: { cardId: item.id, title: item.title },
-                        })
-                }
-                onLongPress={canEdit && !cardPending ? () => onMoveCard(item) : undefined}
-              />
-            );
-          }}
+          renderItem={renderItem}
           ListEmptyComponent={
             <Text className="px-1 py-3 text-xs text-muted-foreground">
               {strings.board.emptyList}
@@ -162,3 +164,49 @@ export function BoardColumn({
     </View>
   );
 }
+
+/**
+ * Board kolonu — `React.memo` ile sarılı (DEM-226 #2). Çağıran kart map'inden
+ * stabil `cards` referansı ve `useCallback`'li handler'lar geçirdiğinde,
+ * dokunulmayan kolonlar her board render'ında yeniden çizilmez.
+ */
+export const BoardColumn = memo(BoardColumnImpl);
+
+/**
+ * Tek kart satırı — `FlatList renderItem` için ayrı `React.memo`'lu bileşen
+ * (DEM-226 #2/#3). `onPress`/`onLongPress` satır içinde `useCallback` ile
+ * stabilize edilir, böylece `card` referansı değişmeyen satırların `CardFace`'i
+ * yeniden render edilmez. `router` satır içinde alınır — `useRouter` her
+ * render'da yeni nesne döndürdüğünden prop olarak geçmek memo'yu kırardı.
+ */
+const CardRow = memo(function CardRow({
+  card,
+  canEdit,
+  onMoveCard,
+}: {
+  card: BoardCard;
+  canEdit: boolean;
+  onMoveCard: (card: BoardCard) => void;
+}) {
+  const router = useRouter();
+  // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-` id ile
+  // kart detayı / taşıma backend'de bulunamaz.
+  const cardPending = isPendingId(card.id);
+
+  const handlePress = useCallback(() => {
+    router.push({
+      pathname: '/cards/[cardId]',
+      params: { cardId: card.id, title: card.title },
+    });
+  }, [router, card.id, card.title]);
+
+  const handleLongPress = useCallback(() => onMoveCard(card), [onMoveCard, card]);
+
+  return (
+    <CardFace
+      card={card}
+      onPress={cardPending ? undefined : handlePress}
+      onLongPress={canEdit && !cardPending ? handleLongPress : undefined}
+    />
+  );
+});

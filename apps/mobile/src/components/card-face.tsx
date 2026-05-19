@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
@@ -39,7 +40,7 @@ function MetaChip({ icon, label, color }: MetaChipProps) {
  * dokunmak kart detayını açar (Faz 7F); `onLongPress` verilirse uzun basma
  * "move to list" picker'ını açar (Faz 7H — mobil drag-drop yerine).
  */
-export function CardFace({
+function CardFaceImpl({
   card,
   onPress,
   onLongPress,
@@ -76,7 +77,7 @@ export function CardFace({
       {/* Kapak şeridi — kart yüzünün üstünde, kenara dayalı. Kapak görseli
           önceliklidir (Faz 7P); yoksa kapak rengi varsa ince renk şeridi (DEM-201). */}
       {card.coverImage ? (
-        <CardCoverImage coverImage={card.coverImage} />
+        <CardCoverImage coverImage={card.coverImage} coverImageUrl={card.coverImageUrl ?? null} />
       ) : coverColor != null ? (
         <View className="h-2" style={{ backgroundColor: coverColorHex[coverColor] }} />
       ) : null}
@@ -155,3 +156,11 @@ export function CardFace({
     </Pressable>
   );
 }
+
+/**
+ * Board kolonundaki tek kartın yüzü — `React.memo` ile sarılı (DEM-226 #2).
+ * `card` referansı ve `onPress`/`onLongPress` callback'leri stabil olduğunda
+ * (bkz. `board-column.tsx` `CardRow`), dokunulmayan kartlar board her render
+ * edildiğinde yeniden çizilmez.
+ */
+export const CardFace = memo(CardFaceImpl);

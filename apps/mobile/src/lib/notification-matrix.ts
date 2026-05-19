@@ -215,6 +215,14 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     group: 'membership',
     channels: { in_app: 'on', email: 'on', push: 'unavailable' },
   },
+  // DEM-154 — paylaşılan board linkinden erişim talebi. Board admin'lerine
+  // gider; `board_invitation` gibi mute-bypass DEĞİL, in-app + email opt-in.
+  {
+    type: 'board_access_requested',
+    i18nKey: 'boardAccessRequested',
+    group: 'invitations',
+    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+  },
   {
     type: 'board_invitation',
     i18nKey: 'boardInvitation',

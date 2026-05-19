@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Text } from '@/components/text';
-import { Icon, type IconName } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
+import { SwipeRow } from '@/components/swipe-row';
 import { isPendingId } from '@/lib/client-mutation-id';
 import type { QuickNote } from '@/lib/use-quick-note-mutations';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
 
 type QuickNoteRowProps = {
   note: QuickNote;
@@ -19,19 +18,23 @@ type QuickNoteRowProps = {
 };
 
 /**
- * Hızlı Notlar ekranındaki tek not satırı (DEM-203 WP3) — not metni + üç aksiyon
- * (düzenle / sil / panoya taşı). Düzenleme satır-içi `InlineComposer` ile yapılır.
+ * Hızlı Notlar ekranındaki tek not satırı (DEM-203; DEM-231 ile kaydırmalı).
+ *
+ * Satır-içi buton kalabalığı (düzenle / sil / "Panoya taşı") DEM-231 ile
+ * kaldırıldı — satır **sola kaydırılınca** arkadan üç aksiyon açılır
+ * (`SwipeRow`): Düzenle / Taşı / Sil. App genelinde kaydırma yönü kuralı
+ * (DEM-221 checklist, DEM-224 yorum) korunur. Düzenleme satır-içi
+ * `InlineComposer` ile yapılır.
  *
  * Geçici (`tmp-`) id'li notlar henüz sunucuya yazılmamıştır — backend isteği
- * bulamayacağı için aksiyonlar (düzenle/sil/dönüştür) sunucudan dönene kadar
- * kapatılır (kart satırı `isPendingId` deseni — `board-column.tsx`).
+ * bulamayacağı için kaydırma kapatılır, satır düz çizilir (`isPendingId`
+ * deseni — `board-column.tsx` / `quick-note-dock`).
  */
 export function QuickNoteRow({ note, onUpdate, onDelete, onConvert }: QuickNoteRowProps) {
-  const theme = themeFor(useColorScheme());
   const [editing, setEditing] = useState(false);
   const pending = isPendingId(note.id);
 
-  const handleDelete = () => {
+  const confirmDelete = () => {
     Alert.alert(
       strings.quickNotes.deleteConfirmTitle,
       strings.quickNotes.deleteConfirmBody,
@@ -62,74 +65,51 @@ export function QuickNoteRow({ note, onUpdate, onDelete, onConvert }: QuickNoteR
     );
   }
 
-  return (
-    <View
-      className={`gap-3 rounded-lg border border-border bg-card p-3 ${
-        pending ? 'opacity-50' : ''
-      }`}
-    >
+  const card = (
+    <View className="bg-card p-3">
       <Text className="text-sm text-foreground">{note.content}</Text>
-      <View className="flex-row items-center gap-2">
-        <RowAction
-          icon="edit-3"
-          label={strings.quickNotes.editAction}
-          disabled={pending}
-          onPress={() => setEditing(true)}
-          tint={theme.mutedForeground}
-        />
-        <RowAction
-          icon="trash-2"
-          label={strings.quickNotes.deleteAction}
-          disabled={pending}
-          onPress={handleDelete}
-          tint={theme.destructive}
-        />
-        <View className="flex-1" />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={strings.quickNotes.convertAction}
-          accessibilityState={{ disabled: pending }}
-          disabled={pending}
-          onPress={onConvert}
-          className={`h-11 flex-row items-center gap-2 rounded-md bg-primary px-3 ${
-            pending ? 'opacity-50' : 'active:opacity-80'
-          }`}
-        >
-          <Icon name="arrow-right-circle" size={16} color={theme.primaryForeground} />
-          <Text weight="semibold" className="text-sm text-primary-foreground">
-            {strings.quickNotes.convertAction}
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
-}
 
-/** İkon-yuvarlağı sekonder aksiyon (düzenle / sil). */
-function RowAction({
-  icon,
-  label,
-  disabled,
-  onPress,
-  tint,
-}: {
-  icon: IconName;
-  label: string;
-  disabled: boolean;
-  onPress: () => void;
-  tint: string;
-}) {
+  // Geçici (tmp-) not — sunucuda yok; kaydırmalı aksiyonlar kapalı, düz kart.
+  if (pending) {
+    return (
+      <View className="overflow-hidden rounded-lg border border-border opacity-50">{card}</View>
+    );
+  }
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      hitSlop={6}
-      onPress={onPress}
-      className="h-11 w-11 items-center justify-center rounded-md border border-border bg-background active:opacity-60"
-    >
-      <Icon name={icon} size={16} color={tint} />
-    </Pressable>
+    <View className="overflow-hidden rounded-lg border border-border">
+      <SwipeRow
+        actions={[
+          {
+            key: 'edit',
+            icon: 'edit-3',
+            variant: 'primary',
+            label: strings.quickNotes.editShort,
+            accessibilityLabel: strings.quickNotes.editAction,
+            onPress: () => setEditing(true),
+          },
+          {
+            key: 'convert',
+            icon: 'arrow-right-circle',
+            variant: 'primary',
+            label: strings.quickNotes.convertShort,
+            accessibilityLabel: strings.quickNotes.convertAction,
+            onPress: onConvert,
+          },
+          {
+            key: 'delete',
+            icon: 'trash-2',
+            variant: 'destructive',
+            label: strings.quickNotes.deleteConfirmAction,
+            accessibilityLabel: strings.quickNotes.deleteAction,
+            onPress: confirmDelete,
+          },
+        ]}
+      >
+        {card}
+      </SwipeRow>
+    </View>
   );
 }

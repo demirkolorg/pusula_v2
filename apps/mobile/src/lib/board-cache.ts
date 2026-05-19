@@ -60,6 +60,8 @@ function toBoardCard(raw: RawCard): BoardCard {
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    // DEM-227 — board.get kart projection'ı kapak presigned URL'i taşır.
+    coverImageUrl: null,
   };
 }
 
@@ -96,6 +98,8 @@ export function addOptimisticCard(
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    // DEM-227 — yeni optimistic kartın kapağı yoktur.
+    coverImageUrl: null,
   };
   return { ...data, cards: [...data.cards, card] };
 }
@@ -235,6 +239,8 @@ export function moveCardInCache(data: BoardData, cardId: string, toListId: strin
  * `coverImageAttachmentId`). `coverImage` `null` ise kapak kaldırılır. Hem
  * `coverImage` (kart yüzü şeridi) hem `coverImageAttachmentId` (ham alan)
  * birlikte güncellenir — kullanıcı board'a döndüğünde kart yüzü tutarlı olsun.
+ * `coverImageUrl` (DEM-227 server-side presigned URL) optimistic anda
+ * bilinmediğinden `null`'a çekilir; `board.get` refetch'i gerçek URL'i getirir.
  */
 export function setCardCoverImageInCache(
   data: BoardData,
@@ -245,7 +251,12 @@ export function setCardCoverImageInCache(
     ...data,
     cards: data.cards.map((card) =>
       card.id === cardId
-        ? { ...card, coverImage, coverImageAttachmentId: coverImage?.attachmentId ?? null }
+        ? {
+            ...card,
+            coverImage,
+            coverImageAttachmentId: coverImage?.attachmentId ?? null,
+            coverImageUrl: null,
+          }
         : card,
     ),
   };

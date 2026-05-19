@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import type { ListRenderItem } from 'react-native';
 import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -11,7 +12,7 @@ import { QuickNoteRow } from '@/components/quick-note-row';
 import { Sheet } from '@/components/sheet';
 import { LocationPicker, useLocationPicker } from '@/components/location-picker';
 import { Button } from '@/components/button';
-import { useQuickNoteMutations } from '@/lib/use-quick-note-mutations';
+import { useQuickNoteMutations, type QuickNote } from '@/lib/use-quick-note-mutations';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -34,8 +35,12 @@ export default function QuickNotesScreen() {
   const trpc = useTRPC();
   const theme = themeFor(useColorScheme());
   const notesQuery = useQuery(trpc.quickNote.list.queryOptions());
-  const { createNote, updateNote, deleteNote, convertToCard, convertPending } =
-    useQuickNoteMutations();
+  const mutations = useQuickNoteMutations();
+  const { createNote, convertToCard, convertPending } = mutations;
+  // `useQuickNoteMutations` her render'da yeni nesne döndürür — satır
+  // callback'lerini stabil tutmak için ref üzerinden okuruz (DEM-226 #3).
+  const mutationsRef = useRef(mutations);
+  mutationsRef.current = mutations;
 
   // Hangi notun "Panoya taşı" picker'ı açık — aynı anda yalnız bir tane.
   const [convertNoteId, setConvertNoteId] = useState<string | null>(null);
@@ -66,6 +71,20 @@ export default function QuickNotesScreen() {
       setRefreshing(false);
     }
   }, [notesQuery]);
+
+  // Not satırı render'ı — `useCallback` ile stabil (DEM-226 #3). Mutation'lar
+  // ref'ten okunur; `setConvertNoteId` zaten stabildir.
+  const renderNote = useCallback<ListRenderItem<QuickNote>>(
+    ({ item }) => (
+      <QuickNoteRow
+        note={item}
+        onUpdate={(content) => mutationsRef.current.updateNote(item.id, content)}
+        onDelete={() => mutationsRef.current.deleteNote(item.id)}
+        onConvert={() => setConvertNoteId(item.id)}
+      />
+    ),
+    [],
+  );
 
   const screen = <Stack.Screen options={{ title: strings.quickNotes.title }} />;
 
@@ -116,14 +135,7 @@ export default function QuickNotesScreen() {
           keyExtractor={(note) => note.id}
           contentContainerClassName="gap-3 p-4"
           contentContainerStyle={notes.length === 0 ? { flex: 1 } : undefined}
-          renderItem={({ item }) => (
-            <QuickNoteRow
-              note={item}
-              onUpdate={(content) => updateNote(item.id, content)}
-              onDelete={() => deleteNote(item.id)}
-              onConvert={() => setConvertNoteId(item.id)}
-            />
-          )}
+          renderItem={renderNote}
           ListEmptyComponent={
             <EmptyState
               icon="edit-3"

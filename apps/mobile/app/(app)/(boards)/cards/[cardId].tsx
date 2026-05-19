@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
-import type {
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-} from 'react-native';
+import { Alert, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
+import Animated, { runOnJS, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -12,11 +9,13 @@ import { authClient } from '@/lib/auth-client';
 import { Text } from '@/components/text';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
+import { CardCoverImage } from '@/components/card-cover-image';
 import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
+import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { DetailSection, SectionBadge } from '@/components/card-detail/section';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
 import { CardMetaBar } from '@/components/card-detail/meta-bar';
@@ -113,6 +112,12 @@ export default function CardDetailScreen() {
   // tekrarını giderir). `titleThreshold` gövde başlık bloğunun ölçülen alt
   // kenarı; scroll bu eşiği geçince `collapsed` 1 kez döner — scroll boyunca
   // ekran yeniden render olmaz.
+  //
+  // DEM-228 — scroll dinleme `useAnimatedScrollHandler` ile UI-thread'inde
+  // yapılır (eski JS `onScroll` yerine; her scroll frame'inde JS köprüsü
+  // geçilmez). Eşik geçişi UI-thread'inde tespit edilir, yalnız değer
+  // değişince `runOnJS` ile `setCollapsed` çağrılır — React render'ı yine
+  // yalnız 1 kez tetiklenir.
   const [collapsed, setCollapsed] = useState(false);
   const [titleThreshold, setTitleThreshold] = useState(96);
 
@@ -121,11 +126,21 @@ export default function CardDetailScreen() {
     setTitleThreshold(Math.max(y + height - 16, 0));
   }
 
-  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
-    const next = event.nativeEvent.contentOffset.y > titleThreshold;
+  function applyCollapsed(next: boolean) {
     // Eşik geçilmediyse setState aynı değeri döndürür → React render'ı atlar.
     setCollapsed((prev) => (prev === next ? prev : next));
   }
+
+  const scrollHandler = useAnimatedScrollHandler(
+    {
+      onScroll: (event) => {
+        'worklet';
+        const next = event.contentOffset.y > titleThreshold;
+        runOnJS(applyCollapsed)(next);
+      },
+    },
+    [titleThreshold],
+  );
 
   // Faz 7M — pull-to-refresh: kart detayının tüm sorgularını yeniden çeker
   // (7.0 kararı: mobilde realtime yok, yenileme elle tetiklenir). `refreshing`
@@ -237,6 +252,9 @@ export default function CardDetailScreen() {
   }
 
   const card = cardQuery.data.card;
+  // Kapak rengi (DEM-218) — `card.coverColor` düz `text`; geçerli 12-renk palet
+  // adına daraltılır. Kapak görseli yoksa header card üstünde renk kartı çizilir.
+  const detailCoverColor = asCoverColor(card.coverColor);
   // "Listeyi değiştir" hedef havuzu — board'un aktif, kalıcı listeleri (Faz 7H).
   const boardLists = (boardQuery.data?.lists ?? []).filter(
     (list) => list.archivedAt == null && !isPendingId(list.id),
@@ -282,10 +300,10 @@ export default function CardDetailScreen() {
               : undefined,
         }}
       />
-      <ScrollView
+      <Animated.ScrollView
         className="flex-1 bg-muted"
         contentContainerClassName="gap-3 p-4"
-        onScroll={handleScroll}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -295,6 +313,24 @@ export default function CardDetailScreen() {
           />
         }
       >
+        {/* Kapak (DEM-217 görsel / DEM-218 renk) — kapak görseli varsa header
+            card'ın üstünde kendi yuvarlatılmış kartında (`RemoteImage` ile tembel
+            yüklenir, sayfanın render'ını geciktirmez); görsel yoksa kapak rengi
+            varsa aynı yerde standalone renk kartı. Görsel önceliklidir — web kart
+            modalı / `card-face` kapak şeridi paritesi. */}
+        {card.coverImage ? (
+          <CardCoverImage
+            coverImage={card.coverImage}
+            coverImageUrl={card.coverImageUrl ?? null}
+            variant="detail"
+          />
+        ) : detailCoverColor != null ? (
+          <View
+            className="h-14 w-full rounded-xl"
+            style={{ backgroundColor: coverColorHex[detailCoverColor] }}
+          />
+        ) : null}
+
         {/* Header card (DEM-204) — kart kimliği tek `bg-card` yüzeyde: tamamlandı
             rozeti + tamamla/geri al toggle + başlık + meta çubuğu. Başlık board
             `member+` için düzenlenebilir (Faz 7H); tamamla toggle'ı Faz 7G-5
@@ -447,7 +483,7 @@ export default function CardDetailScreen() {
             <Text className="text-sm text-muted-foreground">{strings.cardDetail.noActivity}</Text>
           )}
         </DetailSection>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* DEM-196 — başlık yanı ⋮ menüsü: kartı arşivle. */}
       <CardActionsSheet

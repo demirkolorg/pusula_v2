@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Image, Modal, Pressable, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { AppSpinner } from '@/components/app-spinner';
 import { Icon } from '@/components/icon';
+import { RemoteImage } from '@/components/remote-image';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/provider';
@@ -21,13 +20,14 @@ type AttachmentImageViewerProps = {
  * Presigned GET URL (`attachment.getDownloadUrl`, TTL 10 dk) modal açılınca
  * tembel çekilir; `staleTime: 0` ile her açılışta taze imzalı URL alınır
  * (global 30 sn `staleTime` mirası kısa-ömürlü URL'i bayatlatmamalı).
+ *
+ * URL beklenirken ve resim ağdan inerken `RemoteImage` Pusula spinner gösterir
+ * (DEM-217 — ortak görsel yükleyici); resim inince yumuşakça belirir.
  * PDF/Office önizlemesi yok — onlar "İndir/Paylaş" akışına gider.
  */
 export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageViewerProps) {
   const trpc = useTRPC();
   const visible = attachment !== null;
-  // Presigned URL alındıktan sonra resmin kendisi ağdan inerken spinner.
-  const [imageLoading, setImageLoading] = useState(false);
 
   const urlQuery = useQuery(
     trpc.attachment.getDownloadUrl.queryOptions(
@@ -35,11 +35,6 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
       { enabled: visible, staleTime: 0, gcTime: 5 * 60 * 1000 },
     ),
   );
-
-  // Her yeni ek için resim yükleme göstergesini sıfırla.
-  useEffect(() => {
-    setImageLoading(visible);
-  }, [attachment?.id, visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -62,27 +57,19 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
         </SafeAreaView>
 
         <View className="flex-1 items-center justify-center px-2 pb-6">
-          {urlQuery.isPending ? (
-            <AppSpinner size="lg" color="#ffffff" />
-          ) : urlQuery.isError ? (
+          {urlQuery.isError ? (
             <Text className="px-6 text-center text-base text-white">
               {strings.attachments.previewError}
             </Text>
           ) : (
-            <>
-              <Image
-                source={{ uri: urlQuery.data.url }}
-                accessibilityLabel={attachment?.fileName}
-                resizeMode="contain"
-                className="h-full w-full"
-                onLoadEnd={() => setImageLoading(false)}
-              />
-              {imageLoading ? (
-                <View className="absolute">
-                  <AppSpinner size="lg" color="#ffffff" />
-                </View>
-              ) : null}
-            </>
+            <RemoteImage
+              uri={urlQuery.data?.url}
+              accessibilityLabel={attachment?.fileName}
+              resizeMode="contain"
+              className="h-full w-full"
+              spinnerSize="lg"
+              spinnerColor="#ffffff"
+            />
           )}
         </View>
       </View>

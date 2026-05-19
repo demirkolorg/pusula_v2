@@ -1,6 +1,9 @@
+import { useCallback, useRef } from 'react';
+import type { ListRenderItem } from 'react-native';
 import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
@@ -18,6 +21,8 @@ import { themeFor } from '@/theme/tokens';
  * 7C'de board satırına dokunmak "yakında" bilgilendirmesi gösterir; gerçek
  * board ekranı (kolon/kart) Faz 7E.
  */
+type Board = RouterOutputs['board']['list'][number];
+
 export default function WorkspaceBoardsScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const workspaceId = params.id;
@@ -28,6 +33,29 @@ export default function WorkspaceBoardsScreen() {
   // `string` dese de query'yi `enabled` ile o durumda hiç tetikleme.
   const query = useQuery(
     trpc.board.list.queryOptions({ workspaceId }, { enabled: Boolean(workspaceId) }),
+  );
+
+  // `useRouter` her render'da yeni nesne — ref ile sabitleyip board satırı
+  // render callback'ini stabil tutarız (DEM-226 #3).
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  const renderBoard = useCallback<ListRenderItem<Board>>(
+    ({ item }) => (
+      <ListRow
+        title={item.title}
+        subtitle={`${item.openCount} ${strings.boards.openSuffix} · ${item.doneCount} ${strings.boards.doneSuffix}`}
+        badge={item.archivedAt ? strings.boards.archivedBadge : undefined}
+        leading={<EntityAvatar name={item.title} icon={item.icon} />}
+        onPress={() =>
+          routerRef.current.push({
+            pathname: '/boards/[boardId]',
+            params: { boardId: item.id, title: item.title },
+          })
+        }
+      />
+    ),
+    [],
   );
 
   // Header'daki "üyeler" butonu — workspace üye yönetimi ekranına geçer
@@ -124,20 +152,7 @@ export default function WorkspaceBoardsScreen() {
             tintColor={theme.mutedForeground}
           />
         }
-        renderItem={({ item }) => (
-          <ListRow
-            title={item.title}
-            subtitle={`${item.openCount} ${strings.boards.openSuffix} · ${item.doneCount} ${strings.boards.doneSuffix}`}
-            badge={item.archivedAt ? strings.boards.archivedBadge : undefined}
-            leading={<EntityAvatar name={item.title} />}
-            onPress={() =>
-              router.push({
-                pathname: '/boards/[boardId]',
-                params: { boardId: item.id, title: item.title },
-              })
-            }
-          />
-        )}
+        renderItem={renderBoard}
       />
     </>
   );

@@ -7,6 +7,7 @@ import { CreateTabButton } from '@/components/create-tab-button';
 import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PushPermissionPrimer } from '@/components/push-permission-primer';
+import { QuickNoteDraftProvider } from '@/lib/quick-note-draft';
 import { useForegroundNotificationRefresh } from '@/lib/use-foreground-notification-refresh';
 import { useNotificationDeepLink } from '@/lib/use-notification-deep-link';
 import { useTRPC } from '@/trpc/provider';
@@ -69,6 +70,9 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
       {/* Push izni priming Sheet'i — izin `undetermined` ise görünür (7L). */}
       <PushPermissionPrimer />
       <ConnectionBanner />
+      {/* Hızlı-not taslağı: anasayfa dock'u ↔ merkezi "+" butonu paylaşımı
+          (DEM-230). `<Tabs>`'i sarar — hem tab bar butonu hem ekranlar erişir. */}
+      <QuickNoteDraftProvider>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -123,6 +127,7 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           }}
         />
       </Tabs>
+      </QuickNoteDraftProvider>
     </View>
   );
 }

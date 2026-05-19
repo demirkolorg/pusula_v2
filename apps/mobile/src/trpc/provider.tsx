@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Query } from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
@@ -35,6 +36,48 @@ const persister = createAsyncStoragePersister({
   deserialize: (cached) => superjson.parse(cached),
 });
 
+/**
+ * DEM-229 (P4 — performans): persist edilen query setini daralt.
+ *
+ * `PersistQueryClientProvider` varsayılan olarak TÜM query cache'ini
+ * AsyncStorage'a `superjson` ile yazar; çok board gezilmiş bir kullanıcıda
+ * `activity`/`comment`/`attachment.getDownloadUrl` gibi kısa-ömürlü ve hacimli
+ * sorgular birikir, uygulama açılışında büyük bir deserialize maliyeti çıkar.
+ *
+ * Yalnız offline okuma için gerçekten kritik / uzun-ömürlü sorgular persist
+ * edilir: gezinme iskeleti (`board.list`, `workspace.list`, `workspace.get`)
+ * ve board verisinin kendisi (`board.get`). Geri kalan kart-alt sorguları
+ * (yorum/aktivite/checklist/etiket/üye, ek indirme URL'leri vb.) persist
+ * dışıdır — açık ekran zaten foreground'da yeniden çekilir, offline'da kart
+ * detayının bayat alt verisi tutulmaz.
+ *
+ * tRPC tanstack-react-query query key'i `[[router, procedure], …]` şeklinde:
+ * ilk segment iç içe bir dizi olup `[router, procedure]` yol parçalarını
+ * taşır. Yol parçalarını birleştirip `'board.list'` gibi bir yola indirip
+ * allowlist ile eşleriz. Beklenmedik key şekli (yol çıkarılamazsa) güvenli
+ * tarafta persist EDİLMEZ — bilinmeyen veri AsyncStorage'ı şişirmesin.
+ */
+const PERSISTED_QUERY_PATHS: ReadonlySet<string> = new Set([
+  'board.list',
+  'board.get',
+  'workspace.list',
+  'workspace.get',
+]);
+
+/** tRPC query key'in ilk segmentinden `'router.procedure'` yolunu çıkarır. */
+function queryPath(query: Query): string | null {
+  const first = query.queryKey[0];
+  if (!Array.isArray(first)) return null;
+  const segments = first.filter((part): part is string => typeof part === 'string');
+  return segments.length > 0 ? segments.join('.') : null;
+}
+
+/** Yalnız allowlist'teki uzun-ömürlü sorgular AsyncStorage'a yazılır. */
+function shouldDehydrateQuery(query: Query): boolean {
+  const path = queryPath(query);
+  return path !== null && PERSISTED_QUERY_PATHS.has(path);
+}
+
 type AppProvidersProps = {
   children: ReactNode;
 };
@@ -63,7 +106,11 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60 * 24,
+        dehydrateOptions: { shouldDehydrateQuery },
+      }}
     >
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         {children}

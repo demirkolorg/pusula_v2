@@ -52,8 +52,12 @@ export const strings = {
     emptyDescription: 'Aklına geleni hızlıca buraya yaz, sonra bir karta dönüştür.',
     // Yükleniyor / hata.
     loadError: 'Notlar yüklenemedi.',
-    // Not satırı aksiyonları.
+    // Not satırı aksiyonları. `editShort`/`convertShort` kaydırmalı satır
+    // aksiyonu (DEM-231 `SwipeRow`) kısa etiketleri; `editAction`/`deleteAction`/
+    // `convertAction` erişilebilirlik etiketleri.
     editAction: 'Notu düzenle',
+    editShort: 'Düzenle',
+    convertShort: 'Taşı',
     editPlaceholder: 'Notu düzenle',
     editSubmit: 'Kaydet',
     deleteAction: 'Notu sil',

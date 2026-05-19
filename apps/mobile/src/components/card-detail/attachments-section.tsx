@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, View, useColorScheme } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -222,72 +222,91 @@ export function AttachmentsSection({
     setDescriptionDraft('');
   };
 
-  const confirmDelete = (attachment: Attachment) => {
-    Alert.alert(
-      strings.attachments.confirmDeleteTitle,
-      `"${attachment.fileName}" ${strings.attachments.confirmDeleteBody}`,
-      [
-        { text: strings.common.cancel, style: 'cancel' },
-        {
-          text: strings.attachments.actionDelete,
-          style: 'destructive',
-          onPress: () =>
-            deleteAttachment.mutate({
-              attachmentId: attachment.id,
-              clientMutationId: newClientMutationId(),
-            }),
-        },
-      ],
-    );
-  };
+  // Stabil callback'ler — `AttachmentTile` `React.memo` olduğundan referans
+  // değişmezliği zorunlu; argüman olarak `attachment` alırlar (DEM-226 #2).
 
-  const handleSaveDescription = (attachmentId: string, description: string | undefined) => {
-    setBusyAttachmentId(attachmentId);
-    updateDescription.mutate({
-      attachmentId,
-      description,
-      clientMutationId: newClientMutationId(),
-    });
-  };
+  const confirmDelete = useCallback(
+    (attachment: Attachment) => {
+      Alert.alert(
+        strings.attachments.confirmDeleteTitle,
+        `"${attachment.fileName}" ${strings.attachments.confirmDeleteBody}`,
+        [
+          { text: strings.common.cancel, style: 'cancel' },
+          {
+            text: strings.attachments.actionDelete,
+            style: 'destructive',
+            onPress: () =>
+              deleteAttachment.mutate({
+                attachmentId: attachment.id,
+                clientMutationId: newClientMutationId(),
+              }),
+          },
+        ],
+      );
+    },
+    [deleteAttachment],
+  );
 
-  const handleToggleCover = (attachment: Attachment) => {
-    setBusyAttachmentId(attachment.id);
-    updateCover.mutate({
-      cardId,
-      coverImageAttachmentId: attachment.isCover ? null : attachment.id,
-      clientMutationId: newClientMutationId(),
-    });
-  };
+  const handleSaveDescription = useCallback(
+    (attachmentId: string, description: string | undefined) => {
+      setBusyAttachmentId(attachmentId);
+      updateDescription.mutate({
+        attachmentId,
+        description,
+        clientMutationId: newClientMutationId(),
+      });
+    },
+    [updateDescription],
+  );
+
+  const handleToggleCover = useCallback(
+    (attachment: Attachment) => {
+      setBusyAttachmentId(attachment.id);
+      updateCover.mutate({
+        cardId,
+        coverImageAttachmentId: attachment.isCover ? null : attachment.id,
+        clientMutationId: newClientMutationId(),
+      });
+    },
+    [cardId, updateCover],
+  );
 
   // PDF/Office (ve istenirse resim) — presigned GET ile indir, native paylaşım
   // sayfasını aç. Önizleme tarayıcı/iframe mobilde yok; indir-paylaş deseni.
-  const handleDownload = async (attachment: Attachment) => {
-    if (downloadingId !== null) return;
-    setDownloadingId(attachment.id);
-    try {
-      // `staleTime: 0` — presigned GET URL (TTL 10 dk) her indirmede taze
-      // alınır; global 30 sn `staleTime` mirası bayat URL servis etmemeli.
-      const { url } = await queryClient.fetchQuery(
-        trpc.attachment.getDownloadUrl.queryOptions(
-          { attachmentId: attachment.id },
-          { staleTime: 0 },
-        ),
-      );
-      // Önbellek hedefi ek id'siyle öneklenir — aynı ada sahip iki ek
-      // birbirinin indirilen kopyasını ezmez.
-      const target = `${FileSystem.cacheDirectory ?? ''}${attachment.id}-${safeCacheFileName(
-        attachment.fileName,
-      )}`;
-      const downloaded = await FileSystem.downloadAsync(url, target);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(downloaded.uri, { mimeType: attachment.mimeType });
+  const handleDownload = useCallback(
+    async (attachment: Attachment) => {
+      if (downloadingId !== null) return;
+      setDownloadingId(attachment.id);
+      try {
+        // `staleTime: 0` — presigned GET URL (TTL 10 dk) her indirmede taze
+        // alınır; global 30 sn `staleTime` mirası bayat URL servis etmemeli.
+        const { url } = await queryClient.fetchQuery(
+          trpc.attachment.getDownloadUrl.queryOptions(
+            { attachmentId: attachment.id },
+            { staleTime: 0 },
+          ),
+        );
+        // Önbellek hedefi ek id'siyle öneklenir — aynı ada sahip iki ek
+        // birbirinin indirilen kopyasını ezmez.
+        const target = `${FileSystem.cacheDirectory ?? ''}${attachment.id}-${safeCacheFileName(
+          attachment.fileName,
+        )}`;
+        const downloaded = await FileSystem.downloadAsync(url, target);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(downloaded.uri, { mimeType: attachment.mimeType });
+        }
+      } catch {
+        Alert.alert(strings.attachments.title, strings.attachments.downloadError);
+      } finally {
+        setDownloadingId(null);
       }
-    } catch {
-      Alert.alert(strings.attachments.title, strings.attachments.downloadError);
-    } finally {
-      setDownloadingId(null);
-    }
-  };
+    },
+    [downloadingId, queryClient, trpc],
+  );
+
+  const handlePreview = useCallback((attachment: Attachment) => {
+    setPreviewing(attachment);
+  }, []);
 
   const canDelete = (attachment: Attachment): boolean =>
     attachment.uploader.id === currentUserId || myBoardRole === 'admin';
@@ -350,15 +369,11 @@ export function AttachmentsSection({
                 canSetCover={canEdit}
                 downloading={downloadingId === attachment.id}
                 busy={busyAttachmentId === attachment.id}
-                onPreview={
-                  attachment.kind === 'image' ? () => setPreviewing(attachment) : undefined
-                }
-                onDownload={() => void handleDownload(attachment)}
-                onDelete={() => confirmDelete(attachment)}
-                onSaveDescription={(description) =>
-                  handleSaveDescription(attachment.id, description)
-                }
-                onToggleCover={() => handleToggleCover(attachment)}
+                onPreview={attachment.kind === 'image' ? handlePreview : undefined}
+                onDownload={handleDownload}
+                onDelete={confirmDelete}
+                onSaveDescription={handleSaveDescription}
+                onToggleCover={handleToggleCover}
               />
             ))}
 

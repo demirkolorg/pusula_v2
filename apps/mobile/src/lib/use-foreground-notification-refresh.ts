@@ -18,7 +18,7 @@
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
-import { notificationRefreshScope } from '@/lib/notification-refresh';
+import { cardRefreshTargets, notificationRefreshScope } from '@/lib/notification-refresh';
 import { useTRPC } from '@/trpc/provider';
 
 /**
@@ -44,14 +44,40 @@ export function useForegroundNotificationRefresh(): void {
           void queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
         }
 
-        // Açık kart detayı — kartın tüm alt sorguları.
+        // Açık kart detayı — bildirim tipine göre yalnız ilgili alt sorgular
+        // (DEM-229). Tip bilinmiyorsa `cardRefreshTargets` tam fallback döner.
         if (cardId) {
-          void queryClient.invalidateQueries(trpc.card.get.queryFilter({ cardId }));
-          void queryClient.invalidateQueries(trpc.card.labels.list.queryFilter({ cardId }));
-          void queryClient.invalidateQueries(trpc.card.members.list.queryFilter({ cardId }));
-          void queryClient.invalidateQueries(trpc.comment.list.queryFilter({ cardId }));
-          void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
-          void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
+          const targets = cardRefreshTargets(data);
+          for (const target of targets) {
+            switch (target) {
+              case 'card':
+                void queryClient.invalidateQueries(trpc.card.get.queryFilter({ cardId }));
+                break;
+              case 'labels':
+                void queryClient.invalidateQueries(
+                  trpc.card.labels.list.queryFilter({ cardId }),
+                );
+                break;
+              case 'members':
+                void queryClient.invalidateQueries(
+                  trpc.card.members.list.queryFilter({ cardId }),
+                );
+                break;
+              case 'comment':
+                void queryClient.invalidateQueries(trpc.comment.list.queryFilter({ cardId }));
+                break;
+              case 'checklist':
+                void queryClient.invalidateQueries(
+                  trpc.checklist.list.queryFilter({ cardId }),
+                );
+                break;
+              case 'activity':
+                void queryClient.invalidateQueries(
+                  trpc.card.activity.list.queryFilter({ cardId }),
+                );
+                break;
+            }
+          }
         }
       } catch {
         // Best-effort — payload bozuksa tazeleme atlanır, UI bloklanmaz.

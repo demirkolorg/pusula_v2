@@ -1,158 +1,196 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  Animated,
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  View,
-  useColorScheme,
-  type PanResponderInstance,
-} from 'react-native';
-import { Icon } from '@/components/icon';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View, useColorScheme } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
 
-/** Sola kaydırınca açılan sil aksiyon yüzeyinin genişliği (px). */
+/** Tek bir aksiyon yüzeyinin genişliği (px). */
 const ACTION_WIDTH = 84;
-/** Bu eşikten fazla kaydırılınca satır açık kalır; altında kapanır (px). */
-const OPEN_THRESHOLD = ACTION_WIDTH / 2;
-/** PanResponder'ın jesti sahiplenmesi için gereken yatay hareket (px). */
-const CLAIM_DX = 12;
+/** Pan jestinin sahiplenmesi için gereken yatay hareket eşiği (px). */
+const ACTIVATE_DX = 12;
+/** Bu yatay-dikey kaymada jest dikey kaydırmaya bırakılır (px). */
+const FAIL_DY = 12;
 /** Bu hızın üstünde bırakma "fling" sayılır — mesafe yerine yön belirler. */
-const FLING_VELOCITY = 0.4;
+const FLING_VELOCITY = 400;
+/** Settle (yerine oturma) animasyon süresi (ms). */
+const SETTLE_DURATION = 160;
+
+/** Sola kaydırınca açılan tek bir aksiyon. */
+export type SwipeAction = {
+  /** React liste anahtarı. */
+  key: string;
+  /** Aksiyon yüzeyindeki görünür kısa etiket (örn. "Sil", "Düzenle"). */
+  label: string;
+  /** Erişilebilirlik etiketi (örn. "Maddeyi sil"). */
+  accessibilityLabel: string;
+  icon: IconName;
+  /** Renk teması — `destructive` (kırmızı) yıkıcı aksiyon, `primary` diğerleri. */
+  variant: 'destructive' | 'primary';
+  /** Dokununca — satır önce kapanır, sonra çağrılır. */
+  onPress: () => void;
+};
 
 type SwipeRowProps = {
   children: ReactNode;
-  /** Sil aksiyonu — satır önce kapanır, sonra çağrılır. */
-  onDelete: () => void;
-  /** Sil aksiyonunun görünür etiketi (örn. "Sil"). */
-  deleteLabel: string;
-  /** Sil aksiyonunun erişilebilirlik etiketi (örn. "Maddeyi sil"). */
-  deleteAccessibilityLabel: string;
+  /** Sola kaydırınca açılan aksiyon(lar) — soldan sağa bu sırayla. En az 1. */
+  actions: SwipeAction[];
   /** `false` → kaydırma devre dışı (örn. satır-içi düzenleme açıkken). */
   enabled?: boolean;
 };
 
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, value));
-
 /**
- * Yatay kaydırılabilir satır (DEM-221) — bir satırı saran, sola kaydırınca
- * arkadan kırmızı "Sil" aksiyon yüzeyini açan kapsayıcı. Olgun mobil task
- * uygulamalarının (Apple Reminders / Todoist) satır-içi yıkıcı buton yerine
- * jest arkasına saklama deseni.
+ * Yatay kaydırılabilir satır (DEM-221; DEM-228 ile UI-thread'e taşındı; DEM-231
+ * ile çok-aksiyonlu) — bir satırı saran, sola kaydırınca arkadan bir veya daha
+ * fazla aksiyon yüzeyini açan kapsayıcı. Olgun mobil task uygulamalarının
+ * (Apple Reminders / Todoist) satır-içi buton yerine jest arkasına saklama
+ * deseni. Tek aksiyon (kart detayı sil) ya da üç aksiyon (Hızlı Notlar:
+ * düzenle / taşı / sil) aynı bileşenle çizilir — `actions` dizisi.
  *
- * RN yerleşik `Animated` + `PanResponder` ile yazılır — yeni native bağımlılık
- * yok (`react-native-gesture-handler` eklenmez; DEM-217 `RemoteImage` / 7G-2
- * "yeni native bağımlılık yok" presedanı). `PanResponder` jesti **yalnız yatay
- * hareket** baskınken sahiplenir; böylece içinde bulunduğu dikey `ScrollView`'un
- * scroll'u ve pull-to-refresh'i bozulmaz. Açık satıra içerikten dokununca satır
- * kapanır (yıkıcı aksiyon yanlışlıkla tetiklenmesin).
+ * Kaydırma `react-native-gesture-handler` `Gesture.Pan()` + `react-native-
+ * reanimated` `useSharedValue`/`useAnimatedStyle` ile yazılır — sürükleme
+ * tamamen **UI-thread'inde** koşar. Pan jesti `activeOffsetX` ile yalnız
+ * belirgin **yatay** hareket başladığında etkinleşir ve `failOffsetY` ile
+ * dikey kayma baskın olunca bırakılır — böylece içinde bulunduğu dikey
+ * `ScrollView`'un scroll'u ve pull-to-refresh'i bozulmaz. Açık satıra
+ * içerikten dokununca satır kapanır (aksiyon yanlışlıkla tetiklenmesin).
  */
-export function SwipeRow({
-  children,
-  onDelete,
-  deleteLabel,
-  deleteAccessibilityLabel,
-  enabled = true,
-}: SwipeRowProps) {
+export function SwipeRow({ children, actions, enabled = true }: SwipeRowProps) {
   const theme = themeFor(useColorScheme());
-  const translateX = useRef(new Animated.Value(0)).current;
+  // Açılan toplam aksiyon paneli genişliği — aksiyon sayısıyla ölçeklenir.
+  const panelWidth = actions.length * ACTION_WIDTH;
+  // Satırın yatay konumu (px, ≤ 0). `translateX` UI-thread'inde okunur/yazılır.
+  const translateX = useSharedValue(0);
+  // Jest başlangıcında satırın o anki konumu (kapalı 0 / açık -panelWidth).
+  const startX = useSharedValue(0);
   const [open, setOpen] = useState(false);
 
-  // PanResponder bir kez kurulur; geri çağrıları yalnızca kararlı referansları
-  // (`ctx`, `translateX`, kararlı `settle`) kapatır — render başına değişen
-  // prop'lar `ctx` üzerinden okunur (bayat closure önlenir).
-  const ctx = useRef({ open: false, enabled, startX: 0 }).current;
-  ctx.enabled = enabled;
+  // Açık/kapalı durumunu JS-thread state'ine yansıtır (içerik üstü kapama
+  // `Pressable`'ı bu state'e bağlı). Worklet'ten `runOnJS` ile çağrılır.
+  const syncOpen = useCallback((next: boolean) => {
+    setOpen(next);
+  }, []);
 
+  // Belirli bir hedefe yumuşakça oturt + JS state'ini güncelle. JS-thread'den
+  // (`useEffect`, aksiyon butonu) çağrılır; `withTiming` animasyonu UI-thread'de.
   const settle = useCallback(
     (shouldOpen: boolean) => {
-      ctx.open = shouldOpen;
+      translateX.value = withTiming(shouldOpen ? -panelWidth : 0, {
+        duration: SETTLE_DURATION,
+      });
       setOpen(shouldOpen);
-      Animated.timing(translateX, {
-        toValue: shouldOpen ? -ACTION_WIDTH : 0,
-        duration: 160,
-        useNativeDriver: true,
-      }).start();
     },
-    [ctx, translateX],
+    [translateX, panelWidth],
   );
 
   // Kaydırma devre dışı bırakılırsa (örn. satır-içi düzenleme açıldı) açık
   // satırı kapat — aksi halde içerik kaymış, arkasında aksiyon yok kalırdı.
   useEffect(() => {
-    if (!enabled && ctx.open) settle(false);
-  }, [enabled, ctx, settle]);
+    if (!enabled && open) settle(false);
+  }, [enabled, open, settle]);
 
-  const responderRef = useRef<PanResponderInstance | null>(null);
-  if (!responderRef.current) {
-    responderRef.current = PanResponder.create({
-      onMoveShouldSetPanResponder: (_event, gesture) =>
-        ctx.enabled &&
-        Math.abs(gesture.dx) > CLAIM_DX &&
-        Math.abs(gesture.dx) > Math.abs(gesture.dy),
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        ctx.startX = ctx.open ? -ACTION_WIDTH : 0;
-      },
-      onPanResponderMove: (_event, gesture) => {
-        translateX.setValue(clamp(ctx.startX + gesture.dx, -ACTION_WIDTH, 0));
-      },
-      onPanResponderRelease: (_event, gesture) => {
-        const offset = clamp(ctx.startX + gesture.dx, -ACTION_WIDTH, 0);
+  // Pan jesti — yalnız yatay hareket baskınken etkinleşir, dikey kaymada
+  // bırakılır. `enabled=false` iken jest hiç başlamaz. `useMemo` ile sarılır:
+  // aksi halde her render'da yeni `Gesture.Pan()` üretilir ve yoğun listede
+  // (yorum listesi) her satır her render'da jesti yeniden bağlardı. Worklet'ler
+  // `translateX`/`startX` shared value'larını kapatır (stabil referans);
+  // `enabled` ve `open` JS değerleri bağımlılık dizisine girer.
+  const panGesture = useMemo(() => {
+    const clampOffset = (value: number): number => {
+      'worklet';
+      return Math.min(0, Math.max(-panelWidth, value));
+    };
+    return Gesture.Pan()
+      .enabled(enabled)
+      .activeOffsetX([-ACTIVATE_DX, ACTIVATE_DX])
+      .failOffsetY([-FAIL_DY, FAIL_DY])
+      .onBegin(() => {
+        startX.value = translateX.value;
+      })
+      .onUpdate((event) => {
+        translateX.value = clampOffset(startX.value + event.translationX);
+      })
+      .onEnd((event) => {
+        const offset = clampOffset(startX.value + event.translationX);
         // Hızlı bırakmada (fling) mesafe değil yön belirler; aksi halde
         // satır yarıdan fazla açıldıysa açık kalır.
-        settle(
-          Math.abs(gesture.vx) > FLING_VELOCITY
-            ? gesture.vx < 0
-            : offset <= -OPEN_THRESHOLD,
-        );
-      },
-      onPanResponderTerminate: () => settle(ctx.open),
-    });
-  }
+        const shouldOpen =
+          Math.abs(event.velocityX) > FLING_VELOCITY
+            ? event.velocityX < 0
+            : offset <= -panelWidth / 2;
+        translateX.value = withTiming(shouldOpen ? -panelWidth : 0, {
+          duration: SETTLE_DURATION,
+        });
+        runOnJS(syncOpen)(shouldOpen);
+      })
+      // Jest fail/cancel olursa (kullanıcı yatay kaydırırken dikey scroll
+      // devralırsa) satırı mevcut `open` durumuna geri oturt — eski
+      // `PanResponder` `onPanResponderTerminate` paritesi.
+      .onFinalize((_event, success) => {
+        'worklet';
+        if (!success) {
+          translateX.value = withTiming(open ? -panelWidth : 0, {
+            duration: SETTLE_DURATION,
+          });
+        }
+      });
+  }, [enabled, open, panelWidth, startX, translateX, syncOpen]);
 
-  const handleDeletePress = () => {
-    settle(false);
-    onDelete();
-  };
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   return (
     <View className="overflow-hidden">
       {enabled ? (
         <View
-          className="absolute bottom-0 right-0 top-0"
-          style={{ width: ACTION_WIDTH, backgroundColor: theme.destructive }}
+          className="absolute bottom-0 right-0 top-0 flex-row"
+          style={{ width: panelWidth }}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={deleteAccessibilityLabel}
-            onPress={handleDeletePress}
-            className="flex-1 items-center justify-center gap-1 active:opacity-80"
-          >
-            <Icon name="trash-2" size={18} color="#ffffff" />
-            <Text weight="medium" className="text-xs" style={{ color: '#ffffff' }}>
-              {deleteLabel}
-            </Text>
-          </Pressable>
+          {actions.map((action) => (
+            <Pressable
+              key={action.key}
+              accessibilityRole="button"
+              accessibilityLabel={action.accessibilityLabel}
+              onPress={() => {
+                settle(false);
+                action.onPress();
+              }}
+              style={{
+                width: ACTION_WIDTH,
+                backgroundColor:
+                  action.variant === 'destructive' ? theme.destructive : theme.primary,
+              }}
+              className="items-center justify-center gap-1 active:opacity-80"
+            >
+              <Icon name={action.icon} size={18} color="#ffffff" />
+              <Text weight="medium" className="text-xs" style={{ color: '#ffffff' }}>
+                {action.label}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       ) : null}
 
-      <Animated.View
-        style={{ backgroundColor: theme.card, transform: [{ translateX }] }}
-        {...responderRef.current.panHandlers}
-      >
-        {children}
-        {open ? (
-          <Pressable
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            onPress={() => settle(false)}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : null}
-      </Animated.View>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[{ backgroundColor: theme.card }, animatedStyle]}>
+          {children}
+          {open ? (
+            <Pressable
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              onPress={() => settle(false)}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

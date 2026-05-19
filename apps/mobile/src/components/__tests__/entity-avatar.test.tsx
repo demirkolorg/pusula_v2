@@ -20,11 +20,18 @@ describe('EntityAvatar', () => {
     expect(screen.getByText('?')).toBeTruthy();
   });
 
-  it('image verilince baş-harf yerine görsel render edilir', () => {
+  it('image verilince görsel render edilir; baş-harf yükleme placeholder’ı olur', () => {
     render(<EntityAvatar name="Ahmet" image="https://example.com/a.png" />);
-    // Görsel modunda baş harf metni basılmaz.
-    expect(screen.queryByText('A')).toBeNull();
     // RNW `Image` erişilebilirlik etiketini `aria-label` olarak yansıtır.
     expect(screen.getByLabelText('Ahmet')).toBeTruthy();
+    // Foto inene kadar baş-harf avatarı placeholder olarak görünür (DEM-217 —
+    // boş kare beklemesi olmaz; foto `onLoad`'da yumuşakça belirir).
+    expect(screen.getByText('A')).toBeTruthy();
+  });
+
+  it('icon verilince baş harf yerine entity ikonu render edilir', () => {
+    render(<EntityAvatar name="Ahmet" icon="briefcase" />);
+    // İkon modunda baş harf metni basılmaz.
+    expect(screen.queryByText('A')).toBeNull();
   });
 });
