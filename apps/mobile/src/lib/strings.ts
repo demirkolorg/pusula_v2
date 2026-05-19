@@ -696,6 +696,7 @@ export const strings = {
     deleteAccountRow: 'Hesabı sil',
     aboutTitle: 'Hakkında',
     versionRow: 'Sürüm',
+    privacyPolicyRow: 'Gizlilik Politikası',
   },
   // Profil düzenleme ekranı (DEM-208 + DEM-212 avatar).
   profileEdit: {

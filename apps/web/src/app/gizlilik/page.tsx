@@ -24,8 +24,8 @@ export const metadata: Metadata = {
 /** Politikanın yürürlük/son güncelleme tarihi. */
 const LAST_UPDATED = '19 Mayıs 2026';
 
-/** Veri sorumlusu iletişim adresi — ürün sahibi teyit etmeli. */
-const CONTACT_EMAIL = 'iletisim@pusulaportal.com';
+/** Veri sorumlusu iletişim adresi. */
+const CONTACT_EMAIL = 'pusulaportal@gmail.com';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
