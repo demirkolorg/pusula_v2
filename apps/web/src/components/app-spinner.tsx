@@ -1,51 +1,52 @@
 'use client';
 
-import Lottie from 'lottie-react';
-import { cn } from '@pusula/ui';
-import compassSpinnerAnimation from '@/assets/compass-spinner.json';
-import { strings } from '@/lib/strings';
+import { lazy, Suspense } from 'react';
+import { CssSpinner } from '@/components/css-spinner';
+import type { LottieSpinnerProps } from '@/components/lottie-spinner';
 
-const spinnerSizes = {
-  xs: 'size-4',
-  sm: 'size-5',
-  md: 'size-7',
-  lg: 'size-10',
-} as const;
+/**
+ * Uygulama yükleme spinner'ı.
+ *
+ * Görsel çekirdek `compass-spinner.json` + `lottie-react`'tir; `lottie-react`
+ * ağır bir bağımlılıktır ve board route'unun ilk JS bundle'ında yer kaplamamalı
+ * (DEM-229 #5). Bu yüzden Lottie'li çekirdek (`LottieSpinner`) `React.lazy` ile
+ * ayrı bir chunk'a alınır — `lottie-react` chunk'ı yalnız `AppSpinner` gerçekten
+ * render edildiğinde indirilir.
+ *
+ * Chunk inerken (ve SSR'da) `Suspense` fallback'i olarak hafif CSS spinner
+ * (`CssSpinner`) gösterilir. `next/dynamic` yerine `React.lazy` + `Suspense`
+ * kullanılır çünkü fallback'in çağrı yerinden gelen prop'lara (özellikle
+ * `label`) erişmesi gerekir — `next/dynamic`'in `loading` fallback'i prop almaz.
+ *
+ * Yoğun/sıcak yollarda (örn. board kart kapağı kısa yükleme göstergesi) doğrudan
+ * `CssSpinner` kullan — orada Lottie aşırıdır. `AppSpinner` tam-sayfa / uzun
+ * yükleme ekranları içindir.
+ */
 
-type AppSpinnerProps = {
-  label?: string;
-  showLabel?: boolean;
-  size?: keyof typeof spinnerSizes;
-  className?: string;
-  animationClassName?: string;
-  labelClassName?: string;
-};
+export type AppSpinnerProps = LottieSpinnerProps;
 
-export function AppSpinner({
-  label = strings.common.loading,
-  showLabel = false,
-  size = 'md',
-  className,
-  animationClassName,
-  labelClassName,
-}: AppSpinnerProps) {
+/**
+ * `React.lazy` çağrısı modül yüklemesinde bir kez yapılır (her render'da yeni
+ * component referansı remount'a yol açmasın).
+ */
+const LottieSpinner = lazy(() =>
+  import('@/components/lottie-spinner').then((mod) => ({ default: mod.LottieSpinner })),
+);
+
+export function AppSpinner(props: AppSpinnerProps) {
   return (
-    <div
-      role="status"
-      aria-label={label}
-      className={cn(
-        'text-muted-foreground inline-flex items-center justify-center gap-2 text-sm',
-        className,
-      )}
+    <Suspense
+      fallback={
+        <CssSpinner
+          label={props.label}
+          showLabel={props.showLabel}
+          size={props.size}
+          className={props.className}
+          labelClassName={props.labelClassName}
+        />
+      }
     >
-      <Lottie
-        animationData={compassSpinnerAnimation}
-        autoplay
-        loop
-        aria-hidden="true"
-        className={cn('shrink-0', spinnerSizes[size], animationClassName)}
-      />
-      <span className={cn(showLabel ? undefined : 'sr-only', labelClassName)}>{label}</span>
-    </div>
+      <LottieSpinner {...props} />
+    </Suspense>
   );
 }

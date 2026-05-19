@@ -83,7 +83,7 @@ const ALL_CARD_TARGETS: readonly CardRefreshTarget[] = [
  * Listede olmayan / `watched_activity` gibi belirsiz tipler `cardRefreshTargets`
  * tarafından tam fallback (`ALL_CARD_TARGETS`) ile karşılanır.
  */
-const TYPE_TO_CARD_TARGETS: Record<string, readonly CardRefreshTarget[]> = {
+const TYPE_TO_CARD_TARGETS: Partial<Record<NotificationType, readonly CardRefreshTarget[]>> = {
   // Yorum.
   comment_reply: ['comment', 'activity'],
   mention: ['comment', 'activity'],
@@ -148,5 +148,5 @@ export function notificationRefreshScope(
 export function cardRefreshTargets(payload: unknown): readonly CardRefreshTarget[] {
   const type = stringValue(asRecord(payload).type);
   if (type === null) return ALL_CARD_TARGETS;
-  return TYPE_TO_CARD_TARGETS[type] ?? ALL_CARD_TARGETS;
+  return TYPE_TO_CARD_TARGETS[type as NotificationType] ?? ALL_CARD_TARGETS;
 }

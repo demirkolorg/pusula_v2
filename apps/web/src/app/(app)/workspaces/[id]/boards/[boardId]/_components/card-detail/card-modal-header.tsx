@@ -50,6 +50,8 @@ type CardModalHeaderProps = {
   listName: string | null;
   /** Cover image metadata; when present, the image band takes precedence over `coverColor`. */
   coverImage?: CoverImage | null;
+  /** Server-side üretilmiş kapak görseli presigned URL (`card.get` — DEM-227). */
+  coverImageUrl?: string | null;
   /** Cover colour for the bar; `null` ⇒ plain `bg-background border-b` variant (DEM-67 not landed). */
   coverColor?: PaletteName | null;
   /** Whether the card is archived (affects the ⋮ menu's archive/restore item). */
@@ -73,6 +75,7 @@ export function CardModalHeader({
   boardName,
   listName,
   coverImage = null,
+  coverImageUrl = null,
   coverColor = null,
   archived,
   canArchive,
@@ -107,7 +110,11 @@ export function CardModalHeader({
     <div className="shrink-0">
       {coverImage ? (
         <div data-slot="card-modal-cover-image" className="h-40 overflow-hidden border-b bg-muted">
-          <CardCoverImage coverImage={coverImage} alt={coverImage.fileName} className="h-full" />
+          <CardCoverImage
+            coverImageUrl={coverImageUrl}
+            alt={coverImage.fileName}
+            className="h-full"
+          />
         </div>
       ) : null}
       <div

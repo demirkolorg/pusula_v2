@@ -47,11 +47,14 @@ describe('<CardDetailRoute>', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders the dialog for the ?card id once the session is known', () => {
+  // `CardDetailRoute` artık `CardDetailDialog`'u `next/dynamic` ile lazy yükler
+  // (DEM-229 #3); dialog bir mikro-görev sonrası mount olduğundan beklemek için
+  // `findBy*` (async) kullanılır.
+  it('renders the dialog for the ?card id once the session is known', async () => {
     h.searchParams = new URLSearchParams('card=card1');
     h.session = { data: { user: { id: 'u1' } } };
     render(<CardDetailRoute boardId="b1" />);
-    expect(screen.getByTestId('card-detail-dialog')).toBeInTheDocument();
+    expect(await screen.findByTestId('card-detail-dialog')).toBeInTheDocument();
     expect(screen.getByText('card:card1')).toBeInTheDocument();
   });
 
@@ -61,7 +64,7 @@ describe('<CardDetailRoute>', () => {
     h.session = { data: { user: { id: 'u1' } } };
     h.routerPush.mockReset();
     render(<CardDetailRoute boardId="b1" />);
-    await user.click(screen.getByRole('button', { name: 'close' }));
+    await user.click(await screen.findByRole('button', { name: 'close' }));
     expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1', { scroll: false });
   });
 
@@ -71,7 +74,7 @@ describe('<CardDetailRoute>', () => {
     h.session = { data: { user: { id: 'u1' } } };
     h.routerPush.mockReset();
     render(<CardDetailRoute boardId="b1" />);
-    await user.click(screen.getByRole('button', { name: 'close' }));
+    await user.click(await screen.findByRole('button', { name: 'close' }));
     expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?filter=open', {
       scroll: false,
     });

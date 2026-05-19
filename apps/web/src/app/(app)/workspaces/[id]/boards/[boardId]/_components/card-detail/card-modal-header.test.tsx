@@ -29,14 +29,8 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
-    attachment: {
-      getDownloadUrl: {
-        queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
-          input,
-          ...(options ?? {}),
-        }),
-      },
-    },
+    // DEM-227 — kart kapağı artık `attachment.getDownloadUrl` query'si yapmaz;
+    // presigned URL `card.get` yanıtındaki `coverImageUrl` ile prop olarak gelir.
     notifications: {
       preferences: {
         get: {
@@ -182,6 +176,7 @@ describe('<CardModalHeader>', () => {
           mimeType: 'image/png',
           size: 1234,
         }}
+        coverImageUrl="https://storage.test/modal-cover.png"
         archived={false}
         canArchive
         onArchiveToggle={vi.fn()}

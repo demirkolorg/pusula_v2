@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, use, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeftIcon } from 'lucide-react';
@@ -20,10 +21,20 @@ import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
-import { ShortcutHelpDialog } from './_components/shortcut-help-dialog';
 
 /** `localStorage` key for the "Hızlı Notlar" panel open state (DEM-205). */
 const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
+
+/**
+ * `ShortcutHelpDialog` nadiren açılan bir modal — yalnız `?` kısayoluyla
+ * açılır. `next/dynamic` ile lazy yüklenir (DEM-229 #3); aşağıda yalnız
+ * `shortcutHelpOpen` true iken render edildiğinden chunk board route'unun ilk
+ * JS bundle'ına girmez, ilk açılışta indirilir. Client-only modal → `ssr: false`.
+ */
+const ShortcutHelpDialog = dynamic(
+  () => import('./_components/shortcut-help-dialog').then((mod) => mod.ShortcutHelpDialog),
+  { ssr: false },
+);
 
 function BoardShortcutScope({
   enabled,
@@ -105,12 +116,29 @@ export default function BoardDetailPage({
   const trpc = useTRPC();
   const accessContext = useQuery(trpc.board.accessRequests.context.queryOptions({ boardId }));
   const hasBoardAccess = accessContext.data?.access.hasAccess === true;
-  const board = useQuery(trpc.board.get.queryOptions({ boardId }, { enabled: hasBoardAccess }));
+  // DEM-226 #6 — `board.get` realtime (`useBoardRealtime`) ile sürekli senkron
+  // tutuluyor; uzun `staleTime` + odak-yenilemesi kapalı, böylece sekme odağı
+  // her değiştiğinde tüm pano refetch edilip yeniden render olmaz. Realtime kopar
+  // veya `seq` boşluğu olursa hook zaten elle refetch tetikler.
+  const board = useQuery(
+    trpc.board.get.queryOptions(
+      { boardId },
+      { enabled: hasBoardAccess, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+    ),
+  );
+  // Referans verisi (etiket paleti / pano üyeleri) nadiren değişir ve değiştiğinde
+  // realtime invalidasyonu zaten cache'i tazeler — uzun `staleTime` ver.
   const labelList = useQuery(
-    trpc.label.list.queryOptions({ boardId }, { enabled: hasBoardAccess }),
+    trpc.label.list.queryOptions(
+      { boardId },
+      { enabled: hasBoardAccess, staleTime: 5 * 60 * 1000 },
+    ),
   );
   const boardMembers = useQuery(
-    trpc.board.members.list.queryOptions({ boardId }, { enabled: hasBoardAccess }),
+    trpc.board.members.list.queryOptions(
+      { boardId },
+      { enabled: hasBoardAccess, staleTime: 5 * 60 * 1000 },
+    ),
   );
   // Phase 5C (DEM-85) — keep `board.get` in sync with concurrent edits from
   // other users. Subscribes to `board:{boardId}` on mount, applies envelopes,
@@ -147,6 +175,19 @@ export default function BoardDetailPage({
   );
   const boardCardsForFilters = board.data?.cards ?? [];
   const boardListsForFilters = board.data?.lists ?? [];
+
+  // `BoardColumns`'a geçen `boardMembers` prop'u: her render'da yeni dizi
+  // üretmemek için `boardMembers.data` üzerinden bir kez türet — aksi halde
+  // referans her render'da değişip `BoardColumns` (ve dolayısıyla `CardItem`)
+  // memoizasyonunu kırar (DEM-226 #2).
+  const boardMemberOptions = useMemo(
+    () =>
+      (boardMembers.data ?? []).map((member) => ({
+        userId: member.userId,
+        name: member.name,
+      })),
+    [boardMembers.data],
+  );
 
   const boardLabels = useMemo<BoardFilterLabel[]>(() => {
     const byId = new Map<string, BoardFilterLabel>();
@@ -261,7 +302,9 @@ export default function BoardDetailPage({
 
   return (
     <div
-      className={cn('flex min-h-0 flex-1', boardBackgroundClass(b.background ?? null))}
+      // App-shell header rengi (`bg-board-shell`); panel ile pano arasındaki
+      // `gap` bu rengi bir şerit olarak gösterir (Trello "Gelen Kutusu" deseni).
+      className="bg-board-shell flex min-h-0 flex-1 gap-2"
       data-realtime-board-id={boardId}
       data-realtime-board-joined={realtime.joined ? 'true' : 'false'}
     >
@@ -270,11 +313,17 @@ export default function BoardDetailPage({
       {quickNotesOpen && (
         <QuickNotesPanel
           canConvert={canEditBoardContent}
+          background={b.background ?? null}
           onClose={() => setQuickNotesOpen(false)}
         />
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-hidden',
+          boardBackgroundClass(b.background ?? null),
+        )}
+      >
         <BoardTopBar
           boardId={boardId}
           workspaceId={workspaceId}
@@ -322,7 +371,7 @@ export default function BoardDetailPage({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <div className="min-h-0 flex-1 overflow-hidden p-5">
           <BoardColumns
             boardId={boardId}
             board={{ role: b.role, archivedAt: b.archivedAt }}
@@ -335,10 +384,7 @@ export default function BoardDetailPage({
             showArchivedLists={showArchivedLists}
             showArchivedCards={showArchivedCards}
             boardLabels={labelList.data ?? boardLabels}
-            boardMembers={(boardMembers.data ?? []).map((member) => ({
-              userId: member.userId,
-              name: member.name,
-            }))}
+            boardMembers={boardMemberOptions}
             openFirstCardComposerToken={openFirstCardComposerToken}
             openAddListComposerToken={openAddListComposerToken}
           />
@@ -358,11 +404,15 @@ export default function BoardDetailPage({
           />
           <CardDetailRoute boardId={boardId} />
         </Suspense>
-        <ShortcutHelpDialog
-          open={shortcutHelpOpen}
-          onOpenChange={setShortcutHelpOpen}
-          includeCardModal={false}
-        />
+        {/* Lazy `ShortcutHelpDialog` yalnız açıkken mount edilir — kapalıyken
+            render edilseydi `next/dynamic` chunk'ı yine indirirdi (DEM-229 #3). */}
+        {shortcutHelpOpen && (
+          <ShortcutHelpDialog
+            open={shortcutHelpOpen}
+            onOpenChange={setShortcutHelpOpen}
+            includeCardModal={false}
+          />
+        )}
       </div>
     </div>
   );

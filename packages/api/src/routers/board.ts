@@ -41,7 +41,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { toCoverImage } from '../lib/object-storage';
+import { COVER_IMAGE_URL_TTL_SECONDS, toCoverImage } from '../lib/object-storage';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
@@ -413,6 +413,7 @@ export const boardRouter = router({
       fileName: string;
       mimeType: string;
       size: number;
+      storageKey: string;
     };
     const cardIds = boardCards.map((c) => c.id);
     const coverAttachmentIds = boardCards
@@ -493,6 +494,7 @@ export const boardRouter = router({
                     fileName: attachments.fileName,
                     mimeType: attachments.mimeType,
                     size: attachments.size,
+                    storageKey: attachments.storageKey,
                   })
                   .from(attachments)
                   .where(inArray(attachments.id, coverAttachmentIds)),
@@ -533,6 +535,34 @@ export const boardRouter = router({
       coverRows.map((row) => [row.id, toCoverImage(row)] as const),
     );
 
+    // DEM-227 — kapak görseli presigned GET URL'leri server-side üretilir, böylece
+    // board ekranı kapak başına ayrı `attachment.getDownloadUrl` query'si açmaz
+    // ("waterfall" kaldırıldı). TTL 1 saat: `board.get` client `staleTime`'ı
+    // (5 dk) içinde URL ölmesin. Presigning saf crypto'dur (ağ yok) — N kapak
+    // için sıralı/paralel fark etmez. `objectStorage` yapılandırılmamışsa veya
+    // bir presign başarısız olursa o kapak için `coverImageUrl = null` (graceful
+    // degradation — kapak şeridi gösterilmez, board yanıtı düşmez).
+    const coverImageUrlByAttachmentId = new Map<string, string>();
+    if (ctx.objectStorage && coverRows.length > 0) {
+      const objectStorage = ctx.objectStorage;
+      const signed = await Promise.all(
+        coverRows.map(async (row) => {
+          try {
+            const url = await objectStorage.createPresignedGetUrl({
+              key: row.storageKey,
+              expiresIn: COVER_IMAGE_URL_TTL_SECONDS,
+            });
+            return [row.id, url] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      for (const entry of signed) {
+        if (entry) coverImageUrlByAttachmentId.set(entry[0], entry[1]);
+      }
+    }
+
     return {
       board: { ...board, role: ctx.board.role },
       lists: boardLists,
@@ -548,6 +578,11 @@ export const boardRouter = router({
           members: membersByCard.get(card.id) ?? [],
           coverImage: card.coverImageAttachmentId
             ? (coverImageByAttachmentId.get(card.coverImageAttachmentId) ?? null)
+            : null,
+          // DEM-227 — server-side üretilmiş presigned GET URL (TTL 1 saat) ya da
+          // `null` (kapak yok / presign başarısız / objectStorage yok).
+          coverImageUrl: card.coverImageAttachmentId
+            ? (coverImageUrlByAttachmentId.get(card.coverImageAttachmentId) ?? null)
             : null,
         };
       }),

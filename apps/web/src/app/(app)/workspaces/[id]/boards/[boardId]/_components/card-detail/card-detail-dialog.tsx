@@ -247,6 +247,10 @@ export function CardDetailDialog({
         : applyCardPatch(data, vars.cardId, {
             coverImageAttachmentId: vars.coverImageAttachmentId,
             coverImage: pendingCoverImageRef.current,
+            // DEM-227 — presigned URL server'da üretilir; optimistic anda yok.
+            // `card.get`/`board.get` invalidate'i (cardOnSuccess) gerçek URL'i
+            // getirir. O ana kadar kapak şeridi spinner/boş kalır.
+            coverImageUrl: null,
           } as Partial<(typeof data.cards)[number]>),
     applyCardDetail: (data, vars) =>
       vars.coverImageAttachmentId === undefined
@@ -257,6 +261,7 @@ export function CardDetailDialog({
               ...data.card,
               coverImageAttachmentId: vars.coverImageAttachmentId,
               coverImage: pendingCoverImageRef.current,
+              coverImageUrl: null,
             },
           },
     onConflict,
@@ -598,6 +603,7 @@ export function CardDetailDialog({
               boardName={boardTitle}
               listName={listTitle}
               coverImage={card.coverImage ?? null}
+              coverImageUrl={card.coverImageUrl ?? null}
               coverColor={coverColor}
               archived={archived}
               canArchive={canArchive}

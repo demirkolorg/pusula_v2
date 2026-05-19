@@ -318,6 +318,75 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     const next = qc.getQueryData<FixCache>(boardKey('b1'))!;
     expect(next.cards.find((c) => c.id === 'c1')!.title).toBe('birinci (yeni)');
   });
+
+  // DEM-227 — kapak değişiminde server `realtimePatch`'e `coverImageUrl` koyar;
+  // ikinci client'ta shallow-merge eski URL'i değil yeni presigned URL'i alır.
+  it('card.updated → kapak değişiminde coverImageUrl/coverImage patch board cache\'ine işler', () => {
+    qc.setQueryData(boardKey('b1'), {
+      ...fixture(),
+      cards: [
+        {
+          id: 'c1',
+          listId: 'L1',
+          position: 'a0',
+          title: 'birinci',
+          completedAt: null,
+          coverImageAttachmentId: 'old-att',
+          coverImage: { id: 'old-att' },
+          coverImageUrl: 'https://signed/old.jpg?sig=eski',
+        },
+      ],
+    });
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.updated', {
+        cardId: 'c1',
+        patch: {
+          coverImageAttachmentId: 'new-att',
+          coverImage: { id: 'new-att' },
+          coverImageUrl: 'https://signed/new.jpg?sig=yeni',
+        },
+      }),
+    );
+    const patched = qc
+      .getQueryData<{ cards: Record<string, unknown>[] }>(boardKey('b1'))!
+      .cards.find((c) => c.id === 'c1')!;
+    expect(patched.coverImageAttachmentId).toBe('new-att');
+    expect(patched.coverImageUrl).toBe('https://signed/new.jpg?sig=yeni');
+  });
+
+  it('card.updated → kapak kaldırılınca coverImageUrl null olarak yamalanır', () => {
+    qc.setQueryData(boardKey('b1'), {
+      ...fixture(),
+      cards: [
+        {
+          id: 'c1',
+          listId: 'L1',
+          position: 'a0',
+          title: 'birinci',
+          completedAt: null,
+          coverImageAttachmentId: 'old-att',
+          coverImage: { id: 'old-att' },
+          coverImageUrl: 'https://signed/old.jpg?sig=eski',
+        },
+      ],
+    });
+    dispatchRealtimeEvent(
+      qc,
+      { board: boardFilter, card: (cardId) => ({ queryKey: cardKey(cardId) }) },
+      envelope('card.updated', {
+        cardId: 'c1',
+        patch: { coverImageAttachmentId: null, coverImage: null, coverImageUrl: null },
+      }),
+    );
+    const patched = qc
+      .getQueryData<{ cards: Record<string, unknown>[] }>(boardKey('b1'))!
+      .cards.find((c) => c.id === 'c1')!;
+    expect(patched.coverImageAttachmentId).toBeNull();
+    expect(patched.coverImageUrl).toBeNull();
+  });
+
   it('card.updated with a malformed patch payload leaves board and card caches untouched', () => {
     qc.setQueryData(cardKey('c1'), { id: 'c1', title: 'bir', description: '' });
     const beforeBoard = qc.getQueryData<FixCache>(boardKey('b1'));

@@ -6,7 +6,7 @@ import { enqueueAttachmentCleanup } from './attachment-cleanup-queue';
 import { auth } from './auth';
 import { enqueueCompaction } from './compaction-queue';
 import { enqueueNotificationPublish } from './notification-queue';
-import { objectStorage } from './object-storage';
+import { resolveObjectStorage } from './object-storage';
 import { enqueueRealtimePublish } from './realtime-publish-queue';
 
 /** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
@@ -51,6 +51,9 @@ export async function buildTrpcContext(
     // attempts) cover transient failures; the 60-min orphan sweeper only
     // scans `committed_at IS NULL` drafts, not deleted rows.
     enqueueAttachmentCleanup,
-    objectStorage,
+    // İstek-kapsamlı object storage: presigned URL host'u yerel geliştirmede
+    // istemcinin API'ye eriştiği `Host`'tan türetilir — mobil cihaz `localhost`
+    // yerine erişebildiği LAN IP'yi alır (DEM-215; object-storage.ts §9.1.2).
+    objectStorage: resolveObjectStorage(c.req.header('host') ?? undefined),
   });
 }

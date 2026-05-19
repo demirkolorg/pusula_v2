@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -302,9 +302,15 @@ export function ListColumn({
   // Whether there's a neighbouring list to move to in each direction (uses the
   // full position-sorted list set, so it's correct even with archived lists
   // hidden). Only meaningful within the DnD context (board `member+`, active).
-  const orderedListIds = [...allLists]
-    .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
-    .map((l) => l.id);
+  // `useMemo`'lu — her render'da `[...allLists].sort()` yeni dizi üretmesin
+  // (DEM-226 #2).
+  const orderedListIds = useMemo(
+    () =>
+      [...allLists]
+        .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+        .map((l) => l.id),
+    [allLists],
+  );
   const indexInBoard = orderedListIds.indexOf(list.id);
   const canMoveLeft = !!dnd && listEditable && indexInBoard > 0;
   const canMoveRight =

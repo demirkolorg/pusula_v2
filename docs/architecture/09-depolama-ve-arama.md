@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-16
+updated: 2026-05-19
 ---
 
 # 09 — Depolama ve Arama
@@ -65,7 +65,9 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
 - **`attachment.list({ cardId })`** — board'a erişen herkes (admin/member/viewer); `committed_at IS NOT NULL` filtre; `committed_at DESC` sırada. Response her satır için `{ id, fileName, mimeType, size, kind: 'image'|'pdf'|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean }`. Cover-image picker bu listeyi `mimeType LIKE 'image/%'` ile filtreler.
 - **`attachment.update({ attachmentId, description, clientMutationId })`** — yalnız `description` alanı düzenlenir (dosya adı/MIME/size **immutable**; yeni yükleme = yeni initiate). Yetki: uploader **veya** board admin. Activity üretmez (düşük gürültü; UI inline edit'i şıracaktır); `realtime_events.attachment.updated` Faz 11.1'e ertelenebilir veya aynı tx'te yazılır (V1: yazılmaz — açıklama değişimi düşük sinyal; client mutation `attachment.list` invalidate ederse yeterli).
 - **`attachment.delete({ attachmentId, clientMutationId })`** — yetki: uploader **veya** board admin (viewer reject). Single transaction: `attachments` DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1` + (`cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir — kartın kapak şeridi kaybolur). Post-commit `maybeEnqueueAttachmentCleanup(ctx, { attachmentId, storageKey })` worker MinIO `DeleteObject`. Soft-delete YOK.
-- **`attachment.getDownloadUrl({ attachmentId })`** — mevcut DEM-110 procedure korunur; board'a erişen herkes (viewer dahil); presigned GET TTL 10 dk.
+- **`attachment.getDownloadUrl({ attachmentId })`** — mevcut DEM-110 procedure korunur; board'a erişen herkes (viewer dahil); presigned GET TTL 10 dk. Attachment lightbox/viewer tüketir.
+
+> **Kart kapak görseli — server-side presigned GET (DEM-227 / 2026-05-19):** Kart kapak görselleri artık ayrı `attachment.getDownloadUrl` query'siyle (kart başına) çekilmez; `board.get` / `card.get` projection'ları kapak ekinin `storage_key`'i için presigned GET URL'i **server-side** üretip `cards[].coverImageUrl` alanında döndürür. TTL **1 saat** — `board.get` query'sinin client `staleTime`'ı 5 dk olduğundan URL client cache penceresi içinde ölmez (`attachment.getDownloadUrl`'in 10 dk TTL'i tek-seferlik indirme/lightbox için yeterli; persist edilen board projection'ı için daha uzun gerekir). `ObjectStorage.createPresignedGetUrl` artık opsiyonel `expiresIn` (saniye) parametresi alır; verilmezse 10 dk default korunur. N kapak için N imzalama saf crypto'dur (ağ yok); presign hatası ya da `objectStorage` yapılandırılmamışsa `coverImageUrl = null` döner (kapak şeridi gösterilmez).
 
 ### Önizleme (V1 önerisi)
 
@@ -122,6 +124,18 @@ DB satırı (kart ekindeki `attachments` gibi) **yoktur** — avatar metadata `u
 `avatars/*` prefix'i public-read yapılır — local `docker-compose.yml` `minio-setup` servisinde `mc anonymous set download local/pusula/avatars`; üretimde `compose.prod.yml` MinIO init adımında aynı policy uygulanır. Bucket'ın geri kalanı (kart ekleri) **private** kalır.
 
 **Sertleştirme:** presigned PUT `Content-Type`'ı imzalar ve MIME allowlist SVG'yi dışlar; yine de `avatars/*` servis eden katmanın yanıtlarında `X-Content-Type-Options: nosniff` bulunması, kötü amaçlı bir objenin tarayıcıda HTML/JS olarak yorumlanmasını tamamen kapatır. MinIO objeyi kayıtlı `Content-Type` ile servis eder; nosniff bir reverse-proxy (Traefik) header'ı olarak eklenebilir — üretim sertleştirme follow-up'ı.
+
+---
+
+## 9.1.2 Presigned URL host'u — yerel geliştirmede mobil cihaz erişimi (DEM-215 — karar 2026-05-19)
+
+Presigned PUT/GET URL'leri **istemciye** verilir; host'ları istemcinin erişebildiği bir origin'i göstermeli. Üretimde `S3_PUBLIC_URL` (public MinIO subdomain) bu işi görür. Yerel geliştirmede `S3_PUBLIC_URL` boştur ve `S3_ENDPOINT`'e (`http://localhost:9100`) düşülür — bu, dev makinesindeki **tarayıcı** için doğrudur ama **mobil cihaz** `localhost`'u kendisi sanar (`Failed to connect to localhost:9100` → kart kapak görseli boş kalır).
+
+- **Çözüm — istek-host türetmesi (yalnız dev):** `S3_PUBLIC_URL` boşsa `apps/api` presigned URL host'unu gelen isteğin `Host` başlığından türetir — istemci API'ye hangi host üzerinden eriştiyse (`apps/mobile/src/lib/api-url.ts` Metro `hostUri`'den LAN IP'yi türetir) S3 URL'i de aynı host'u alır. `S3_ENDPOINT`'ten yalnız **şema + port** korunur, hostname istek host'undan gelir. Web `localhost`, mobil cihaz LAN IP alır; ağ/IP değişince kendiliğinden hizalanır (mobil `api-url.ts` ile simetrik disiplin).
+- **Neden sunucuda, imzadan önce:** SigV4 imzası `host` başlığını kapsar (`X-Amz-SignedHeaders=host`); presigned URL'i istemci tarafında yeniden yazmak imzayı bozar. Türetme imzadan **önce**, sunucuda yapılmalı.
+- **Üretimde devreye girmez:** `S3_PUBLIC_URL` set olduğunda her zaman o kullanılır; istek `Host`'una hiç bakılmaz (üretimde `Host` reverse-proxy'den gelir, türetme için güvenilmez).
+- **`publicUrl` de istek-host türetir (güncelleme 2026-05-19):** `users.image`'a yazılan kalıcı avatar public URL'i (§9.1.1) **de** aynı baz host'u kullanır — başta "istekten türetilmez" kabul edilmişti, ama bu, mobil cihazdan yüklenen avatarın `localhost` host'uyla kaydedilip o cihazda hiç görüntülenememesine yol açtı. Artık presigned URL'lerle aynı kuralı izler: dev'de istek `Host`'undan, üretimde `S3_PUBLIC_URL`'den. Mobil cihazdan yüklenen avatar LAN IP'si taşır → hem cihazda hem (aynı ağdaki) dev tarayıcısında görünür. **Kalan sınırlama:** dev'de URL kalıcı kaydedildiği için (a) **web'den** yüklenen avatar `localhost` host'u taşır, mobil cihazda görünmez; (b) LAN IP değişirse eski kayıtlar bozulur. Her iki durumda da çözüm avatarı yeniden yüklemek ya da `.env`'e `S3_PUBLIC_URL`'i sabit bir LAN IP olarak yazmaktır — kabul edilen dev sınırlaması; üretimde `S3_PUBLIC_URL` set olduğundan sorun yoktur.
+- **Wiring:** `apps/api/src/object-storage.ts` `resolveObjectStorage(requestHost?)` üretir; `apps/api/src/trpc.ts` (tRPC context) ve `apps/api/src/routes/share.ts` (misafir kapak görseli presign'i) her isteğe `Host` başlığını geçirir. S3Client salt presign (offline crypto — ağ yok) için kullanıldığından endpoint başına cache'lenir.
 
 ---
 

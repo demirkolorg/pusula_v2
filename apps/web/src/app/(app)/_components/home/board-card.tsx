@@ -36,7 +36,7 @@ export function BoardCard({ workspaceId, board }: BoardCardProps) {
   return (
     <article
       className={cn(
-        'bg-card group flex h-full flex-col overflow-hidden rounded-md border transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-card-hover',
+        'bg-card group relative flex h-full flex-col overflow-hidden rounded-md border transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-card-hover',
         archived && 'opacity-65',
       )}
     >
@@ -52,7 +52,7 @@ export function BoardCard({ workspaceId, board }: BoardCardProps) {
           boardId={board.id}
           boardTitle={board.title}
           favorited={board.favorited}
-          className="absolute right-2.5 top-2.5"
+          className="absolute right-2.5 top-2.5 z-10"
         />
       </div>
 
@@ -61,7 +61,7 @@ export function BoardCard({ workspaceId, board }: BoardCardProps) {
           <EntityIconBadge icon={board.icon ?? DEFAULT_BOARD_ICON} className="mt-0.5 size-7" />
           <Link
             href={`/workspaces/${workspaceId}/boards/${board.id}`}
-            className="min-w-0 flex-1 truncate rounded-sm text-sm font-semibold leading-snug outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+            className="min-w-0 flex-1 truncate rounded-sm text-sm font-semibold leading-snug outline-none underline-offset-4 after:absolute after:inset-0 after:rounded-md hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             {board.title}
           </Link>

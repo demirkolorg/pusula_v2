@@ -44,10 +44,27 @@ const createdUserIds = [ownerId, memberId, guestId, outsiderId];
 
 const session = (id: string) => ({ user: { id, email: `${id}@example.test`, name: id } });
 
-function callerFor(userId: string) {
+/**
+ * Minimal `ObjectStorage` fake — `card.get` cover-image presigned URL üretimi
+ * (DEM-227) için. `storageKey`'i deterministik bir URL'e eşler.
+ */
+function fakeObjectStorage() {
+  return {
+    createPresignedPutUrl: vi.fn(async () => ({ url: 'https://storage.test/put', headers: {} })),
+    createPresignedGetUrl: vi.fn(
+      async (input: { key: string; expiresIn?: number }) =>
+        `https://storage.test/get/${input.key}?ttl=${input.expiresIn ?? 'default'}`,
+    ),
+    publicUrl: vi.fn((key: string) => `https://storage.test/public/${key}`),
+  };
+}
+
+function callerFor(userId: string, opts?: { objectStorage?: ReturnType<typeof fakeObjectStorage> }) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
-  return create(createContext({ session: session(userId), db: probe.db }));
+  return create(
+    createContext({ session: session(userId), db: probe.db, objectStorage: opts?.objectStorage }),
+  );
 }
 
 /** A caller whose tRPC context carries a (mock) `enqueueCompaction` hook. */
@@ -755,6 +772,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(withCoverImage).toMatchObject({ coverImageAttachmentId: cover!.id, changed: true });
     expect(await boardVersion(boardId)).toBe(vBeforeSet + 1);
 
+    // objectStorage yapılandırılmamışsa `coverImageUrl` null (graceful degradation).
     const fetched = await callerFor(memberId).card.get({ cardId: card.id });
     expect(fetched.card).toMatchObject({
       coverImageAttachmentId: cover!.id,
@@ -764,6 +782,21 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         mimeType: 'image/png',
         size: 2048,
       },
+      coverImageUrl: null,
+    });
+
+    // DEM-227 — objectStorage verildiğinde `card.get` server-side presigned GET
+    // URL'i taşır (TTL 1 saat = 3600 s); `board.get` ile pariteli.
+    const storage = fakeObjectStorage();
+    const fetchedWithUrl = await callerFor(memberId, { objectStorage: storage }).card.get({
+      cardId: card.id,
+    });
+    expect(fetchedWithUrl.card.coverImageUrl).toBe(
+      `https://storage.test/get/boards/${boardId}/cards/${card.id}/cover.png?ttl=3600`,
+    );
+    expect(storage.createPresignedGetUrl).toHaveBeenCalledWith({
+      key: `boards/${boardId}/cards/${card.id}/cover.png`,
+      expiresIn: 3600,
     });
 
     const vAfterSet = await boardVersion(boardId);

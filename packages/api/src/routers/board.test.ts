@@ -45,10 +45,28 @@ const createdUserIds = [ownerId, memberId, guestId, outsiderId];
 
 const session = (id: string) => ({ user: { id, email: `${id}@example.test`, name: id } });
 
-function callerFor(userId: string) {
+/**
+ * Minimal `ObjectStorage` fake — `board.get` cover-image presigned URL üretimi
+ * (DEM-227) için. Gerçek MinIO imzalama saf crypto'dur; test'te `storageKey`'i
+ * deterministik bir URL'e eşler.
+ */
+function fakeObjectStorage() {
+  return {
+    createPresignedPutUrl: vi.fn(async () => ({ url: 'https://storage.test/put', headers: {} })),
+    createPresignedGetUrl: vi.fn(
+      async (input: { key: string; expiresIn?: number }) =>
+        `https://storage.test/get/${input.key}?ttl=${input.expiresIn ?? 'default'}`,
+    ),
+    publicUrl: vi.fn((key: string) => `https://storage.test/public/${key}`),
+  };
+}
+
+function callerFor(userId: string, opts?: { objectStorage?: ReturnType<typeof fakeObjectStorage> }) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
-  return create(createContext({ session: session(userId), db: probe.db }));
+  return create(
+    createContext({ session: session(userId), db: probe.db, objectStorage: opts?.objectStorage }),
+  );
 }
 
 describe.runIf(dbAvailable)('board router (integration)', () => {
@@ -301,6 +319,7 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       .set({ coverImageAttachmentId: cover!.id })
       .where(dbMod.eq(cards.id, card.id));
 
+    // objectStorage yapılandırılmamışsa `coverImageUrl` null (graceful degradation).
     const shaped = await callerFor(ownerId).board.get({ boardId: board.id });
     const projected = shaped.cards.find((item) => item.id === card.id);
     expect(projected).toMatchObject({
@@ -312,7 +331,49 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
         mimeType: 'image/webp',
         size: 1234,
       },
+      coverImageUrl: null,
     });
+
+    // DEM-227 — objectStorage verildiğinde `coverImageUrl` server-side presigned
+    // GET URL'i taşır (TTL 1 saat = 3600 s); kapaksız kartlarda `null` kalır.
+    const storage = fakeObjectStorage();
+    const withUrl = await callerFor(ownerId, { objectStorage: storage }).board.get({
+      boardId: board.id,
+    });
+    const projectedWithUrl = withUrl.cards.find((item) => item.id === card.id);
+    expect(projectedWithUrl?.coverImageUrl).toBe(
+      `https://storage.test/get/boards/${board.id}/cards/${card.id}/cover.webp?ttl=3600`,
+    );
+    expect(storage.createPresignedGetUrl).toHaveBeenCalledWith({
+      key: `boards/${board.id}/cards/${card.id}/cover.webp`,
+      expiresIn: 3600,
+    });
+  });
+
+  it('get: coverImageUrl is null for cards without a cover image', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'No Cover Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Plain',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Plain card',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const storage = fakeObjectStorage();
+    const shaped = await callerFor(ownerId, { objectStorage: storage }).board.get({
+      boardId: board.id,
+    });
+    expect(shaped.cards.every((c) => c.coverImage === null && c.coverImageUrl === null)).toBe(true);
+    // Kapaksız board için presign hiç çağrılmaz.
+    expect(storage.createPresignedGetUrl).not.toHaveBeenCalled();
   });
 
   it('get: cards carry additive metadata — checklist progress, comment count, members (Phase 2.7B — DEM-63)', async () => {

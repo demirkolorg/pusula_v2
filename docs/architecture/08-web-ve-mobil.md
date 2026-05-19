@@ -769,3 +769,26 @@ DEM-217 (`RemoteImage`) ve DEM-221 (`SwipeRow`) "yeni native bağımlılık yok"
 - **Test** — `vitest.setup.tsx` üç modülü mock'lar: `expo-image`, `react-native-reanimated` resmi mock'u, `react-native-gesture-handler` hafif stub. `SwipeRow` / `RemoteImage` / kart detay testleri yeni implementasyona göre güncellendi.
 
 **Native modül — dev-client rebuild gerekir** (`expo-image`, `react-native-reanimated`, `react-native-gesture-handler` native kod içerir; Expo Go yerine custom dev-client / `eas build`). JS bundle (`expo export`) GREEN. Yeni backend / tRPC / şema yok — saf istemci performans işi. Önce-belge: bu alt bölüm + `02-teknoloji-kararlari.md` 2026-05-19 karar kaydı.
+
+### Faz 7 sonrası — iOS hızlı yakalama uzantıları: Share Extension + App Intents ([DEM-232](https://linear.app/demirkol/issue/DEM-232))
+
+Hızlı Notlar (`quickNote`) bugün yalnız uygulama içinden yakalanır. iOS, uygulama dışından yakalama için iki yüzey sunar; ikisi de **native** (Swift/SwiftUI — React Native değil) ama tek bir native altyapıyı paylaşır. Karar `AskUserQuestion` ile sabitlendi (2026-05-19): **ikisi birlikte** + **anlık senkron**. Bu alt bölüm DEM-232 önce-belge adımıdır; implementasyon Faz 7 mobil MVP kapsamı **dışında** (Faz 7 sonrası iş).
+
+- **Neden uzantı, neden widget değil** — iOS widget'ı WidgetKit/SwiftUI'dir, JS çalıştıramaz ve yalnız timeline ile yenilenir; asıl maliyet widget yüzeyi değil senkrondur. Share Extension + App Intents hızlı yakalamanın çoğunu daha düşük maliyetle, veri sahipliği Pusula'da kalarak verir. Dış not uygulamasına (Apple Notes / Google Keep) bağlanma alternatifi elendi — çoğu tüketici not uygulamasının public API'si yok, olanlar da source-of-truth = PostgreSQL ilkesini bozuyordu.
+
+- **Share Extension** — iOS paylaş menüsüne "Pusula'ya Not Ekle" girişi ekler. Kullanıcı başka bir uygulamada (Safari, Notlar, Mesajlar) metin/URL seçip paylaşır; küçük bir SwiftUI form sayfası açılır, not kaydedilir — ana uygulama tam açılmadan. *Tepkisel* yakalama: ortada zaten bir içerik vardır. Metin + URL alır (resim kapsam dışı — hızlı notlar metin odaklı).
+
+- **App Intents / App Shortcuts** — "hızlı not ekle" eylemini sistem geneline açar: ana ekran kısayolu, **kilit ekranı**, **Action Button** (iPhone 15 Pro+), Siri (sesli), Spotlight. *Öngörülü* yakalama: ortada kaynak içerik yoktur, kullanıcı sıfırdan bir düşünceyi yakalar. Action Button → konuş/yaz → kaydedildi, uygulama hiç açılmadan.
+
+- **Native altyapı** — iki uzantı `@bacons/apple-targets` config plugin'i ile target olarak eklenir; **CNG (Continuous Native Generation) korunur**, EAS Build derler — Xcode'da elle target açma yok. Ana app + iki uzantı ortak bir **App Group** entitlement'ı ve **paylaşımlı keychain access group** paylaşır. Mobil teknoloji yığını listesine (§8.2) eklenir; ilk planda yoktu, bu karar onu genişletir. Dev-client rebuild gerekir (native kod).
+
+- **Senkron modeli — anlık (ana yol) + App Group bekleyen-kuyruğu (emniyet ağı):**
+  - Uzantı/intent, paylaşımlı keychain'deki Better Auth session token ile **doğrudan `quickNote.create` tRPC procedure'ünü** HTTP üzerinden çağırır. Yeni endpoint açılmaz — tek API sözleşmesi tRPC kalır (kök CLAUDE.md kural #2). %95 durumda not anında senkronlanır, web ve diğer cihazda hemen görünür.
+  - `401` (token süresi dolmuş) **veya** ağ yok → not App Group'ta "bekleyen" olarak yazılır. Ana RN uygulaması bir sonraki **foreground**'da bu kuyruğu boşaltır — `apps/mobile/src/lib/use-foreground-notification-refresh.ts` deseniyle akraba bir hook. Token yenileme **hep RN tarafında**, Better Auth'un kendi akışında kalır; native Swift tarafına refresh mantığı taşınmaz.
+  - `quickNote.create` çağrısı `clientMutationId` taşır: anlık yol ile kuyruk boşaltma arasında bir not iki kez gönderilebileceği için idempotency gerekir. Mevcut `createQuickNoteInput` (`@pusula/domain`) bunu taşımıyor — **additive** alan eklenir; `quickNote.create` ([`packages/api/src/routers/quick-note.ts`](../../packages/api/src/routers/quick-note.ts)) tek-satır insert, realtime/outbox üretmez, additive değişiklik küçüktür.
+
+- **Token paylaşımı** — RN tarafı login/logout'ta Better Auth session token'ını paylaşımlı keychain'e yazar/temizler; uzantı bu token'ı `Authorization` ile gönderir. Token `expo-secure-store` dışında ayrıca App Group erişimli keychain group'una konur.
+
+- **Kapsam dışı** — Android paritesi (`ACTION_SEND` paylaşım + App Shortcuts) ayrı takip işi. Interaktif iOS 17+ widget UI'ı ileride App Intents üzerine eklenebilir; bu işte yok.
+
+**Yeni native yüzey + küçük additive backend (`clientMutationId`).** Önce-belge: bu alt bölüm + `02-teknoloji-kararlari.md` 2026-05-19 karar kaydı.

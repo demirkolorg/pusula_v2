@@ -39,12 +39,8 @@ vi.mock('@/trpc/client', () => ({
       list: { mutationOptions: (o: unknown) => o, queryOptions: () => ({}) },
       update: { mutationOptions: (o: unknown) => o },
       delete: { mutationOptions: (o: unknown) => o },
-      getDownloadUrl: {
-        queryOptions: (input: unknown, options?: Record<string, unknown>) => ({
-          input,
-          ...(options ?? {}),
-        }),
-      },
+      // DEM-227 — kart kapağı artık `attachment.getDownloadUrl` query'si yapmaz;
+      // presigned URL `board.get` yanıtındaki `coverImageUrl` ile gelir.
     },
     card: {
       archive: { mutationOptions: (o: unknown) => o },
@@ -99,6 +95,7 @@ const baseCard: BoardCard = {
   coverColor: null,
   coverImageAttachmentId: null,
   coverImage: null,
+  coverImageUrl: null,
   labels: [],
   checklistTotal: 0,
   checklistDone: 0,
@@ -447,6 +444,7 @@ describe('<CardItem>', () => {
             mimeType: 'image/png',
             size: 1234,
           },
+          coverImageUrl: 'https://storage.test/card-cover.png',
         })}
         canEdit={false}
       />,
@@ -469,6 +467,7 @@ describe('<CardItem>', () => {
             mimeType: 'image/png',
             size: 1234,
           },
+          coverImageUrl: 'https://storage.test/card-cover.png',
         })}
         canEdit
       />,

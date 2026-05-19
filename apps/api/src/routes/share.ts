@@ -41,7 +41,7 @@ import {
   maybeEnqueueRealtimePublish,
 } from '@pusula/api';
 import { GUEST_AUTHOR_LABEL } from '@pusula/domain';
-import { objectStorage } from '../object-storage';
+import { resolveObjectStorage } from '../object-storage';
 import { rateLimit } from '../middleware/rate-limit';
 import { enqueueNotificationPublish } from '../notification-queue';
 import { enqueueRealtimePublish } from '../realtime-publish-queue';
@@ -91,7 +91,13 @@ async function lookupShareLink(token: string): Promise<LookupResult> {
   return { ok: true, link, card };
 }
 
-async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof cards.$inferSelect) {
+async function buildSnapshot(
+  link: typeof shareLinks.$inferSelect,
+  card: typeof cards.$inferSelect,
+  // İsteğin `Host` başlığı — kapak görseli presigned URL host'u bundan türetilir
+  // (yerel geliştirmede; üretimde `S3_PUBLIC_URL`). Bkz. DEM-215 / §9.1.2.
+  requestHost?: string,
+) {
   const db = getDb();
 
   const [board] = await db
@@ -221,7 +227,7 @@ async function buildSnapshot(link: typeof shareLinks.$inferSelect, card: typeof 
       )
       .limit(1);
     if (coverRow) {
-      coverImageUrl = await objectStorage
+      coverImageUrl = await resolveObjectStorage(requestHost)
         .createPresignedGetUrl({ key: coverRow.storageKey })
         .catch(() => null);
     }
@@ -302,7 +308,11 @@ shareRoute.get(
       .where(eq(shareLinks.id, result.link.id))
       .catch(() => undefined);
 
-    const snapshot = await buildSnapshot(result.link, result.card);
+    const snapshot = await buildSnapshot(
+      result.link,
+      result.card,
+      c.req.header('host') ?? undefined,
+    );
     return c.json(snapshot, 200);
   },
 );

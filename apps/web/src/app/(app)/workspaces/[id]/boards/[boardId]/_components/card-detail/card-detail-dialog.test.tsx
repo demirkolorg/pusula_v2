@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
       mimeType: string;
       size: number;
     } | null,
+    // DEM-227 — `card.get` artık kapak için server-side presigned URL döndürür.
+    coverImageUrl: null as string | null,
     archivedAt: null as Date | null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
@@ -179,6 +181,7 @@ describe('<CardDetailDialog>', () => {
     h.card.archivedAt = null;
     h.card.coverImageAttachmentId = null;
     h.card.coverImage = null;
+    h.card.coverImageUrl = null;
   });
 
   it('the modal surface uses the v1 wide layout and a column shell', () => {
@@ -222,6 +225,7 @@ describe('<CardDetailDialog>', () => {
       mimeType: 'image/png',
       size: 1234,
     };
+    h.card.coverImageUrl = 'https://storage.test/modal-cover.png';
 
     renderDialog();
 

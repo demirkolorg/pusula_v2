@@ -76,6 +76,12 @@ export function useForegroundNotificationRefresh(): void {
                   trpc.card.activity.list.queryFilter({ cardId }),
                 );
                 break;
+              default: {
+                // Exhaustiveness guard — `CardRefreshTarget` union'ına yeni değer
+                // eklenince TS derleme hatası verir; davranış değişmez.
+                const _exhaustive: never = target;
+                void _exhaustive;
+              }
             }
           }
         }

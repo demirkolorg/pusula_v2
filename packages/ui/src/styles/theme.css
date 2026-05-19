@@ -563,6 +563,11 @@
     --board-topbar-bg: color-mix(in oklch, var(--board-base) 78%, black);
     --board-shell-bg: color-mix(in oklch, var(--board-base) 58%, black);
     --board-chrome-fg: oklch(0.99 0 0);
+    /* Text that sits directly on the transparent board canvas (e.g. Hızlı Notlar
+       panel body): flips light/dark by the *rendered* surface lightness, so it
+       stays readable on any background in either theme. */
+    --board-canvas-fg: oklch(from var(--board-surface-bg) clamp(0, (l - 0.7) * -1000, 1) 0 0);
+    --board-canvas-fg-muted: color-mix(in oklch, var(--board-canvas-fg) 72%, transparent);
     --board-shell-border: color-mix(in oklch, var(--board-shell-bg) 76%, white 24%);
     --board-list-current-bg: var(--board-list-bg);
     --board-list-bg-hover: color-mix(

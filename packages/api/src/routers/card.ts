@@ -82,7 +82,7 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
-import { toCoverImage } from '../lib/object-storage';
+import { COVER_IMAGE_URL_TTL_SECONDS, toCoverImage } from '../lib/object-storage';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { syncSearchDocumentsForCard, upsertSearchDocument } from '../lib/search-indexer';
@@ -252,16 +252,31 @@ export const cardRouter = router({
     }
 
     let coverImage: ReturnType<typeof toCoverImage> | null = null;
+    // DEM-227 — kapak görseli presigned GET URL'i `board.get` ile pariteli olarak
+    // server-side üretilir; kart detay kapak şeridi de kart başına ayrı
+    // `attachment.getDownloadUrl` query'si açmaz. TTL/graceful degradation
+    // davranışı `board.get` ile aynı.
+    let coverImageUrl: string | null = null;
     if (card.coverImageAttachmentId) {
       const [coverAttachment] = await ctx.db
         .select()
         .from(attachments)
-        .where(eq(attachments.id, card.coverImageAttachmentId))
+        // DEM-227 DÜŞÜK-1 — kapak attachment'ı bu karta ait olmalı; `cardId`
+        // invariant'ı okuma anında da zorlanır (defense-in-depth, davranış aynı).
+        .where(and(eq(attachments.id, card.coverImageAttachmentId), eq(attachments.cardId, card.id)))
         .limit(1);
       coverImage = coverAttachment ? toCoverImage(coverAttachment) : null;
+      if (coverAttachment && ctx.objectStorage) {
+        coverImageUrl = await ctx.objectStorage
+          .createPresignedGetUrl({
+            key: coverAttachment.storageKey,
+            expiresIn: COVER_IMAGE_URL_TTL_SECONDS,
+          })
+          .catch(() => null);
+      }
     }
 
-    return { card: { ...card, coverImage }, relations: ctx.card.relations };
+    return { card: { ...card, coverImage, coverImageUrl }, relations: ctx.card.relations };
   }),
 
   /**
@@ -358,6 +373,9 @@ export const cardRouter = router({
         (card.coverImageAttachmentId ?? null) !== (input.coverImageAttachmentId ?? null);
 
       let nextCoverImage: ReturnType<typeof toCoverImage> | null = null;
+      // DEM-227 — yeni kapak attachment'ının `storageKey`'i realtime patch
+      // presigned URL üretimi için saklanır.
+      let nextCoverImageStorageKey: string | null = null;
       if (wantsCoverImage && input.coverImageAttachmentId) {
         const [coverAttachment] = await tx
           .select()
@@ -376,6 +394,7 @@ export const cardRouter = router({
           });
         }
         nextCoverImage = toCoverImage(coverAttachment);
+        nextCoverImageStorageKey = coverAttachment.storageKey;
       }
 
       const patch: Partial<typeof cards.$inferInsert> = {};
@@ -584,6 +603,7 @@ export const cardRouter = router({
         coverColor?: string | null;
         coverImageAttachmentId?: string | null;
         coverImage?: ReturnType<typeof toCoverImage> | null;
+        coverImageUrl?: string | null;
       } = {};
       if (titleChanged) realtimePatch.title = updated.title;
       if (descriptionChanged) realtimePatch.descriptionChanged = true;
@@ -592,6 +612,20 @@ export const cardRouter = router({
       if (coverImageChanged) {
         realtimePatch.coverImageAttachmentId = updated.coverImageAttachmentId ?? null;
         realtimePatch.coverImage = nextCoverImage;
+        // DEM-227 — kapak değişen kartı izleyen ikinci client'ta shallow-merge
+        // ile eski `coverImageUrl` korunmasın: yeni kapakta presigned GET URL'i
+        // server-side üret (`card.get` / `board.get` ile pariteli — aynı TTL,
+        // graceful degradation), kapak kaldırıldığında `null` yamala.
+        let nextCoverImageUrl: string | null = null;
+        if (nextCoverImageStorageKey && ctx.objectStorage) {
+          nextCoverImageUrl = await ctx.objectStorage
+            .createPresignedGetUrl({
+              key: nextCoverImageStorageKey,
+              expiresIn: COVER_IMAGE_URL_TTL_SECONDS,
+            })
+            .catch(() => null);
+        }
+        realtimePatch.coverImageUrl = nextCoverImageUrl;
       }
 
       realtimeEventId = await insertRealtimeEvent(tx, {

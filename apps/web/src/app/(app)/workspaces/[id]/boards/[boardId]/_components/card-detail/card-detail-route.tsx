@@ -1,8 +1,24 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
-import { CardDetailDialog } from './card-detail-dialog';
+
+/**
+ * `CardDetailDialog` `next/dynamic` ile lazy yüklenir (DEM-229 #3). Bu ağaçta
+ * Tiptap (`@tiptap/react` + `starter-kit` + `placeholder`) ve `lottie-react`
+ * gibi ağır bağımlılıklar var; `?card=` URL parametresi yokken modal hiç render
+ * edilmediğinden bu chunk board route'unun ilk JS bundle'ına girmez ve yalnız
+ * bir kart açıldığında indirilir.
+ *
+ * Modal client-only olduğundan `ssr: false`. Chunk inerken (kart açılışında)
+ * `loading: null` — kısa süreli, ek bir overlay göstermeye gerek yok; modal
+ * hazır olunca anında belirir.
+ */
+const CardDetailDialog = dynamic(
+  () => import('./card-detail-dialog').then((mod) => mod.CardDetailDialog),
+  { ssr: false },
+);
 
 /**
  * Glue between the URL and the card detail modal: reads `?card=<id>` from the

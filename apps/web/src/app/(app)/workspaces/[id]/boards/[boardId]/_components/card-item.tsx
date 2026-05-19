@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TRPCClientError } from '@trpc/client';
 import {
@@ -61,10 +62,23 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { useBoardDndContext } from './board-dnd-context';
 import { CardCoverImage, type CoverImage } from './card-cover-image';
-import { ShareDialog } from './card-detail/share-dialog';
 import { CardMetaRow, type CardMember } from './card-meta-row';
 import { LABEL_SWATCH } from './label-colors';
 import type { BoardList } from './list-column';
+
+/**
+ * `ShareDialog` `next/dynamic` ile lazy yüklenir (DEM-229 #3). `card-item.tsx`
+ * board kartlarında render edilen sıcak bir bileşendir; `ShareDialog`'u statik
+ * import etmek onu (ve `share.*` tRPC ağacını) board route'unun ilk JS
+ * bundle'ına sokuyordu. Paylaşım modalı yalnız kart context menüsünden açılır
+ * (nadir) — chunk yalnız ilk açılışta indirilir. Aşağıda yalnız `shareOpen`
+ * true iken render edilir; kapalıyken render edilseydi chunk yine inerdi.
+ * Client-only modal → `ssr: false`.
+ */
+const ShareDialog = dynamic(
+  () => import('./card-detail/share-dialog').then((mod) => mod.ShareDialog),
+  { ssr: false },
+);
 
 export type BoardCardLabel = { labelId: string; name: string; color: string };
 export type BoardCardLabelOption = { id: string; name: string; color: string };
@@ -87,6 +101,8 @@ export type BoardCard = {
   coverColor: string | null;
   coverImageAttachmentId?: string | null;
   coverImage?: CoverImage | null;
+  /** Server-side üretilmiş kapak görseli presigned URL (`board.get` — DEM-227). */
+  coverImageUrl?: string | null;
   /** Labels attached to this card (`board.get` -> `cards[].labels`). May be empty. */
   labels: BoardCardLabel[];
   /** Total checklist items across the card's checklists (`board.get`). */
@@ -214,8 +230,15 @@ function dueQuickOptions(now = new Date()) {
  * navigates to `?card=<id>` (shallow), which opens the card detail modal (the
  * board page renders `CardDetailRoute`). Right-click opens a Trello-style
  * context menu for cover colour, labels, members, due date, move and archive.
+ *
+ * Wrapped in `React.memo` (DEM-226 #1) — re-renders only when its props change
+ * by reference. The `card` reference is stable for untouched cards: both the
+ * optimistic primitives (`board-cache/primitives.ts`) and the realtime
+ * handlers (`realtime/event-handlers.ts` — `if (next !== card) changed = true`)
+ * map over `cards` keeping unchanged rows by reference, so an edit to one card
+ * never re-renders its siblings.
  */
-export function CardItem({
+function CardItemInner({
   boardId,
   card,
   canEdit,
@@ -227,7 +250,6 @@ export function CardItem({
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const copy = strings.board.card;
   const dndCopy = strings.board.dnd;
   const menuCopy = copy.context;
@@ -274,19 +296,26 @@ export function CardItem({
     if (dragging) setDragging(false);
   }, [card.position, card.listId]);
 
-  const openCard = () => {
-    const params = new URLSearchParams(searchParams.toString());
+  // DEM-226 #10 — `useSearchParams()` aboneliği `?card=` her değiştiğinde
+  // panodaki tüm `CardItem`'leri yeniden render ederdi. Mevcut query string'i
+  // navigasyon anında `window.location.search`'ten okuyoruz; böylece `openCard`
+  // referansı stabil kalır ve `CardItem` memoizasyonunu kırmaz.
+  const openCard = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
     params.set('card', card.id);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  }, [router, pathname, card.id]);
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.target !== event.currentTarget) return;
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openCard();
-    }
-  };
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.target !== event.currentTarget) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openCard();
+      }
+    },
+    [openCard],
+  );
 
   const onConflict = () => toast(strings.board.conflict.refreshed);
   const onMutationError = () => toast.error(strings.board.optimistic.error);
@@ -326,12 +355,16 @@ export function CardItem({
         dueAt?: Date | null;
         coverImageAttachmentId?: string | null;
         coverImage?: CoverImage | null;
+        coverImageUrl?: string | null;
       } = {};
       if ('coverColor' in vars) patch.coverColor = vars.coverColor ?? null;
       if ('dueAt' in vars) patch.dueAt = (vars.dueAt as Date | null | undefined) ?? null;
       if ('coverImageAttachmentId' in vars) {
         patch.coverImageAttachmentId = vars.coverImageAttachmentId ?? null;
         patch.coverImage = pendingCoverImageRef.current;
+        // DEM-227 — presigned URL server'da üretilir; optimistic anda yok.
+        // `board.get` invalidate'i (invalidateBoardCardData) gerçek URL'i getirir.
+        patch.coverImageUrl = null;
       }
       return applyCardPatch(data, vars.cardId, patch as Partial<(typeof data.cards)[number]>);
     },
@@ -364,22 +397,34 @@ export function CardItem({
     if (!next) archiveCard.reset();
   };
 
-  const moveTargets = dnd
-    ? [...allLists]
-        .filter((list) => list.archivedAt == null)
-        .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
-    : [];
+  // DEM-226 #1 — her-render yeniden hesaplanan türevler `useMemo`'ya alındı;
+  // `React.memo` ile birlikte gereksiz re-render + gereksiz allocation kesilir.
+  const moveTargets = useMemo(
+    () =>
+      dnd
+        ? [...allLists]
+            .filter((list) => list.archivedAt == null)
+            .sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+        : [],
+    [dnd, allLists],
+  );
 
   const coverColor = asCoverColor(card.coverColor);
-  const selectedLabelIds = new Set(card.labels.map((label) => label.labelId));
-  const memberRolesByUser = new Map<string, BoardCard['members']>();
-  for (const member of card.members) {
-    const bucket = memberRolesByUser.get(member.userId);
-    if (bucket) bucket.push(member);
-    else memberRolesByUser.set(member.userId, [member]);
-  }
+  const selectedLabelIds = useMemo(
+    () => new Set(card.labels.map((label) => label.labelId)),
+    [card.labels],
+  );
+  const memberRolesByUser = useMemo(() => {
+    const map = new Map<string, BoardCard['members']>();
+    for (const member of card.members) {
+      const bucket = map.get(member.userId);
+      if (bucket) bucket.push(member);
+      else map.set(member.userId, [member]);
+    }
+    return map;
+  }, [card.members]);
   const selectedDueKey = toDateInputValue(card.dueAt);
-  const dueOptions = dueQuickOptions();
+  const dueOptions = useMemo(() => dueQuickOptions(), []);
   const imageControlsDisabled =
     initiateAttachment.isPending || commitAttachment.isPending || updateCard.isPending;
 
@@ -488,9 +533,10 @@ export function CardItem({
       <div className={cn('flex flex-col gap-1', dragging && 'invisible')}>
         {card.coverImage ? (
           <CardCoverImage
-            coverImage={card.coverImage}
+            coverImageUrl={card.coverImageUrl ?? null}
             alt={copy.coverImageAlt(card.title)}
-            className="-mx-2 -mt-2 mb-1.5 h-24 rounded-t-md"
+            fit="natural"
+            className="-mx-2 -mt-2 mb-1.5 rounded-t-md"
           />
         ) : coverColor ? (
           <div
@@ -799,15 +845,28 @@ export function CardItem({
         </ContextMenuContent>
         {archiveDialog}
         {/* Faz 9D (DEM-130) — kart context menüsünden paylaşım yönetimi.
-            Kontrollü mod: tetik düğmesi gizli, açma context menü öğesinde. */}
-        <ShareDialog
-          cardId={card.id}
-          canShare={canEdit}
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          hideTrigger
-        />
+            Kontrollü mod: tetik düğmesi gizli, açma context menü öğesinde.
+            Lazy `ShareDialog` yalnız açıkken mount edilir — kapalıyken render
+            edilseydi `next/dynamic` chunk'ı yine indirirdi (DEM-229 #3). */}
+        {shareOpen && (
+          <ShareDialog
+            cardId={card.id}
+            canShare={canEdit}
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            hideTrigger
+          />
+        )}
       </ContextMenu>
     </>
   );
 }
+
+/**
+ * Memoized `CardItem` (DEM-226 #1). Default shallow prop comparison is enough:
+ * `card` keeps its reference for untouched cards (see `CardItemInner` doc), and
+ * the board page now passes `allLists` / `boardLabels` / `boardMembers` as
+ * `useMemo`-stabilized references — so editing one card no longer re-renders
+ * its siblings.
+ */
+export const CardItem = memo(CardItemInner);

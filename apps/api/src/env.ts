@@ -19,16 +19,17 @@ const envSchema = z.object({
   API_URL: z.string().min(1).default('http://localhost:3001'),
   API_PORT: z.coerce.number().int().positive().default(3001),
   S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
-  // Browser-facing base URL for the MinIO bucket (DEM-160). EVERY S3 URL the
-  // browser touches is built from this: the public avatar URL (`users.image`)
-  // AND the presigned upload/download URLs (avatar PUT, attachment GET) — the
-  // browser cannot reach the internal `S3_ENDPOINT` (`http://minio:9000` in
-  // prod) and `http://` is mixed-content on an HTTPS page. Only server-to-server
-  // S3 access (the worker's cleanup) uses `S3_ENDPOINT`. Optional: when unset it
-  // falls back to `S3_ENDPOINT` (correct for local dev, where `S3_ENDPOINT`
-  // is already the host-mapped `http://localhost:9100`). In production set it
-  // to the public MinIO origin (Traefik subdomain). See
-  // `docs/architecture/09-depolama-ve-arama.md` §9.1.1.
+  // Browser/device-facing base URL for the MinIO bucket (DEM-160). EVERY S3 URL
+  // a client touches is built from this: the public avatar URL (`users.image`)
+  // AND the presigned upload/download URLs (avatar PUT, attachment GET) — clients
+  // cannot reach the internal `S3_ENDPOINT` (`http://minio:9000` in prod) and
+  // `http://` is mixed-content on an HTTPS page. Only server-to-server S3 access
+  // (the worker's cleanup) uses `S3_ENDPOINT`. In production set it to the public
+  // MinIO origin (Traefik subdomain). Optional: when unset (local dev) every
+  // client-facing URL — presigned PUT/GET AND the persisted `publicUrl`
+  // (`users.image`) — derives its host from the incoming request `Host` so a
+  // mobile device gets a reachable LAN IP instead of `localhost` (DEM-215 — see
+  // `object-storage.ts` / `docs/architecture/09-depolama-ve-arama.md` §9.1.2).
   S3_PUBLIC_URL: z.string().min(1).optional(),
   S3_REGION: z.string().min(1).default('us-east-1'),
   S3_BUCKET: z.string().min(1).default('pusula'),

@@ -74,7 +74,8 @@ export type NotificationChannelKey = (typeof NOTIFICATION_CHANNEL_KEYS)[number];
  * `notification-rules.ts` `pickChannels` mantığını birebir yansıtır:
  *   in_app: tüm tipler (mute_bypass davet/mention için sabit)
  *   email : card_assigned, mention, due_overdue, board_invitation,
- *           workspace_invitation, member_removed
+ *           workspace_invitation, member_removed, board_member_added,
+ *           board_access_requested
  *   push  : card_assigned, mention, due_approaching, due_overdue,
  *           attachment_added (DEM-152)
  */
@@ -274,6 +275,14 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'board_member_added',
     i18nKey: 'boardMemberAdded',
     group: 'membership',
+    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+  },
+  // DEM-154 — paylaşılan board linkinden erişim talebi. Board admin'lerine
+  // gider; `board_invitation` gibi mute-bypass DEĞİL, in-app + email opt-in.
+  {
+    type: 'board_access_requested',
+    i18nKey: 'boardAccessRequested',
+    group: 'invitations',
     channels: { in_app: 'on', email: 'on', push: 'unavailable' },
   },
   {

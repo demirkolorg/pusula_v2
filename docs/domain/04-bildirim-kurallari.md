@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-16
+updated: 2026-05-19
 ---
 
 # 04 — Bildirim Kuralları
@@ -37,8 +37,8 @@ updated: 2026-05-16
 | ---------------------------------------------- | ----------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
 | `card.member_added`                            | Atanan kullanıcı                          | in-app + email (opt-in)                        | Faz 2.5C; en yaygın                                                              |
 | `comment.mentioned`                            | Mention edilen kullanıcı(lar)             | in-app + push + email (her zaman; mute-bypass) | Yüksek öncelik                                                                   |
-| `comment.created`                              | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push                       | Actor hariç                                                                      |
-| `card.due_changed`                             | Kart üyeleri + watcher'lar                | in-app + (tercihse) push                       | Yeni due/yeni tarih                                                              |
+| `comment.created`                              | Kart watcher'ları (assignee/watcher rolü) | in-app                                         | Actor hariç; push yalnız `attachment.added`/mention/due'da                       |
+| `card.due_changed`                             | Kart üyeleri + watcher'lar                | in-app                                         | Yeni due/yeni tarih; push yalnız due reminder/overdue'da                         |
 | `card.completed` / `uncompleted`               | Kart üyeleri (actor hariç)                | in-app                                         | Görünür ama düşük gürültü                                                        |
 | `card.moved` (cross-list)                      | Kart üyeleri                              | in-app                                         | Faz 3A; aynı liste içi reorder bildirim üretmez                                  |
 | `card.movedToList` (cross-board)               | Kart üyeleri                              | in-app                                         | Faz 3E; board değişimi belirtilir                                                |

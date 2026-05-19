@@ -68,6 +68,10 @@ function ListDropPlaceholderMarker({
   );
 }
 
+/** Stable empty-cards fallback so a card-less list always gets the same
+ * reference for its `cards` prop across renders (DEM-226 #2). */
+const EMPTY_CARDS: readonly BoardCard[] = [];
+
 function archivedCardToBoardCard(card: RouterOutputs['card']['listArchived'][number]): BoardCard {
   return {
     ...card,
@@ -195,7 +199,7 @@ export function BoardColumns({
                 <ListColumn
                   boardId={boardId}
                   list={list}
-                  cards={cardsByList.get(list.id) ?? []}
+                  cards={cardsByList.get(list.id) ?? (EMPTY_CARDS as BoardCard[])}
                   canEdit={canEdit}
                   allLists={lists}
                   boardLabels={boardLabels}

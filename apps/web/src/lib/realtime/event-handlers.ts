@@ -166,6 +166,9 @@ function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Car
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    // DEM-227 — board.get kart projection'ı kapak presigned URL'i taşır; yeni
+    // sentezlenen kartın kapağı yoktur.
+    coverImageUrl: null,
   } as CardCache;
 }
 
