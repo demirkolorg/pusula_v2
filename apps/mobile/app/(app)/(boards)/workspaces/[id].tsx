@@ -66,6 +66,8 @@ export default function WorkspaceBoardsScreen() {
         title: params.name ?? strings.tabs.boards,
         headerRight: workspaceId
           ? () => (
+              // 44×44 sabit alan — Apple HIG min dokunma; ikon dikey/yatay ortalı,
+              // başlıkla görsel dengeli (DEM-237). `hitSlop` ekstra güvenlik.
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={strings.members.workspaceTitle}
@@ -76,9 +78,9 @@ export default function WorkspaceBoardsScreen() {
                     params: { id: workspaceId, name: params.name ?? '' },
                   })
                 }
-                className="active:opacity-60"
+                className="h-11 w-11 items-center justify-center active:opacity-60"
               >
-                <Icon name="users" size={22} color={theme.foreground} />
+                <Icon name="users" size={20} color={theme.foreground} />
               </Pressable>
             )
           : undefined,

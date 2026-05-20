@@ -37,18 +37,22 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
   );
 
   return (
+    // `onRequestClose` Android donanım back tuşu için zorunludur (iOS'ta no-op).
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black">
         <SafeAreaView edges={['top']}>
           <View className="flex-row items-center gap-3 px-4 py-3">
+            {/* DEM-239 — X butonu 44×44pt yarı saydam daire: notch/Dynamic Island
+                altında, koyu zemin üzerinde dokunma hedefi belirgin; Apple HIG
+                minimum dokunma alanı (44pt) sağlanır. İkon 22pt kompakt. */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={strings.common.close}
               hitSlop={8}
               onPress={onClose}
-              className="active:opacity-60"
+              className="h-11 w-11 items-center justify-center rounded-full bg-white/15 active:bg-white/30"
             >
-              <Icon name="x" size={26} color="#ffffff" />
+              <Icon name="x" size={22} color="#ffffff" />
             </Pressable>
             <Text weight="medium" className="flex-1 text-base text-white" numberOfLines={1}>
               {attachment?.fileName ?? ''}
@@ -56,7 +60,16 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
           </View>
         </SafeAreaView>
 
-        <View className="flex-1 items-center justify-center px-2 pb-6">
+        {/* DEM-239 — görsel alanına tap arka plan dismiss: kullanıcı görselin
+            yan/altındaki siyah alana dokununca da modal kapanır. Görselin
+            kendisi resim olduğundan tıklama burada child'a değil parent
+            `Pressable`'a düşer. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.common.close}
+          onPress={onClose}
+          className="flex-1 items-center justify-center px-2 pb-6"
+        >
           {urlQuery.isError ? (
             <Text className="px-6 text-center text-base text-white">
               {strings.attachments.previewError}
@@ -71,7 +84,7 @@ export function AttachmentImageViewer({ attachment, onClose }: AttachmentImageVi
               spinnerColor="#ffffff"
             />
           )}
-        </View>
+        </Pressable>
       </View>
     </Modal>
   );

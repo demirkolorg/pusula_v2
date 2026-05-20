@@ -287,14 +287,16 @@ export default function CardDetailScreen() {
           headerRight:
             canEdit && card.archivedAt == null
               ? () => (
+                  // 44×44 sabit alan — Apple HIG min dokunma; ikon dikey/yatay ortalı
+                  // (DEM-237 ortak kuralı). `hitSlop` ekstra güvenlik.
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={strings.cardDetail.cardActions}
                     hitSlop={8}
                     onPress={() => setActionsOpen(true)}
-                    className="active:opacity-60"
+                    className="h-11 w-11 items-center justify-center active:opacity-60"
                   >
-                    <Icon name="more-vertical" size={22} color={theme.foreground} />
+                    <Icon name="more-vertical" size={20} color={theme.foreground} />
                   </Pressable>
                 )
               : undefined,
@@ -305,6 +307,13 @@ export default function CardDetailScreen() {
         contentContainerClassName="gap-3 p-4"
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        // DEM-238 — yorum composer scroll içeriğin sonunda; aktivite sayısı azsa
+        // klavye composer'ı örtüyordu. iOS native otomatik content-inset ile
+        // klavye açılınca scroll içeriği klavye yüksekliği kadar yukarı kayar
+        // (Android'de zaten `adjustResize` ile pencere yeniden boyutlanır).
+        automaticallyAdjustKeyboardInsets
+        // Gönder butonuna dokunmak klavyeyi kapatmadan submit'i tetiklesin.
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

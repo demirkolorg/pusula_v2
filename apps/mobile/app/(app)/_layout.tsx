@@ -74,6 +74,7 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           (DEM-230). `<Tabs>`'i sarar — hem tab bar butonu hem ekranlar erişir. */}
       <QuickNoteDraftProvider>
       <Tabs
+        initialRouteName="(boards)"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: theme.primary,
@@ -81,6 +82,11 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
           // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
           tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
+          // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
+          // anasayfa `QuickNoteDock` tab bar tepesinde oturduğundan klavye dock'u
+          // örtüyordu. Hem iOS hem Android'de klavye fokus'unda tab bar kalkar →
+          // dock'un `KeyboardAvoidingView`'ı doğrudan klavyenin üstüne çıkar.
+          tabBarHideOnKeyboard: true,
         }}
       >
         <Tabs.Screen

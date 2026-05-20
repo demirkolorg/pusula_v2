@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-18
+updated: 2026-05-20
 ---
 
 # 13 — UI Tasarım Dili
@@ -148,7 +148,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 
 ### Board zemini & üst bar
 
-- **Zemin:** `board-bg-*` sınıfları pano yüzeyini ve pano chrome token'larını birlikte belirler. `boards.background = null` varsayılanı `board-bg-default` ile ekte seçili indigo/mor-mavi board zemindir. İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<ad>'`; `null` varsayılan `board-bg-default` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. Fotoğraf/Unsplash kapsam dışı (MinIO → Faz 8).
+- **Zemin:** `board-bg-*` sınıfları pano yüzeyini ve pano chrome token'larını birlikte belirler. `boards.background = null` varsayılanı `board-bg-default` ile ekte seçili indigo/mor-mavi board zemindir. İçerik alanı `flex-1 overflow-hidden p-4`. **Board-başına özelleştirilebilir background** Faz 2.7 follow-up #4 ([DEM-100](https://linear.app/demirkol/issue/DEM-100)) kapsamında eklenir: `boards.background` `text` nullable, kanonik format `'gradient:<ad>' | 'solid:<ad>'`; `null` varsayılan `board-bg-default` zemindir. Mutation: `board.update` mevcut procedure'üne `background?: string | null` alanı eklenir (rename ile aynı kapı — `canManageBoard`, admin-only); activity `board.background_changed`/`board.background_cleared` + `boards.version + 1` + `realtime_events` aynı tx'te. **Faz 8.X ([DEM-242](https://linear.app/demirkol/issue/DEM-242) önce-belge, 2026-05-20):** üçüncü kanonik varyant `image:<attachmentId>` eklenir — user-uploaded board background görseli. `attachments` tablosu `kind='board_background'` satırlarına işaret eder (Faz 11 altyapısı paylaşılır); allowlist `JPEG/PNG/WebP/AVIF`, max `10 MiB`, animasyonlu GIF reddedilir. Image varyantında board zeminine MinIO presigned GET URL'i `background-image` olarak basılır + üstüne **`board-bg-image-overlay`** token'ı `linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 30%, transparent 60%)` overlay'i header/topbar okunaklılığını korur (Trello deseni). Header/topbar yüzeyleri image üstünde ek alpha taşır (gradient/solid renk eşleştirme yerine yarı-saydam koyu blok kontrast kurar). Unsplash kapsam dışı (V1).
 
   **DEM-100 gradient token listesi ve class haritası (kesin):**
 
@@ -377,7 +377,7 @@ Tüm ekranlarda her ikisinde test:
 - **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
 - **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
 - **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
-- **Board-başına fotoğraf/Unsplash/user-uploaded/custom gradient seçenekleri** — Faz 8 / ayrı iş. Renk/gradient zemin DEM-100 + DEM-111 ile light/dark temaya duyarlı `board-bg-*` token sistemine bağlıdır.
+- **Board-başına user-uploaded image background** — gradient/solid Faz 2.7'de tamamlandı ([DEM-100](https://linear.app/demirkol/issue/DEM-100) + [DEM-111](https://linear.app/demirkol/issue/DEM-111) + 2026-05-15 Trello gradient spec'i). Faz 8.X ([DEM-202](https://linear.app/demirkol/issue/DEM-202) → DEM-242/243/244/245/246) kalan kapsamı kapatır: **user-uploaded görsel** (web + mobil) + **mobil gradient/solid parite**. Kanonik üçüncü varyant `image:<attachmentId>` `boardBackgroundSchema`'ya eklenir; `attachments` tablosu `kind='board_background'` satırı tutar (Faz 11 altyapısı paylaşılır). Image overlay: `linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 30%, transparent 60%)` `board-bg-image-overlay` token'ı header/topbar okunaklılığını korur. **Unsplash kapsam dışı** (V1) — ileri faz. Detay → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-20 + [`08-web-ve-mobil.md`](08-web-ve-mobil.md) "Faz 8.X — Board görsel arka plan".
 
 ## 13.8 App-shell v2: workspace + board switcher + user nav menu
 
@@ -606,6 +606,56 @@ shell: {
 - **Search input** app-shell'de (global arama) — Faz 6.5, [DEM-56](https://linear.app/demirkol/issue/DEM-56).
 - **`apps/mobile` tema/switcher** — `apps/mobile` yok zaten; gelirse Expo bağlamında ayrı tartışılır.
 - **Server-side recent/pinned workspace/board** — Faz 8 (cookie veya `users.recent_boards` jsonb kolonu — ayrı iş).
+
+## 13.9 Mobil platform asset'leri (app icon + splash + adaptive icon)
+
+Asset'ler `apps/mobile/assets/` altında, `app.config.ts`'ten referans verilir. iOS App Store ve Google Play submission'da bu PNG'ler doğrudan kullanılır; Expo build sırasında otomatik tüm boyutlara türetilir. Kural [DEM-235](https://linear.app/demirkol/issue/DEM-235) (Bug 7O-1) ile yazıldı.
+
+### 13.9.1 Asset matrisi
+
+| Dosya | Boyut | Alpha | Kullanım |
+|-------|-------|-------|----------|
+| `icon.png` | 1024×1024 | **YOK — opak şart** | iOS App Store + iOS home screen (`ios.icon` / üst-düzey `icon`) |
+| `adaptive-icon.png` | 1024×1024 (min 432) | Olabilir | Android adaptive icon foreground (`android.adaptiveIcon.foregroundImage`); background renk `app.config.ts`'te |
+| `splash-icon.png` | 1024×1024 | Olabilir | Splash screen logosu (`plugins.expo-splash-screen`) |
+| `favicon.png` | 96×96 | Olabilir | Web (`web.favicon`) |
+
+**Apple submit şartı:** `icon.png` **24-bit RGB**, alpha kanalı yasak. Alpha içeren PNG submit'te otomatik reddedilir (App Store Connect "asset validation").
+
+### 13.9.2 iOS app icon safe-zone
+
+- **Canvas:** 1024×1024 kare, **opak background**.
+- **Background rengi:** `#000000` (siyah). Karar (AskUserQuestion 2026-05-20, DEM-235): marka logosu beyaz compass üzerinde maksimum kontrast; iOS home screen wallpaper'ından bağımsız tutarlı görünüm. Android adaptive icon background (`#5b51d8`) ve splash background ile rengi **bilinçli olarak farklı** — iOS icon kendi minimalist siyah/beyaz karakterini taşır.
+- **Foreground:** Beyaz compass figürü (Pusula sembolü), merkezi.
+- **Safe-zone:** Anlamlı grafik merkez **~824×824** alanda; her kenardan **~%10 padding** (~100 px). Apple iOS otomatik rounded-square mask uygular — köşelerde figür olmamalı, kenara değen çizgiler kırpık görünür.
+- **Compass ölçeği:** ~%65–70 (700×700 civarı tuval). Önceki tasarımdaki "siyah daire" passe-partout elenir; kare opak siyah doğrudan kullanılır, daire katmanı yok.
+
+### 13.9.3 Android adaptive icon
+
+- **Foreground:** `adaptive-icon.png` — beyaz compass figürü, **merkez %60 alanda** (canvas dış %20 padding her kenarda zorunlu — launcher mask değişken: daire, squircle, rounded-square).
+- **Background:** `app.config.ts` `android.adaptiveIcon.backgroundColor = '#5b51d8'` (marka mor).
+- Foreground alpha'lı PNG olabilir; sadece compass figürü görünür, dış alan şeffaf → cihaz background rengini gösterir.
+
+### 13.9.4 Splash screen
+
+- `splash-icon.png` — merkezi compass figürü; light tema background `#5b51d8`, dark tema background `#1d2125` (`app.config.ts` `plugins.expo-splash-screen.backgroundColor` / `dark.backgroundColor`).
+- Splash logosu app icon ile **aynı sembolü** kullanır ama kompozisyonu farklı (splash background ekran rengi, icon background icon kendi rengi).
+
+### 13.9.5 Submit-öncesi doğrulama checklist
+
+- [ ] `icon.png` 1024×1024, **alpha YOK** (`PixelFormat=Format24bppRgb`). Doğrulama (Windows PowerShell):
+  ```powershell
+  Add-Type -AssemblyName System.Drawing
+  $img = [System.Drawing.Image]::FromFile('apps/mobile/assets/icon.png')
+  $img.PixelFormat  # Format24bppRgb beklenir (Format32bppArgb → alpha var, RED)
+  $img.Dispose()
+  ```
+- [ ] iOS simulator + fiziksel cihaz home screen, settings, spotlight — kenar kırpılması yok.
+- [ ] App Store Connect "App Information" preview — marka algısı tutarlı.
+- [ ] Android adaptive icon — daire / squircle / rounded-square mask'larda compass kırpık değil.
+- [ ] Splash screen — light + dark tema açılışta logo doğru ölçek + renk.
+
+§12.14 deployment runbook store asset checklist'i bu kuralı referans verir.
 
 ## 13.10 Kart eki — "Ekler" sekmesi (Faz 11D — ✅ wired)
 

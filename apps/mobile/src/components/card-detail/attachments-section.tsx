@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Pressable, View, useColorScheme } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
@@ -304,9 +305,49 @@ export function AttachmentsSection({
     [downloadingId, queryClient, trpc],
   );
 
-  const handlePreview = useCallback((attachment: Attachment) => {
-    setPreviewing(attachment);
-  }, []);
+  // PDF önizleme (DEM-240) — presigned GET URL'i `expo-web-browser` ile sistem
+  // browser'da açar: iOS Safari View Controller (gömülü), Android Chrome Custom
+  // Tab. Sistem PDF renderer'ı zoom/scroll/paylaş dahil tam UX sağlar; native
+  // paket eklenmez (OTA uyumlu). `staleTime: 0` taze presigned URL garantiler.
+  const handlePdfPreview = useCallback(
+    async (attachment: Attachment) => {
+      try {
+        const { url } = await queryClient.fetchQuery(
+          trpc.attachment.getDownloadUrl.queryOptions(
+            { attachmentId: attachment.id },
+            { staleTime: 0 },
+          ),
+        );
+        await WebBrowser.openBrowserAsync(url, {
+          // iOS Safari View Controller
+          dismissButtonStyle: 'close',
+          // Android Chrome Custom Tab — koyu üst bar + beyaz kontroller
+          toolbarColor: '#000000',
+          controlsColor: '#ffffff',
+        });
+      } catch {
+        Alert.alert(strings.attachments.title, strings.attachments.previewError);
+      }
+    },
+    [queryClient, trpc],
+  );
+
+  // Önizleme dispatcher — dosya tipine göre lightbox (resim) veya in-app
+  // browser (PDF) çağrılır. `AttachmentTile.onPreview` her iki tip için tek
+  // callback alır (tile UI dosya tipinden bağımsız).
+  const handlePreview = useCallback(
+    (attachment: Attachment) => {
+      if (attachment.kind === 'image') {
+        setPreviewing(attachment);
+      } else if (attachment.mimeType === 'application/pdf') {
+        void handlePdfPreview(attachment);
+      }
+    },
+    [handlePdfPreview],
+  );
+
+  const isPreviewable = (a: Attachment): boolean =>
+    a.kind === 'image' || a.mimeType === 'application/pdf';
 
   const canDelete = (attachment: Attachment): boolean =>
     attachment.uploader.id === currentUserId || myBoardRole === 'admin';
@@ -369,7 +410,7 @@ export function AttachmentsSection({
                 canSetCover={canEdit}
                 downloading={downloadingId === attachment.id}
                 busy={busyAttachmentId === attachment.id}
-                onPreview={attachment.kind === 'image' ? handlePreview : undefined}
+                onPreview={isPreviewable(attachment) ? handlePreview : undefined}
                 onDownload={handleDownload}
                 onDelete={confirmDelete}
                 onSaveDescription={handleSaveDescription}
