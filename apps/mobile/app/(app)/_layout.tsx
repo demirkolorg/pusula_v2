@@ -16,6 +16,17 @@ import { fontFamilyForWeight } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 /**
+ * Cold-start initial route'u **file-scope** `unstable_settings` export ile
+ * belirlenir (Expo Router gereği — `<Tabs initialRouteName>` prop'u router
+ * state hydration'ı tarafından override edilir; etkisizdir). 2026-05-20 2. tur
+ * DEM-241 fix'i: ilk turda yalnız prop set edilmişti, kullanıcı her cold-start'ta
+ * son ziyaret ettiği tab'a (Hesap) açılıyordu.
+ */
+export const unstable_settings = {
+  initialRouteName: '(boards)',
+};
+
+/**
  * Korumalı app-shell — alt tab bar (4 sekme: Panolar / Arama / Bildirimler /
  * Hesap; kullanıcı kararı 2026-05-17). Oturum çözülürken spinner; oturum yoksa
  * `(auth)/sign-in`'e yönlendirir.
@@ -74,7 +85,6 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
           (DEM-230). `<Tabs>`'i sarar — hem tab bar butonu hem ekranlar erişir. */}
       <QuickNoteDraftProvider>
       <Tabs
-        initialRouteName="(boards)"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: theme.primary,

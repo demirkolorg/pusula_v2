@@ -28,7 +28,8 @@ type AttachmentTileProps = {
   /** Bu ek üzerinde açıklama/kapak mutation'ı uçuşta mı — menü işlemleri kilitli. */
   busy: boolean;
   /**
-   * Resim eki önizleme (lightbox) — yalnız `kind === 'image'` için verilir.
+   * Ek önizleme dispatcher'ı — çağıran tarafça gating yapılır (resim lightbox,
+   * PDF in-app browser vb.). Önizlenemeyen ekler için `undefined` geçilir.
    * Stabil callback: argüman olarak `attachment` alır (DEM-226 #2).
    */
   onPreview?: (attachment: Attachment) => void;
@@ -182,7 +183,11 @@ function AttachmentTileImpl({
         </View>
 
         <View className="flex-row items-center gap-1">
-          {isImage && onPreview ? (
+          {/* Eye ikonu önizlenebilir tüm ekler için gösterilir (resim + PDF).
+              Gating çağıran tarafta — `onPreview` yalnız önizlenebilen eklere
+              geçilir (DEM-240 2. tur: önceki turda gating `isImage` kontrolüyle
+              kısıtlıydı, PDF dispatch çalışsa da ikon hiç çizilmiyordu). */}
+          {onPreview ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={strings.attachments.actionPreview}

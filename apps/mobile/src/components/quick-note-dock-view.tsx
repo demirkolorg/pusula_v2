@@ -1,6 +1,6 @@
-import { useRef } from 'react';
-import { KeyboardAvoidingView, Platform, TextInput, View, useColorScheme } from 'react-native';
-import type { LayoutChangeEvent } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Keyboard, Platform, TextInput, View, useColorScheme } from 'react-native';
+import type { KeyboardEvent, LayoutChangeEvent } from 'react-native';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
@@ -27,12 +27,49 @@ export type QuickNoteDockViewProps = {
  * Saf presentational; değer/callback'ler çağırandan gelir (`QuickNoteDock`
  * bağlar) — trpc / native bağımlılığı yoktur, birim test edilebilir.
  *
- * `KeyboardAvoidingView` panel'i ekranın altına sabitler; iOS'ta klavye
- * açılınca panel klavyenin üstüne çıkar (Android'de pencere yeniden boyutlanır
- * — `behavior` verilmez; `auth-screen` deseni).
+ * Klavye davranışı (DEM-236 2. tur, 2026-05-20): dock `position: 'absolute'` +
+ * `bottom: 0` ile ekran tabanına çividir. `KeyboardAvoidingView` `padding`
+ * modu absolute-konumlu kutularla **güvenilir çalışmıyor** (RN dok uyarısı +
+ * kullanıcı TestFlight gözlemi) — bunun yerine `Keyboard` event'lerine elle
+ * bağlanır ve `bottom` style'ı animasyonlu olarak klavye yüksekliğine taşınır.
+ * iOS `keyboardWillShow`/`Hide` doğal animasyon süresiyle (`e.duration`)
+ * eşlenir; Android `keyboardDidShow`/`Hide` (iOS'ta `Will` yok). Tab bar
+ * `tabBarHideOnKeyboard` ile gizlendiği için dock klavye yüksekliği kadar
+ * yukarı çıkar; safe-area home indicator zaten `endCoordinates.height`'a dahil.
  */
 export function QuickNoteDockView({ value, onChangeText, onHeightChange }: QuickNoteDockViewProps) {
   const theme = themeFor(useColorScheme());
+
+  // `Animated.Value` ref ile sabit — render'lar arası değişmez.
+  const bottomAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e: KeyboardEvent) => {
+      Animated.timing(bottomAnim, {
+        toValue: e.endCoordinates.height,
+        // iOS'ta klavye animasyon süresini yansıt; yoksa makul default.
+        duration: e.duration && e.duration > 0 ? e.duration : 250,
+        // `bottom` layout property — native driver desteklemez (JS thread'de
+        // çalışır ama klavye animasyon süresinde sorunsuz görünür).
+        useNativeDriver: false,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener(hideEvent, (e: KeyboardEvent) => {
+      Animated.timing(bottomAnim, {
+        toValue: 0,
+        duration: e.duration && e.duration > 0 ? e.duration : 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [bottomAnim]);
 
   // `onLayout` aynı yükseklikle de (re-render / rotation) tekrar ateşlenebilir;
   // değer değişmedikçe çağıranı (anasayfa `paddingBottom` state'i) dürtmeyiz.
@@ -47,13 +84,12 @@ export function QuickNoteDockView({ value, onChangeText, onHeightChange }: Quick
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <Animated.View
       // Absolute konum + tam genişlik açıkça `style` ile verilir: NativeWind
-      // `inset-x-0` `KeyboardAvoidingView`'da güvenilir uygulanmıyor (dock
-      // içeriğe göre büzülüp yarım genişlikte kalıyordu) — `left/right: 0` tam
-      // satırı garantiler.
-      style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+      // `inset-x-0` `Animated.View`'da güvenilir uygulanmıyor (dock içeriğe
+      // göre büzülüp yarım genişlikte kalıyordu) — `left/right: 0` tam satırı
+      // garantiler. `bottom` animasyonlu — klavye eventlerine bağlı.
+      style={{ position: 'absolute', left: 0, right: 0, bottom: bottomAnim }}
     >
       <View onLayout={handleLayout} className="border-t border-border bg-card px-4 py-2.5">
         <TextInput
@@ -73,6 +109,6 @@ export function QuickNoteDockView({ value, onChangeText, onHeightChange }: Quick
           className="min-h-11 text-sm text-foreground"
         />
       </View>
-    </KeyboardAvoidingView>
+    </Animated.View>
   );
 }
