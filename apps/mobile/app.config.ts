@@ -21,8 +21,20 @@ const config: ExpoConfig = {
     // App Store gönderiminde "ihracat uyumu / şifreleme" sorusunu otomatik
     // yanıtlar: uygulama yalnız standart HTTPS/TLS kullanıyor (muaf) — her
     // gönderimde elle yanıtlamak gerekmez. Faz 7O.
+    //
+    // `UISupportedInterfaceOrientations~ipad`: üst-düzey `orientation: 'portrait'`
+    // telefonda kanban'ı portrait'e kilitler; iPad geniş ekranda landscape de
+    // mantıklı olduğu için sadece iPad için 4 yön açılır (Apple HIG önerisi —
+    // "stretched iPhone" görünümünü hafifletir). Mobil layout iPad-optimize
+    // değil (sonraki faz — iş kayıt defteri MOB-2026-05-20-001).
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      'UISupportedInterfaceOrientations~ipad': [
+        'UIInterfaceOrientationPortrait',
+        'UIInterfaceOrientationPortraitUpsideDown',
+        'UIInterfaceOrientationLandscapeLeft',
+        'UIInterfaceOrientationLandscapeRight',
+      ],
     },
     // Faz 7L — universal links. iOS, uygulama kuruluyken `pusulaportal.com`
     // linklerini uygulamada açar (tüm yollar — kullanıcı kararı 2026-05-18).
