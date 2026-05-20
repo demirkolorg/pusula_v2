@@ -8,22 +8,28 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "node": "22.13.0",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:3001"
+        "EXPO_PUBLIC_API_URL": "http://localhost:3001",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "node": "22.13.0",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com"
+        "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "node": "22.13.0",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com"
+        "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },

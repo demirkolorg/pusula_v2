@@ -15,6 +15,17 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   assetBundlePatterns: ['**/*'],
+  // EAS Update (OTA) — Faz 7O ilk build sırasında `eas-cli` ekledi (2026-05-20).
+  // `runtimeVersion.policy: 'appVersion'` → runtime version = `version` (1.0.0).
+  // Native bağımlılık/izin değişmediği sürece aynı versiyona OTA güncellemesi
+  // yayımlanabilir (`eas update --branch <channel>`); native değişirse yeni
+  // store build'i gerekir. URL EAS Update CDN'i (projectId tabanlı).
+  updates: {
+    url: 'https://u.expo.dev/42653b08-bbd1-47c7-9d22-99e42e6a1d47',
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.pusula.app',
@@ -82,7 +93,14 @@ const config: ExpoConfig = {
     ],
     // Sentry native config (crash reporting). Source map yükleme org/project
     // gerektirir — yalnız CI/EAS build'de anlamlı, opsiyonel.
-    '@sentry/react-native',
+    // GEÇİCİ DEVRE DIŞI (Faz 7O dev build 2026-05-20): @sentry/react-native
+    // plugin'i Xcode'a bir "Upload Debug Symbols to Sentry" build phase ekliyor;
+    // SENTRY_AUTH_TOKEN/ORG/PROJECT tanımlı olmadan sentry-cli build sırasında
+    // crash ediyor (`SENTRY_DISABLE_AUTO_UPLOAD=true` bile yeterli değil —
+    // script env'i okumadan önce node:cjs/loader'da düşüyor). Production
+    // build'inden önce auth token + org/project ayarlanıp geri açılacak
+    // (Faz 8 follow-up — runbook §12.14).
+    // '@sentry/react-native',
     // Better Auth oturum cookie'sini şifreli cihaz deposunda tutar (Faz 7B).
     'expo-secure-store',
     // `@better-auth/expo` peer'i — derin bağlantı/OAuth dönüş akışı için.
