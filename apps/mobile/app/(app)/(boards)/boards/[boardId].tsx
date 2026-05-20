@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { BoardActionsSheet } from '@/components/board-actions-sheet';
 import { BoardColumn } from '@/components/board-column';
+import { BoardListView } from '@/components/board-list-view';
+import { BoardViewToggle } from '@/components/board-view-toggle';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
@@ -20,6 +22,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { canEditBoard, canManageBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
 import { useBoardMutations } from '@/lib/use-board-mutations';
+import { useBoardViewMode } from '@/lib/use-board-view-mode';
 import { themeFor } from '@/theme/tokens';
 
 /**
@@ -50,6 +53,8 @@ export default function BoardScreen() {
     trpc.board.get.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
   );
   const mutations = useBoardMutations(boardId);
+  // Görünüm modu (DEM-233) — kanban kolon / dikey liste. Global + kalıcı tercih.
+  const { mode: viewMode, setMode: setViewMode } = useBoardViewMode();
   // `useBoardMutations` her render'da yeni nesne döndürür — kolonlara geçen
   // handler'ları stabil tutmak için ref üzerinden okuruz (DEM-226 #2/#3).
   const mutationsRef = useRef(mutations);
@@ -154,6 +159,11 @@ export default function BoardScreen() {
         headerRight: boardId
           ? () => (
               <View className="flex-row items-center gap-4">
+                {/* Görünüm modu (DEM-233) — kanban kolon / dikey liste; yalnız
+                    board yüklendiğinde gösterilir (mod seçimi içerikle anlamlı). */}
+                {query.data ? (
+                  <BoardViewToggle mode={viewMode} onChange={setViewMode} />
+                ) : null}
                 {/* Etiket filtresi — yalnız board yüklendiğinde (sheet de o an mount). */}
                 {query.data ? (
                   <Pressable
@@ -286,27 +296,41 @@ export default function BoardScreen() {
   return (
     <>
       {header}
-      <ScrollView
-        horizontal
-        className="flex-1"
-        contentContainerClassName="gap-3 p-3"
-        showsHorizontalScrollIndicator={false}
-      >
-        {activeLists.map((list) => (
-          <BoardColumn
-            key={list.id}
-            list={list}
-            cards={cardsByList.get(list.id) ?? EMPTY_CARDS}
-            canEdit={canEdit}
-            onCreateCard={handleCreateCard}
-            onOpenListActions={handleOpenListActions}
-            onMoveCard={handleMoveCard}
-            refreshing={query.isFetching}
-            onRefresh={handleRefresh}
-          />
-        ))}
-        {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}
-      </ScrollView>
+      {viewMode === 'kanban' ? (
+        <ScrollView
+          horizontal
+          className="flex-1"
+          contentContainerClassName="gap-3 p-3"
+          showsHorizontalScrollIndicator={false}
+        >
+          {activeLists.map((list) => (
+            <BoardColumn
+              key={list.id}
+              list={list}
+              cards={cardsByList.get(list.id) ?? EMPTY_CARDS}
+              canEdit={canEdit}
+              onCreateCard={handleCreateCard}
+              onOpenListActions={handleOpenListActions}
+              onMoveCard={handleMoveCard}
+              refreshing={query.isFetching}
+              onRefresh={handleRefresh}
+            />
+          ))}
+          {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}
+        </ScrollView>
+      ) : (
+        <BoardListView
+          lists={activeLists}
+          cardsByList={cardsByList}
+          canEdit={canEdit}
+          onCreateCard={handleCreateCard}
+          onCreateList={mutations.createList}
+          onOpenListActions={handleOpenListActions}
+          onMoveCard={handleMoveCard}
+          refreshing={query.isFetching}
+          onRefresh={handleRefresh}
+        />
+      )}
 
       <MoveToListSheet
         visible={moveTarget != null}

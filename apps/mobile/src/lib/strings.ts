@@ -205,6 +205,13 @@ export const strings = {
       'Bu pano arşivlenecek ve salt-okunur olacak. Arşivden geri yükleyebilirsin.',
     archiveBoardConfirmAction: 'Arşivle',
     archiveBoardError: 'Pano arşivlenemedi. Lütfen tekrar dene.',
+    // Görünüm modu geçişi (DEM-233 — kanban kolon / dikey liste görünümü).
+    // Header'a sığan ikon-only segmented control; metinler yalnız erişilebilirlik
+    // etiketi olarak kullanılır.
+    view: {
+      kanban: 'Pano görünümü',
+      list: 'Liste görünümü',
+    },
   },
   // Board etiket filtresi (Faz 7E-2 — DEM-200).
   boardFilter: {

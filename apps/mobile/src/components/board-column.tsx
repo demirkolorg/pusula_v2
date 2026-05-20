@@ -1,7 +1,6 @@
 import { memo, useCallback, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
 import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
-import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
@@ -10,7 +9,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
-import { CardFace } from './card-face';
+import { CardRow } from './card-row';
 
 type BoardData = RouterOutputs['board']['get'];
 type BoardList = BoardData['lists'][number];
@@ -171,42 +170,3 @@ function BoardColumnImpl({
  * dokunulmayan kolonlar her board render'ında yeniden çizilmez.
  */
 export const BoardColumn = memo(BoardColumnImpl);
-
-/**
- * Tek kart satırı — `FlatList renderItem` için ayrı `React.memo`'lu bileşen
- * (DEM-226 #2/#3). `onPress`/`onLongPress` satır içinde `useCallback` ile
- * stabilize edilir, böylece `card` referansı değişmeyen satırların `CardFace`'i
- * yeniden render edilmez. `router` satır içinde alınır — `useRouter` her
- * render'da yeni nesne döndürdüğünden prop olarak geçmek memo'yu kırardı.
- */
-const CardRow = memo(function CardRow({
-  card,
-  canEdit,
-  onMoveCard,
-}: {
-  card: BoardCard;
-  canEdit: boolean;
-  onMoveCard: (card: BoardCard) => void;
-}) {
-  const router = useRouter();
-  // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-` id ile
-  // kart detayı / taşıma backend'de bulunamaz.
-  const cardPending = isPendingId(card.id);
-
-  const handlePress = useCallback(() => {
-    router.push({
-      pathname: '/cards/[cardId]',
-      params: { cardId: card.id, title: card.title },
-    });
-  }, [router, card.id, card.title]);
-
-  const handleLongPress = useCallback(() => onMoveCard(card), [onMoveCard, card]);
-
-  return (
-    <CardFace
-      card={card}
-      onPress={cardPending ? undefined : handlePress}
-      onLongPress={canEdit && !cardPending ? handleLongPress : undefined}
-    />
-  );
-});
