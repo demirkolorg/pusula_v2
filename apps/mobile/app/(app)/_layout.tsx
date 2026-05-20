@@ -16,11 +16,12 @@ import { fontFamilyForWeight } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 /**
- * Cold-start initial route'u **file-scope** `unstable_settings` export ile
- * belirlenir (Expo Router gereği — `<Tabs initialRouteName>` prop'u router
- * state hydration'ı tarafından override edilir; etkisizdir). 2026-05-20 2. tur
- * DEM-241 fix'i: ilk turda yalnız prop set edilmişti, kullanıcı her cold-start'ta
- * son ziyaret ettiği tab'a (Hesap) açılıyordu.
+ * Cold-start initial route'u — file-scope `unstable_settings` export (Expo
+ * Router gereği). 2026-05-21 3. tur DEM-241 fix'i: önceki turda export-only
+ * yeterli olmadı; **`<Tabs>` `AppShell` alt component'inde** render ediliyordu,
+ * Expo Router metadata-binding'i nested navigator'a ulaşmıyor olabilirdi. Bu
+ * turda `<Tabs>` doğrudan `AppLayout` (default export) içine inline edildi;
+ * defansif olarak `<Tabs>` JSX'inde `initialRouteName` + `backBehavior` da set.
  */
 export const unstable_settings = {
   initialRouteName: '(boards)',
@@ -47,34 +48,32 @@ export const unstable_settings = {
  *
  * DEM-219: `useForegroundNotificationRefresh` foreground'da gelen push'u açık
  * board/kart ekranı ve rozet için sessiz cache invalidate'e bağlar.
+ *
+ * DEM-241 3. tur (2026-05-21): `<Tabs>` doğrudan bu default export'un içinde
+ * render edilir (önceden `AppShell` alt component'indeydi). Bütün hook'lar
+ * top-level — oturum gelmeden önce `enabled: !!session` ile inert kalırlar.
  */
 export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
   const theme = themeFor(useColorScheme());
-
-  if (isPending) return <LoadingScreen />;
-  if (!session) return <Redirect href="/sign-in" />;
-
-  return <AppShell theme={theme} />;
-}
-
-/**
- * Korumalı app-shell gövdesi. Oturum garantili olduktan sonra render edilir;
- * bu sayede `useQuery` (rozet) ve deep-link/push hook'ları yalnız giriş yapmış
- * kullanıcı için koşar (koşullu hook çağrısı yok).
- */
-function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
   const trpc = useTRPC();
 
-  // Push'a dokunma + universal/şema link → içerik ekranına yönlendirme (7L).
+  // Top-level hook'lar — kuralı gereği koşulsuz çağrılır. Oturum yokken
+  // navigate çağrıları authenticated route'a yönlendirse bile auth-redirect
+  // zinciri yakalar; query `enabled` ile inert kalır.
   useNotificationDeepLink();
-  // Foreground'da gelen push → açık board/kart ekranı + rozet tazeleme (DEM-219).
   useForegroundNotificationRefresh();
 
   // Okunmamış bildirim rozeti. Hata/0 durumunda rozet gizlenir; bildirim
   // merkezi `markRead`/`markAllRead` mutation'ları bu sorguyu invalidate eder.
-  const unreadQuery = useQuery(trpc.notifications.unreadCount.queryOptions());
+  const unreadQuery = useQuery({
+    ...trpc.notifications.unreadCount.queryOptions(),
+    enabled: !!session,
+  });
   const unreadCount = unreadQuery.data?.count ?? 0;
+
+  if (isPending) return <LoadingScreen />;
+  if (!session) return <Redirect href="/sign-in" />;
 
   return (
     <View className="flex-1">
@@ -84,65 +83,73 @@ function AppShell({ theme }: { theme: ReturnType<typeof themeFor> }) {
       {/* Hızlı-not taslağı: anasayfa dock'u ↔ merkezi "+" butonu paylaşımı
           (DEM-230). `<Tabs>`'i sarar — hem tab bar butonu hem ekranlar erişir. */}
       <QuickNoteDraftProvider>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: theme.primary,
-          tabBarInactiveTintColor: theme.mutedForeground,
-          tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
-          // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
-          tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
-          // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
-          // anasayfa `QuickNoteDock` tab bar tepesinde oturduğundan klavye dock'u
-          // örtüyordu. Hem iOS hem Android'de klavye fokus'unda tab bar kalkar →
-          // dock'un `KeyboardAvoidingView`'ı doğrudan klavyenin üstüne çıkar.
-          tabBarHideOnKeyboard: true,
-        }}
-      >
-        <Tabs.Screen
-          name="(boards)"
-          options={{
-            title: strings.tabs.boards,
-            tabBarIcon: ({ color, size }) => <Icon name="trello" color={color} size={size} />,
+        <Tabs
+          // Defans-1: file-scope `unstable_settings.initialRouteName` (yukarıda).
+          // Defans-2: `<Tabs>` prop'u — React Navigation seviyesinde initial tab.
+          // Defans-3: `backBehavior="initialRoute"` — Android back tuşu + bazı
+          // sürümlerde cold-start tab seçimi üzerinde etkili.
+          initialRouteName="(boards)"
+          backBehavior="initialRoute"
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: theme.primary,
+            tabBarInactiveTintColor: theme.mutedForeground,
+            tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
+            // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
+            tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
+            // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
+            // anasayfa `QuickNoteDock` tab bar tepesinde oturduğundan klavye dock'u
+            // örtüyordu. Hem iOS hem Android'de klavye fokus'unda tab bar kalkar →
+            // dock'un kendi keyboard listener'ı dock'u doğrudan klavyenin üstüne
+            // çıkar; send butonu dock-içinde olduğundan klavye accessory gibi
+            // erişilebilir kalır (DEM-236 2. tur).
+            tabBarHideOnKeyboard: true,
           }}
-        />
-        <Tabs.Screen
-          name="search"
-          options={{
-            title: strings.tabs.search,
-            tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
-          }}
-        />
-        {/*
-          Merkezi "Ekle" — gezinme sekmesi değil, yükseltilmiş aksiyon butonu
-          (DEM-203). `tabBarButton` `CreateTabButton`'a verilir; o `onPress`'i
-          intercept edip Hızlı Notlar'a yönlendirir, `onLongPress`'te oluşturma
-          menüsünü açar. `create` ekranı asla render edilmez.
-        */}
-        <Tabs.Screen
-          name="create"
-          options={{
-            title: strings.create.buttonLabel,
-            tabBarButton: () => <CreateTabButton />,
-          }}
-        />
-        <Tabs.Screen
-          name="(notifications)"
-          options={{
-            title: strings.tabs.notifications,
-            tabBarIcon: ({ color, size }) => <Icon name="bell" color={color} size={size} />,
-            // Okunmamış sayısı rozeti — 0/undefined ise rozet hiç çizilmez.
-            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          }}
-        />
-        <Tabs.Screen
-          name="(account)"
-          options={{
-            title: strings.tabs.account,
-            tabBarIcon: ({ color, size }) => <Icon name="user" color={color} size={size} />,
-          }}
-        />
-      </Tabs>
+        >
+          <Tabs.Screen
+            name="(boards)"
+            options={{
+              title: strings.tabs.boards,
+              tabBarIcon: ({ color, size }) => <Icon name="trello" color={color} size={size} />,
+            }}
+          />
+          <Tabs.Screen
+            name="search"
+            options={{
+              title: strings.tabs.search,
+              tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
+            }}
+          />
+          {/*
+            Merkezi "Ekle" — gezinme sekmesi değil, yükseltilmiş aksiyon butonu
+            (DEM-203). `tabBarButton` `CreateTabButton`'a verilir; o `onPress`'i
+            intercept edip Hızlı Notlar'a yönlendirir, `onLongPress`'te oluşturma
+            menüsünü açar. `create` ekranı asla render edilmez.
+          */}
+          <Tabs.Screen
+            name="create"
+            options={{
+              title: strings.create.buttonLabel,
+              tabBarButton: () => <CreateTabButton />,
+            }}
+          />
+          <Tabs.Screen
+            name="(notifications)"
+            options={{
+              title: strings.tabs.notifications,
+              tabBarIcon: ({ color, size }) => <Icon name="bell" color={color} size={size} />,
+              // Okunmamış sayısı rozeti — 0/undefined ise rozet hiç çizilmez.
+              tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+            }}
+          />
+          <Tabs.Screen
+            name="(account)"
+            options={{
+              title: strings.tabs.account,
+              tabBarIcon: ({ color, size }) => <Icon name="user" color={color} size={size} />,
+            }}
+          />
+        </Tabs>
       </QuickNoteDraftProvider>
     </View>
   );

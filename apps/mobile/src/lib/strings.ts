@@ -47,6 +47,8 @@ export const strings = {
     // Hızlı-ekleme composer'ı.
     addPlaceholder: 'Hızlı bir not yaz…',
     addSubmit: 'Ekle',
+    // Dock-içi send butonu sonrası kısa görsel onay (DEM-236 2. tur, 2026-05-21).
+    saved: 'Kaydedildi',
     // Boş durum.
     emptyTitle: 'Henüz not yok',
     emptyDescription: 'Aklına geleni hızlıca buraya yaz, sonra bir karta dönüştür.',
