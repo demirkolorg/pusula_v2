@@ -16,7 +16,7 @@ parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/10-platform|10 — Platform]]'
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
-updated: 2026-05-19
+updated: 2026-05-21
 ---
 
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
@@ -475,6 +475,7 @@ Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür (
 - Apple Developer Program üyeliği **aktif** (Individual / Sole Proprietor) — "Welcome to the Apple Developer Program" e-postası geldi, App Store Connect erişimi açık.
 - Expo hesabı + EAS CLI: `pnpm dlx eas-cli@latest` (ya da global `eas-cli`).
 - `app.config.ts` `extra.eas.projectId` bağlı (✓ 2026-05-18) · 1024×1024 opak `assets/icon.png` (**alpha kanalsız** — `Format24bppRgb`; safe-zone + renk kuralları → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.9; ✓ DEM-191, DEM-235) · `eas.json` production profili `EXPO_PUBLIC_API_URL=https://api.pusulaportal.com` (✓ DEM-191) · `version: '1.0.0'` + `ITSAppUsesNonExemptEncryption=false` (✓ DEM-191).
+- **Sentry mobil** — `@sentry/react-native` plugin aktif + EAS env'leri yerinde (`SENTRY_AUTH_TOKEN` Secret · `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_URL` · `EXPO_PUBLIC_SENTRY_DSN`); production profilinde `SENTRY_DISABLE_AUTO_UPLOAD` kaldırıldı, symbol upload açık (✓ [DEM-234](https://linear.app/demirkol/issue/DEM-234), 2026-05-21). Sentry-plugin'li ilk production build'de doğrulanmalı: `sentry-cli` "Upload Debug Symbols" build phase kraşsız + Sentry'ye test crash event + source map symbolicate. Sorun çıkarsa DEM-234 reopen.
 
 ### 12.14.2 Adımlar
 
