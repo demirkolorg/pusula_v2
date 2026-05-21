@@ -20,6 +20,7 @@
       "node": "22.13.0",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://bec168f366ba4b309fcc9200462d1b3a@o4511399874920448.ingest.de.sentry.io/4511427714744400",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
@@ -29,7 +30,10 @@
       "node": "22.13.0",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.pusulaportal.com",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://bec168f366ba4b309fcc9200462d1b3a@o4511399874920448.ingest.de.sentry.io/4511427714744400",
+        "SENTRY_ORG": "pusula-lx",
+        "SENTRY_PROJECT": "pusula-mobile",
+        "SENTRY_URL": "https://de.sentry.io"
       }
     }
   },
