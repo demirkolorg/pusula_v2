@@ -480,7 +480,7 @@ Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür (
 
 1. **EAS hesap girişi** — `eas login` (interaktif, Expo kimliği), `eas whoami` ile doğrula. `projectId` config'te zaten bağlı; ayrı `eas init` gerekmez.
 2. **İlk dev build** — `eas build --profile development --platform ios`. EAS, Apple ile iletişime geçip imzalama sertifikası + provisioning profile üretir (interaktif Apple ID girişi); bu noktada **Apple Team ID** kesinleşir. Build cihaza kurulduktan sonra **7L doğrulaması**: gerçek-cihaz push teslimi (telefona bildirim düşüyor mu) + deep link açılışı.
-3. **Universal link doğrulama dosyası** — Team ID belli olunca `apps/web` altında `.well-known/apple-app-site-association` (uzantısız JSON: `appID = <TeamID>.com.pusula.app`, `paths: ["*"]` — tüm yollar, kullanıcı kararı 2026-05-18). `https://pusulaportal.com/.well-known/apple-app-site-association` `application/json` ile, yönlendirmesiz erişilebilir olmalı. (`assetlinks.json` Android — ertelendi.)
+3. **Universal link doğrulama dosyası (AASA)** — `apps/web/src/app/.well-known/apple-app-site-association/route.ts` Next.js route handler'ı (statik dosya değil — `NextResponse.json` `Content-Type: application/json` garantiler; `force-static`). `appID = W86CKUEB82.com.pusula.app` (Team ID 2026-05-20 EAS build'inde kesinleşti), `paths: ["*"]` — tüm yollar (kullanıcı kararı 2026-05-18). Web deploy sonrası `https://pusulaportal.com/.well-known/apple-app-site-association` 200 + `application/json` + yönlendirmesiz erişilebilir olmalı. (`assetlinks.json` Android — ertelendi.) — `apps/web` commit'lendi 2026-05-21.
 4. **Production build** — `eas build --profile production --platform ios`. `appVersionSource: remote` + `autoIncrement: true` → build numarası EAS'te otomatik artar.
 5. **App Store Connect kaydı** — [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Apps → yeni app: ad "Pusula", bundle id `com.pusula.app`, birincil dil Türkçe. Metadata (alt başlık / açıklama / anahtar kelimeler — App Store metin asset'leri) · kategori Productivity · yaş derecelendirme · ekran görüntüleri (zorunlu iPhone + iPad boyutları — `supportsTablet: true`) · **App Privacy** veri-toplama beyanı · gizlilik politikası URL'i (zorunlu).
 6. **Gönderim** — `eas submit --platform ios`. `eas.json` `submit.production` boş → interaktif Apple kimliği sorar; tekrar edilebilirlik için App Store Connect API key (`ascApiKeyPath` + key id) `eas.json`'a yazılabilir.
@@ -496,12 +496,15 @@ Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür (
 | - | ---- | ----- |
 | 0 | Apple Developer üyeliği aktif | ⏳ kimlik incelemesi (≤2 iş günü) |
 | 0 | Build-öncesi config sertleştirme (DEM-191) | ✅ commit `e70acb7` |
-| 1 | `eas login` | ⬜ |
-| 2 | İlk dev build + 7L doğrulama | ⬜ |
-| 3 | `apple-app-site-association` | ⬜ |
-| 4 | Production build | ⬜ |
-| 5 | App Store Connect kaydı + metadata + App Privacy | ⬜ |
-| 6 | `eas submit` | ⬜ |
+| 1 | `eas login` | ✅ 2026-05-20 |
+| 2 | İlk dev build + 7L doğrulama (push + deep link) | ✅ 2026-05-20 |
+| 3 | `apple-app-site-association` route handler | ✅ kod commit'li — web deploy bekliyor |
+| 4 | Production build (build 5 — 7 bug fix dahil) | ✅ 2026-05-21 |
+| 5 | App Store Connect kaydı (App ID `6771500786`) | ✅ EAS otomatik oluşturdu |
+| 6 | `eas submit` → TestFlight | ✅ build 5 TestFlight'ta, 7 bug doğrulandı |
+| 7 | Web redeploy (`/gizlilik` + 404 + AASA canlı) | ⬜ |
+| 8 | App Store Connect metadata + ekran görüntüleri + App Privacy | ⬜ |
+| 9 | Submit for Review | ⬜ |
 | 7 | App Review + yayın | ⬜ |
 
 ### 12.14.5 App Store metin asset'leri (taslak)
