@@ -495,7 +495,7 @@ Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür (
 
 | # | Adım | Durum |
 | - | ---- | ----- |
-| 0 | Apple Developer üyeliği aktif | ⏳ kimlik incelemesi (≤2 iş günü) |
+| 0 | Apple Developer üyeliği aktif | ✅ aktif (adım 4–6 — production build + TestFlight — bunu doğruluyor) |
 | 0 | Build-öncesi config sertleştirme (DEM-191) | ✅ commit `e70acb7` |
 | 1 | `eas login` | ✅ 2026-05-20 |
 | 2 | İlk dev build + 7L doğrulama (push + deep link) | ✅ 2026-05-20 |
@@ -506,7 +506,7 @@ Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür (
 | 7 | Web redeploy (`/gizlilik` + 404 + AASA canlı) | ⬜ |
 | 8 | App Store Connect metadata + ekran görüntüleri + App Privacy | ⬜ |
 | 9 | Submit for Review | ⬜ |
-| 7 | App Review + yayın | ⬜ |
+| 10 | App Review + yayın | ⬜ |
 
 ### 12.14.5 App Store metin asset'leri (taslak)
 
