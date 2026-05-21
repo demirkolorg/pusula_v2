@@ -106,6 +106,13 @@ export default function AppLayout() {
             tabBarHideOnKeyboard: true,
           }}
         >
+          {/*
+            Gizli index route'u (DEM-241 4. tur kök-neden fix'i — 2026-05-21).
+            `app/(app)/index.tsx` cold-start `/` yolunu otoriter olarak yakalar
+            ve `(boards)`'a redirect eder. `href={null}` tab bar'da göstermez —
+            yalnız yönlendirme amaçlı kayıtlı route.
+          */}
+          <Tabs.Screen name="index" options={{ href: null }} />
           <Tabs.Screen
             name="(boards)"
             options={{
