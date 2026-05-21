@@ -237,7 +237,7 @@ function CommentRow({
         )}
 
         {!deleted && canEdit && !editing && (
-          <div className="flex items-center gap-0.5 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
+          <div className="flex items-center gap-0.5 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 touch:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -246,7 +246,8 @@ function CommentRow({
                   size="icon"
                   aria-label={copy.edit}
                   disabled={pending}
-                  className="size-7"
+                  // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                  className="size-7 touch:size-11"
                   onClick={() => {
                     setDraft(comment.body);
                     setEditing(true);
@@ -271,7 +272,8 @@ function CommentRow({
                     variant="ghost"
                     size="icon"
                     aria-label={copy.delete}
-                    className="text-muted-foreground hover:text-destructive size-7"
+                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                    className="text-muted-foreground hover:text-destructive size-7 touch:size-11"
                     onClick={() => setDeleteOpen(true)}
                   >
                     <Trash2Icon className="size-3.5" aria-hidden />

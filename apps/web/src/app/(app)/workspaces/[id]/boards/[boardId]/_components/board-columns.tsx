@@ -185,7 +185,7 @@ export function BoardColumns({
         ) : (
           <div
             ref={dnd.boardStripRef}
-            className="pusula-scrollbar flex min-h-0 flex-1 items-start gap-3 overflow-x-auto overflow-y-hidden pb-4"
+            className="pusula-scrollbar flex min-h-0 flex-1 items-start gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-4"
           >
             {visibleLists.map((list) => (
               <Fragment key={list.id}>

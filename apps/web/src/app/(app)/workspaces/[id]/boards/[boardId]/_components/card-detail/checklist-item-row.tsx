@@ -125,7 +125,7 @@ export function ChecklistItemRow({
             />
           )}
           {canEdit && (
-            <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100">
+            <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -134,7 +134,8 @@ export function ChecklistItemRow({
                     size="icon"
                     aria-label={copy.itemEdit}
                     disabled={pending}
-                    className="size-7"
+                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                    className="size-7 touch:size-11"
                     onClick={() => {
                       setValue(item.content);
                       setEditing(true);
@@ -153,7 +154,8 @@ export function ChecklistItemRow({
                     size="icon"
                     aria-label={copy.itemDelete}
                     disabled={pending}
-                    className="text-muted-foreground hover:text-destructive size-7"
+                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                    className="text-muted-foreground hover:text-destructive size-7 touch:size-11"
                     onClick={onDelete}
                   >
                     <Trash2Icon className="size-3.5" aria-hidden />

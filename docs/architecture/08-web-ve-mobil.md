@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-20
+updated: 2026-05-21
 ---
 
 # 08 — Web ve Mobil
@@ -323,6 +323,28 @@ Kart detay modalı sağ panelinde mevcut `Tabs` (Yorumlar / Aktivite / Ekler / T
 - **Test:** RTL — dropzone keyboard activate + dosya seç → initiate → upload → commit happy path (mock fetch + mock trpc); MIME reject + size reject branch'ları; açıklama inline edit; silme onay flow'u; cover picker image seçimi `card.update` çağırır. Playwright e2e (10E): admin upload + indir + sil; viewer upload disabled + indir OK; uploader silebilir + non-uploader/non-admin silemez; iki kullanıcı realtime "Ekler N" rozeti senkron.
 
 > **Kapsam dışı (Faz 11D):** Drag-drop kart üstüne dosya bırakma (sadece dropzone), çoklu eşzamanlı upload, image thumbnail server-side generation, EXIF temizleme, antivirus tarama, mobil "Ekler" sekmesi (Faz 7+), misafir attachment görüntüleme (Faz 9 paylaşım linkinde gizli — faz planı satır 187 uyumu).
+
+---
+
+### 8.1.15 Tablet / dokunmatik uyumluluk (yatay) — [DEM-248](https://linear.app/demirkol/issue/DEM-248)
+
+Web uygulaması birincil olarak masaüstü/fare için tasarlanmıştır; bu bölüm uygulamanın tablette (özellikle **yatay / landscape**) **dokunmatik girdiyle bozulmadan** çalışması için gereken kuralları sabitler. Kapsam **minimum**'dur: layout yeniden düzenlenmez, yalnızca dokunmatiği engelleyen noktalar giderilir. Karar gerekçeleri ve alternatifler → iş kaydı DEM-248.
+
+**Temel kısıt — neden sürükleme yok:** Pragmatic Drag and Drop `element/adapter` tarayıcının HTML5 native drag API'sini kullanır; bu API dokunmatik ekranlarda güvenilir çalışmaz (Atlassian'ın bilinen kısıtı — Discussion #93 / Issue #204) ve PdND'nin resmi dokunmatik adapter'ı yoktur. Bu yüzden dokunmatikte kart/liste **sürüklenmez**; bunun yerine **tap-to-move** kullanılır. Masaüstü sürükleme PdND ile aynen sürer — [`05-board-mekanigi.md`](05-board-mekanigi.md) §5.1 "yalnızca Pragmatic Drag and Drop" kuralı korunur, yeni DnD kütüphanesi eklenmez.
+
+**Dokunmatik tespiti — `touch` variant:** Tüm dokunmatik-koşullu stiller tek bir Tailwind v4 custom variant'ı arkasındadır: `touch` = `@media (hover: none) and (pointer: coarse)` (`@pusula/ui` `theme.css` `@custom-variant`). Viewport-genişlik breakpoint'i (`md`/`lg`) bu amaçla **kullanılmaz** — ölçüt ekran boyutu değil, girdi tipidir (büyük iPad de yakalanır). Masaüstü fare bu media query'yi tetiklemez → masaüstü kod yolu hiç değişmez. `apps/web/src/app/layout.tsx` Next.js `viewport` export'u tanımlar (`width=device-width, initial-scale=1, viewport-fit=cover`).
+
+**Hover'a gizli aksiyonlar:** `opacity-0 group-hover:*` deseniyle yalnızca hover'da görünen aksiyonlar (kart-ekle butonu, checklist madde düzenle/sil, yorum aksiyonları, activity feed bilgi butonu) dokunmatik cihazda hover olmadığından erişilemez. Kural: bu desenlerin her birine `touch:` variant fallback'i eklenir (dokunmatikte her zaman görünür). Dağınık `max-md:` fallback'leri `touch` variant'a taşınır — ölçüt boyut değil girdi tipidir.
+
+**tap-to-move — sürüklemenin dokunmatik karşılığı:** Kart taşıma, kart aksiyon menüsündeki "Taşı" akışıyla yapılır (hedef liste + konum seçimi). Liste taşıma mevcut kolon ⋮ menüsündeki sol/sağ taşıma aksiyonunu kullanır. Her iki yol da sürükleme ile **aynı** optimistic + rollback + `clientMutationId` mutation hattını kullanır (`board-dnd-position` plan helper'ları + `board-cache` + `card.move` / `list.move`); `use-board-dnd.ts` bu imperatif metodları (`moveCardToListEnd`, `moveColumnByOne`) zaten taşır. PdND sürükleme kodu değişmez.
+
+**Kart aksiyon menüsü — long-press:** Kart aksiyonları (taşı, etiket, üye, son tarih, arşivle) masaüstünde sağ-tık `ContextMenu`'sünde sunulur; dokunmatikte aynı menü **long-press** ile açılır (Radix `ContextMenu`'nün pointer-tabanlı long-press desteği — gerçek cihazda doğrulanır). iOS Safari'de long-press'in metin-seçimi / `callout` davranışıyla çakışmaması için kart gövdesinde `touch` variant arkasında `-webkit-touch-callout: none` + `user-select: none` uygulanır.
+
+**Dokunma hedefleri & scroll:** tap-to-move ve menü tetikleyicileri dahil kritik etkileşim hedefleri dokunmatikte ≥44×44px olur. Board yatay scroll ve liste içi dikey scroll native dokunmatik kaydırmayla çalışır; `overscroll-behavior` ile cilalanır.
+
+**Bozulmama garantisi:** Tüm değişiklikler `touch` variant / media query arkasındadır → masaüstü render yolu değişmez. `use-board-dnd.ts` PdND sürükleme kodu olduğu gibi kalır. Mevcut Playwright drag-drop testleri (aynı-liste, listeler-arası, rollback) değişmeden geçmelidir — regresyon kanıtı budur; tap-to-move için ayrı test eklenir.
+
+> **Kapsam dışı (minimum kapsam):** Dokunmatik parmakla sürükleme, tablete özel layout (kolon/modal genişliği yeniden düzeni), dikey (portrait) optimizasyonu, mobil web hedefi (mobil = `apps/mobile`, §8.2). Kart detay modalı 2-kolon eşiği bu iş kapsamında değiştirilmez.
 
 ---
 

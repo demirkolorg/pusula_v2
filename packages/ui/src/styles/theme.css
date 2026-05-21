@@ -7,6 +7,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * `touch` variant — coarse pointer + no hover (tablet / phone). Used by the
+ * tablet touch-compat work (DEM-248, docs/architecture/08-web-ve-mobil.md
+ * §8.1.15): hover-only affordances get a `touch:` fallback so they stay
+ * reachable without a mouse. The criterion is *input type*, not screen width
+ * — never a `md`/`lg` breakpoint — so large iPads are caught and a desktop
+ * mouse never triggers it (its render path is left untouched).
+ */
+@custom-variant touch (@media (hover: none) and (pointer: coarse));
+
 :root {
   --radius: 0.5rem;
 

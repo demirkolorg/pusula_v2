@@ -378,7 +378,8 @@ export function ListColumn({
             type="button"
             variant="ghost"
             size="icon"
-            className={cn('size-7 shrink-0', className)}
+            // DEM-248 — dokunmatikte ≥44px dokunma hedefi (liste daralt/genişlet).
+            className={cn('size-7 shrink-0 touch:size-11', className)}
             aria-label={label}
             aria-expanded={!collapsed}
             aria-controls={cardsAreaId}
@@ -544,7 +545,8 @@ export function ListColumn({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-7 shrink-0"
+                  // DEM-248 — dokunmatikte ≥44px dokunma hedefi (kolon menü tetiği).
+                  className="size-7 shrink-0 touch:size-11"
                   aria-label={columnCopy.more}
                 >
                   <MoreHorizontalIcon className="size-4" />
@@ -623,7 +625,7 @@ export function ListColumn({
         <div
           id={cardsAreaId}
           ref={cardsAreaRef}
-          className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-2"
+          className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 pt-1 pb-2"
         >
           {cards.length === 0 && !listEditable ? (
             <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
@@ -686,6 +688,8 @@ export function ListColumn({
               onClick={() => setAddingCard(true)}
               className={cn(
                 'text-muted-foreground pointer-events-none h-8 w-full justify-start opacity-0 hover:bg-[color:var(--board-list-bg-hover)] hover:text-card-foreground group-hover/list:pointer-events-auto group-hover/list:opacity-100 group-focus-within/list:pointer-events-auto group-focus-within/list:opacity-100',
+                // DEM-248 — dokunmatikte hover yok; "kart ekle" her zaman görünür/dokunulur.
+                'touch:pointer-events-auto touch:opacity-100',
               )}
             >
               <PlusIcon className="size-4" />

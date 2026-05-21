@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Poppins } from 'next/font/google';
 import { Toaster } from '@pusula/ui';
@@ -54,6 +54,15 @@ export const metadata: Metadata = {
     title: 'Pusula — Görev ve Pano Yönetimi',
     description: siteDescription,
   },
+};
+
+// Tablet/dokunmatik uyumluluğu (DEM-248) — explicit viewport: ölçeklendirme
+// device-width'e sabitlenir, `viewportFit: 'cover'` notch/safe-area'lı tablet
+// tarayıcılarında içerik kenara kadar uzanır. Masaüstü davranışını etkilemez.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

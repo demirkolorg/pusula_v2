@@ -522,6 +522,10 @@ function CardItemInner({
         'relative cursor-pointer rounded-md p-2 text-sm outline-none',
         'transition-shadow',
         'focus-visible:ring-2 focus-visible:ring-ring/60',
+        // DEM-248 — dokunmatikte kart context menüsü long-press ile açılır;
+        // iOS Safari'nin long-press metin-seçimi / callout davranışı bununla
+        // çakışmasın diye bastırılır (yalnızca dokunmatik; masaüstü değişmez).
+        canEdit && 'touch:select-none touch:[-webkit-touch-callout:none]',
         !dragging &&
           'group group/kart bg-[color:var(--board-card-bg)] shadow-sm hover:shadow-card-hover',
         !dragging &&
