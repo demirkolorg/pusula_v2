@@ -139,6 +139,186 @@ export const strings = {
       forgotPassword: 'Unuttum',
       resetDone: 'Parolan güncellendi. Yeni parolanla giriş yapabilirsin.',
     },
+    // Çok modlu cam kart — TEK kartın içinde dört auth modu (giriş, kayıt,
+    // şifremi unuttum, parola sıfırlama) sayfa değişmeden yumuşakça dönüşür.
+    // Mod URL query param ile taşınır (`?mode=…`); kart başlığı/açıklaması
+    // moda göre değişir, geçişler `motion` `AnimatePresence` ile akar.
+    // Mod-geçiş linkleri kart içindedir (`router` ile URL günceller).
+    card: {
+      // Sign-in modunda parola etiketinin yanındaki "şifremi unuttum" linki.
+      forgotPassword: 'Şifreni mi unuttun?',
+      // Sign-in modunda formun altındaki "kayıt ol" satırı.
+      noAccount: 'Hesabın yok mu?',
+      goToSignUp: 'Kayıt ol',
+      // Sign-up modunda formun altındaki "giriş yap" satırı.
+      hasAccount: 'Zaten hesabın var mı?',
+      goToSignIn: 'Giriş yap',
+      // Forgot / reset modlarından giriş moduna dönüş linki.
+      backToSignIn: 'Giriş ekranına dön',
+      // Forgot modu başarı durumunda "yeniden gönder" eylemi.
+      resendLink: 'Yeniden gönder',
+      // Reset modu eksik/geçersiz token durumunda "yeni bağlantı iste" linki.
+      requestNewLink: 'Yeni bağlantı iste',
+    },
+    // Landing-style sign-in ekranı (/sign-in — aurora hero + cam kart).
+    // Mevcut signIn / brandPanel metinlerini yeniden kullanır; yalnızca bu
+    // ekrana özel navbar + hero metinleri burada tanımlanır.
+    landing: {
+      goToSignUpNav: 'Kayıt ol',
+      heroEyebrow: 'Pusula ile tanışın',
+      // Hero `<h1>` — sabit ön/son metin + dönen kelime listesi. Görünen
+      // başlık kelimeler arası geçiş yapar; ekran okuyucuya `heroHeadlineFull`
+      // ile sabit, kararlı tam metin sunulur (bkz. page.tsx a11y notu).
+      heroHeadline: {
+        prefix: 'Ekibinizin',
+        rotatingWords: ['işleri', 'planları', 'kartları', 'panoları'],
+        suffix: 'tek pusulada.',
+      },
+      // `<h1>` için sabit erişilebilir ad — dönen kelime ne olursa olsun
+      // ekran okuyucunun duyduğu metin değişmez (test bu metinle eşleşir).
+      heroHeadlineFull: 'Ekibinizin işleri tek pusulada.',
+      heroDescription:
+        'Workspace, pano ve kartları akıcı sürükle-bırak deneyimiyle yönetin. Giriş yapın, kaldığınız yerden devam edin.',
+      // Hero altında render edilen dekoratif (aria-hidden) kanban önizlemesi.
+      // Ürünü temsil eden sahte ama gerçekçi örnek içerik — entity-bağımsız,
+      // gerçek pano verisi DEĞİL; yalnızca giriş ekranı görseli içindir.
+      boardMockup: {
+        columns: {
+          todo: {
+            title: 'Yapılacaklar',
+            cards: {
+              first: 'Çeyrek planını ekiple paylaş',
+              second: 'Yeni başvuruları değerlendir',
+            },
+          },
+          inProgress: {
+            title: 'Devam Edenler',
+            cards: {
+              first: 'Açılış sayfası tasarımını hazırla',
+              second: 'Müşteri geri bildirimlerini derle',
+              third: 'Haftalık rapor taslağı',
+            },
+          },
+          done: {
+            title: 'Tamamlananlar',
+            cards: {
+              first: 'Sprint toplantısı notlarını yaz',
+              second: 'Bütçe onayını al',
+            },
+          },
+        },
+      },
+      // Board mockup çevresinde yüzen dekoratif (aria-hidden) mini aktivite
+      // kartları — ürünün canlılığını anlatan sahte örnek olaylar.
+      floatingActivity: {
+        cardMoved: 'kartı "Tamamlananlar"a taşıdı',
+        newComment: 'yeni bir yorum ekledi',
+        dueSoon: 'son tarih yaklaşıyor',
+        timeMovedAgo: '2 dk önce',
+        timeCommentAgo: '5 dk önce',
+        timeDueAgo: 'Bugün',
+      },
+      // Hero altındaki gerçek-içerik özellik vurguları (dekoratif değil).
+      features: [
+        {
+          title: 'Workspace bazlı yetki',
+          text: 'Her ekip için rol ve erişim düzeni net, server-side denetimli.',
+        },
+        {
+          title: 'Akıcı kanban panoları',
+          text: 'Sürükle-bırak deneyimiyle kartları saniyeler içinde düzenleyin.',
+        },
+        {
+          title: 'Bildirim ve aktivite',
+          text: 'Her değişiklik aktivite geçmişinde; önemli olaylar bildirimle gelir.',
+        },
+      ],
+      // Cam kartın altındaki sosyal-proof şeridi — sahte/örnek metin.
+      socialProof: {
+        text: 'Yüzlerce ekip işlerini Pusula ile yönetiyor.',
+      },
+      // Footer'dan önce render edilen istatistik/metrik şeridi. Sayılar
+      // görünürlüğe gelince count-up animasyonuyla artar — değerler sahte/örnek
+      // (gerçek metrik değil), yalnızca giriş ekranı vitrini içindir.
+      stats: {
+        // Ekran okuyucu için şeridi tanıtan görünmez başlık (sr-only h2).
+        srHeading: 'Pusula rakamlarla',
+        items: [
+          { value: 12000, suffix: '+', label: 'Aktif kullanıcı' },
+          { value: 480000, suffix: '+', label: 'Oluşturulan kart' },
+          { value: 99, suffix: '%', label: 'Çalışma süresi' },
+          { value: 35, suffix: '+', label: 'Ülke' },
+        ],
+      },
+      // Hero altındaki "ekipler güveniyor" logo bulutu. Marka adları
+      // jenerik/sahte — gerçek şirket değil; logolar dekoratif "wordmark"
+      // görünümünde, başlık ise gerçek içeriktir.
+      logoCloud: {
+        heading: 'Büyüyen ekipler Pusula’ya güveniyor',
+        brands: [
+          'Akıntı',
+          'Kuzey Ofis',
+          'Pusula Lab',
+          'Yelken',
+          'Mavi Liman',
+          'Ada Yazılım',
+        ],
+      },
+      // Bildirim sistemi vitrini — Pusula'nın outbox tabanlı bildirim
+      // altyapısını (anlık in-app, mobil push, e-posta özeti, aktivite
+      // geçmişi) görsel olarak anlatan tam genişlik showcase bölümü.
+      // Başlık + açıklama gerçek içeriktir; panel ve push mockup'ı
+      // dekoratiftir (aria-hidden) — bildirim metinleri sahte/örnektir.
+      notificationShowcase: {
+        eyebrow: 'Bildirim sistemi',
+        heading: 'Hiçbir değişikliği kaçırmayın',
+        description:
+          'Pusula sizi panodaki her gelişmeden anında haberdar eder: uygulama içi bildirim, mobil push ve günlük e-posta özeti — hepsi aynı aktivite geçmişinden beslenir.',
+        // Bildirim merkezi paneli mockup'ı (aria-hidden, dekoratif).
+        panel: {
+          title: 'Bildirimler',
+          unreadBadge: '3 yeni',
+          items: [
+            {
+              type: 'mention',
+              text: 'Ada Yılmaz bir kartta sizden bahsetti',
+              time: 'şimdi',
+              unread: true,
+            },
+            {
+              type: 'comment',
+              text: '“Açılış sayfası” kartına yeni yorum geldi',
+              time: '8 dk önce',
+              unread: true,
+            },
+            {
+              type: 'assigned',
+              text: 'Kerem Demir sizi bir karta ekledi',
+              time: '24 dk önce',
+              unread: true,
+            },
+            {
+              type: 'due',
+              text: '“Haftalık rapor” için son tarih yarın',
+              time: '1 sa önce',
+              unread: false,
+            },
+          ],
+        },
+        // Telefon push bildirimi kabarcığı (aria-hidden, dekoratif).
+        push: {
+          appName: 'Pusula',
+          title: 'Yeni atama',
+          body: 'Bir karta eklendiniz: “Açılış sayfası tasarımı”',
+          time: 'şimdi',
+        },
+      },
+      // Sayfa altı landing footer'ı.
+      footer: {
+        privacy: 'Gizlilik',
+        signUp: 'Kayıt ol',
+      },
+    },
     signUp: {
       title: 'Hesap oluşturun',
       description: 'Yeni bir Pusula hesabı oluşturun ve ekip panolarınızı yönetmeye başlayın.',

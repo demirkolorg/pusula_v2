@@ -61,6 +61,26 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = ResizeObserverShim as unknown as typeof ResizeObserver;
 }
 
+// `motion`'ın `useInView` hook'u (ör. `/sign-in` istatistik şeridi) viewport
+// kesişimini `IntersectionObserver` ile izler — jsdom bunu sağlamaz. No-op
+// shim mount'u geçirir; testler kesişimi tetiklemediğinden count-up animasyonu
+// görsel kalır, render edilen son değer/etiketler yine doğrulanabilir.
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  class IntersectionObserverShim {
+    readonly root = null;
+    readonly rootMargin = '';
+    readonly thresholds: ReadonlyArray<number> = [];
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  globalThis.IntersectionObserver =
+    IntersectionObserverShim as unknown as typeof IntersectionObserver;
+}
+
 // --- jsdom polyfills for ProseMirror / Tiptap ------------------------------
 // ProseMirror measures DOM rects when computing selections/coordinates, which
 // jsdom stubs out (or omits entirely). These zero-rect shims are enough to let

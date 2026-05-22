@@ -5,6 +5,12 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { strings } from '@/lib/strings';
 import { AuthBrandPanel } from './auth-brand-panel';
 
+/**
+ * İki kolonlu auth kabuğu — solda içerik (header + ana alan + footer), sağda
+ * marka paneli. Eskiden `(auth)` route group'unun ortak layout'uydu; sign-in /
+ * sign-up / forgot / reset akışları tek çok modlu `/sign-in` ekranına taşındıktan
+ * sonra yalnızca `/verify-email` sayfası tarafından kullanılır.
+ */
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="bg-background grid min-h-svh lg:grid-cols-2">

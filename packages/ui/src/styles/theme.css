@@ -199,6 +199,16 @@
   --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
   --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
 
+  /* Aurora accent — `/sign-in` hero arka planı blob renkleri. */
+  --aurora-accent-1: oklch(0.7 0.16 320);
+  --aurora-accent-2: oklch(0.7 0.16 200);
+  /* `/sign-in` aurora arka planı dekoratif katmanları. `--aurora-grid`
+     ince nokta/grid dokusunun rengi (border türevi, çok düşük opaklık);
+     `--aurora-glow` cam kartın arkasındaki yumuşak radial parıltı (primary
+     türevi). Light/dark'ta otomatik uyum sağlar — inline literal yerine. */
+  --aurora-grid: color-mix(in oklch, var(--border) 60%, transparent);
+  --aurora-glow: color-mix(in oklch, var(--primary) 26%, transparent);
+
   /* Elevation */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 1px 1px oklch(0 0 0 / 0.04);
   --shadow-card-hover: 0 2px 4px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.06);
@@ -387,6 +397,12 @@
   --bg-gradient-trello-earth: linear-gradient(145deg, #1f845a 2%, #60c6d2 100%);
   --bg-gradient-trello-alien: linear-gradient(145deg, #505f79 2%, #172b4d 100%);
   --bg-gradient-trello-volcano: linear-gradient(145deg, #43290f 2%, #ae2a19 100%);
+
+  --aurora-accent-1: oklch(0.72 0.15 320);
+  --aurora-accent-2: oklch(0.72 0.15 200);
+  /* Dark modda grid dokusu çok hafif aydınlatır, glow biraz daha belirgin. */
+  --aurora-grid: color-mix(in oklch, var(--border) 90%, transparent);
+  --aurora-glow: color-mix(in oklch, var(--primary) 34%, transparent);
 
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.4), 0 1px 1px oklch(0 0 0 / 0.3);
   --shadow-card-hover: 0 2px 6px oklch(0 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.4);

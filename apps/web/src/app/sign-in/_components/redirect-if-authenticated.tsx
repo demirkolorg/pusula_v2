@@ -8,9 +8,9 @@ import { safeRedirectPath } from '@/lib/safe-redirect';
 
 /**
  * Renders nothing. On mount, replaces the current route with the post-auth
- * landing target. Used by the `(auth)` layout once a session is present so
- * there's a single redirect path — no race between the layout and the
- * sign-in/up pages.
+ * landing target. Used by the `/sign-in` page guard once a session is present so
+ * there's a single redirect path — no race between the page guard and the
+ * multi-mode auth card.
  *
  * Resolution order (DEM-126 — 2026-05-15):
  *

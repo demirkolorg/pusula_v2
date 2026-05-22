@@ -15,7 +15,7 @@ import {
 import { AppSpinner } from '@/components/app-spinner';
 import { env } from '@/env';
 import { strings } from '@/lib/strings';
-import { AuthShell } from '../(auth)/_components/auth-shell';
+import { AuthShell } from './_components/auth-shell';
 
 type BuildVerifyEmailUrlParams = {
   apiUrl: string;

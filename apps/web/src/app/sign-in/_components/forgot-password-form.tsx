@@ -14,11 +14,11 @@ type ForgotPasswordFormProps = {
 
 /**
  * Presentational "forgot password" form (just an email). No router / auth-client
- * dependency — the page wrapper wires `authClient.requestPasswordReset` in.
- * Validation uses the shared `@pusula/domain` `forgotPasswordInput` schema so
- * the rules match the server.
+ * dependency — the multi-mode glass card (`sign-in-glass-card.tsx`) wires
+ * `authClient.requestPasswordReset` in. Validation uses the shared
+ * `@pusula/domain` `forgotPasswordInput` schema so the rules match the server.
  *
- * Note: there's intentionally no inline server-error surface here — the page
+ * Note: there's intentionally no inline server-error surface here — the card
  * shows the *same* success state whether or not the email exists (we never
  * reveal whether an address has an account), so a failed request still lands on
  * the "if that address has an account, a link is on its way" message.

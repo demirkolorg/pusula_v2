@@ -29,8 +29,9 @@ type AuthFormProps = {
 
 /**
  * Presentational auth form (sign-in / sign-up). No router / auth-client
- * dependency — the page wrappers wire those in. Validation uses the shared
- * `@pusula/domain` zod schemas so the rules match the server.
+ * dependency — the multi-mode glass card (`sign-in-glass-card.tsx`) wires those
+ * in. Validation uses the shared `@pusula/domain` zod schemas so the rules match
+ * the server.
  */
 export function AuthForm({
   variant,

@@ -17,8 +17,12 @@ const config: NextConfig = {
       // Password reset and email verification carry one-time tokens in `?token=`.
       // Send `Referrer-Policy: no-referrer` so token-bearing URLs never leak via
       // the `Referer` header to any third party the page might talk to.
+      // `/sign-in` is the multi-mode auth screen — its `?mode=reset&token=…`
+      // state carries the password-reset token. The legacy `reset-password` /
+      // `forgot-password` routes are now redirect-only shells (they forward the
+      // token to `/sign-in`) but stay covered as defense-in-depth.
       {
-        source: '/:path(reset-password|forgot-password|verify-email)',
+        source: '/:path(sign-in|reset-password|forgot-password|verify-email)',
         headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
       },
     ];

@@ -18,8 +18,9 @@ type ResetPasswordFormProps = {
 
 /**
  * Presentational "reset password" form (new password + confirm). No router /
- * auth-client dependency — `reset-password/page.tsx` wires `authClient.resetPassword`
- * in and handles the token. Validation uses the shared `@pusula/domain`
+ * auth-client dependency — the multi-mode glass card (`sign-in-glass-card.tsx`)
+ * wires `authClient.resetPassword` in and supplies the token from
+ * `?mode=reset&token=…`. Validation uses the shared `@pusula/domain`
  * `resetPasswordInput` schema (so the password rule matches the server) plus a
  * client-side confirm-match check.
  */
