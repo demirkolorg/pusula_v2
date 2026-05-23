@@ -395,7 +395,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
         presetId: 'board.health',
         title: 'Pano Sağlığı',
         filters: { range: { kind: 'preset', preset: 'last30d' } },
-        microReports: [{ id: 'activity-timeline' }],
+        microReports: [{ microReportId: 'activity-timeline', enabled: true }],
         comparison: { enabled: true, mode: 'previousPeriod' },
         createdBy: userId,
       })
@@ -406,7 +406,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
       .values({
         savedReportId: saved!.id,
         cadence: 'daily',
-        cadenceConfig: { hour: 9, minute: 0 },
+        cadenceConfig: { cadence: 'daily', hour: 9, minute: 0 },
         timezone: 'Europe/Istanbul',
         recipientEmails: ['alice@example.test'],
         nextRunAt: new Date(Date.now() + 24 * 3600 * 1000),
@@ -466,7 +466,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
           scopeKind: 'workspace',
           scopeId: workspaceId,
           presetId: 'workspace.summary',
-          filters: {},
+          filters: { range: { kind: "preset", preset: "last30d" } },
           format: 'pdf',
           triggeredBy: userId,
           triggerKind: 'bogus' as never,
@@ -492,7 +492,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
           scopeKind: 'workspace',
           scopeId: workspaceId,
           presetId: 'workspace.summary',
-          filters: {},
+          filters: { range: { kind: "preset", preset: "last30d" } },
           format: 'pdf',
           triggeredBy: userId,
           triggerKind: kind,
@@ -502,61 +502,34 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
     },
   );
 
-  // Negative-path "DB seviyesinde gerçekten serbest" smoke testleri. Bu testler
-  // 13B'nin **validation katmanını taşımadığını** kodlar: scope_id boş string +
-  // serbest jsonb shape DB-seviyesinde geçer; gerçek doğrulama 13C Zod
-  // schema'sıyla (`@pusula/domain/reports`) + 13D tRPC procedure'larında olacak.
-  // 13C inince bu testler ya silinir ya domain-validation test'lerine taşınır —
-  // o anda DB-level davranışın değişmediğini de doğrularlar.
-  it('accepts an empty scope_id at DB level (validation deferred to 13C)', async () => {
+  // 13C ([DEM-259](https://linear.app/demirkol/issue/DEM-259)) inince
+  // `filters` / `microReports` / `cadenceConfig` / `comparison` jsonb
+  // alanları gerçek `@pusula/domain/reports` tiplerine bağlandı —
+  // önceden burada bulunan "DB seviyesinde serbest jsonb shape kabul edilir"
+  // smoke testleri obsolete oldu (artık compile-time check
+  // `tsc --noEmit` ile yakalanıyor). Domain Zod validation testleri
+  // `packages/domain/src/reports/__tests__/types.test.ts` altında.
+
+  // scope_id polymorphic FK-yok kolonu için DB seviyesinde sadece notNull
+  // kontrolü var; boş string DB tarafında kabul edilir. Gerçek validasyon
+  // 13D tRPC procedure katmanında `idSchema` (`@pusula/domain/schemas/common`)
+  // ile yapılır.
+  it('accepts a (DB-level only) non-empty scope_id', async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const [saved] = await db()
       .insert(savedReports)
       .values({
         workspaceId,
         scopeKind: 'card',
-        scopeId: '', // <-- DB-level only notNull; emptiness Zod'da yakalanacak
+        scopeId: newId('card-edge'),
         presetId: 'card.activity',
         title: 'edge',
-        filters: {},
+        filters: { range: { kind: 'preset', preset: 'last30d' } },
         microReports: [],
         createdBy: userId,
       })
       .returning({ id: savedReports.id, scopeId: savedReports.scopeId });
-    expect(saved?.scopeId).toBe('');
-  });
-
-  it('accepts arbitrary jsonb shapes for filters/cadenceConfig (deferred to 13C Zod)', async () => {
-    const { workspaceId, userId } = await seedWorkspaceAndUser();
-    const [saved] = await db()
-      .insert(savedReports)
-      .values({
-        workspaceId,
-        scopeKind: 'workspace',
-        scopeId: workspaceId,
-        presetId: 'workspace.summary',
-        title: 'shapes',
-        // Gerçek 13C ReportFilters şeklinde DEĞIL — DB jsonb buyuk-küçük kabul eder.
-        filters: { totallyUnvalidatedKey: [1, 2, 3], nested: { deep: true } },
-        microReports: [{ also: 'arbitrary' }],
-        createdBy: userId,
-      })
-      .returning({ id: savedReports.id });
-    expect(saved?.id).toBeTruthy();
-
-    const [schedule] = await db()
-      .insert(reportSchedules)
-      .values({
-        savedReportId: saved!.id,
-        cadence: 'weekly',
-        // Yine: gerçek CadenceConfig şeklinde DEĞIL — DB jsonb serbest.
-        cadenceConfig: { nonsense: true, count: 99 },
-        timezone: 'Europe/Istanbul',
-        nextRunAt: new Date(Date.now() + 3600 * 1000),
-        createdBy: userId,
-      })
-      .returning({ id: reportSchedules.id });
-    expect(schedule?.id).toBeTruthy();
+    expect(saved?.scopeId).toBeTruthy();
   });
 
   it('cascade-deletes saved_reports + renders + assets when workspace is removed', async () => {
@@ -570,7 +543,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
         scopeId: workspaceId,
         presetId: 'workspace.summary',
         title: 'WS Özet',
-        filters: {},
+        filters: { range: { kind: "preset", preset: "last30d" } },
         microReports: [],
         createdBy: userId,
       })
@@ -584,7 +557,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
         scopeKind: 'workspace',
         scopeId: workspaceId,
         presetId: 'workspace.summary',
-        filters: {},
+        filters: { range: { kind: "preset", preset: "last30d" } },
         format: 'pdf',
         triggerKind: 'manual',
         triggeredBy: userId,
@@ -639,7 +612,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
         scopeId: workspaceId,
         presetId: 'workspace.summary',
         title: 'WS',
-        filters: {},
+        filters: { range: { kind: "preset", preset: "last30d" } },
         microReports: [],
         createdBy: userId,
       })
@@ -653,7 +626,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
         scopeKind: 'workspace',
         scopeId: workspaceId,
         presetId: 'workspace.summary',
-        filters: {},
+        filters: { range: { kind: "preset", preset: "last30d" } },
         format: 'pdf',
         triggerKind: 'manual',
         triggeredBy: triggererId,

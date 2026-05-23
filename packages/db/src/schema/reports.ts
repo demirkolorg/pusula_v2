@@ -11,6 +11,12 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
+import type {
+  CadenceConfig,
+  ComparisonConfig,
+  MicroReportSelection,
+  ReportFilters,
+} from '@pusula/domain/reports';
 import { users } from './auth';
 import { workspaces } from './workspaces';
 import { archivedAt, primaryId, timestamps } from './_common';
@@ -24,10 +30,12 @@ import { archivedAt, primaryId, timestamps } from './_common';
  * uuid yerine text/nanoid kararı 2026-05-23 ADR satırında kayıtlı
  * (`02-teknoloji-kararlari.md`).
  *
- * JSONB tip placeholder'ları: `filters`, `microReports`, `comparison`
- * alanları `@pusula/domain/reports` (13C / DEM-259) inince gerçek tiplere
- * bağlanacak; bu dosya 13C öncesi şema/migration teslim eder ve `unknown`
- * placeholder kullanır (jsonb runtime'da serbestçe geçer).
+ * JSONB tipleri 13C ([DEM-259](https://linear.app/demirkol/issue/DEM-259))
+ * `@pusula/domain/reports`'a bağlandı (önceki Placeholder type'lar kaldırıldı).
+ * Runtime'da jsonb serbestçe geçer; Zod validation tRPC procedure
+ * katmanında (`@pusula/api` — 13D) `reportFiltersSchema` /
+ * `cadenceConfigSchema` / `comparisonConfigSchema` /
+ * `microReportSelectionSchema` ile yapılır.
  */
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
@@ -59,21 +67,6 @@ export const reportRenderFormatEnum = pgEnum('report_render_format', [
   'png',
 ]);
 
-// ─── JSONB type placeholders (13C — DEM-259 inince gerçek tiplere bağlanacak) ─
-//
-// `Record<string, unknown>` `unknown` yerine kasıtlı — insert input pozisyonunda
-// `unknown` her şeyi (string, number, ...) kabul ederdi; `Record` JSON-obje
-// guardrail'i koyar ve 13C'de gerçek Zod-türetilmiş tiplere replace-friendly.
-
-// TODO(13C — DEM-259): replace with `ReportFilters` from `@pusula/domain/reports`.
-type ReportFiltersPlaceholder = Record<string, unknown>;
-// TODO(13C — DEM-259): replace with `MicroReportSelection[]` from `@pusula/domain/reports`.
-type MicroReportSelectionPlaceholder = Record<string, unknown>[];
-// TODO(13C — DEM-259): replace with `ComparisonConfig | null` from `@pusula/domain/reports`.
-type ComparisonConfigPlaceholder = Record<string, unknown>;
-// TODO(13C — DEM-259): replace with `CadenceConfig` from `@pusula/domain/reports`.
-type CadenceConfigPlaceholder = Record<string, unknown>;
-
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 /**
@@ -102,13 +95,13 @@ export const savedReports = pgTable(
     description: text(),
 
     /** Filtre snapshot'ı — Zod schema'lı (`@pusula/domain/reports`, 13C). */
-    filters: jsonb().$type<ReportFiltersPlaceholder>().notNull(),
+    filters: jsonb().$type<ReportFilters>().notNull(),
 
     /** Preset default'u + kullanıcı toggle'larıyla seçili micro-report'lar. */
-    microReports: jsonb().$type<MicroReportSelectionPlaceholder>().notNull(),
+    microReports: jsonb().$type<MicroReportSelection[]>().notNull(),
 
     /** Comparison ayarı — null ise comparison kapalı. */
-    comparison: jsonb().$type<ComparisonConfigPlaceholder>(),
+    comparison: jsonb().$type<ComparisonConfig>(),
 
     createdBy: text()
       .notNull()
@@ -138,12 +131,13 @@ export const reportSchedules = pgTable(
     cadence: reportScheduleCadenceEnum().notNull(),
     /**
      * Cadence ayrıntısı:
-     *   daily:   `{ hour, minute }`
-     *   weekly:  `{ dayOfWeek (0-6), hour, minute }`
-     *   monthly: `{ dayOfMonth (1-31 | 'last'), hour, minute }`
-     * 13C domain'inde Zod ile validate edilir.
+     *   daily:   `{ cadence: 'daily', hour, minute }`
+     *   weekly:  `{ cadence: 'weekly', dayOfWeek (0-6), hour, minute }`
+     *   monthly: `{ cadence: 'monthly', dayOfMonth (1-31 | 'last'), hour, minute }`
+     * Discriminated union (`@pusula/domain/reports` `cadenceConfigSchema`)
+     * tRPC procedure katmanında Zod ile validate edilir.
      */
-    cadenceConfig: jsonb().$type<CadenceConfigPlaceholder>().notNull(),
+    cadenceConfig: jsonb().$type<CadenceConfig>().notNull(),
 
     /** IANA zaman dilimi (workspace default'undan). */
     timezone: text().notNull(),
@@ -194,8 +188,8 @@ export const reportRenders = pgTable(
     scopeKind: reportScopeKindEnum().notNull(),
     scopeId: text().notNull(),
     presetId: text().notNull(),
-    filters: jsonb().$type<ReportFiltersPlaceholder>().notNull(),
-    comparison: jsonb().$type<ComparisonConfigPlaceholder>(),
+    filters: jsonb().$type<ReportFilters>().notNull(),
+    comparison: jsonb().$type<ComparisonConfig>(),
 
     status: reportRenderStatusEnum().notNull().default('queued'),
     format: reportRenderFormatEnum().notNull(),
