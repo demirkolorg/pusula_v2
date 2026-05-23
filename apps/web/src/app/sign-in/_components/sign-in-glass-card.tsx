@@ -227,7 +227,7 @@ export function SignInGlassCard({
                 type="button"
                 onClick={() => switchMode('sign-in')}
                 disabled={pending}
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 -ml-1 inline-flex w-fit items-center gap-1 rounded-md text-sm outline-none focus-visible:ring-2 disabled:opacity-60"
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 -ml-1 inline-flex w-fit cursor-pointer items-center gap-1 rounded-md text-sm outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ArrowLeft className="size-4" aria-hidden />
                 {strings.auth.card.backToSignIn}
@@ -255,7 +255,7 @@ export function SignInGlassCard({
                       type="button"
                       onClick={() => switchMode('forgot')}
                       disabled={pending}
-                      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 rounded-md text-xs underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:opacity-60"
+                      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 cursor-pointer rounded-md text-xs underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {strings.auth.card.forgotPassword}
                     </button>
@@ -267,7 +267,7 @@ export function SignInGlassCard({
                     type="button"
                     onClick={() => switchMode('sign-up')}
                     disabled={pending}
-                    className="text-foreground focus-visible:ring-ring/60 rounded-md font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:opacity-60"
+                    className="text-foreground focus-visible:ring-ring/60 cursor-pointer rounded-md font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {strings.auth.card.goToSignUp}
                   </button>
@@ -289,7 +289,7 @@ export function SignInGlassCard({
                     type="button"
                     onClick={() => switchMode('sign-in')}
                     disabled={pending}
-                    className="text-foreground focus-visible:ring-ring/60 rounded-md font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:opacity-60"
+                    className="text-foreground focus-visible:ring-ring/60 cursor-pointer rounded-md font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {strings.auth.card.goToSignIn}
                   </button>
@@ -359,7 +359,7 @@ export function SignInGlassCard({
                     type="button"
                     onClick={() => switchMode('forgot')}
                     disabled={pending}
-                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 mx-auto rounded-md text-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:opacity-60"
+                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 mx-auto cursor-pointer rounded-md text-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {strings.auth.card.requestNewLink}
                   </button>
