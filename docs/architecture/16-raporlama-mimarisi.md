@@ -19,7 +19,7 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/06-bildirim-altyapisi|Bildirim Altyapısı]]'
-updated: 2026-05-23
+updated: 2026-05-23T11:00
 ---
 
 # 16 — Raporlama Mimarisi
@@ -131,6 +131,8 @@ Karar kaydı: [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) 2026-05-2
 
 ## 16.3 Veritabanı Şeması (Drizzle, `casing: 'snake_case'`)
 
+> **PK/FK konvansiyonu (2026-05-23 kararı):** Pusula'nın diğer tüm tabloları `primaryId()` (text + nanoid) PK + text FK kullanır. Reports tabloları bu konvansiyona uyar — `uuid` kullanılmaz. Karar: bütün şemaya yayılmış text/nanoid disiplinini bozmamak; FK tutarlılığı (workspaces.id text → workspaceId text) için tek doğru tip text. `@pusula/db/_common` helper'ları (`primaryId()`, `timestamps`, `archivedAt()`) reports tablolarında da kullanılır.
+
 ```ts
 // packages/db/src/schema/reports.ts
 
@@ -148,12 +150,15 @@ export const reportRenderFormatEnum = pgEnum('report_render_format',
 
 // Kaydedilmiş rapor (ad-hoc DEĞIL, kullanıcının "Kaydet" dediği)
 export const savedReports = pgTable('saved_reports', {
-  id: uuid().primaryKey().defaultRandom(),
-  workspaceId: uuid().notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  id: primaryId(),
+  workspaceId: text().notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
 
   // scope sahipliği — entity yetkisi senkron
   scopeKind: reportScopeKindEnum().notNull(),
-  scopeId: uuid().notNull(),  // card_id / list_id / board_id / workspace_id
+  // Polymorphic: card_id / list_id / board_id / workspace_id — FK yok (Pusula
+  // FK kolonları gibi tüm ilgili tablolar text/nanoid id kullandığından tip
+  // ortaktır, ama scope_id farklı tablolara işaret edebileceği için FK tutulmaz).
+  scopeId: text().notNull(),
 
   presetId: text().notNull(),  // domain registry id (örn. 'board.health')
   title: text().notNull(),     // kullanıcı verdiği isim
@@ -168,18 +173,18 @@ export const savedReports = pgTable('saved_reports', {
   // comparison ayarı
   comparison: jsonb().$type<ComparisonConfig | null>(),
 
-  createdBy: uuid().notNull().references(() => users.id),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  archivedAt: timestamp({ withTimezone: true }),
+  // notNull → kullanıcı silmek için önce kayıtlı raporları arşivlemeli (orphan saved_report olmaz).
+  createdBy: text().notNull().references(() => users.id, { onDelete: 'restrict' }),
+  archivedAt: archivedAt(),
+  ...timestamps,
 }, (t) => [
   index('saved_reports_workspace_idx').on(t.workspaceId),
   index('saved_reports_scope_idx').on(t.scopeKind, t.scopeId),
 ]);
 
 export const reportSchedules = pgTable('report_schedules', {
-  id: uuid().primaryKey().defaultRandom(),
-  savedReportId: uuid().notNull().references(() => savedReports.id, { onDelete: 'cascade' }),
+  id: primaryId(),
+  savedReportId: text().notNull().references(() => savedReports.id, { onDelete: 'cascade' }),
 
   cadence: reportScheduleCadenceEnum().notNull(),
   // daily: { hour, minute }
@@ -189,31 +194,31 @@ export const reportSchedules = pgTable('report_schedules', {
 
   timezone: text().notNull(),  // IANA (workspace default'undan)
 
-  // alıcılar
-  recipientUserIds: uuid().array().notNull().default([]),
-  recipientEmails: text().array().notNull().default([]),
+  // alıcılar — Pusula user id'leri text/nanoid olduğundan dizi de text[]
+  recipientUserIds: text().array().notNull().default(sql`ARRAY[]::text[]`),
+  recipientEmails: text().array().notNull().default(sql`ARRAY[]::text[]`),
 
   isActive: boolean().notNull().default(true),
   lastRunAt: timestamp({ withTimezone: true }),
   nextRunAt: timestamp({ withTimezone: true }).notNull(),  // worker tick için indexli
 
-  createdBy: uuid().notNull().references(() => users.id),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  // saved_reports.createdBy ile aynı disiplin (notNull → restrict).
+  createdBy: text().notNull().references(() => users.id, { onDelete: 'restrict' }),
+  ...timestamps,
 }, (t) => [
-  index('report_schedules_next_run_idx').on(t.nextRunAt).where(sql`is_active = true`),
+  index('report_schedules_next_run_idx').on(t.nextRunAt).where(sql`${t.isActive} = true`),
 ]);
 
 // Her render geçmişi (saved + scheduled + ad-hoc save sonrası)
 export const reportRenders = pgTable('report_renders', {
-  id: uuid().primaryKey().defaultRandom(),
-  workspaceId: uuid().notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  savedReportId: uuid().references(() => savedReports.id, { onDelete: 'cascade' }),
-  scheduleId: uuid().references(() => reportSchedules.id, { onDelete: 'set null' }),
+  id: primaryId(),
+  workspaceId: text().notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  savedReportId: text().references(() => savedReports.id, { onDelete: 'cascade' }),
+  scheduleId: text().references(() => reportSchedules.id, { onDelete: 'set null' }),
 
   // ad-hoc render için snapshot (savedReportId null olabilir)
   scopeKind: reportScopeKindEnum().notNull(),
-  scopeId: uuid().notNull(),
+  scopeId: text().notNull(),
   presetId: text().notNull(),
   filters: jsonb().$type<ReportFilters>().notNull(),
   comparison: jsonb().$type<ComparisonConfig | null>(),
@@ -230,9 +235,9 @@ export const reportRenders = pgTable('report_renders', {
   // versiyon — saved report her render'da +1
   version: integer().notNull().default(1),
 
-  // teslim
-  triggeredBy: uuid().references(() => users.id),
-  triggerKind: text().notNull(),  // 'manual' | 'scheduled' | 'save'
+  // teslim — nullable + set null (history korunur, user silinince render kaydı kalır).
+  triggeredBy: text().references(() => users.id, { onDelete: 'set null' }),
+  triggerKind: text().notNull(),  // 'manual' | 'scheduled' | 'save' — DB-level CHECK ile sınırlanır
 
   startedAt: timestamp({ withTimezone: true }),
   completedAt: timestamp({ withTimezone: true }),
@@ -246,8 +251,8 @@ export const reportRenders = pgTable('report_renders', {
 
 // Render çıktı dosyaları (MinIO key'leri)
 export const reportRenderAssets = pgTable('report_render_assets', {
-  id: uuid().primaryKey().defaultRandom(),
-  renderId: uuid().notNull().references(() => reportRenders.id, { onDelete: 'cascade' }),
+  id: primaryId(),
+  renderId: text().notNull().references(() => reportRenders.id, { onDelete: 'cascade' }),
 
   format: reportRenderFormatEnum().notNull(),
   s3Bucket: text().notNull(),
@@ -263,9 +268,13 @@ export const reportRenderAssets = pgTable('report_render_assets', {
 Schema kuralları:
 
 - 4 tablo, hepsi snake_case (`casing: 'snake_case'`).
+- PK: `primaryId()` (text + nanoid, `_common.ts` helper'ı). FK kolonları `text()` — Pusula konvansiyonu (workspaces, boards, lists, cards, activity, notifications hep aynı).
+- `timestamps` helper'ı `createdAt` + `updatedAt` (`$onUpdate`) sağlar; `archivedAt()` helper'ı nullable timestamptz.
 - `restrictedScope` alanı — kullanıcı erişmediği panolar dışlanırsa raporda ve PDF'te rozet için.
 - `version` — saved report'un her yeni render'ında artar; "son 5 versiyon hep tut" policy için.
 - `nextRunAt` partial index sadece aktif schedule'lar — worker tick'i hızlı tarama.
+- Array kolon default'u `sql\`ARRAY[]::text[]\`` (search.ts ile uyumlu).
+- `filters` / `microReports` / `comparison` JSONB tipi domain registry'sinde tanımlı; 13C öncesi reports.ts'te `unknown` placeholder + TODO yorumu kullanılır, 13C inince gerçek tiplere bağlanır.
 - Migration `pnpm db:generate` ile üretilir, `pnpm db:migrate` ile uygulanır.
 
 ## 16.4 Micro-Report Contract (sözleşmenin kalbi)
