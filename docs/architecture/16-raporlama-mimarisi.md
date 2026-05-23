@@ -19,7 +19,7 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/06-bildirim-altyapisi|Bildirim Altyapısı]]'
-updated: 2026-05-23T11:00
+updated: 2026-05-23T12:00
 ---
 
 # 16 — Raporlama Mimarisi
@@ -292,6 +292,10 @@ export type ReportScope =
   | { kind: 'board'; boardId: string; workspaceId: string }
   | { kind: 'workspace'; workspaceId: string };
 
+// idSchema = `z.string().min(1).max(64)` — Pusula `@pusula/domain/schemas/common`
+// nanoid-style entity id'leri için ortak. 13B ADR (2026-05-23) gereği reports
+// alanı da bu konvansiyona uyar; `z.string().uuid()` Pusula'da yalnız
+// `clientMutationId` (gerçek UUID v4) için kullanılır.
 export const reportFiltersSchema = z.object({
   range: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('preset'), preset: z.enum([
@@ -302,20 +306,20 @@ export const reportFiltersSchema = z.object({
   ]),
 
   members: z.object({
-    userIds: z.array(z.string().uuid()),
+    userIds: z.array(idSchema),
     relations: z.array(z.enum(['assignee', 'actor', 'watcher'])),
   }).optional(),
 
   labels: z.object({
-    labelIds: z.array(z.string().uuid()),
+    labelIds: z.array(idSchema),
     mode: z.enum(['and', 'or']),
   }).optional(),
 
   scopeFilter: z.object({
     cardStatus: z.array(z.enum(['open', 'completed', 'archived'])).optional(),
     includeArchivedLists: z.boolean().default(false),
-    listIds: z.array(z.string().uuid()).optional(),
-    boardIds: z.array(z.string().uuid()).optional(),
+    listIds: z.array(idSchema).optional(),
+    boardIds: z.array(idSchema).optional(),
     checklistStatus: z.enum(['all', 'completed', 'incomplete']).optional(),
   }).optional(),
 });
@@ -329,7 +333,18 @@ export const comparisonConfigSchema = z.object({
 
 export type ComparisonConfig = z.infer<typeof comparisonConfigSchema>;
 
-export interface MicroReportManifest<TData> {
+// `MicroReportManifest<TData>` 13C kararı ile ikiye bölündü (split data/ui):
+//   - `MicroReportDataManifest<TData>` → `@pusula/domain/reports/registry` (saf TS,
+//     React/Drizzle bağımlılığı yok)
+//   - `MicroReportUiManifest<TData>` → `@pusula/ui/reports` (Component +
+//     PrintComponent + worksheetExport)
+//   - `query` (ScopeAdapter<TData>) tipi domain'de, implementasyonu
+//     `@pusula/api/services/report-data/*` (13D, Drizzle context ister)
+//
+// Gerekçe: framework-bağımsız domain disiplini ([CLAUDE.md §3] —
+// `@pusula/domain` UI/DB bağımlılığı tutmaz). Match için her iki manifest aynı
+// `id` ile registry'de birleştirilir.
+export interface MicroReportDataManifest {
   id: string;
   i18nKey: string;
   category: MicroReportCategory;
@@ -339,12 +354,15 @@ export interface MicroReportManifest<TData> {
   supportsCsv: boolean;
   supportsPngExport: boolean;
   emptyStateKey: string;
-
-  query: ScopeAdapter<TData>;
-  Component: React.ComponentType<MicroReportProps<TData>>;
-  PrintComponent?: React.ComponentType<MicroReportProps<TData>>;
-  worksheetExport?(data: TData): { columns: ExcelColumn[]; rows: unknown[][] };
 }
+
+// `@pusula/ui/reports` (Faz 13F)
+// interface MicroReportUiManifest<TData> {
+//   id: string;
+//   Component: React.ComponentType<MicroReportProps<TData>>;
+//   PrintComponent?: React.ComponentType<MicroReportProps<TData>>;
+//   worksheetExport?(data: TData): { columns: ExcelColumn[]; rows: unknown[][] };
+// }
 
 export interface ScopeAdapter<TData> {
   card?(ctx: QueryCtx, scope: Extract<ReportScope, { kind: 'card' }>, f: ReportFilters): Promise<TData>;

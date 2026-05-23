@@ -11,7 +11,8 @@
     "./position": "./src/position.ts",
     "./events": "./src/events.ts",
     "./schemas": "./src/schemas/index.ts",
-    "./schemas/search": "./src/schemas/search.ts"
+    "./schemas/search": "./src/schemas/search.ts",
+    "./reports": "./src/reports/index.ts"
   },
   "scripts": {
     "lint": "eslint .",

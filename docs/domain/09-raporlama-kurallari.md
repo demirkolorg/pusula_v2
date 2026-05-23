@@ -17,7 +17,7 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/domain/02-yetkilendirme-kurallari|Yetkilendirme Kuralları]]'
   - '[[docs/domain/05-aktivite-kurallari|Aktivite Kuralları]]'
-updated: 2026-05-23
+updated: 2026-05-23T12:00
 ---
 
 # 09 — Raporlama Kuralları
@@ -184,6 +184,8 @@ Her preset:
 
 - `id`, `i18nKey`, `scopeKind`, `microReportIds[]`, `defaultFilters`, `defaultComparison`.
 - Domain'de `packages/domain/src/reports/presets.ts` içinde tek bir registry.
+
+> **Karar — 13C (2026-05-23):** §9.7'nin orijinal taslağı `list.wip-and-health`'a `wip-count`'u, `card.due-and-aging`'e `aging-report`'u listeliyordu; ama §9.6 yapısal matrisine göre `wip-count = B/W only` ve `aging-report = L/B/W only`. Yapısal kanonik §9.6 — `presets.ts` cross-validation testi (`packages/domain/src/reports/__tests__/presets.test.ts`) her preset'in micro-report'unun ilgili scope'ta `supports`'da olduğunu derleme/test zamanında doğrular (bozuk preset merge edilemez). 13C registry'sinde bu iki preset bu iki micro-report'u taşımaz; list-WIP sinyali `status-breakdown` + `kpi-card`, card-aging sinyali `time-in-list` ile karşılanır.
 
 ## 9.8 Filtre Seti
 
