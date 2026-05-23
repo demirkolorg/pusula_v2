@@ -12,7 +12,7 @@ type: 'moc'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/README|Pusula Belgeleri]]'
-updated: 2026-05-15
+updated: 2026-05-23
 ---
 
 # Pusula — İş / Domain Kuralları (`docs/domain/`)
@@ -41,6 +41,7 @@ helper, domain/event tipleri). Domain paketi **framework-bağımsızdır** — D
 | 06  | [`06-arama-kapsami.md`](06-arama-kapsami.md)                       | Neler aranabilir, permission filtreleme, archived davranışı                              |
 | 07  | [`07-ek-kurallari.md`](07-ek-kurallari.md)                         | Attachment: MIME/boyut limiti, kim yükleyebilir                                          |
 | 08  | [`08-paylasim-linki-kurallari.md`](08-paylasim-linki-kurallari.md) | Kart paylaşım linki: misafir görme/yorum, "Misafir" etiketi, mention yok, expiry, revoke |
+| 09  | [`09-raporlama-kurallari.md`](09-raporlama-kurallari.md)           | Raporlama (Faz 13) domain kuralları: universal micro-report sözleşmesi + scope adapter semantiği (auto-aggregation), 30 micro-report kataloğu + 19 preset şablonu, yetki matrisi (generate viewer+ / save admin+), restricted scope (bilgi sızıntısı yok), comparison delta semantiği, filtre seti, persistence/cadence/stale davranışı, rich text içerik kuralı. Teknik mimari → [`../architecture/16-raporlama-mimarisi.md`](../architecture/16-raporlama-mimarisi.md). |
 
 ## Kaçınılması gerekenler (domain)
 

@@ -12,7 +12,7 @@ type: 'moc'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/README|Pusula Belgeleri]]'
-updated: 2026-05-17
+updated: 2026-05-23
 ---
 
 # Pusula — Tasarım / Teknik Mimari (`docs/architecture/`)
@@ -47,6 +47,7 @@ Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açm
 | 13  | [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md)                 | UI tasarım dili (Faz 2.7): design token sistemi (Trello-vari mavi palet / radius / shadow / spacing / Inter), board-kolon-kart anatomisi + metadata satırı, kart detay modalı (iki-kolon + kapak-renkli başlık + sağ panel), ortak desenler + `packages/ui` bileşen spec'leri (`Avatar`/`SectionHeader`/`Progress`/`EmptyState`/`MetaChip`/`LabelChip`/`CardCompleteToggle` + shadcn `Tooltip`/`DropdownMenu`/`Checkbox`/`Tabs`), Tiptap entegrasyonu, anasayfa anatomisi (Variant A — workspace rayı + stat strip + board kart grid'i, DEM-192) |
 | 14  | [`14-paylasim-linki-mimarisi.md`](14-paylasim-linki-mimarisi.md) | Kart paylaşım linki (post-MVP): `share_links` tablosu, token üretimi/hash, tRPC `share.*` + Hono public endpoint, misafir yorum akışı, rate limit, realtime/notification dokunuşu                                                                                                                                                                                                                                                                     |
 | 15  | [`15-bildirim-ayar-ekrani.md`](15-bildirim-ayar-ekrani.md)       | Bildirim ayar ekranı (Faz 10): `/account` Tabs içinde "Bildirimler" sekmesi, 4 section anatomi (genel kanallar + tip×kanal matrisi + scope override ağacı + push token cihazları), gelişmiş özellikler iskeleti (quiet hours / digest / snooze), shadcn primitive ihtiyaçları (Switch + RadioGroup), i18n namespace, a11y                                                                                                                          |
+| 16  | [`16-raporlama-mimarisi.md`](16-raporlama-mimarisi.md)           | Raporlama mimarisi (Faz 13): preset şablon registry + universal micro-report + scope adapter (kart/liste/pano/workspace auto-aggregation) + 4 yeni DB tablosu (`saved_reports`/`report_schedules`/`report_renders`/`report_render_assets`) + tRPC `report.*` router + on-demand SQL + Redis kısa-TTL cache + outbox-driven invalidation + Puppeteer PDF pipeline (`/reports/print/[id]`) + Excel xlsx + PNG/SVG export + 3-tier persistence (ad-hoc/saved/scheduled) + Resend scheduled email + MinIO retention (90g + son 5 sürüm) + i18n + comparison delta + stale rozeti + restricted scope. Domain → [`../domain/09-raporlama-kurallari.md`](../domain/09-raporlama-kurallari.md); süreç → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md). |
 
 ## Kaçınılması gerekenler (teknik)
 
