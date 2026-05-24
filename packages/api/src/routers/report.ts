@@ -18,7 +18,7 @@
  *   - Mutation'lar `clientMutationId` taşır (middleware'den).
  */
 import { TRPCError } from '@trpc/server';
-import { and, desc, eq, isNull } from '@pusula/db';
+import { and, desc, eq, inArray, isNull } from '@pusula/db';
 import {
   boardMembers,
   boards,
@@ -581,11 +581,30 @@ const getRenderRouter = protectedProcedure
     const permCtx = await resolveReportPermissionCtx(ctx, scope);
     enforceReportPermission(canPerformReportAction('render', scope, permCtx));
 
-    // İlişkili asset'leri (signed URL'siz — host'ta wire) döner.
-    const assets = await ctx.db
+    // İlişkili asset'leri çek; ctx.objectStorage varsa her asset için
+    // presigned GET URL üret (Faz 13H — DEM-264). Storage adapter yoksa
+    // (test / Next route handler) `downloadUrl` null kalır.
+    const rawAssets = await ctx.db
       .select()
       .from(reportRenderAssets)
       .where(eq(reportRenderAssets.renderId, input.renderId));
+    const assets = await Promise.all(
+      rawAssets.map(async (asset) => {
+        if (!ctx.objectStorage) {
+          return { ...asset, downloadUrl: null as string | null };
+        }
+        try {
+          const url = await ctx.objectStorage.createPresignedGetUrl({
+            key: asset.s3Key,
+            // 5 dk yeterli — kullanıcı butona basıp indirir.
+            expiresIn: 5 * 60,
+          });
+          return { ...asset, downloadUrl: url };
+        } catch {
+          return { ...asset, downloadUrl: null as string | null };
+        }
+      }),
+    );
     return { render: row, assets };
   });
 
@@ -739,6 +758,80 @@ const scheduleListRouter = protectedProcedure
       .where(eq(reportSchedules.savedReportId, input.savedReportId))
       .orderBy(desc(reportSchedules.createdAt));
     return rows;
+  });
+
+/**
+ * Faz 13H ([DEM-264](https://linear.app/demirkol/issue/DEM-264)) — workspace
+ * genelindeki tüm schedule'lar için listeleme. `saved_reports` ile JOIN edip
+ * sahip raporun `workspaceId`'sini filtreler. Listeleme yetkisi `listSaved`
+ * ile aynı disiplinde: workspace üyesi tümünü, board-only kullanıcı yalnız
+ * erişebildiği board'lara ait saved'ların schedule'larını görür.
+ */
+const scheduleListByWorkspaceRouter = protectedProcedure
+  .input(
+    z.object({
+      workspaceId: idSchema,
+      isActive: z.boolean().optional(),
+    }),
+  )
+  .query(async ({ ctx, input }) => {
+    const userId = ctx.session.user.id;
+    const permsCtx = buildReportPermissionsCtx({ db: ctx.db, userId });
+
+    // Workspace membership kontrolü; üye değilse board-only kullanıcı
+    // olarak erişilebilir board id'leri ile sınırla (listSaved disiplini).
+    const [wsMembership] = await ctx.db
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, input.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    let savedIds: string[] | null = null;
+    if (!wsMembership) {
+      // Board-only filter — yalnız accessible board scope'lu saved'lar.
+      const accessibleBoardIds = await permsCtx.accessibleBoardsInWorkspace(input.workspaceId);
+      if (accessibleBoardIds.length === 0) return { items: [] };
+      const conditions = [
+        eq(savedReports.workspaceId, input.workspaceId),
+        eq(savedReports.scopeKind, 'board'),
+      ];
+      const accessibleSaved = await ctx.db
+        .select({ id: savedReports.id, scopeId: savedReports.scopeId })
+        .from(savedReports)
+        .where(and(...conditions));
+      savedIds = accessibleSaved
+        .filter((row) => accessibleBoardIds.includes(row.scopeId))
+        .map((row) => row.id);
+      if (savedIds.length === 0) return { items: [] };
+    }
+
+    // Schedule + saved JOIN. Drizzle inner join + ws filter.
+    // code-review W3 fix: board-only kullanıcı durumunda `savedIds` SQL'e
+    // `inArray` ile uygulanır (post-query JS filter yerine). Büyük
+    // workspace'te perf kazanımı.
+    const baseConditions = [eq(savedReports.workspaceId, input.workspaceId)];
+    if (typeof input.isActive === 'boolean') {
+      baseConditions.push(eq(reportSchedules.isActive, input.isActive));
+    }
+    if (savedIds) {
+      baseConditions.push(inArray(savedReports.id, savedIds));
+    }
+
+    const rows = await ctx.db
+      .select({
+        schedule: reportSchedules,
+        savedReport: savedReports,
+      })
+      .from(reportSchedules)
+      .innerJoin(savedReports, eq(reportSchedules.savedReportId, savedReports.id))
+      .where(and(...baseConditions))
+      .orderBy(desc(reportSchedules.createdAt));
+    return { items: rows };
   });
 
 const scheduleRunNowRouter = protectedProcedure
@@ -928,6 +1021,7 @@ const scheduleRouter = router({
   update: scheduleUpdateRouter,
   delete: scheduleDeleteRouter,
   list: scheduleListRouter,
+  listByWorkspace: scheduleListByWorkspaceRouter,
   runNow: scheduleRunNowRouter,
 });
 
