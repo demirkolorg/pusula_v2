@@ -62,7 +62,40 @@ export const E2E = {
     ['Kart D', 'Kart E'],
     ['Kart F', 'Kart G'],
   ] as const,
+  /**
+   * Faz 13R (DEM-274) — Raporlama E2E için ek pano kümesi. Mevcut tek
+   * `e2e-board` üzerinde rapor preset'lerinin (workspace.executive-summary,
+   * status-breakdown vb.) anlamlı sayılar üretebilmesi için 4 ek pano
+   * + her birinde 1-2 liste + ~5 kart (overdue/completed varyetesi).
+   *
+   * Üyelik haritası:
+   *   - `e2e-user` (workspace owner): tüm panolarda `board:admin`.
+   *   - `e2e-viewer` (workspace guest): yalnız `e2e-board`'ta `board:viewer`.
+   *   - `e2e-alice` (workspace member): `e2e-board` + ilk 2 ek panoda
+   *     (`-2`, `-3`) `board:member`. `-4` ve `-5` panolara erişimi yok →
+   *     workspace.executive-summary açtığında §9.4 "restricted scope"
+   *     rozeti görünür (2 pano dışlanır).
+   *   - `e2e-bob` (workspace member): yalnız `e2e-board`'ta `board:member`
+   *     (mevcut Faz 5D realtime pair); ek panolarda erişimi yok.
+   */
+  reports: {
+    /** Ek pano ID'leri ve başlıkları — toplam 5 pano (mevcut 1 + 4 yeni). */
+    extraBoards: [
+      { id: 'e2e-board-2', title: 'E2E Pano 2' },
+      { id: 'e2e-board-3', title: 'E2E Pano 3' },
+      { id: 'e2e-board-4', title: 'E2E Pano 4' },
+      { id: 'e2e-board-5', title: 'E2E Pano 5' },
+    ] as const,
+    /**
+     * Senaryo 4 (restricted scope): alice'in workspace.executive-summary
+     * raporunda dışlanan pano sayısı (board-4 + board-5 = 2).
+     */
+    expectedRestrictedBoardCount: 2,
+  },
 } as const;
 
 /** The board page URL for the seeded board. */
 export const boardPath = `/workspaces/${E2E.workspaceId}/boards/${E2E.boardId}`;
+
+/** Workspace `/reports` merkez sayfası URL'i (DEM-264). */
+export const reportsPath = `/workspaces/${E2E.workspaceId}/reports`;

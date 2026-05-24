@@ -208,6 +208,127 @@ async function resetThenSeed(db: Db): Promise<void> {
 
   await reindexSearchDocuments(db, { workspaceId: E2E.workspaceId });
   await reindexSearchDocuments(db, { workspaceId: E2E.search.hiddenWorkspaceId });
+
+  // ── DEM-274 (Faz 13R) — Raporlama E2E ek pano kümesi ─────────────────────
+  // 4 ek pano + her birinde 2 liste + 5 kart varyetesi (overdue/completed/
+  // archived). Workspace.executive-summary + board.health preset'lerinin
+  // anlamlı sayılar üretebilmesi ve restricted-scope rozeti (alice'in 2 pano
+  // dışlanması) için minimum dataset. Saved/schedule kayıtları test
+  // runtime'ında oluşturulur (tabula rasa).
+  await seedReportsExtraBoards(db);
+}
+
+async function seedReportsExtraBoards(db: Db): Promise<void> {
+  const extraBoards = E2E.reports.extraBoards;
+
+  // 1. Pano kayıtları (workspace içinde).
+  await db.insert(boards).values(
+    extraBoards.map((b) => ({
+      id: b.id,
+      workspaceId: E2E.workspaceId,
+      title: b.title,
+    })),
+  );
+
+  // 2. Pano üyelikleri.
+  //    - user (workspace owner): tüm ek panolarda `board:admin`.
+  //    - alice: yalnız ilk 2 ek panoda (`-2`, `-3`) `board:member`.
+  //      (`-4`, `-5` → restricted-scope rozetini görmesi için erişim yok.)
+  //    - viewer + bob: ek panolarda yok.
+  const memberships: Array<{ boardId: string; userId: string; role: 'admin' | 'member' | 'viewer' }> = [];
+  for (const b of extraBoards) {
+    memberships.push({ boardId: b.id, userId: E2E.user.id, role: 'admin' });
+  }
+  memberships.push(
+    { boardId: extraBoards[0]!.id, userId: E2E.alice.id, role: 'member' },
+    { boardId: extraBoards[1]!.id, userId: E2E.alice.id, role: 'member' },
+  );
+  await db.insert(boardMembers).values(memberships);
+
+  // 3. Her pano için 2 liste + 5 kart varyetesi.
+  //    Kart varyetesi (board başına 5 kart):
+  //      - 1 overdue (dueAt geçmiş, completed=false)
+  //      - 1 completed (completedAt set)
+  //      - 1 due soon (dueAt + 3 gün, completed=false)
+  //      - 1 archived (archivedAt set)
+  //      - 1 plain (open, dueAt yok)
+  //    Bu mix status-breakdown / due-soon / member-contribution gibi
+  //    micro-report'ların KPI delta'sı için yeterli varyete sağlar.
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  for (const board of extraBoards) {
+    const listPositions = positionsBetween(null, null, 2);
+    const listRows = [
+      { id: `${board.id}-list-1`, title: 'Yapılacak', boardId: board.id, position: listPositions[0]! },
+      { id: `${board.id}-list-2`, title: 'Bitti', boardId: board.id, position: listPositions[1]! },
+    ];
+    await db.insert(lists).values(listRows);
+
+    const cardPositions = positionsBetween(null, null, 5);
+    type CardRow = typeof cards.$inferInsert;
+    const cardRows: CardRow[] = [
+      {
+        id: `${board.id}-card-overdue`,
+        boardId: board.id,
+        listId: listRows[0]!.id,
+        title: 'Geciken iş',
+        position: cardPositions[0]!,
+        dueAt: new Date(now - sevenDaysMs),
+        completed: false,
+      },
+      {
+        id: `${board.id}-card-completed`,
+        boardId: board.id,
+        listId: listRows[1]!.id,
+        title: 'Biten iş',
+        position: cardPositions[1]!,
+        completed: true,
+        completedAt: new Date(now - sevenDaysMs / 2),
+        completedBy: E2E.user.id,
+      },
+      {
+        id: `${board.id}-card-due-soon`,
+        boardId: board.id,
+        listId: listRows[0]!.id,
+        title: 'Yakında bitecek',
+        position: cardPositions[2]!,
+        dueAt: new Date(now + 3 * 24 * 60 * 60 * 1000),
+        completed: false,
+      },
+      {
+        id: `${board.id}-card-archived`,
+        boardId: board.id,
+        listId: listRows[0]!.id,
+        title: 'Arşiv iş',
+        position: cardPositions[3]!,
+        archivedAt: new Date(now - sevenDaysMs * 2),
+      },
+      {
+        id: `${board.id}-card-plain`,
+        boardId: board.id,
+        listId: listRows[0]!.id,
+        title: 'Açık iş',
+        position: cardPositions[4]!,
+      },
+    ];
+    await db.insert(cards).values(cardRows);
+
+    // Üyelik atamaları (member-contribution micro-report KPI'si için):
+    // overdue → alice (boards 1-2'de), user (boards 3-4'te).
+    const overdueAssignee = board.id === extraBoards[0]!.id || board.id === extraBoards[1]!.id
+      ? E2E.alice.id
+      : E2E.user.id;
+    await db.insert(cardMembers).values({
+      cardId: `${board.id}-card-overdue`,
+      userId: overdueAssignee,
+      role: 'assignee',
+    });
+  }
+
+  // 4. Search reindex — yeni board/list/card satırları search_documents'a düşsün
+  //    (DEM-108 reindex helper). reportsRetention veya başka downstream'ler
+  //    direkt olarak search'e bakmaz ama tutarlılık için.
+  await reindexSearchDocuments(db, { workspaceId: E2E.workspaceId });
 }
 
 export async function seed(): Promise<void> {

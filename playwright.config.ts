@@ -1,5 +1,16 @@
-import { defineConfig, devices } from '@playwright/test';
+import { chromium, defineConfig, devices } from '@playwright/test';
 import { E2E_API_URL, E2E_DATABASE_URL, E2E_WEB_URL } from './e2e/fixtures/env';
+
+/**
+ * Faz 13R (DEM-274) — apps/worker'ın `report-render` job'u `puppeteer-core`
+ * ile launch ediyor; binary yolunu `PUPPETEER_EXECUTABLE_PATH` env'inden
+ * okuyor. Playwright'ın `@playwright/test` kurulumuyla `chromium install`
+ * sonrası elde edilen Chromium binary'i (`~/.cache/ms-playwright/...` veya
+ * Windows'ta `%LOCALAPPDATA%\ms-playwright\...`) reuse edilir — yerel
+ * dev makinesinde ayrı Chrome/Edge yolu set etme gereği kalkar.
+ */
+const PUPPETEER_EXECUTABLE_PATH =
+  process.env.PUPPETEER_EXECUTABLE_PATH ?? chromium.executablePath();
 
 /**
  * Playwright e2e harness for Pusula (Faz 3D — DEM-45). Lives at the repo root,
@@ -49,6 +60,13 @@ const baseServerEnv = {
   // Notification e2e should exercise outbox + processors without sending real
   // Resend email or Expo push traffic, even when local `.env` has credentials.
   NOTIFICATION_EXTERNAL_DRY_RUN: '1',
+  // Faz 13R (DEM-274) — Raporlama E2E: worker print token flow needs a
+  // ≥32-char shared secret on both api + worker. The actual value doesn't
+  // matter for dev/e2e, only that api + worker agree.
+  WORKER_SHARED_SECRET: 'pusula-e2e-worker-shared-secret-do-not-use-in-prod',
+  // Faz 13R — apps/worker `report-render` job için Puppeteer launch path.
+  // Playwright'ın indirdiği chromium binary reuse edilir.
+  PUPPETEER_EXECUTABLE_PATH,
 };
 
 /**

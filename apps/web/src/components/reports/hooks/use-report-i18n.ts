@@ -73,6 +73,11 @@ export function useReportI18n(): UseReportI18nResult {
   return useMemo<UseReportI18nResult>(
     () => ({
       t: (key, params) => {
+        // Faz 13R (DEM-274) E2E hot path — bazı micro-report manifest
+        // satırları `labelKey`'i undefined geçirebiliyor (V1 13K backlog;
+        // ayrı issue açılacak). Defensive guard: undefined/null/non-string
+        // key fallback, downstream `startsWith` patlamasın.
+        if (typeof key !== 'string' || key.length === 0) return '';
         const template = resolveKey(key);
         if (template === undefined) return key; // debug fallback.
         return interpolate(template, params);
