@@ -6,7 +6,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./trpc": "./src/trpc.ts",
-    "./context": "./src/context.ts"
+    "./context": "./src/context.ts",
+    "./lib/report-cache": "./src/lib/report-cache.ts",
+    "./lib/report-envelope": "./src/lib/report-envelope.ts",
+    "./lib/report-invalidation": "./src/lib/report-invalidation.ts"
   },
   "scripts": {
     "lint": "eslint .",

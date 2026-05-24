@@ -50,6 +50,12 @@ const envSchema = z.object({
   // Sentry `pusula-api` projesinin DSN'i. Server-side; boş/eksikse `Sentry.init`
   // no-op olur (lokal dev/test Sentry'siz çalışır). Bkz. `10-platform.md` §10.5.1.
   SENTRY_DSN_API: z.string().min(1).optional(),
+  // Faz 13 raporlama — worker'ın `report.print.requestToken` çağırırken
+  // taşıdığı paylaşılan secret (HMAC-SHA256 print token imzası). Aynı
+  // değer `apps/worker/src/env.ts`'de de yaşar. Boş bırakılırsa
+  // `print.requestToken` her zaman UNAUTHORIZED — print akışı kapalı.
+  // Bkz. `docs/architecture/16-raporlama-mimarisi.md` §16.8.
+  WORKER_SHARED_SECRET: z.string().min(32).optional(),
 });
 
 // Üretim sertleştirme guard'ı: prod'da hiçbir kritik env zayıf/default değere
@@ -75,6 +81,13 @@ function assertProductionHardening(value: z.infer<typeof envSchema>): void {
   // localhost'a düşerse maillerdeki ve /share linkleri bozulur.
   if (value.APP_URL.includes('localhost')) {
     issues.push('APP_URL must not point at localhost in production');
+  }
+  // Faz 13I (DEM-265 security M1) — `WORKER_SHARED_SECRET` rapor print
+  // akışının single point of trust'ı. Prod'da set edilmezse `print.
+  // requestToken` her zaman UNAUTHORIZED dönecek → worker `print_token_
+  // failed` ile retry → sessiz outage. Boot-time'da explicit hata ver.
+  if (!value.WORKER_SHARED_SECRET) {
+    issues.push('WORKER_SHARED_SECRET must be set (>=32 chars) in production');
   }
   if (issues.length > 0) {
     throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);

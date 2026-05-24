@@ -1,0 +1,67 @@
+/*
+ * Faz 13I (DEM-265) — PDF print stylesheet. Sadece (internal) route'larında
+ * yüklenir; app shell'i etkilemez. Puppeteer `print` media için query
+ * doğrudan @media print kuralları üzerinden çalışır (`page.pdf()` print
+ * media context'inde render eder).
+ *
+ * Hedef: A4 sayfada page-break disipliniyle micro-report kartlarının
+ * arasının kesilmemesi + animasyonların kapalı olması.
+ *
+ * Spec: docs/architecture/16-raporlama-mimarisi.md §16.8.
+ */
+
+@page {
+  size: A4;
+  /* Worker tarafında `page.pdf({ margin: { top: 20mm, ... } })` veriliyor;
+     bu margin Chrome'un kendi print engine'inin default'unu fallback olarak
+     korur (HTML preview için). */
+  margin: 20mm 15mm;
+}
+
+/* Print medya: hover state'leri, link underline'lar ve transition'lar
+   off. Yazıcının olmayan rengini kullanma. */
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000;
+  }
+
+  /* Box gölgesi, transition, hover state — print'te anlamsız + Puppeteer
+     `printBackground: true` ile gereksiz pigment. */
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Print sayfa düzeni — render layer her zaman flex column; mode='print'
+   propu UI bileşenlerinde absolute positioning'i kapatır. */
+[data-print-page-root] {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: #ffffff;
+}
+
+/* Faz 13F MicroReportShell — `data-mode="print"` ile print kuralları aktif.
+   Spec §16.8: page-break-inside avoid her bir micro-report için. */
+[data-slot='micro-report-shell'][data-mode='print'] {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #ffffff;
+}
+
+/* Restricted scope banner — print'te küçük + dikkat çekici. */
+[data-slot='restricted-scope-banner'] {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}

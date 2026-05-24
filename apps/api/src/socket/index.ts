@@ -9,12 +9,21 @@
  * resolvers and no Redis adapter.
  */
 import { Redis } from 'ioredis';
+import * as Sentry from '@sentry/node';
 import { resolveBoardAccess } from '@pusula/api';
 import { getDb } from '@pusula/db';
 import { auth } from '../auth';
 import { env } from '../env';
 import { attachRealtimeBridge, type RealtimeBridgeHandle } from './realtime-bridge';
 import { attachNotificationBridge, type NotificationBridgeHandle } from './notification-bridge';
+import {
+  attachReportInvalidatedBridge,
+  type ReportInvalidatedBridgeHandle,
+} from './report-invalidated-bridge';
+import {
+  attachReportRenderBridge,
+  type ReportRenderBridgeHandle,
+} from './report-render-bridge';
 import { createSocketServer, type AttachableHttpServer, type SocketServerHandle } from './server';
 
 export type { SocketServerHandle, AttachableHttpServer } from './server';
@@ -33,6 +42,8 @@ export async function setupSocketServer(httpServer: AttachableHttpServer): Promi
   SocketServerHandle & {
     realtimeBridge?: RealtimeBridgeHandle;
     notificationBridge?: NotificationBridgeHandle;
+    reportInvalidatedBridge?: ReportInvalidatedBridgeHandle;
+    reportRenderBridge?: ReportRenderBridgeHandle;
   }
 > {
   const handle = await createSocketServer({
@@ -111,7 +122,68 @@ export async function setupSocketServer(httpServer: AttachableHttpServer): Promi
       '[api:notification-bridge] failed to attach (notification badge pushes will wait for refetch):',
       err instanceof Error ? err.message : String(err),
     );
+    Sentry.captureException(err, {
+      tags: { component: 'notification-bridge', feature: 'realtime-notifications' },
+    });
     await notificationBridgeClient?.quit().catch(() => {});
+  }
+
+  // Faz 13E (DEM-261) — rapor cache invalidator → socket bridge. Worker
+  // `pusula:report:invalidated` channel'ına basar; bu bridge `workspace:{id}`
+  // room'una `report.invalidated` event'i emit eder (13N stale rozeti
+  // tetiği). Best-effort: bridge fail olursa stale rozeti gelmeyebilir
+  // ama cache TTL ile dataset eninde sonunda fresh olur.
+  let reportInvalidatedBridge: ReportInvalidatedBridgeHandle | undefined;
+  let reportInvalidatedBridgeClient: Redis | undefined;
+  try {
+    reportInvalidatedBridgeClient = new Redis(env.REDIS_URL, { lazyConnect: false });
+    reportInvalidatedBridgeClient.on('error', (err) => {
+      console.error('[api:report-invalidated-bridge] redis error:', err.message);
+    });
+    reportInvalidatedBridge = await attachReportInvalidatedBridge(
+      handle.io,
+      reportInvalidatedBridgeClient,
+    );
+  } catch (err) {
+    console.error(
+      '[api:report-invalidated-bridge] failed to attach (stale rozeti gecikecek):',
+      err instanceof Error ? err.message : String(err),
+    );
+    // DEM-261 code-review W1 + security LOW-2: bridge fail UX'i sessizce
+    // bozar (rapor stale rozeti gelmez); operator görmesin diye Sentry'ye
+    // bağla. Cache TTL backstop var (data integrity etkilenmez).
+    Sentry.captureException(err, {
+      tags: { component: 'report-invalidated-bridge', feature: 'report-stale-rozeti' },
+    });
+    await reportInvalidatedBridgeClient?.quit().catch(() => {});
+  }
+
+  // Faz 13I (DEM-265) — PDF render → socket bridge. Worker
+  // `pusula:report:render` channel'ına `report.render.completed` /
+  // `report.render.failed` event'i basar; bu bridge `user:{triggeredBy}`
+  // room'una emit eder. UI listener `useReportRender` (13J/13K'da)
+  // toast + `report.getRender` query invalidate ile signed URL'i alır.
+  let reportRenderBridge: ReportRenderBridgeHandle | undefined;
+  let reportRenderBridgeClient: Redis | undefined;
+  try {
+    reportRenderBridgeClient = new Redis(env.REDIS_URL, { lazyConnect: false });
+    reportRenderBridgeClient.on('error', (err) => {
+      console.error('[api:report-render-bridge] redis error:', err.message);
+    });
+    reportRenderBridge = await attachReportRenderBridge(handle.io, reportRenderBridgeClient);
+  } catch (err) {
+    console.error(
+      '[api:report-render-bridge] failed to attach (rapor tamamlandı bildirimi gelmeyecek):',
+      err instanceof Error ? err.message : String(err),
+    );
+    // Sentry: bridge fail UX'i sessizce bozar (kullanıcı rapor üretiminin
+    // bittiğini görmez). Operator görsün diye Sentry'ye bağla. DB durumu
+    // 'completed' kaldığından kullanıcı `report.listRenders` ile manuel
+    // refetch yaparak download alabilir.
+    Sentry.captureException(err, {
+      tags: { component: 'report-render-bridge', feature: 'pdf-render-pipeline' },
+    });
+    await reportRenderBridgeClient?.quit().catch(() => {});
   }
 
   const originalClose = handle.close;
@@ -119,9 +191,13 @@ export async function setupSocketServer(httpServer: AttachableHttpServer): Promi
     ...handle,
     realtimeBridge,
     notificationBridge,
+    reportInvalidatedBridge,
+    reportRenderBridge,
     close: async () => {
       if (realtimeBridge) await realtimeBridge.close();
       if (notificationBridge) await notificationBridge.close();
+      if (reportInvalidatedBridge) await reportInvalidatedBridge.close();
+      if (reportRenderBridge) await reportRenderBridge.close();
       await originalClose();
     },
   };

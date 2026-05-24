@@ -1,0 +1,44 @@
+/* Faz 13F — Rapor PDF / Print stylesheet (DEM-262).
+ *
+ * Puppeteer worker (13I) `/reports/print/[id]` route'unu açar; bu CSS
+ * print sayfasında `<link>` veya bundle olarak inject edilir. Aynı
+ * kurallar global olarak `@media print` altında otomatik aktif.
+ *
+ * Spec: docs/architecture/16-raporlama-mimarisi.md §16.8.
+ */
+
+@media print {
+  /* Color tokens'ı PDF'e koru (Tailwind dark/light token'ları). */
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Micro-report widget'ları sayfa break ortasında bölünmesin. */
+  .micro-report-shell,
+  [data-slot='micro-report-shell'] {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Panel-only öğeler (hover state, action butonları, stale rozeti) PDF'te
+   * görünmez. `panel-only` class'ı caller tarafından eklenir. */
+  .stale-badge,
+  .panel-only,
+  [data-slot='stale-badge'] {
+    display: none !important;
+  }
+
+  /* Recharts animasyon ve transition'lar kapalı — Puppeteer ready snapshot. */
+  .chart-container,
+  [data-slot='chart-frame'] {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Print mode'da hover gölgesi yok (Tailwind shadow class'larıyla
+   * çelişmemesi için sadece reset). */
+  [data-mode='print'] {
+    transition: none !important;
+  }
+}

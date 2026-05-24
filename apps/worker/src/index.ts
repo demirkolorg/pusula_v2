@@ -11,6 +11,7 @@ import {
   notificationsPushQueue,
   notificationsQueue,
   realtimePublishQueue,
+  reportCacheInvalidatorQueue,
   scheduledQueue,
 } from './queues';
 import { connection } from './redis';
@@ -82,6 +83,19 @@ import {
   REALTIME_PUBLISH_SWEEPER_JOB_NAME,
   sweepStaleRealtimeEvents,
 } from './jobs/realtime-publish-sweeper';
+import {
+  processReportCacheInvalidatorJob,
+  type ReportCacheInvalidatorJobData,
+} from './jobs/report-cache-invalidator';
+import {
+  closeBrowser as closeReportRenderBrowser,
+  createReportS3Client,
+  defaultPrintTokenResolver,
+  defaultPuppeteerLauncher,
+  processReportRenderJob,
+  s3PutObjectAdapter,
+  type ReportRenderJobData,
+} from './jobs/report-render';
 
 /**
  * Worker process skeleton. The notification / scheduled processors below are
@@ -172,11 +186,44 @@ const realtimeWorker = new Worker(
       return;
     }
     const data = job.data as RealtimePublishJobData;
-    const outcome = await processRealtimePublishJob(db, realtimePublisher, data);
+    // Faz 13E (DEM-261) — başarılı publish sonrası rapor cache invalidator
+    // enqueue. Fire-and-forget; Redis blip publish'i etkilemez.
+    const outcome = await processRealtimePublishJob(
+      db,
+      realtimePublisher,
+      data,
+      async (invalidatorData) => {
+        await reportCacheInvalidatorQueue.add('invalidate', invalidatorData);
+      },
+    );
     if (outcome === 'missing') {
       console.warn(`[worker:realtime] job ${job.id} eventId=${data.eventId} — missing/duplicate`);
     }
   },
+  { connection, concurrency: 10 },
+);
+
+// Faz 13E (DEM-261) — rapor cache invalidator. SCAN+DEL `connection`
+// (BullMQ paylaşımı OK — non-blocking commands), pub/sub için ayrı
+// `realtimePublisher` reuse (`pusula:report:invalidated` channel).
+const reportCacheInvalidatorWorker = new Worker(
+  QUEUE.reportCacheInvalidator,
+  async (job) => {
+    const data = job.data as ReportCacheInvalidatorJobData;
+    const result = await processReportCacheInvalidatorJob(data, {
+      redis: connection,
+      publisher: realtimePublisher,
+    });
+    if (result.totalKeysDeleted > 0) {
+      console.warn(
+        `[worker:report-invalidator] eventType=${data.event.eventType} ` +
+          `patterns=${result.patternsScanned} deleted=${result.totalKeysDeleted}`,
+      );
+    }
+  },
+  // Concurrency 10 — realtime publish (10) ile simetrik. Fan-out 1:1
+  // (her publish 1 invalidator job) olduğu için düşük tutulursa kuyruk
+  // birikir + stale rozeti gecikir (DEM-261 code-review S4).
   { connection, concurrency: 10 },
 );
 
@@ -338,6 +385,67 @@ const attachmentS3Client = createAttachmentS3Client({
 });
 const attachmentStorage = s3DeleteObjectAdapter(attachmentS3Client);
 
+// Faz 13I (DEM-265) — rapor PDF render worker. Puppeteer (system Chromium,
+// Dockerfile'da `apk add chromium` + PUPPETEER_EXECUTABLE_PATH env) ile
+// `/reports/print/[id]` route'unu yükler, page.pdf üretir, MinIO'ya yükler.
+// S3 client AYNI account ama farklı bucket (`S3_REPORTS_BUCKET`); attachment
+// pattern'iyle paralel.
+const reportRenderS3Client = createReportS3Client({
+  endpoint: env.S3_ENDPOINT,
+  region: env.S3_REGION,
+  credentials: {
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+  },
+});
+const reportRenderStorage = s3PutObjectAdapter(reportRenderS3Client);
+
+const reportRenderWorker = new Worker(
+  QUEUE.reportRender,
+  async (job) => {
+    const data = job.data as ReportRenderJobData;
+    if (!env.WORKER_SHARED_SECRET) {
+      // Print akışı kapalı (Faz 13D `print.requestToken` zaten UNAUTHORIZED
+      // döner). Job'u retry'sız fail'le — config hatası, kullanıcı kuyruğu
+      // sonsuza kadar kasmasın.
+      throw new Error(
+        'WORKER_SHARED_SECRET tanımlı değil — rapor render akışı kapalı (config hatası).',
+      );
+    }
+    const result = await processReportRenderJob(data, {
+      db,
+      storage: reportRenderStorage,
+      publisher: realtimePublisher,
+      resolvePrintToken: defaultPrintTokenResolver,
+      launcher: defaultPuppeteerLauncher,
+      appUrl: env.APP_URL,
+      internalApiUrl: env.INTERNAL_API_URL,
+      workerSharedSecret: env.WORKER_SHARED_SECRET,
+      bucket: env.S3_REPORTS_BUCKET,
+      executablePath: env.PUPPETEER_EXECUTABLE_PATH,
+      // Faz 13I code-review M1+M2: BullMQ retry koordinasyonu — yalnız
+      // son denemede DB'yi 'failed' damgala. `attemptsMade` 0-indexed
+      // (ilk attempt = 0, ikinci = 1, …); maxAttempts queue config'ten
+      // (3, `queues.ts` reportRenderQueue defaultJobOptions).
+      attemptsMade: job.attemptsMade,
+      maxAttempts: job.opts.attempts ?? 1,
+    });
+    if (result.outcome === 'completed') {
+      console.warn(
+        `[worker:report-render] job ${job.id} render=${data.renderId} → completed (${result.s3Key})`,
+      );
+    } else if (result.outcome === 'failed') {
+      console.warn(
+        `[worker:report-render] job ${job.id} render=${data.renderId} → failed (${result.errorCategory})`,
+      );
+    }
+  },
+  // Concurrency 2: Puppeteer page'leri pahalı (>200MB her biri); container
+  // memory limit 1GB → max 3 page (spec §16.8). 2 worker concurrency + 1
+  // page singleton browser = makul.
+  { connection, concurrency: 2 },
+);
+
 const attachmentCleanupWorker = new Worker(
   QUEUE.attachmentCleanup,
   async (job) => {
@@ -366,6 +474,8 @@ const workers = [
   notificationPushWorker,
   notificationEmailDigestWorker,
   realtimeWorker,
+  reportCacheInvalidatorWorker,
+  reportRenderWorker,
   scheduledWorker,
   compactionWorker,
   searchReindexWorker,
@@ -502,6 +612,10 @@ async function shutdown(signal: string) {
   console.warn(`[worker] ${signal} received — closing workers`);
   await Promise.allSettled(workers.map((w) => w.close()));
   await Promise.allSettled(allQueues.map((q) => q.close()));
+  // Faz 13I (DEM-265) — Puppeteer browser singleton'ı graceful kapa
+  // (Chromium child process aksi halde zombie kalır + container shutdown
+  // SIGKILL bekler).
+  await closeReportRenderBrowser();
   await realtimePublisher.quit().catch(() => 'OK' as const);
   await notificationPublisher.quit().catch(() => 'OK' as const);
   await connection.quit();

@@ -11,6 +11,7 @@ import { listRouter } from './routers/list';
 import { notificationsRouter } from './routers/notifications';
 import { pushRouter } from './routers/push';
 import { quickNoteRouter } from './routers/quick-note';
+import { reportRouter } from './routers/report';
 import { searchRouter } from './routers/search';
 import { shareRouter } from './routers/share';
 import { userRouter } from './routers/user';
@@ -31,6 +32,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   push: pushRouter,
   quickNote: quickNoteRouter,
+  report: reportRouter,
   search: searchRouter,
   share: shareRouter,
 });

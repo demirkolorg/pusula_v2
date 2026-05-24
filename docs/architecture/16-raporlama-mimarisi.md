@@ -19,7 +19,7 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/06-bildirim-altyapisi|Bildirim Altyapısı]]'
-updated: 2026-05-23T12:00
+updated: 2026-05-24T01:00
 ---
 
 # 16 — Raporlama Mimarisi
@@ -516,9 +516,10 @@ Procedure tipleri:
 report:dataset:v1:{scopeKind}:{scopeId}:{presetId}:{hash(filters+comparison+userId)}
 ```
 
-- `hash` = MurmurHash3 + stable JSON serialization.
+- `hash` = SHA-1 stable JSON serialization (Faz 13E DEM-261; 13D ilk turunda FNV-1a 32-bit kullanılmıştı, security review L1 doğrultusunda 16-hex (~64-bit) SHA-1'e taşındı).
 - `userId` cache key'inde çünkü permission-filtered (her kullanıcının görünen veri farklı).
 - Workspace admin için ayrı bir key (suffix `:admin`) → tüm üyeler aynı veriye düşer.
+- **Segment whitelist:** scopeId + presetId `^[A-Za-z0-9._-]{1,64}$` (DEM-261 security HIGH-1). Redis glob meta (`*`, `?`, `[`, `]`) + field separator (`:`) defense-in-depth ile reddedilir; `idSchema` bir gün regex eklerse redundant olur.
 
 **TTL:**
 
@@ -544,6 +545,8 @@ Worker `apps/worker/src/queues/report-cache-invalidator.ts`:
   report:dataset:v1:workspace:<workspaceId>:*
   ```
 - Redis `SCAN COUNT 100` batch silme.
+- **SCAN+DEL atomic değil:** iteration sırasında yeni `SET` gelirse o key invalidation'dan kaçar; TTL backstop (60-300s) eninde sonunda temizler. "Stale + fresh karışık" pencere kabul edildi (DEM-261 security LOW-1).
+- **Workspace role değişiklikleri (kabul edilen TTL pencere):** Admin → member demote sonrası `:admin` suffix'li cache key max `workspace=300s` / `pdf=600s` boyunca eski admin-view'u servis edebilir. Bu trade-off bilgi sızıntısı disiplini (§9.4) içinde kabul edilebilir kayıp olarak işaretli; ileride `workspace_members` mutation'ından invalidator hook eklenebilir (DEM-261 security MED-1, follow-up).
 
 **"Stale" rozeti:**
 
@@ -597,13 +600,35 @@ Worker `apps/worker/src/queues/report-cache-invalidator.ts`:
 - Chart'lar render olur olmaz `window.__reportReady = true`.
 - Recharts animasyon: `<RechartsResponsiveContainer>` `isAnimationActive={false}` (mode=print).
 
-**Puppeteer worker kurulumu:**
+**Puppeteer worker kurulumu (Faz 13I — DEM-265 implementasyonu):**
 
-- Docker image: `apps/worker/Dockerfile`'a `@sparticuz/chromium` paketi (~+150MB minified).
-- `puppeteer-core` + `@sparticuz/chromium` combo.
-- Connection pool: en fazla 3 paralel page (kaynağı koru), kuyruktan al.
-- Memory limit: container `--memory=1g`.
-- Timeout: 60s per render (büyük workspace fail-safe).
+- Docker image: paylaşılan `apps/api/Dockerfile` (api + worker tek image, CLAUDE.md §3) runner stage'ine `apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont` + `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser` env. **`@sparticuz/chromium` Lambda-glibc bundle; Alpine musl üzerinde çalışmaz** — Puppeteer Docker pattern'i system chromium. ~150 MB layer cost.
+- `puppeteer-core` ^24 (worker `package.json` dependency).
+- Browser singleton: `getOrLaunchBrowser` worker process boyunca tek instance reuse; her job yeni `page` açar; `disconnected` event'inde cache invalidate. SIGTERM/SIGINT'te graceful `closeBrowser()`.
+- Worker concurrency: `2` (compose memory 1 GB, page başına ~200 MB; spec §16.8 "max 3 paralel page" guard).
+- `pageReadyTimeoutMs`: 30 s default (testlerde 1 ms).
+- `page.goto(url, { waitUntil: 'networkidle0', timeout: 60_000 })`.
+
+**Print sayfası — i18n (Faz 13I geçici çözüm):**
+
+13Q (DEM-266) tam i18n provider gelene kadar `report.print.verifyToken` server-side fallback yapar: `packages/api/src/lib/report-i18n-tr.ts` (`REPORT_PRINT_I18N_TR`) Türkçe stub map'i dataset envelope'una `payload.i18n: Record<string, string>` olarak gömer. UI client `t(key, params) = payload.i18n[key] ?? key` resolver'ı + `{{placeholder}}` interpolation'la çalışır. Eksik key → key string'i ekrana yansır (kullanıcı için çirkin ama PDF üretilir). 13Q'da bu dosya silinir, `next-intl` provider'a bağlanır.
+
+**Worker → API guvenliği:**
+
+- `WORKER_SHARED_SECRET` env (min 32 char, `apps/api` + `apps/worker` paylaşımlı). `defaultPrintTokenResolver` POST `/trpc/report.print.requestToken` çağrısında `x-worker-secret` header'ı gönderir.
+- `apps/api` `buildTrpcContext` header'ı **timing-safe** karşılaştırır (`crypto.timingSafeEqual`); eşleşmezse `ctx.workerSharedSecret` undefined → procedure UNAUTHORIZED. String compare'in length-time leak'i `timingSafeEqual` ile elimine.
+- Print token: HMAC-SHA256, 5 dakika TTL, renderId bind'li (cross-render leak engeli — `expectedRenderId` verify).
+
+**Hata yolu disiplini:**
+
+- `unsupported_format`, `print_token_failed`, `pdf_render_failed`, `storage_upload_failed`, `db_commit_failed` kategorileri.
+- DB row `status='failed'` + `errorMessage` (PII-safe, kategori başlığı). Pub/sub `report.render.failed` event'i `apps/api/socket` bridge'i tarafından `user:{triggeredBy}` room'una gider.
+- Format mismatch'i (xlsx/png — 13L/13M'de gelecek) BullMQ retry'ı tetiklemez (kalıcı user error); transient hatalar (token/render/upload) `throw` ile retry'lanır.
+
+**MinIO bucket:**
+
+- Ayrı bucket: `S3_REPORTS_BUCKET` (default `pusula-reports`) — attachment bucket'ından (`S3_BUCKET`) izole, lifecycle politikaları farklı (rapor 90g + son 5 sürüm policy 13P / DEM-272).
+- Asset key: `workspace/<workspaceId>/<renderId>.pdf`. `report_render_assets.expires_at = NOW() + 90g` set edilir (13P retention worker'ı bunu kullanır).
 
 ## 16.9 Excel & PNG Export
 

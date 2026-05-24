@@ -6,6 +6,8 @@ import { closeAttachmentCleanupQueue } from './attachment-cleanup-queue';
 import { closeCompactionQueue } from './compaction-queue';
 import { closeNotificationQueue } from './notification-queue';
 import { closeRealtimePublishQueue } from './realtime-publish-queue';
+import { closeReportCache } from './report-cache';
+import { closeReportRenderQueue } from './report-render-queue';
 import { env } from './env';
 import { setupSocketServer, type AttachableHttpServer, type SocketServerHandle } from './socket';
 
@@ -42,6 +44,8 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         await closeRealtimePublishQueue().catch(() => {});
         await closeNotificationQueue().catch(() => {});
         await closeAttachmentCleanupQueue().catch(() => {});
+        await closeReportCache().catch(() => {});
+        await closeReportRenderQueue().catch(() => {});
         process.exit(0);
       })();
     });

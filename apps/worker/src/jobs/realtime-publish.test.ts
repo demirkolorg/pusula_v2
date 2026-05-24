@@ -147,6 +147,92 @@ describe.runIf(dbAvailable)('processRealtimePublishJob (integration)', () => {
     expect(row!.status).toBe('sent');
   });
 
+  it('Faz 13E: enqueueInvalidator çağrılır + payload field whitelist regex', async () => {
+    const seed = await seedBoard();
+    const eventId = await seedEvent({
+      workspaceId: seed.workspaceId,
+      boardId: seed.boardId,
+      actorId: seed.ownerId,
+      type: 'card.movedToList',
+      data: {
+        cardId: 'c-good',
+        listId: 'l-good',
+        fromBoardId: 'b-source-good',
+        fromListId: 'l-source-good',
+      },
+    });
+    const pub = capturingPublisher();
+    const invalidatorCalls: unknown[] = [];
+    const outcome = await processRealtimePublishJob(
+      db() as never,
+      pub,
+      { eventId },
+      (data) => {
+        invalidatorCalls.push(data);
+      },
+    );
+    expect(outcome).toBe('published');
+    expect(invalidatorCalls).toHaveLength(1);
+    const call = invalidatorCalls[0] as unknown as { event: Record<string, unknown> };
+    expect(call.event.eventType).toBe('card.movedToList');
+    expect(call.event.workspaceId).toBe(seed.workspaceId);
+    expect(call.event.boardId).toBe(seed.boardId);
+    expect(call.event.listId).toBe('l-good');
+    expect(call.event.cardId).toBe('c-good');
+    expect(call.event.fromBoardId).toBe('b-source-good');
+    expect(call.event.fromListId).toBe('l-source-good');
+  });
+
+  it('Faz 13E: enqueueInvalidator unsafe payload id\'leri whitelist regex ile null\'a düşürür', async () => {
+    const seed = await seedBoard();
+    const eventId = await seedEvent({
+      workspaceId: seed.workspaceId,
+      boardId: seed.boardId,
+      actorId: seed.ownerId,
+      type: 'card.created',
+      data: {
+        // `:` injection denemesi — security MED-3.
+        cardId: 'c-1:malicious',
+        listId: 'l-1*wildcard',
+      },
+    });
+    const pub = capturingPublisher();
+    const invalidatorCalls: unknown[] = [];
+    await processRealtimePublishJob(db() as never, pub, { eventId }, (data) => {
+      invalidatorCalls.push(data);
+    });
+    expect(invalidatorCalls).toHaveLength(1);
+    const call = invalidatorCalls[0] as unknown as { event: Record<string, unknown> };
+    // Unsafe değerler null'a düşer; invalidator pattern derivation o
+    // scope'u dahil etmez.
+    expect(call.event.cardId).toBeNull();
+    expect(call.event.listId).toBeNull();
+    // Workspace + board valid → onlar geçer.
+    expect(call.event.workspaceId).toBe(seed.workspaceId);
+    expect(call.event.boardId).toBe(seed.boardId);
+  });
+
+  it('Faz 13E: enqueueInvalidator throw → publish başarılı kalır (fire-and-forget)', async () => {
+    const seed = await seedBoard();
+    const eventId = await seedEvent({
+      workspaceId: seed.workspaceId,
+      boardId: seed.boardId,
+      actorId: seed.ownerId,
+    });
+    const pub = capturingPublisher();
+    const outcome = await processRealtimePublishJob(
+      db() as never,
+      pub,
+      { eventId },
+      () => {
+        throw new Error('queue blip');
+      },
+    );
+    // Invalidator enqueue fail edse bile publish outcome 'published' kalır
+    // (try/catch swallow).
+    expect(outcome).toBe('published');
+  });
+
   it('is idempotent: a second run on an already-published row is a no-op', async () => {
     const seed = await seedBoard();
     const eventId = await seedEvent({

@@ -64,6 +64,35 @@ export const QUEUE = {
    */
   searchReindex: 'pusula-search-reindex',
   /**
+   * Faz 13E ([DEM-261](https://linear.app/demirkol/issue/DEM-261)) —
+   * rapor cache invalidator. Producer: `apps/worker` realtime-publish job
+   * (her başarılı publish sonrası fire-and-forget). Consumer:
+   * `jobs/report-cache-invalidator.ts` — Redis SCAN+DEL ile etkilenen
+   * scope ailelerinin cache key'lerini siler + `report.invalidated`
+   * socket event'i `workspace:{id}` room'una basar (Redis pub/sub
+   * üzerinden socket bridge dinler — `apps/api/src/socket/`).
+   *
+   * Queue name `apps/worker` içinde tek yerde — producer da consumer da
+   * worker tarafında (Faz 5B realtime-publish ile farklı: orada producer
+   * apps/api, burada producer apps/worker). 13G/H veya apps/api'den
+   * doğrudan enqueue yapılacaksa o zaman duplicated.
+   */
+  reportCacheInvalidator: 'pusula-report-cache-invalidator',
+  /**
+   * Faz 13I ([DEM-265](https://linear.app/demirkol/issue/DEM-265)) — rapor
+   * PDF/Excel render queue. Producer: `apps/api` `report.export` mutation
+   * (Faz 13D — DEM-260 — DB row insert sonrası best-effort enqueue).
+   * Consumer: `jobs/report-render.ts` — Puppeteer ile `/reports/print/[id]`
+   * route'unu yükler, `page.pdf()` ile A4 PDF üretir, MinIO'ya
+   * `S3_REPORTS_BUCKET` bucket'ına yükler, `report_render_assets` insert
+   * eder ve `report_renders.status='completed'` stamp eder. Hata → status
+   * 'failed' + errorMessage.
+   *
+   * Queue name duplicated in `apps/api/src/report-render-queue.ts`
+   * (producer side) — must stay in sync: `'pusula-report-render'`.
+   */
+  reportRender: 'pusula-report-render',
+  /**
    * Faz 11C (DEM-149) — attachment cleanup queue. Two responsibilities,
    * dispatched by `job.name`:
    *  1. Delete trigger (`attachment-cleanup`): fired by `attachment.delete`
@@ -113,6 +142,19 @@ export const realtimePublishQueue = new Queue(QUEUE.realtimePublish, {
 export const scheduledQueue = new Queue(QUEUE.scheduled, { connection, defaultJobOptions });
 export const compactionQueue = new Queue(QUEUE.compaction, { connection, defaultJobOptions });
 export const searchReindexQueue = new Queue(QUEUE.searchReindex, { connection, defaultJobOptions });
+// Faz 13E (DEM-261) — rapor cache invalidator. Fire-and-forget; başarısız
+// olsa bile TTL eninde sonunda key'leri düşürür (60-300s) → defaultJobOptions
+// `attempts=5` fazla; 2 attempt + short backoff. Stale rozeti gecikmeli
+// gelirse UI fonksiyonel kalır (TTL).
+export const reportCacheInvalidatorQueue = new Queue(QUEUE.reportCacheInvalidator, {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential' as const, delay: 500 },
+    removeOnComplete: { age: 60 * 60, count: 500 },
+    removeOnFail: { age: 60 * 60 * 24 },
+  },
+});
 // Faz 11C (DEM-149) — 3 retry + exponential backoff matches DEM-149 spec
 // (delete trigger). The sweeper job rides on the same queue and inherits
 // these defaults; sweeper failures are recovered by the next 60 min tick.
@@ -121,6 +163,20 @@ export const searchReindexQueue = new Queue(QUEUE.searchReindex, { connection, d
 export const attachmentCleanupQueue = new Queue(QUEUE.attachmentCleanup, {
   connection,
   defaultJobOptions: ATTACHMENT_CLEANUP_RETRY_POLICY,
+});
+// Faz 13I (DEM-265) — render queue retry profili: PDF üretmek pahalı
+// (Puppeteer launch + chart render + S3 upload). Transient hata (MinIO
+// 5xx, Puppeteer timeout) için 3 attempt yeterli; 4+ retry hem
+// container memory'sini tüketir hem de kullanıcıyı bekletir. Backoff
+// 5s exp — sonraki tick'de I/O kurtulabilir.
+export const reportRenderQueue = new Queue(QUEUE.reportRender, {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential' as const, delay: 5_000 },
+    removeOnComplete: { age: 60 * 60 * 24, count: 500 },
+    removeOnFail: { age: 60 * 60 * 24 * 7 },
+  },
 });
 
 export const allQueues = [
@@ -133,4 +189,6 @@ export const allQueues = [
   compactionQueue,
   searchReindexQueue,
   attachmentCleanupQueue,
+  reportCacheInvalidatorQueue,
+  reportRenderQueue,
 ];

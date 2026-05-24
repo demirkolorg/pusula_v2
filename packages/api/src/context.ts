@@ -5,6 +5,7 @@ import type { EnqueueCompaction } from './lib/compaction';
 import type { EnqueueNotificationPublish } from './lib/notification-outbox';
 import type { ObjectStorage } from './lib/object-storage';
 import type { EnqueueRealtimePublish } from './lib/realtime-publish';
+import type { ReportCache } from './lib/report-cache';
 
 /**
  * Best-effort realtime emit helpers — wired by the host app (`apps/api` boot
@@ -91,6 +92,31 @@ export interface CreateContextOptions {
   enqueueAttachmentCleanup?: EnqueueAttachmentCleanup;
   /** Host-provided object storage adapter for presigned attachment URLs. */
   objectStorage?: ObjectStorage;
+  /**
+   * Faz 13D ([DEM-260](https://linear.app/demirkol/issue/DEM-260)) — Best-effort
+   * `pusula-report-render` BullMQ enqueue. Host (`apps/api`) wires the
+   * producer; tests / Next route handlers omit → render export sadece
+   * `report_renders.insert` ile kalır (`status='queued'`), worker pickup
+   * 13I (Puppeteer) inince devreye girer. `enqueueCompaction` pattern'iyle
+   * simetrik. See `docs/architecture/16-raporlama-mimarisi.md` §16.8.
+   */
+  enqueueReportRender?: (input: { renderId: string }) => void | Promise<void>;
+  /**
+   * Faz 13D — Rapor dataset cache (`report.preview` query'si bunu kullanır).
+   * Host (`apps/api`) 13E ([DEM-261](https://linear.app/demirkol/issue/DEM-261))
+   * Redis-backed somut implementasyonu enjekte eder; default `NoOpReportCache`
+   * (her get null). Bkz. `lib/report-cache.ts`.
+   */
+  reportCache?: ReportCache;
+  /**
+   * Faz 13D — Worker'ın `report.print.requestToken` ile alacağı imzalı
+   * print token için paylaşılan secret. `apps/api/src/env.ts`
+   * `WORKER_SHARED_SECRET` (min 32 char). `undefined` ise tüm
+   * `print.requestToken` çağrıları UNAUTHORIZED (akış kapalı). Bkz.
+   * `lib/report-print-token.ts` + `docs/architecture/16-raporlama-mimarisi.md`
+   * §16.8.
+   */
+  workerSharedSecret?: string;
 }
 
 export interface Context {
@@ -111,6 +137,12 @@ export interface Context {
   enqueueAttachmentCleanup?: EnqueueAttachmentCleanup;
   /** See `CreateContextOptions.objectStorage`. */
   objectStorage?: ObjectStorage;
+  /** See `CreateContextOptions.enqueueReportRender`. `undefined` ⇒ enqueue no-op (13D). */
+  enqueueReportRender?: (input: { renderId: string }) => void | Promise<void>;
+  /** See `CreateContextOptions.reportCache`. `undefined` ⇒ 13D NoOp varsayar. */
+  reportCache?: ReportCache;
+  /** See `CreateContextOptions.workerSharedSecret`. `undefined` ⇒ print akışı kapalı. */
+  workerSharedSecret?: string;
   /**
    * Phase 4A (DEM-78) — collaborative mutations may carry a client-generated
    * `clientMutationId` (UUID v4 via `crypto.randomUUID()`) on the input. The
@@ -139,6 +171,9 @@ export function createContext(opts: CreateContextOptions): Context {
     enqueueNotificationPublish: opts.enqueueNotificationPublish,
     enqueueAttachmentCleanup: opts.enqueueAttachmentCleanup,
     objectStorage: opts.objectStorage,
+    enqueueReportRender: opts.enqueueReportRender,
+    reportCache: opts.reportCache,
+    workerSharedSecret: opts.workerSharedSecret,
     // The `enforceClientMutationId` middleware overwrites this for every
     // protected procedure call; explicit default keeps the shape stable for
     // call sites that read `ctx.clientMutationId` before the middleware runs

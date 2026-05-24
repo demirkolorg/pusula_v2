@@ -33,6 +33,7 @@ import { and, eq, isNull, sql } from '@pusula/db';
 import { realtimeEvents } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import { LIST_COLORS, type RealtimeEventEnvelope } from '@pusula/domain';
+import type { ReportCacheInvalidatorJobData } from './report-cache-invalidator';
 
 /** Redis pub/sub channel the bridge in `apps/api/src/socket/` subscribes to. */
 export const REALTIME_PUBLISH_CHANNEL = 'pusula:realtime:envelope';
@@ -56,6 +57,23 @@ export interface RealtimePublishMessage {
 export interface RealtimePublisher {
   publish: (channel: string, message: string) => Promise<number> | number;
 }
+
+/**
+ * Faz 13E (DEM-261) — rapor cache invalidator queue producer hook.
+ * `processRealtimePublishJob` her başarılı publish sonrası bu enqueue'yu
+ * çağırır; fire-and-forget (Redis blip publish'i etkilemesin). `apps/
+ * worker/src/index.ts` BullMQ Queue.add'i bağlar; testlerde mock.
+ */
+export interface ReportCacheInvalidatorEnqueue {
+  (data: ReportCacheInvalidatorJobData): Promise<unknown> | void;
+}
+
+/**
+ * Payload id whitelist (security MED-3) — `report-cache.ts`
+ * `SAFE_KEY_SEGMENT` ile uyumlu. Cache key segment injection'ı
+ * payload tarafında engelle.
+ */
+const SAFE_PAYLOAD_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
 const listUpdatedPayloadSchema = z
   .object({
@@ -89,8 +107,14 @@ export async function processRealtimePublishJob(
   db: Database,
   publisher: RealtimePublisher,
   data: RealtimePublishJobData,
+  /**
+   * Faz 13E (DEM-261) — opsiyonel rapor cache invalidator enqueue.
+   * Belirtildiğinde publish tx commit sonrası fire-and-forget atılır;
+   * undefined ise no-op (testler veya 13E henüz wire edilmediğinde).
+   */
+  enqueueInvalidator?: ReportCacheInvalidatorEnqueue,
 ): Promise<'published' | 'missing'> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     // `FOR UPDATE SKIP LOCKED` so two concurrent workers (or a worker + the
     // sweeper) can't fight over the same row — the loser just skips. The
     // `published_at IS NULL` filter makes this idempotent: a re-run after a
@@ -116,7 +140,7 @@ export async function processRealtimePublishJob(
       // Either the row was already published (the common idempotent case) or
       // it was deleted between enqueue and now. Distinguishing the two costs an
       // extra query and changes no behaviour.
-      return 'missing' as const;
+      return { outcome: 'missing' as const, row: null };
     }
 
     const envelope = toEnvelope(row);
@@ -133,8 +157,50 @@ export async function processRealtimePublishJob(
       })
       .where(eq(realtimeEvents.id, row.id));
 
-    return 'published' as const;
+    return { outcome: 'published' as const, row };
   });
+
+  // Faz 13E (DEM-261) — başarılı publish sonrası rapor cache invalidator
+  // enqueue. Fire-and-forget: tx commit'inden sonra; bir Redis blip
+  // publish'in başarısını geçersiz kılmaz (TTL eninde sonunda siler).
+  //
+  // Security MED-3: payload id alanları whitelist regex'inden geçer
+  // (`realtime_events.payload` admin/system tarafından yazılır ama
+  // defense-in-depth — başka event tipi `listId` field'ını farklı
+  // semantikle kullanırsa cache-key segment injection sızmasın). Aynı
+  // whitelist `report-cache.ts` `SAFE_KEY_SEGMENT` ile uyumlu.
+  if (result.outcome === 'published' && result.row && enqueueInvalidator) {
+    const payloadData = ((result.row.payload ?? {}) as { data?: unknown }).data as
+      | { listId?: unknown; cardId?: unknown; fromBoardId?: unknown; fromListId?: unknown }
+      | null
+      | undefined;
+    const safeId = (v: unknown): string | null =>
+      typeof v === 'string' && SAFE_PAYLOAD_ID.test(v) ? v : null;
+    const listId = safeId(payloadData?.listId);
+    const fromBoardId = safeId(payloadData?.fromBoardId);
+    const fromListId = safeId(payloadData?.fromListId);
+    const cardId = safeId(payloadData?.cardId) ?? safeId(result.row.cardId);
+    try {
+      await enqueueInvalidator({
+        event: {
+          eventType: result.row.type,
+          workspaceId: result.row.workspaceId,
+          boardId: result.row.boardId,
+          listId,
+          cardId,
+          fromBoardId,
+          fromListId,
+        },
+      });
+    } catch (err) {
+      console.warn(
+        '[worker:realtime] report-cache-invalidator enqueue failed:',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  return result.outcome;
 }
 
 /** Build a typed envelope from the DB row. */

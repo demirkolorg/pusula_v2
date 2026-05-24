@@ -15,9 +15,11 @@ export {
   inArray,
   isNull,
   isNotNull,
+  between,
   desc,
   asc,
   count,
   countDistinct,
   max,
 } from 'drizzle-orm';
+export type { SQL } from 'drizzle-orm';

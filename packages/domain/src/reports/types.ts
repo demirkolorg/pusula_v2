@@ -217,16 +217,28 @@ export type RestrictedScope = z.infer<typeof restrictedScopeSchema>;
 const savedReportTitleSchema = z.string().trim().min(1).max(200);
 const savedReportDescriptionSchema = z.string().trim().max(1000).optional();
 
-export const savedReportCreateSchema = z.object({
-  workspaceId: idSchema,
-  scope: reportScopeSchema,
-  presetId: z.string().min(1),
-  title: savedReportTitleSchema,
-  description: savedReportDescriptionSchema,
-  filters: reportFiltersSchema,
-  microReports: z.array(microReportSelectionSchema),
-  comparison: comparisonConfigSchema.nullable().optional(),
-});
+/**
+ * Cross-field check (security): `workspaceId` (DB row sahipliği) ve
+ * `scope.workspaceId` (permission ctx) aynı olmalı. Aksi halde kullanıcı
+ * workspace A'da `member`, B'ye misafir bile değilken `scope.workspaceId=A`
+ * (permission PASS) + `workspaceId=B` (insert hedefi) ile cross-workspace
+ * data plant edebilir (DEM-260 security review C1).
+ */
+export const savedReportCreateSchema = z
+  .object({
+    workspaceId: idSchema,
+    scope: reportScopeSchema,
+    presetId: z.string().min(1),
+    title: savedReportTitleSchema,
+    description: savedReportDescriptionSchema,
+    filters: reportFiltersSchema,
+    microReports: z.array(microReportSelectionSchema),
+    comparison: comparisonConfigSchema.nullable().optional(),
+  })
+  .refine((v) => v.workspaceId === v.scope.workspaceId, {
+    message: 'workspaceId ile scope.workspaceId aynı olmalı',
+    path: ['scope', 'workspaceId'],
+  });
 export type SavedReportCreateInput = z.infer<typeof savedReportCreateSchema>;
 
 export const savedReportPatchSchema = z.object({
@@ -306,16 +318,21 @@ export const reportExportSchema = z.discriminatedUnion('source', [
     format: reportRenderFormatSchema,
     assetTarget: z.object({ microReportId: z.string().min(1) }).optional(),
   }),
-  z.object({
-    source: z.literal('adhoc'),
-    workspaceId: idSchema,
-    scope: reportScopeSchema,
-    presetId: z.string().min(1),
-    filters: reportFiltersSchema,
-    microReports: z.array(microReportSelectionSchema),
-    comparison: comparisonConfigSchema.nullable().optional(),
-    format: reportRenderFormatSchema,
-    assetTarget: z.object({ microReportId: z.string().min(1) }).optional(),
-  }),
+  z
+    .object({
+      source: z.literal('adhoc'),
+      workspaceId: idSchema,
+      scope: reportScopeSchema,
+      presetId: z.string().min(1),
+      filters: reportFiltersSchema,
+      microReports: z.array(microReportSelectionSchema),
+      comparison: comparisonConfigSchema.nullable().optional(),
+      format: reportRenderFormatSchema,
+      assetTarget: z.object({ microReportId: z.string().min(1) }).optional(),
+    })
+    .refine((v) => v.workspaceId === v.scope.workspaceId, {
+      message: 'workspaceId ile scope.workspaceId aynı olmalı',
+      path: ['scope', 'workspaceId'],
+    }),
 ]);
 export type ReportExportInput = z.infer<typeof reportExportSchema>;

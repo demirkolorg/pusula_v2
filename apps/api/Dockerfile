@@ -27,6 +27,26 @@ RUN pnpm dlx turbo@2 run build --filter=@pusula/api-server --filter=@pusula/work
 # --- runner: non-root, ships the built monorepo subset ---
 FROM base AS runner
 ENV NODE_ENV=production
+
+# Faz 13I (DEM-265) — Chromium runtime for Puppeteer PDF render worker.
+# Shared image: only `worker` cmd uses it (`api` cmd ignores), but installing
+# in the shared base is simpler than building two images. ~150 MB layer cost;
+# alternatives (split images, sidecar) add operational complexity without
+# meaningful savings. Standard Alpine pattern — `apk add chromium` is the
+# Puppeteer-recommended Docker route (not `@sparticuz/chromium` which targets
+# Lambda glibc; Alpine is musl). `PUPPETEER_EXECUTABLE_PATH` is read by
+# `apps/worker/src/jobs/report-render.ts` via `apps/worker/src/env.ts`.
+# See `docs/architecture/16-raporlama-mimarisi.md` §16.8.
+RUN apk add --no-cache \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app .
 USER app
