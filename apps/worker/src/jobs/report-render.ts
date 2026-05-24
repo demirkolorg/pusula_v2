@@ -48,6 +48,12 @@ import {
   type ReportRender,
 } from '@pusula/db';
 import type { Browser, Page } from 'puppeteer-core';
+import {
+  defaultReportDatasetResolver,
+  type ReportDatasetResolver,
+} from './report-dataset-resolver';
+import { renderXlsx } from './render-xlsx';
+import { renderWidget } from './render-png';
 
 /** Wire-format channel pub/sub'a bağlanacak event (Faz 5B realtime pattern). */
 export const REPORT_RENDER_CHANNEL = 'pusula:report:render';
@@ -178,6 +184,28 @@ export interface ReportRenderJobDeps {
     triggeredBy: string | null;
     s3Key: string;
   }) => Promise<unknown> | unknown;
+  /**
+   * Faz 13L (DEM-268) — xlsx + png/svg pipeline'ı dataset'i alır. Test
+   * mock'larında deterministic; production default `defaultReportDataset
+   * Resolver` `/trpc/report.print.verifyToken` GET çağrısı yapar.
+   */
+  resolveReportDataset?: ReportDatasetResolver;
+  /**
+   * Faz 13L (DEM-268) — xlsx render için manifest lookup. Worker
+   * `index.ts`'te `MICRO_REPORT_COMPONENTS`'ten kurulur (production);
+   * testlerde mock. xlsx branch'i kullanır; pdf/png/svg dokunmaz.
+   */
+  getWorksheetExporter?: (microReportId: string) =>
+    | ((data: unknown) => {
+        columns: ReadonlyArray<{
+          header: string;
+          key: string;
+          width?: number;
+          numFmt?: string;
+        }>;
+        rows: ReadonlyArray<Record<string, unknown>>;
+      })
+    | undefined;
 }
 
 /**
@@ -283,9 +311,23 @@ export async function processReportRenderJob(
   const maxAttempts = deps.maxAttempts ?? 1;
   const isFinalAttempt = attemptsMade + 1 >= maxAttempts;
 
-  // 2. Format check — V1: sadece pdf. xlsx/png 13L/13M'de. Kalıcı user
-  // error → her zaman damgala, BullMQ retry yararsız.
-  if (row.format !== 'pdf') {
+  // 2. Format check — V1 (13I + 13L): pdf, xlsx, png, svg. assetTarget
+  // PNG/SVG için zorunlu (mutation refine'da yakalanır; defensive recheck).
+  const format = row.format;
+  const SUPPORTED_FORMATS = ['pdf', 'xlsx', 'png', 'svg'] as const;
+  if (!SUPPORTED_FORMATS.includes(format as (typeof SUPPORTED_FORMATS)[number])) {
+    await stampFailed(deps, row, 'unsupported_format', now());
+    return {
+      outcome: 'failed',
+      renderId: data.renderId,
+      errorCategory: 'unsupported_format',
+    };
+  }
+  const assetTarget = row.assetTarget as { microReportId: string } | null;
+  if ((format === 'png' || format === 'svg') && !assetTarget?.microReportId) {
+    // Bu da kalıcı user error — `report.export` mutation refine'ı yakalar
+    // ama defensive: DB doğrudan UPDATE/INSERT ile manipüle edildiyse veya
+    // legacy row için fail erken.
     await stampFailed(deps, row, 'unsupported_format', now());
     return {
       outcome: 'failed',
@@ -312,32 +354,33 @@ export async function processReportRenderJob(
     throw wrapError(err, 'print_token_failed');
   }
 
-  // 4. Puppeteer launch + page lifecycle.
-  let pdfResult: PdfRenderResult;
+  // 4. Format'a göre render — branch'ler farklı pipeline; xlsx Puppeteer
+  // atlar, png/svg widget route'una gider.
+  let artifact: RenderArtifact;
   try {
-    pdfResult = await renderPdfWithBrowser({
-      launcher: deps.launcher,
-      executablePath: deps.executablePath,
-      appUrl: deps.appUrl,
-      renderId: data.renderId,
+    artifact = await runRenderForFormat({
+      format,
+      deps,
+      row,
       token,
-      pageReadyTimeoutMs: deps.pageReadyTimeoutMs ?? 30_000,
+      assetTarget,
     });
   } catch (err) {
+    const category = artifactErrorCategoryFor(format);
     if (isFinalAttempt) {
-      await stampFailed(deps, row, 'pdf_render_failed', now());
+      await stampFailed(deps, row, category, now());
     }
-    throw wrapError(err, 'pdf_render_failed');
+    throw wrapError(err, category);
   }
 
   // 5. MinIO/S3 upload.
-  const s3Key = `workspace/${row.workspaceId}/${row.id}.pdf`;
+  const s3Key = artifactKey(row, format, assetTarget);
   try {
     await deps.storage.putObject({
       bucket: deps.bucket,
       key: s3Key,
-      body: pdfResult.buffer,
-      contentType: 'application/pdf',
+      body: artifact.buffer,
+      contentType: artifact.contentType,
     });
   } catch (err) {
     if (isFinalAttempt) {
@@ -359,23 +402,18 @@ export async function processReportRenderJob(
         .where(eq(reportRenders.id, row.id));
       await tx.insert(reportRenderAssets).values({
         renderId: row.id,
-        format: 'pdf',
+        format,
         s3Bucket: deps.bucket,
         s3Key,
-        byteSize: pdfResult.byteSize,
-        checksum: pdfResult.checksum,
+        byteSize: artifact.byteSize,
+        checksum: artifact.checksum,
         // 90g retention — Faz 13P (DEM-272) cleanup worker bunu kullanır.
-        // V1'de TTL set ediyoruz; cleanup worker gelene kadar manuel /
-        // MinIO lifecycle ile temizlenebilir.
         expiresAt: new Date(now().getTime() + 90 * 24 * 60 * 60 * 1000),
       });
     });
   } catch (err) {
     // DB hatası — S3'te artık dosya var. Cleanup için 13P retention
     // worker'a güveniyoruz (orphan asset'leri expires_at sonrası siler).
-    // Burada 'failed' damgalamak risk: status 'completed' set edilemediği
-    // için tekrar enqueue olabilir → BullMQ retry zaten devrede, throw'la
-    // bırakıyoruz.
     throw wrapError(err, 'db_commit_failed');
   }
 
@@ -425,6 +463,129 @@ export async function processReportRenderJob(
   }
 
   return { outcome: 'completed', renderId: row.id, s3Key };
+}
+
+/**
+ * Faz 13L (DEM-268) — format-agnostic render çıktısı. xlsx/png/svg/pdf
+ * her biri bu shape'i döner; upload + DB INSERT bunu kullanır.
+ */
+interface RenderArtifact {
+  buffer: Buffer;
+  byteSize: number;
+  checksum: string;
+  contentType: string;
+}
+
+/** Asset MinIO key formatı. PDF/XLSX → `{renderId}.{ext}`; PNG/SVG widget hedef micro-report ile suffix'lenir. */
+function artifactKey(
+  row: ReportRender,
+  format: string,
+  assetTarget: { microReportId: string } | null,
+): string {
+  const ext = format;
+  if (format === 'png' || format === 'svg') {
+    const mid = assetTarget?.microReportId ?? 'widget';
+    return `workspace/${row.workspaceId}/${row.id}-${mid}.${ext}`;
+  }
+  return `workspace/${row.workspaceId}/${row.id}.${ext}`;
+}
+
+/** Hata kategorisi — `stampFailed` i18n key resolve için kullanır. */
+function artifactErrorCategoryFor(
+  format: string,
+):
+  | 'pdf_render_failed'
+  | 'xlsx_render_failed'
+  | 'png_render_failed'
+  | 'svg_render_failed' {
+  switch (format) {
+    case 'xlsx':
+      return 'xlsx_render_failed';
+    case 'png':
+      return 'png_render_failed';
+    case 'svg':
+      return 'svg_render_failed';
+    default:
+      return 'pdf_render_failed';
+  }
+}
+
+/**
+ * Format dispatcher — `processReportRenderJob` step 4. PDF Puppeteer
+ * print sayfası ile çalışır (13I); xlsx Puppeteer atlar (saf exceljs);
+ * png/svg widget print route'una gider (yeni 13L).
+ */
+async function runRenderForFormat(args: {
+  format: string;
+  deps: ReportRenderJobDeps;
+  row: ReportRender;
+  token: string;
+  assetTarget: { microReportId: string } | null;
+}): Promise<RenderArtifact> {
+  const { format, deps, row, token, assetTarget } = args;
+  if (format === 'pdf') {
+    const pdf = await renderPdfWithBrowser({
+      launcher: deps.launcher,
+      executablePath: deps.executablePath,
+      appUrl: deps.appUrl,
+      renderId: row.id,
+      token,
+      pageReadyTimeoutMs: deps.pageReadyTimeoutMs ?? 30_000,
+    });
+    return {
+      buffer: pdf.buffer,
+      byteSize: pdf.byteSize,
+      checksum: pdf.checksum,
+      contentType: 'application/pdf',
+    };
+  }
+  if (format === 'xlsx') {
+    if (!deps.getWorksheetExporter) {
+      throw new Error('getWorksheetExporter deps required for xlsx');
+    }
+    const datasetResolver = deps.resolveReportDataset ?? defaultReportDatasetResolver;
+    const dataset = await datasetResolver({
+      renderId: row.id,
+      token,
+      internalApiUrl: deps.internalApiUrl,
+    });
+    const result = await renderXlsx({
+      envelope: dataset.envelope,
+      i18n: dataset.i18n,
+      workspaceName: dataset.workspaceName,
+      locale: dataset.locale,
+      getWorksheetExporter: deps.getWorksheetExporter,
+    });
+    return {
+      buffer: result.buffer,
+      byteSize: result.byteSize,
+      checksum: result.checksum,
+      contentType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+  }
+  if (format === 'png' || format === 'svg') {
+    if (!assetTarget?.microReportId) {
+      throw new Error('assetTarget.microReportId required for png/svg');
+    }
+    const widget = await renderWidget({
+      renderId: row.id,
+      microReportId: assetTarget.microReportId,
+      token,
+      appUrl: deps.appUrl,
+      format,
+      launcher: deps.launcher,
+      executablePath: deps.executablePath,
+      pageReadyTimeoutMs: deps.pageReadyTimeoutMs ?? 30_000,
+    });
+    return {
+      buffer: widget.buffer,
+      byteSize: widget.byteSize,
+      checksum: widget.checksum,
+      contentType: widget.contentType,
+    };
+  }
+  throw new Error(`unsupported format: ${format}`);
 }
 
 /**
@@ -491,6 +652,9 @@ async function stampFailed(
     | 'unsupported_format'
     | 'print_token_failed'
     | 'pdf_render_failed'
+    | 'xlsx_render_failed'
+    | 'png_render_failed'
+    | 'svg_render_failed'
     | 'storage_upload_failed',
   at: Date,
 ): Promise<void> {

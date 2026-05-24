@@ -2098,6 +2098,10 @@ export const strings = {
         infoTooltip: 'Karşılaştırılabilir metriklerde ↑/↓ rozeti gösterilir.',
         infoAriaLabel: 'Karşılaştırma hakkında bilgi',
         summary: 'Karşılaştırma açık',
+        // Faz 13M (DEM-269) — comparison aktifken FilterSummaryChips tooltip
+        // ve micro-report'larda Δ kolonu başlığı için.
+        rangeTooltip: 'Önceki dönem: {from} – {to}',
+        deltaColumnHeader: 'Δ',
       },
       save: {
         titleLabel: 'Başlık',
@@ -2120,8 +2124,13 @@ export const strings = {
       export: {
         pdf: 'PDF İndir',
         xlsx: 'Excel İndir',
+        png: 'PNG İndir',
+        svg: 'SVG İndir',
+        image: 'Görsel İndir',
         preparing: 'Hazırlanıyor…',
-        xlsxComingSoon: 'Excel desteği yakında (13L).',
+        // 13L (DEM-268) — coming-soon mesajı artık geçerli değil; tutar
+        // hata mesajı olarak fail-safe kalır (geriye dönük string).
+        xlsxComingSoon: 'Excel hazırlanıyor; bittiğinde bildirilecek.',
       },
       // Code-review M1: nested obje — `t('reports.actions.schedule.label')`
       // doğru resolve eder. Önceki `'schedule.requiresSaved': ...` düz
@@ -2311,6 +2320,69 @@ export const strings = {
           archived: 'Arşivli',
         },
       },
+    },
+    /**
+     * Faz 13M (DEM-269) — KPI delta + previous-period etiketleri. Web
+     * tarafında `<KpiCard>` `t('reports.kpi.previousLabel')` ile çağırır;
+     * 13Q tam i18n provider geldiğinde aynı dot-path next-intl JSON'a
+     * taşınır.
+     */
+    kpi: {
+      previousLabel: 'Önceki:',
+    },
+    /**
+     * Faz 13M — comparison aktifken micro-report'larda görünen ek KPI/kolon
+     * etiketleri. Print sayfası `report-i18n-tr.ts` ile paralel.
+     */
+    comparison: {
+      activeBadge: 'Karşılaştırmalı',
+      previousPeriodLabel: 'Önceki dönem',
+      currentPeriodLabel: 'Mevcut dönem',
+      deltaColumnHeader: 'Δ',
+      rangeTooltip: 'Önceki dönem: {from} – {to}',
+    },
+    /**
+     * Faz 13M (DEM-269) — micro-report'lara gömülü KPI başlıkları
+     * (`activity-timeline` `totalEvents`, `member-contribution` kolonları,
+     * vb.). Web composer/panel resolve eder; print için aynı key'ler
+     * `report-i18n-tr.ts`'te ayrıca var.
+     */
+    microReports: {
+      activityTimeline: {
+        totalEvents: 'Toplam etkinlik',
+      },
+      memberContribution: {
+        columns: {
+          user: 'Üye',
+          count: 'Etkinlik',
+        },
+      },
+      labelDistribution: {
+        columns: {
+          label: 'Etiket',
+          count: 'Kart',
+        },
+      },
+    },
+    /**
+     * Faz 13M (DEM-269) — `<DeltaBadge>` `REPORT_I18N_KEYS.delta.*` ile
+     * çağırır (`up`/`down`/`neutral`/`new`). UI semantics: artış/azalış
+     * etiketleri kısa (rozet zaten ↑/↓/─/✨ ikon taşır); "yeni" geçmiş
+     * dönem 0 / null durumunda.
+     */
+    delta: {
+      up: 'artış',
+      down: 'azalış',
+      neutral: 'değişim yok',
+      new: 'yeni',
+    },
+    /**
+     * Faz 13M (DEM-269) — `<DataTable>` empty/more sabit i18n key'leri,
+     * `report-i18n-tr.ts` ile aynı paralel görüntü.
+     */
+    dataTable: {
+      empty: 'Bu rapor için veri yok.',
+      more: 've {count} satır daha',
     },
     errors: {
       manifestMissing: 'Bu rapor bileşeni şu anda gösterilemiyor.',

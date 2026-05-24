@@ -99,6 +99,8 @@ describe('reports schema shape', () => {
       'status',
       'format',
       'restrictedScope',
+      // Faz 13L (DEM-268) — PNG/SVG için microReportId hedef.
+      'assetTarget',
       'version',
       'triggeredBy',
       'triggerKind',
@@ -371,7 +373,7 @@ describe.runIf(dbAvailable)('0035 reports migration (integration)', () => {
       'failed',
       'expired',
     ]);
-    expect(byName.get('report_render_format')).toEqual(['pdf', 'xlsx', 'png']);
+    expect(byName.get('report_render_format')).toEqual(['pdf', 'xlsx', 'png', 'svg']);
   });
 
   it('next_run partial index is gated by is_active = true', async () => {

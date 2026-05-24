@@ -98,6 +98,11 @@ import {
   s3PutObjectAdapter,
   type ReportRenderJobData,
 } from './jobs/report-render';
+// Faz 13L (DEM-268) — Excel render için manifest lookup (worksheetExport).
+// React/recharts side dependency'ler runtime-only; worker tsconfig JSX yok
+// fakat exceljs sheet üretimi için sadece `manifest.worksheetExport(data)`
+// çağrılır (Component yüklemez).
+import { MICRO_REPORT_COMPONENTS } from '@pusula/ui/reports';
 import {
   REPORT_SCHEDULE_TICK_CRON,
   REPORT_SCHEDULE_TICK_JOB_NAME,
@@ -433,6 +438,11 @@ const reportRenderWorker = new Worker(
       workerSharedSecret: env.WORKER_SHARED_SECRET,
       bucket: env.S3_REPORTS_BUCKET,
       executablePath: env.PUPPETEER_EXECUTABLE_PATH,
+      // Faz 13L (DEM-268) — xlsx render: UI registry'sinden worksheetExport.
+      getWorksheetExporter: (id) => {
+        const manifest = MICRO_REPORT_COMPONENTS[id];
+        return manifest?.worksheetExport;
+      },
       // Faz 13I code-review M1+M2: BullMQ retry koordinasyonu — yalnız
       // son denemede DB'yi 'failed' damgala. `attemptsMade` 0-indexed
       // (ilk attempt = 0, ikinci = 1, …); maxAttempts queue config'ten

@@ -161,30 +161,30 @@ describe.runIf(dbAvailable)('report router (integration)', () => {
     });
     expect(out.scope).toEqual({ kind: 'board', boardId, workspaceId });
     expect(out.presetId).toBe('board.health');
-    // board.health preset'i: board-health-score / kpi-card / status-breakdown /
-    // aging-report / due-date-overview (5 micro-report; ama 13D'de
-    // aging-report ve board-health-score adapter'ı yok → widget-level error).
+    // board.health preset (13K sonrası): board-health-score / kpi-card /
+    // status-breakdown / aging-report / due-date-overview (5 micro-report) —
+    // tüm 30 adapter implementli olduğu için hepsi data döner.
     expect(out.microReports.length).toBe(5);
     expect(out.generatedAt).toMatch(/^\d{4}-/);
   });
 
-  it('preview: 8 implemented adapter doğru veri döner', async () => {
+  it('preview: card.activity preset all adapters return data (13K — 30/30)', async () => {
     const out = await callerFor(memberId).report.preview({
       scope: { kind: 'card', cardId, boardId, workspaceId },
       presetId: 'card.activity',
       filters: { range: { kind: 'preset', preset: 'last30d' } },
     });
     // card.activity preset: activity-timeline / activity-breakdown /
-    // comment-volume / attachment-summary. 13D'de yalnız activity-timeline
-    // implementli; diğerleri widget error.
+    // comment-volume / attachment-summary. 13K sonrası tüm 4 adapter
+    // implementli → error: null + data döner.
     const timeline = out.microReports.find((m) => m.id === 'activity-timeline');
     expect(timeline).toBeDefined();
     expect(timeline?.error).toBeNull();
     expect(timeline?.data).toMatchObject({ totalCount: expect.any(Number) });
-    // Implementli olmayan adapter → error envelope (rapor patlamaz).
     const breakdown = out.microReports.find((m) => m.id === 'activity-breakdown');
-    expect(breakdown?.error).not.toBeNull();
-    expect(breakdown?.error?.code).toBe('adapter_not_implemented');
+    expect(breakdown).toBeDefined();
+    expect(breakdown?.error).toBeNull();
+    expect(breakdown?.data).toMatchObject({ totalCount: expect.any(Number) });
   });
 
   it('preview: outsider FORBIDDEN', async () => {

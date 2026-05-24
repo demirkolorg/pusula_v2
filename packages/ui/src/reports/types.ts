@@ -61,9 +61,26 @@ export interface MicroReportUiManifest<TData> {
    * kullanır; null/undefined → export desteği yok.
    */
   worksheetExport?(data: TData): {
-    columns: ReadonlyArray<{ header: string; key: string; width?: number }>;
+    columns: ReadonlyArray<{
+      header: string;
+      key: string;
+      width?: number;
+      /**
+       * Faz 13L (DEM-268) — Excel number format string'i (örn. `'#,##0'` veya
+       * `'yyyy-mm-dd hh:mm'`). exceljs `column.numFmt` ile direkt eşlenir;
+       * undefined ise format string'i atanmaz (Excel default text).
+       */
+      numFmt?: string;
+    }>;
     rows: ReadonlyArray<Record<string, unknown>>;
   };
+  /**
+   * Faz 13L (DEM-268) — PNG/SVG export desteği. `true` ise
+   * `<MicroReportShell>` actions menüsüne "Resim olarak indir" eklenir.
+   * Default `false` (entity-summary / kpi-card gibi text-heavy widget'lar
+   * görüntü export'una uygun değil).
+   */
+  supportsPngExport?: boolean;
 }
 
 /** Domain `DeltaResult` ile UI delta props alignment (re-export utility). */

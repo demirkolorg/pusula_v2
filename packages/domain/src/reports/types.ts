@@ -138,7 +138,7 @@ export type ComparisonConfig = z.infer<typeof comparisonConfigSchema>;
 
 // ─── Render format / Schedule cadence ──────────────────────────────────────
 
-export const REPORT_RENDER_FORMATS = ['pdf', 'xlsx', 'png'] as const;
+export const REPORT_RENDER_FORMATS = ['pdf', 'xlsx', 'png', 'svg'] as const;
 export const reportRenderFormatSchema = z.enum(REPORT_RENDER_FORMATS);
 export type ReportRenderFormat = z.infer<typeof reportRenderFormatSchema>;
 
@@ -311,13 +311,36 @@ export type ReportRenderListInput = z.infer<typeof reportRenderListSchema>;
  * `assetTarget` opsiyonel: PNG/SVG export'unda tek bir micro-report
  * widget'ını hedeflemek için (`{ microReportId }`).
  */
+/**
+ * PNG/SVG export'ları tek micro-report widget'ını hedefler — `assetTarget`
+ * zorunlu. PDF/Excel ise tüm rapor; `assetTarget` boş.
+ *
+ * Faz 13L (DEM-268).
+ */
+const requireAssetTargetForWidgetFormats = (
+  value: { format: ReportRenderFormat; assetTarget?: { microReportId: string } },
+): boolean => {
+  if (value.format === 'png' || value.format === 'svg') {
+    return value.assetTarget !== undefined && value.assetTarget.microReportId.length > 0;
+  }
+  return true;
+};
+
+const ASSET_TARGET_REFINE_MSG =
+  'PNG/SVG export için assetTarget.microReportId zorunlu';
+
 export const reportExportSchema = z.discriminatedUnion('source', [
-  z.object({
-    source: z.literal('saved'),
-    savedReportId: idSchema,
-    format: reportRenderFormatSchema,
-    assetTarget: z.object({ microReportId: z.string().min(1) }).optional(),
-  }),
+  z
+    .object({
+      source: z.literal('saved'),
+      savedReportId: idSchema,
+      format: reportRenderFormatSchema,
+      assetTarget: z.object({ microReportId: z.string().min(1) }).optional(),
+    })
+    .refine(requireAssetTargetForWidgetFormats, {
+      message: ASSET_TARGET_REFINE_MSG,
+      path: ['assetTarget'],
+    }),
   z
     .object({
       source: z.literal('adhoc'),
@@ -333,6 +356,10 @@ export const reportExportSchema = z.discriminatedUnion('source', [
     .refine((v) => v.workspaceId === v.scope.workspaceId, {
       message: 'workspaceId ile scope.workspaceId aynı olmalı',
       path: ['scope', 'workspaceId'],
+    })
+    .refine(requireAssetTargetForWidgetFormats, {
+      message: ASSET_TARGET_REFINE_MSG,
+      path: ['assetTarget'],
     }),
 ]);
 export type ReportExportInput = z.infer<typeof reportExportSchema>;

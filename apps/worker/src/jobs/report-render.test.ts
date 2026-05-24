@@ -92,6 +92,8 @@ interface InMemoryRender {
   startedAt: Date | null;
   completedAt: Date | null;
   errorMessage: string | null;
+  // 13L (DEM-268) — PNG/SVG için microReportId hedef; pdf/xlsx için null.
+  assetTarget?: { microReportId: string } | null;
 }
 
 interface InMemoryAsset {
@@ -478,7 +480,9 @@ describe('processReportRenderJob (mocked DB + browser)', () => {
   });
 
   it('unsupported format → stamps failed (i18n key), does NOT re-throw (kalıcı user error)', async () => {
-    const db = createFakeDatabase({ renders: [seed({ format: 'xlsx' })] });
+    // 13L (DEM-268) sonrası pdf/xlsx/png/svg destekleniyor; ne olur ne olmaz
+    // bir format ('csv') ile defensive recheck branch'i tetiklenir.
+    const db = createFakeDatabase({ renders: [seed({ format: 'csv' })] });
     const page = createFakePage();
     const browser = createFakeBrowser(page);
     const launcher = createFakeLauncher(browser);
@@ -756,5 +760,196 @@ describe('s3PutObjectAdapter', () => {
         contentType: 'application/pdf',
       }),
     ).rejects.toBe(fault);
+  });
+});
+
+// ─── 13L (DEM-268) format branches ──────────────────────────────────────────
+
+describe('processReportRenderJob — 13L format branches', () => {
+  beforeEach(() => {
+    __resetBrowserSingletonForTest();
+  });
+  afterEach(() => {
+    __resetBrowserSingletonForTest();
+  });
+
+  function baseRender(overrides: Partial<InMemoryRender> = {}): InMemoryRender {
+    return {
+      id: 'r-1',
+      workspaceId: 'ws-1',
+      format: 'pdf',
+      status: 'queued',
+      triggeredBy: 'u-1',
+      startedAt: null,
+      completedAt: null,
+      errorMessage: null,
+      assetTarget: null,
+      ...overrides,
+    };
+  }
+
+  it('xlsx: dataset resolver + worksheet exporter çağrılır, asset insert edilir', async () => {
+    const db = createFakeDatabase({ renders: [baseRender({ format: 'xlsx' })] });
+    const browser = createFakeBrowser(createFakePage());
+    const launcher = createFakeLauncher(browser);
+    const storage = createFakeStorage();
+    const publisher = createFakePublisher();
+    const resolveReportDataset = vi.fn(async () => ({
+      envelope: {
+        generatedAt: '2026-05-24T12:00:00.000Z',
+        scope: { kind: 'board', workspaceId: 'ws-1', boardId: 'b-1' },
+        presetId: 'board.health',
+        filters: { range: { kind: 'preset', preset: 'last30d' } },
+        microReports: [
+          { id: 'activity-timeline', data: { events: [] }, comparisonData: null, error: null },
+        ],
+        restrictedScope: null,
+        comparison: null,
+        comparisonRange: null,
+      },
+      i18n: { 'reports.microReports.activityTimeline.title': 'Aktivite' },
+      workspaceName: 'Acme',
+      locale: 'tr-TR',
+    } as unknown as Awaited<ReturnType<NonNullable<ReportRenderJobDeps['resolveReportDataset']>>>));
+    const getWorksheetExporter = vi.fn(() => (_data: unknown) => ({
+      columns: [{ header: 'X', key: 'x' }],
+      rows: [{ x: 1 }],
+    }));
+
+    const result = await processReportRenderJob(
+      { renderId: 'r-1' },
+      {
+        ...makeDeps({ db, launcher, storage, publisher }),
+        resolveReportDataset,
+        getWorksheetExporter,
+      },
+    );
+
+    expect(result.outcome).toBe('completed');
+    expect(resolveReportDataset).toHaveBeenCalledTimes(1);
+    expect(getWorksheetExporter).toHaveBeenCalled();
+    expect(storage.calls).toHaveLength(1);
+    expect(storage.calls[0]!.contentType).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(storage.calls[0]!.key).toBe('workspace/ws-1/r-1.xlsx');
+    expect(db._assets).toHaveLength(1);
+    expect(db._assets[0]!.format).toBe('xlsx');
+    // Puppeteer açılmamalı (xlsx pure exceljs)
+    expect(launcher.launchBrowser).not.toHaveBeenCalled();
+  });
+
+  it('png: assetTarget zorunlu — yoksa unsupported_format', async () => {
+    const db = createFakeDatabase({
+      renders: [baseRender({ format: 'png', assetTarget: null })],
+    });
+    const browser = createFakeBrowser(createFakePage());
+    const launcher = createFakeLauncher(browser);
+    const result = await processReportRenderJob(
+      { renderId: 'r-1' },
+      makeDeps({ db, launcher }),
+    );
+    expect(result.outcome).toBe('failed');
+    expect(result.errorCategory).toBe('unsupported_format');
+    expect(db._renders.get('r-1')?.errorMessage).toBe(
+      'reports.errors.unsupported_format',
+    );
+    // Puppeteer launch edilmemeli
+    expect(launcher.launchBrowser).not.toHaveBeenCalled();
+  });
+
+  it('png: assetTarget set ile widget URL ziyaret edilir, image/png upload', async () => {
+    const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const page = createFakePage({
+      pdf: vi.fn(async () => Buffer.alloc(0)),
+    });
+    // page.screenshot field'ı testlerde mock'lı değil — render-png.ts kullanır.
+    // Burada fake page'i augment ediyoruz.
+    (page as unknown as { screenshot: ReturnType<typeof vi.fn> }).screenshot = vi.fn(
+      async () => pngBytes,
+    );
+    (page as unknown as { setViewport: ReturnType<typeof vi.fn> }).setViewport = vi.fn(
+      async () => undefined,
+    );
+    (page as unknown as { evaluate: ReturnType<typeof vi.fn> }).evaluate = vi.fn(
+      async () => null,
+    );
+    const browser = createFakeBrowser(page);
+    const launcher = createFakeLauncher(browser);
+    const storage = createFakeStorage();
+    const db = createFakeDatabase({
+      renders: [
+        baseRender({
+          format: 'png',
+          assetTarget: { microReportId: 'activity-timeline' },
+        }),
+      ],
+    });
+    const result = await processReportRenderJob(
+      { renderId: 'r-1' },
+      makeDeps({ db, launcher, storage }),
+    );
+    expect(result.outcome).toBe('completed');
+    expect(storage.calls[0]!.contentType).toBe('image/png');
+    expect(storage.calls[0]!.key).toBe(
+      'workspace/ws-1/r-1-activity-timeline.png',
+    );
+    expect(db._assets[0]!.format).toBe('png');
+    // Widget URL'i goto'da geçti
+    const gotoUrl = page.goto.mock.calls[0]?.[0] as string;
+    expect(gotoUrl).toContain('/reports/print/r-1/widget/activity-timeline');
+    expect(gotoUrl).toContain('format=png');
+  });
+
+  it('svg: assetTarget set + DOM svg → image/svg+xml upload', async () => {
+    const svgText = '<svg><circle/></svg>';
+    const page = createFakePage({
+      pdf: vi.fn(async () => Buffer.alloc(0)),
+    });
+    (page as unknown as { screenshot: ReturnType<typeof vi.fn> }).screenshot = vi.fn(
+      async () => Buffer.alloc(0),
+    );
+    (page as unknown as { setViewport: ReturnType<typeof vi.fn> }).setViewport = vi.fn(
+      async () => undefined,
+    );
+    (page as unknown as { evaluate: ReturnType<typeof vi.fn> }).evaluate = vi.fn(
+      async () => svgText,
+    );
+    const browser = createFakeBrowser(page);
+    const launcher = createFakeLauncher(browser);
+    const storage = createFakeStorage();
+    const db = createFakeDatabase({
+      renders: [
+        baseRender({
+          format: 'svg',
+          assetTarget: { microReportId: 'activity-timeline' },
+        }),
+      ],
+    });
+    const result = await processReportRenderJob(
+      { renderId: 'r-1' },
+      makeDeps({ db, launcher, storage }),
+    );
+    expect(result.outcome).toBe('completed');
+    expect(storage.calls[0]!.contentType).toBe('image/svg+xml');
+    expect(storage.calls[0]!.key).toBe(
+      'workspace/ws-1/r-1-activity-timeline.svg',
+    );
+    expect(db._assets[0]!.format).toBe('svg');
+  });
+
+  it('pdf branch (regression): mevcut PDF pipeline değişmedi', async () => {
+    const db = createFakeDatabase({ renders: [baseRender({ format: 'pdf' })] });
+    const browser = createFakeBrowser(createFakePage());
+    const launcher = createFakeLauncher(browser);
+    const storage = createFakeStorage();
+    const result = await processReportRenderJob(
+      { renderId: 'r-1' },
+      makeDeps({ db, launcher, storage }),
+    );
+    expect(result.outcome).toBe('completed');
+    expect(storage.calls[0]!.contentType).toBe('application/pdf');
+    expect(storage.calls[0]!.key).toBe('workspace/ws-1/r-1.pdf');
+    expect(db._assets[0]!.format).toBe('pdf');
   });
 });

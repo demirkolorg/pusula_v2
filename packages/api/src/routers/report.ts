@@ -550,6 +550,7 @@ const exportRouter = protectedProcedure
       comparison: comparison,
       status: 'queued',
       format: input.format,
+      assetTarget: input.assetTarget ?? null,
       version: 1,
       triggeredBy: ctx.session.user.id,
       triggerKind: 'manual',

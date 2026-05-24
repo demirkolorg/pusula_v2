@@ -1,0 +1,1 @@
+ALTER TYPE "public"."report_render_format" ADD VALUE 'svg';

@@ -29,6 +29,13 @@ export interface ReportPanelProps {
   headerActions?: ReactNode;
   /** Compact panel (composer içine gömülü) vs default (standalone sayfa). */
   compact?: boolean;
+  /**
+   * Faz 13L (DEM-268) — PNG/SVG export tetikleyici. Set edildiğinde her
+   * `supportsPngExport: true` widget'a overlay menü eklenir.
+   */
+  onExportPng?: (input: { microReportId: string; format: 'png' | 'svg' }) => void;
+  /** Export mutation pending (UX disable). */
+  exportPending?: boolean;
 }
 
 export function ReportPanel({
@@ -39,6 +46,8 @@ export function ReportPanel({
   onRefresh,
   headerActions,
   compact,
+  onExportPng,
+  exportPending,
 }: ReportPanelProps) {
   const { t } = useReportI18n();
 
@@ -80,6 +89,7 @@ export function ReportPanel({
       <PanelHeader
         filters={dataset.filters}
         comparison={dataset.comparison}
+        comparisonRange={dataset.comparisonRange}
         isStale={isStale}
         isFetching={loading}
         onRefresh={onRefresh}
@@ -87,7 +97,11 @@ export function ReportPanel({
         compact={compact}
       />
       <div className="p-4">
-        <MicroReportGrid dataset={dataset} />
+        <MicroReportGrid
+          dataset={dataset}
+          onExportPng={onExportPng}
+          exportPending={exportPending}
+        />
       </div>
     </div>
   );

@@ -1,0 +1,1 @@
+ALTER TABLE "report_renders" ADD COLUMN "asset_target" jsonb;

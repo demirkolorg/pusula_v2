@@ -24,10 +24,11 @@ describe('UI registry × domain registry alignment', () => {
     expect(getMicroReportComponent('not-a-thing')).toBeUndefined();
   });
 
-  it('covers the 8 first-pass micro-reports', () => {
-    expect(MICRO_REPORT_COMPONENT_IDS).toHaveLength(8);
+  it('covers all 30 micro-reports after 13K', () => {
+    expect(MICRO_REPORT_COMPONENT_IDS).toHaveLength(30);
     expect(MICRO_REPORT_COMPONENT_IDS).toEqual(
       expect.arrayContaining([
+        // 13F (ilk 8)
         'activity-timeline',
         'checklist-progress',
         'due-date-overview',
@@ -36,6 +37,29 @@ describe('UI registry × domain registry alignment', () => {
         'label-distribution',
         'member-contribution',
         'status-breakdown',
+        // 13K (kalan 22)
+        'activity-breakdown',
+        'activity-heatmap',
+        'aging-report',
+        'attachment-summary',
+        'attachment-type-breakdown',
+        'board-health-score',
+        'burndown',
+        'comment-volume',
+        'completion-rate',
+        'cycle-time',
+        'description-coverage',
+        'due-trend',
+        'label-cooccurrence',
+        'label-trend',
+        'list-balance',
+        'list-flow',
+        'member-presence',
+        'member-workload',
+        'mention-graph',
+        'recent-changes',
+        'time-in-list',
+        'wip-count',
       ]),
     );
   });

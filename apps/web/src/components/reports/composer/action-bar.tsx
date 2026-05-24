@@ -95,7 +95,7 @@ export function ActionBar({ scope, state, onSaveSuccess, savedReportId, onPrevie
     );
   }
 
-  function handleExport(format: 'pdf' | 'xlsx') {
+  function handleExport(format: 'pdf' | 'xlsx' | 'png' | 'svg') {
     if (!state.presetId) return;
     // code-review H3: `reportExportSchema` discriminated union — `saved`
     // variant'ında `comparison` ve scope alanları YOK, `adhoc` variant'ında
@@ -206,12 +206,14 @@ export function ActionBar({ scope, state, onSaveSuccess, savedReportId, onPrevie
         <Button
           variant="outline"
           size="sm"
-          disabled
-          title={t('reports.actions.export.xlsxComingSoon')}
+          onClick={() => handleExport('xlsx')}
+          disabled={!state.presetId || !canExport || state.exportMutation.isPending}
           data-testid="report-action-export-xlsx"
         >
           <FileDownIcon className="size-4" />
-          {t('reports.actions.export.xlsx')}
+          {state.exportMutation.isPending
+            ? t('reports.actions.export.preparing')
+            : t('reports.actions.export.xlsx')}
         </Button>
 
         <PermissionGatedButton

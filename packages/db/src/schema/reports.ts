@@ -65,6 +65,9 @@ export const reportRenderFormatEnum = pgEnum('report_render_format', [
   'pdf',
   'xlsx',
   'png',
+  // Faz 13L (DEM-268) — chart-level SVG export. APPEND-ONLY (Postgres enum
+  // disiplini; daha önce 13B/0035 ile 3 değer yaratıldı).
+  'svg',
 ]);
 
 // ─── Tables ─────────────────────────────────────────────────────────────────
@@ -203,6 +206,14 @@ export const reportRenders = pgTable(
       excludedKind: string;
       excludedCount: number;
     } | null>(),
+
+    /**
+     * Faz 13L (DEM-268) — PNG/SVG render'ı için hedef micro-report.
+     * `null` (pdf/xlsx) → tüm rapor. `{ microReportId }` (png/svg) → tek
+     * widget. Mutation `report.export` insert ederken yazar; worker
+     * `processReportRenderJob` PNG/SVG branch'inde okur.
+     */
+    assetTarget: jsonb().$type<{ microReportId: string } | null>(),
 
     /** Saved report'un her render'ında +1; "son 5 sürüm hep tut" policy için. */
     version: integer().notNull().default(1),

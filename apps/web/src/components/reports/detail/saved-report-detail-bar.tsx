@@ -75,8 +75,14 @@ export function SavedReportDetailBar({
     }),
   );
 
-  function handleExport(format: 'pdf' | 'xlsx') {
-    exportMutation.mutate({ source: 'saved', savedReportId, format });
+  function handleExport(format: 'pdf' | 'xlsx' | 'png' | 'svg', microReportId?: string) {
+    if ((format === 'png' || format === 'svg') && !microReportId) return;
+    exportMutation.mutate({
+      source: 'saved',
+      savedReportId,
+      format,
+      assetTarget: microReportId ? { microReportId } : undefined,
+    });
   }
 
   const scopeLabel = t(`reports.scope.${scope.kind}`);
@@ -144,11 +150,14 @@ export function SavedReportDetailBar({
         <Button
           variant="outline"
           size="sm"
-          disabled
-          title={t('reports.actions.export.xlsxComingSoon')}
+          onClick={() => handleExport('xlsx')}
+          disabled={exportMutation.isPending}
+          data-testid="saved-report-detail-xlsx"
         >
           <FileDownIcon className="size-4" />
-          {t('reports.actions.export.xlsx')}
+          {exportMutation.isPending
+            ? t('reports.actions.export.preparing')
+            : t('reports.actions.export.xlsx')}
         </Button>
         <PermissionGatedButton
           can={perm.canScheduleCreate}

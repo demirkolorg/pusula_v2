@@ -118,6 +118,8 @@ export const REPORT_I18N_KEYS = Object.freeze({
       pdf: 'reports.actions.export.pdf',
       xlsx: 'reports.actions.export.xlsx',
       png: 'reports.actions.export.png',
+      svg: 'reports.actions.export.svg',
+      image: 'reports.actions.export.image',
     }),
   }),
 
