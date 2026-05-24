@@ -24,11 +24,17 @@ export type NotificationTargetInput = {
   payload: unknown;
 };
 
-/** Expo Router hedefi — `notificationTarget` üç mobil rotadan birini döndürür. */
+/** Expo Router hedefi — `notificationTarget` dört mobil rotadan birini döndürür.
+ *  Saved-report varyantı Faz 13S (DEM-275) ile eklendi — scheduled rapor
+ *  hazır push'una dokunma `/saved-reports/[id]` ekranını açar. */
 export type NotificationTarget =
   | { pathname: '/cards/[cardId]'; params: { cardId: string; title: string } }
   | { pathname: '/boards/[boardId]'; params: { boardId: string; title: string } }
-  | { pathname: '/workspaces/[id]'; params: { id: string; name: string } };
+  | { pathname: '/workspaces/[id]'; params: { id: string; name: string } }
+  | {
+      pathname: '/saved-reports/[id]';
+      params: { id: string; workspaceId: string; title: string };
+    };
 
 /** Boş olmayan, kırpılmış bir string ise onu döndürür; aksi halde `null`. */
 function stringValue(value: unknown): string | null {
@@ -64,15 +70,28 @@ export function notificationTarget(
   const workspaceId = notification.workspaceId ?? stringValue(raw.workspaceId);
   const boardId = notification.boardId ?? stringValue(raw.boardId);
   const cardId = notification.cardId ?? stringValue(raw.cardId);
+  const savedReportId = stringValue(raw.savedReportId);
   const cardTitle = stringValue(raw.cardTitle) ?? '';
   const boardTitle = stringValue(raw.boardName) ?? stringValue(raw.boardTitle) ?? '';
   const workspaceName = stringValue(raw.workspaceName) ?? '';
+  const reportTitle = stringValue(raw.reportTitle) ?? '';
 
   if (cardId && boardId) {
     return { pathname: '/cards/[cardId]', params: { cardId, title: cardTitle } };
   }
   if (boardId) {
     return { pathname: '/boards/[boardId]', params: { boardId, title: boardTitle } };
+  }
+  // Faz 13S (DEM-275) — saved-report varyantı. `report_scheduled_ready` tipi
+  // payload'da `savedReportId` + `workspaceId` taşır; ikisi de set ise rapor
+  // detayı ekranına git. Tek başına `savedReportId` (workspaceId yoksa) →
+  // workspace ekranı yolu yok, target = null (kullanıcı uygulamada bir şey
+  // yapamaz — bu durum production'da olmaz, defansif).
+  if (savedReportId && workspaceId) {
+    return {
+      pathname: '/saved-reports/[id]',
+      params: { id: savedReportId, workspaceId, title: reportTitle },
+    };
   }
   if (workspaceId) {
     return { pathname: '/workspaces/[id]', params: { id: workspaceId, name: workspaceName } };

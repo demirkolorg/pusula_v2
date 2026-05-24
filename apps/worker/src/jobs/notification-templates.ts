@@ -103,6 +103,15 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
     case 'board_member_added':
       // DEM-175 — board'a doğrudan eklenme: "X seni Y panosuna ekledi".
       return renderBoardMemberAdded(ctx);
+    case 'report_scheduled_ready':
+      // DEM-275 (Faz 13S) — bu tipte email kanalı outbox'a YAZILMAZ
+      // (`sendScheduledReportEmail` Faz 13J ile zaten kendine ait özel
+      // template'i göndermiş olur). Rule engine de bu tipi tetiklemez —
+      // outbox doğrudan worker `onCompleted` hook'u tarafından insert
+      // edilir, `channel` daima `in_app` veya `push`. Exhaustiveness için
+      // case tutuldu; ulaşırsa generic fallback boş içeriği döner
+      // (`renderGeneric` yeterince güvenli).
+      return renderGeneric(ctx);
     default: {
       // Exhaustiveness check — every new NotificationType must be wired here.
       const _exhaustive: never = ctx.type;
@@ -342,6 +351,26 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         body: `${actor}, "${subject}" panosuna erişim istedi.`,
         data,
       };
+    case 'report_scheduled_ready': {
+      // DEM-275 (Faz 13S) — scheduled rapor hazır. `actor`/`subject`
+      // pickActorName/pickSubject akışı bu tip için anlamsız (rapor render
+      // worker tarafından üretilir, aktör yok); payload'dan rapor başlığı
+      // ve saved id alınır. data.savedReportId/workspaceId/renderId
+      // mobile deep link target'ını (`notification-target.ts`) bilgilendirir.
+      const reportTitle = stringOr(ctx.payload, 'reportTitle', 'Rapor');
+      const savedReportId = stringOr(ctx.payload, 'savedReportId', '');
+      const workspaceId = stringOr(ctx.payload, 'workspaceId', '');
+      const renderId = stringOr(ctx.payload, 'renderId', '');
+      const reportData: Record<string, string> = { type: ctx.type };
+      if (savedReportId) reportData.savedReportId = savedReportId;
+      if (workspaceId) reportData.workspaceId = workspaceId;
+      if (renderId) reportData.renderId = renderId;
+      return {
+        title: 'Raporunuz hazır',
+        body: `"${reportTitle}" raporu indirilebilir.`,
+        data: reportData,
+      };
+    }
     default: {
       const _exhaustive: never = ctx.type;
       void _exhaustive;
@@ -829,6 +858,11 @@ function digestGroupBaseTitle(type: NotificationType): string {
       return 'Erişim talepleri';
     case 'board_member_added':
       return 'Panoya eklenmeler';
+    case 'report_scheduled_ready':
+      // DEM-275 (Faz 13S) — e-posta kanalı bu tipte outbox satırı yazmaz
+      // (`sendScheduledReportEmail` özel template ile gönderir); digest hiç
+      // toplamaz. Exhaustiveness için tam tutulur.
+      return 'Hazırlanan raporlar';
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -923,6 +957,12 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       return `${actor} → "${subject}" rolünü değiştirdi`;
     case 'board_access_requested':
       return `${actor} → "${subject}" panosuna erişim istedi`;
+    case 'report_scheduled_ready': {
+      // DEM-275 (Faz 13S) — digest yolu bu tipte hiç tetiklenmez (email kanalı
+      // outbox satırı yazmaz); satır metni defansif tutulur, exhaustiveness.
+      const reportTitle = stringOr(item.payload, 'reportTitle', 'Rapor');
+      return `"${reportTitle}" raporu hazır`;
+    }
     default: {
       const _exhaustive: never = type;
       void _exhaustive;

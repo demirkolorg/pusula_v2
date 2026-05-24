@@ -68,20 +68,39 @@ export default function WorkspaceBoardsScreen() {
           ? () => (
               // 44×44 sabit alan — Apple HIG min dokunma; ikon dikey/yatay ortalı,
               // başlıkla görsel dengeli (DEM-237). `hitSlop` ekstra güvenlik.
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={strings.members.workspaceTitle}
-                hitSlop={8}
-                onPress={() =>
-                  router.push({
-                    pathname: '/workspace-members/[id]',
-                    params: { id: workspaceId, name: params.name ?? '' },
-                  })
-                }
-                className="h-11 w-11 items-center justify-center active:opacity-60"
-              >
-                <Icon name="users" size={20} color={theme.foreground} />
-              </Pressable>
+              // Faz 13S (DEM-275) — Raporlar girişi üye yönetimi butonunun
+              // hemen solunda; aynı 44×44 disiplin. Mobil V1: yalnız view +
+              // indir (oluştur/zamanla web'de).
+              <View className="flex-row items-center">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.reports.workspaceLinkLabel}
+                  hitSlop={8}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/workspace-reports/[id]',
+                      params: { id: workspaceId, name: params.name ?? '' },
+                    })
+                  }
+                  className="h-11 w-11 items-center justify-center active:opacity-60"
+                >
+                  <Icon name="bar-chart-2" size={20} color={theme.foreground} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.members.workspaceTitle}
+                  hitSlop={8}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/workspace-members/[id]',
+                      params: { id: workspaceId, name: params.name ?? '' },
+                    })
+                  }
+                  className="h-11 w-11 items-center justify-center active:opacity-60"
+                >
+                  <Icon name="users" size={20} color={theme.foreground} />
+                </Pressable>
+              </View>
             )
           : undefined,
       }}

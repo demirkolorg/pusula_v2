@@ -173,13 +173,25 @@ interface FakeAsset {
   format: 'pdf';
 }
 
+/**
+ * Faz 13S (DEM-275) — insert call collector. Outbox `values([...])` çağrıları
+ * burada toplanır; testler insert'in kaç kez çağrıldığını ve hangi satırları
+ * yazdığını doğrular. `fakeDbForSend` döner.
+ */
+interface InsertCall {
+  values: unknown;
+}
+
 function fakeDbForSend(args: {
   joinRow: FakeRenderRow | null;
   asset: FakeAsset | null;
   userRows: Array<{ id: string; email: string; name: string }>;
+  /** Faz 13S — insert hook'unu fırlat (best-effort kontrolü). */
+  insertThrows?: boolean;
 }) {
   let selectCallNo = 0;
-  return {
+  const insertCalls: InsertCall[] = [];
+  const db = {
     select: () => {
       selectCallNo += 1;
       const currentCall = selectCallNo;
@@ -206,7 +218,18 @@ function fakeDbForSend(args: {
       };
       return chain;
     },
+    // Faz 13S — outbox insert path. `db.insert(notificationOutbox).values([...])`
+    // pattern'i. Test'te collector + opt-out throw.
+    insert: () => ({
+      values: async (rows: unknown) => {
+        if (args.insertThrows) {
+          throw new Error('mock: insert refused');
+        }
+        insertCalls.push({ values: rows });
+      },
+    }),
   } as unknown as SendScheduledEmailDeps['db'];
+  return Object.assign(db, { __insertCalls: insertCalls });
 }
 
 const BASE_JOIN_ROW: FakeRenderRow = {
@@ -395,5 +418,178 @@ describe('sendScheduledReportEmail', () => {
     );
     expect(result.kind).toBe('skipped');
     expect(result.reason).toBe('no-recipients');
+  });
+
+  // ─── Faz 13S (DEM-275) — outbox insert + publish enqueue ───────────────
+
+  it('happy path sonrası userId taşıyan alıcı başına in_app + push outbox satırı yazılır (Faz 13S)', async () => {
+    const mailer = createFakeMailer();
+    const db = fakeDbForSend({
+      joinRow: BASE_JOIN_ROW,
+      asset: BASE_ASSET,
+      userRows: [
+        { id: 'u-1', email: 'asya@ws.test', name: 'Asya' },
+        { id: 'u-2', email: 'burak@ws.test', name: 'Burak' },
+      ],
+    });
+    const enqueueCalls: Array<{ eventId: string }> = [];
+    const result = await sendScheduledReportEmail(
+      {
+        db,
+        mailer,
+        config: { from: 'no-reply@pusula.test', appUrl: 'https://test.com' },
+        createSignedUrl: async () => 'https://signed.test/r-1.pdf?sig=xyz',
+        enqueueNotificationPublish: async ({ eventId }) => {
+          enqueueCalls.push({ eventId });
+        },
+      },
+      { renderId: 'r-1' },
+    );
+    expect(result.kind).toBe('sent');
+    // Email: 3 alıcı (2 user + 1 external)
+    expect(result.recipientsSent).toBe(3);
+
+    // Outbox: 2 user × 2 kanal = 4 satır (external email-only → skip)
+    const inserts = (db as unknown as { __insertCalls: Array<{ values: unknown }> })
+      .__insertCalls;
+    expect(inserts).toHaveLength(1);
+    const rows = inserts[0]!.values as Array<{
+      channel: string;
+      recipientId: string;
+      type: string;
+      payload: Record<string, unknown>;
+    }>;
+    expect(rows).toHaveLength(4);
+    const channels = rows.map((r) => `${r.channel}:${r.recipientId}`).sort();
+    expect(channels).toEqual([
+      'in_app:u-1',
+      'in_app:u-2',
+      'push:u-1',
+      'push:u-2',
+    ]);
+
+    // Her satırda type 'report_scheduled_ready' + payload tam.
+    rows.forEach((row) => {
+      expect(row.type).toBe('report_scheduled_ready');
+      expect(row.payload).toMatchObject({
+        savedReportId: 's-1',
+        renderId: 'r-1',
+        workspaceId: 'ws-1',
+        scheduleId: 'sch-1',
+        reportTitle: 'Sprint Sağlık',
+        workspaceName: 'Ürün Ekibi',
+        scopeKind: 'board',
+      });
+      expect(typeof row.payload.completedAt).toBe('string');
+    });
+
+    // Publish enqueue: tek tetik, SCHEDULER_TICK_EVENT_ID sentinel'i.
+    expect(enqueueCalls).toEqual([{ eventId: 'scheduler:tick' }]);
+  });
+
+  it('hiç userId yoksa (sadece external email) outbox insert atlanır', async () => {
+    const mailer = createFakeMailer();
+    const db = fakeDbForSend({
+      joinRow: {
+        ...BASE_JOIN_ROW,
+        schedule: {
+          id: 'sch-1',
+          recipientUserIds: [],
+          recipientEmails: ['ext@partner.com'],
+        },
+      },
+      asset: BASE_ASSET,
+      userRows: [],
+    });
+    const enqueueCalls: Array<{ eventId: string }> = [];
+    const result = await sendScheduledReportEmail(
+      {
+        db,
+        mailer,
+        config: { from: 'no-reply@pusula.test', appUrl: 'https://test.com' },
+        createSignedUrl: async () => 'https://signed.test',
+        enqueueNotificationPublish: async ({ eventId }) => {
+          enqueueCalls.push({ eventId });
+        },
+      },
+      { renderId: 'r-1' },
+    );
+    expect(result.kind).toBe('sent');
+    expect(result.recipientsSent).toBe(1);
+
+    const inserts = (db as unknown as { __insertCalls: Array<{ values: unknown }> })
+      .__insertCalls;
+    expect(inserts).toHaveLength(0);
+    expect(enqueueCalls).toEqual([]);
+  });
+
+  it('outbox insert hata fırlatsa email outcome bozulmaz (best-effort)', async () => {
+    const mailer = createFakeMailer();
+    const db = fakeDbForSend({
+      joinRow: BASE_JOIN_ROW,
+      asset: BASE_ASSET,
+      userRows: [{ id: 'u-1', email: 'asya@ws.test', name: 'Asya' }],
+      insertThrows: true,
+    });
+    const result = await sendScheduledReportEmail(
+      {
+        db,
+        mailer,
+        config: { from: 'no-reply@pusula.test', appUrl: 'https://test.com' },
+        createSignedUrl: async () => 'https://signed.test',
+      },
+      { renderId: 'r-1' },
+    );
+    // Email teslim outcome'u korunur — outbox sweeper 90sn sonra alır.
+    expect(result.kind).toBe('sent');
+    expect(result.recipientsFailed).toBe(0);
+  });
+
+  it('enqueueNotificationPublish yoksa outbox insert yine yapılır (sweeper alır)', async () => {
+    const mailer = createFakeMailer();
+    const db = fakeDbForSend({
+      joinRow: BASE_JOIN_ROW,
+      asset: BASE_ASSET,
+      userRows: [{ id: 'u-1', email: 'asya@ws.test', name: 'Asya' }],
+    });
+    const result = await sendScheduledReportEmail(
+      {
+        db,
+        mailer,
+        config: { from: 'no-reply@pusula.test', appUrl: 'https://test.com' },
+        createSignedUrl: async () => 'https://signed.test',
+        // enqueueNotificationPublish undefined
+      },
+      { renderId: 'r-1' },
+    );
+    expect(result.kind).toBe('sent');
+    const inserts = (db as unknown as { __insertCalls: Array<{ values: unknown }> })
+      .__insertCalls;
+    expect(inserts).toHaveLength(1);
+  });
+
+  it('enqueueNotificationPublish hata fırlatırsa outbox insert korunur (publish sweeper alır)', async () => {
+    const mailer = createFakeMailer();
+    const db = fakeDbForSend({
+      joinRow: BASE_JOIN_ROW,
+      asset: BASE_ASSET,
+      userRows: [{ id: 'u-1', email: 'asya@ws.test', name: 'Asya' }],
+    });
+    const result = await sendScheduledReportEmail(
+      {
+        db,
+        mailer,
+        config: { from: 'no-reply@pusula.test', appUrl: 'https://test.com' },
+        createSignedUrl: async () => 'https://signed.test',
+        enqueueNotificationPublish: async () => {
+          throw new Error('redis-down');
+        },
+      },
+      { renderId: 'r-1' },
+    );
+    expect(result.kind).toBe('sent');
+    const inserts = (db as unknown as { __insertCalls: Array<{ values: unknown }> })
+      .__insertCalls;
+    expect(inserts).toHaveLength(1);
   });
 });

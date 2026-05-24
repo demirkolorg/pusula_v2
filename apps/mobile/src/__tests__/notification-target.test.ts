@@ -135,4 +135,64 @@ describe('notificationTarget', () => {
     });
     expect(target).toBeNull();
   });
+
+  // ─── Faz 13S (DEM-275) — saved-report varyantı ─────────────────────────
+
+  it('savedReportId + workspaceId payloadda varsa saved-report ekranına yönlendirir (Faz 13S)', () => {
+    const target = notificationTarget({
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      payload: {
+        type: 'report_scheduled_ready',
+        savedReportId: 's-1',
+        workspaceId: 'ws-1',
+        reportTitle: 'Sprint Sağlık',
+      },
+    });
+    expect(target).toEqual({
+      pathname: '/saved-reports/[id]',
+      params: { id: 's-1', workspaceId: 'ws-1', title: 'Sprint Sağlık' },
+    });
+  });
+
+  it('savedReportId varsa rapor başlığı boş gelse de saved-report hedefi üretilir', () => {
+    const target = notificationTarget({
+      workspaceId: 'ws-1', // üst-seviye olarak da gelebilir
+      boardId: null,
+      cardId: null,
+      payload: { savedReportId: 's-2' },
+    });
+    expect(target).toEqual({
+      pathname: '/saved-reports/[id]',
+      params: { id: 's-2', workspaceId: 'ws-1', title: '' },
+    });
+  });
+
+  it('savedReportId var ama workspaceId yoksa target null döner (defansif)', () => {
+    // Production'da bu durum olmaz — worker payload ikisini de yazar.
+    // Defansif: kullanıcı uygulamada bir şey yapamaz, hedef null.
+    const target = notificationTarget({
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      payload: { savedReportId: 's-3' },
+    });
+    expect(target).toBeNull();
+  });
+
+  it('savedReportId + kart/board id taşıyorsa rapor önceliği yoktur (kart kazanır)', () => {
+    // Mevcut sıra: cardId+boardId → saved-report → workspace. Kart bağlamı
+    // varsa o gösterilir (rapor bildirimi push'unda kart id'leri olmaz; defansif).
+    const target = notificationTarget({
+      workspaceId: 'ws-1',
+      boardId: 'b-1',
+      cardId: 'c-1',
+      payload: { savedReportId: 's-1', cardTitle: 'X' },
+    });
+    expect(target).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-1', title: 'X' },
+    });
+  });
 });

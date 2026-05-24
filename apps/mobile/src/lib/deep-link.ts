@@ -86,5 +86,17 @@ export function deepLinkTarget(url: string | null | undefined): DeepLinkTarget |
     return { pathname: '/boards/[boardId]', params: { boardId, title: '' } };
   }
 
+  // Faz 13S (DEM-275) — `/workspaces/{id}/reports/{savedReportId}` → kayıtlı
+  // rapor detay ekranı. Universal link push tap'inde gelebilir (`pusulaportal.com`
+  // ya da `pusula://`). Yalnız 4 segment + 3. sıra `reports`.
+  if (segments.length === 4 && segments[2] === 'reports') {
+    const savedReportId = segmentValue(segments[3]);
+    if (!savedReportId) return null;
+    return {
+      pathname: '/saved-reports/[id]',
+      params: { id: savedReportId, workspaceId, title: '' },
+    };
+  }
+
   return null;
 }

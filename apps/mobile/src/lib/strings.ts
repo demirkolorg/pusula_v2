@@ -822,6 +822,41 @@ export const strings = {
       backToSignIn: 'Giriş ekranına dön',
     },
   },
+  // Faz 13S (DEM-275) — mobil rapor entegrasyonu (saved + scheduled liste,
+  // WebView detay, PDF share). View + indir; oluştur/zamanla web'de.
+  reports: {
+    workspaceLinkLabel: 'Raporlar',
+    list: {
+      title: 'Raporlar',
+      tabs: {
+        saved: 'Kaydedilmiş',
+        scheduled: 'Zamanlanmış',
+      },
+      emptySavedTitle: 'Henüz kayıtlı raporun yok',
+      emptySavedDescription: 'Web üzerinden rapor oluşturup kaydedebilirsin.',
+      emptyScheduledTitle: 'Hiç zamanlanmış rapor yok',
+      emptyScheduledDescription: 'Web üzerinden bir rapora zamanlama ekleyebilirsin.',
+      loadError: 'Raporlar yüklenemedi.',
+      scheduledStatusActive: 'Aktif',
+      scheduledStatusPaused: 'Duraklatıldı',
+    },
+    scope: {
+      card: 'Kart',
+      list: 'Liste',
+      board: 'Pano',
+      workspace: 'Çalışma alanı',
+    },
+    detail: {
+      headerTitle: 'Rapor',
+      pdfDownloadButton: 'PDF indir',
+      pdfDownloading: 'Hazırlanıyor…',
+      pdfErrorTitle: 'PDF hazırlanamadı',
+      pdfErrorBody: 'Bir şeyler ters gitti. Lütfen birazdan tekrar dene.',
+      pdfShareUnavailable: 'Bu cihazda paylaşım kullanılamıyor.',
+      pdfTimeoutBody: 'Rapor üretimi beklenenden uzun sürdü. Lütfen daha sonra tekrar dene.',
+      loadError: 'Rapor yüklenemedi.',
+    },
+  },
 } as const;
 
 export type Strings = typeof strings;

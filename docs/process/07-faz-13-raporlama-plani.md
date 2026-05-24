@@ -110,7 +110,7 @@ updated: 2026-05-24
 | 13P | [DEM-272](https://linear.app/demirkol/issue/DEM-272) | Retention worker: 90g rotation + son 5 sürüm | Review | 1 | 13I |
 | 13Q | [DEM-273](https://linear.app/demirkol/issue/DEM-273) | i18n key tarama + TR/EN locale + ESLint hardcode kuralı + CI sync check | Done | 1.5 | 13F + 13G + 13H + 13J + 13K |
 | 13R | [DEM-274](https://linear.app/demirkol/issue/DEM-274) | E2E Playwright suite (8+ senaryo) | Todo | 2 | 13G + 13H + 13J + 13M + 13N + 13O |
-| 13S | [DEM-275](https://linear.app/demirkol/issue/DEM-275) | Mobil entegrasyon (apps/mobile): saved + scheduled liste + WebView panel + PDF share | Todo | 2 | 13H + 13J |
+| 13S | [DEM-275](https://linear.app/demirkol/issue/DEM-275) | Mobil entegrasyon (apps/mobile): saved + scheduled liste + WebView panel + PDF share | In Progress | 2 | 13H + 13J |
 | 13T | [DEM-276](https://linear.app/demirkol/issue/DEM-276) | Production deploy + smoke test | Todo | 1.5 | 13R |
 
 **Toplam tahmin: ~38 iş günü** (1 geliştirici sıralı). Paralel ekip ile (~3 geliştirici) ~14-16 iş günü.

@@ -79,4 +79,26 @@ describe('deepLinkTarget', () => {
       params: { id: 'ws-1', name: '' },
     });
   });
+
+  // ─── Faz 13S (DEM-275) — saved-report segmenti ────────────────────────
+
+  it('saved-report URL\'sini saved-report ekranına çevirir (Faz 13S)', () => {
+    expect(
+      deepLinkTarget('https://pusulaportal.com/workspaces/ws-1/reports/saved-1'),
+    ).toEqual({
+      pathname: '/saved-reports/[id]',
+      params: { id: 'saved-1', workspaceId: 'ws-1', title: '' },
+    });
+  });
+
+  it('özel şema (pusula://) saved-report URL\'sini de çözer', () => {
+    expect(deepLinkTarget('pusula://workspaces/ws-2/reports/saved-2')).toEqual({
+      pathname: '/saved-reports/[id]',
+      params: { id: 'saved-2', workspaceId: 'ws-2', title: '' },
+    });
+  });
+
+  it('eksik savedReportId için null döner', () => {
+    expect(deepLinkTarget('https://pusulaportal.com/workspaces/ws-1/reports')).toBeNull();
+  });
 });

@@ -19,6 +19,7 @@
 import { and, eq, inArray } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
+  notificationOutbox,
   reportRenders,
   reportRenderAssets,
   reportSchedules,
@@ -43,6 +44,15 @@ export interface SendScheduledEmailDeps {
     key: string;
     expiresInSeconds: number;
   }) => Promise<string>;
+  /**
+   * Faz 13S (DEM-275) — outbox publish enqueue hook'u. Yazılan in_app + push
+   * satırları için `notification-publish` queue'ya `{ eventId: SCHEDULER_TICK_EVENT_ID }`
+   * job atar; consumer `event_id IS NULL` sentinel'ini görür ve fan-out eder.
+   * `undefined` → enqueue atlanır (test'te yok say; sweeper 90 sn sonra
+   * alır — productionda enqueue yine de tercih edilir, gecikme küçük olsun).
+   * Hata fırlatırsa email outcome'unu bozmaz (`try/catch` ile sarılır).
+   */
+  enqueueNotificationPublish?: (args: { eventId: string }) => void | Promise<void>;
 }
 
 export interface SendScheduledEmailInput {
@@ -152,6 +162,77 @@ export async function sendScheduledReportEmail(
       console.warn(
         `[worker:report-scheduled-email] failed to send to ${maskEmail(recipient.email)}` +
           ` (userId=${recipient.userId ?? 'external'}):`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  // 6. Faz 13S (DEM-275) — push + in-app bildirim outbox. Yalnız kayıtlı
+  // kullanıcılar (`userId` set) push token taşıyabilir; harici email-only
+  // alıcılar atlanır (mail zaten yukarıda gönderildi).
+  //
+  // Email kanalı YAZILMAZ — mail bu adımdan önce ayrı template ile gitti;
+  // duplicate önlenir. `notification_preferences.emailMode='off'` kaydı
+  // burada *etkisiz* (mail yine de gider — `report.scheduled.ready` her
+  // schedule için 1:1 işlemsel teslimat, digest kapsamı dışı).
+  //
+  // `event_id IS NULL`: bu tip activity event üretmez (`renderRow.render` zaten
+  // mevcut bir kayıt değil; rapor üretimi domain mutasyonu değil). Publish
+  // consumer `SCHEDULER_TICK_EVENT_ID` sentinel'i ile bu satırları batch
+  // okur. Insert hataları email outcome'unu bozmaz — best-effort.
+  const recipientUserIds = recipients
+    .map((r) => r.userId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (recipientUserIds.length > 0) {
+    const completedAtIso = (renderRow.render.completedAt ?? new Date()).toISOString();
+    try {
+      await deps.db.insert(notificationOutbox).values(
+        recipientUserIds.flatMap((userId) => {
+          const payload = {
+            savedReportId: renderRow.saved.id,
+            renderId: renderRow.render.id,
+            workspaceId: renderRow.workspace.id,
+            scheduleId: renderRow.schedule.id,
+            reportTitle: renderRow.saved.title,
+            workspaceName: renderRow.workspace.name,
+            scopeKind: renderRow.render.scopeKind,
+            completedAt: completedAtIso,
+          };
+          return [
+            {
+              channel: 'in_app' as const,
+              recipientId: userId,
+              type: 'report_scheduled_ready' as const,
+              payload,
+            },
+            {
+              channel: 'push' as const,
+              recipientId: userId,
+              type: 'report_scheduled_ready' as const,
+              payload,
+            },
+          ];
+        }),
+      );
+      if (deps.enqueueNotificationPublish) {
+        try {
+          // `SCHEDULER_TICK_EVENT_ID` (`notification-publish.ts`) `event_id IS NULL`
+          // batch sentinel'i — due-date scheduler de aynı yolu kullanıyor.
+          // String literal'ı buradan import etmemek için tekrar yazıyoruz; sweeper
+          // zaten aynı sentinel'i bilir, runtime'da string eşitlik kontrolü yapılır.
+          await deps.enqueueNotificationPublish({ eventId: 'scheduler:tick' });
+        } catch (err) {
+          console.warn(
+            `[worker:report-scheduled-email] enqueueNotificationPublish failed (render=${renderRow.render.id}):`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+    } catch (err) {
+      // Best-effort — outbox sweeper 90 sn sonra alsa bile push gelir,
+      // sadece gecikme. Email teslim outcome'u korunur.
+      console.warn(
+        `[worker:report-scheduled-email] outbox insert failed (render=${renderRow.render.id}):`,
         err instanceof Error ? err.message : String(err),
       );
     }

@@ -1,0 +1,36 @@
+/**
+ * Faz 13S (DEM-275) — mobile WebView embed mode için global CSS overrides.
+ *
+ * `apps/mobile` `saved-reports/[id].tsx` ekranı web detay sayfasını
+ * `?embed=mobile` query'siyle açar; `<EmbedModeStyle>` (page.tsx içinde)
+ * body'ye `data-embed-mode="mobile"` attribute koyar. Bu CSS o attribute
+ * altında:
+ *
+ *   1. App-shell header'ını gizler (`[data-app-chrome="header"]` — Pusula
+ *      `(app)/_components/app-shell.tsx` 13S'te bu attribute'u taşır).
+ *   2. Detay bar'da mobil V1 dışı butonları gizler (`[data-embed-hide]` —
+ *      Excel, Zamanla, ⋯ aksiyon menüsü).
+ *   3. Body padding/margin'larını sıfırlar (header'sız WebView'da boş
+ *      üst boşluk olmasın).
+ *
+ * Yalnız `data-embed-mode="mobile"` body attribute'una sahip ekranı etkiler;
+ * normal Pusula web kullanımına dokunmaz.
+ */
+
+body[data-embed-mode='mobile'] [data-app-chrome='header'] {
+  display: none !important;
+}
+
+body[data-embed-mode='mobile'] [data-embed-hide='true'] {
+  display: none !important;
+}
+
+body[data-embed-mode='mobile'] main {
+  padding-top: 0 !important;
+}
+
+/* WebView'da geri butonu mobil header'da; web'in "Geri" linkini gizle (mobil
+   header'daki sistem geri tuşu zaten çalışır — duplicate önlenir). */
+body[data-embed-mode='mobile'] a[href$='/reports'] {
+  display: none !important;
+}

@@ -1,0 +1,23 @@
+-- DEM-275 (Faz 13S) — scheduled rapor hazır olduğunda push + in-app bildirim
+-- için yeni notification tipi.
+--
+-- notification_type += 'report_scheduled_ready'
+--   `apps/worker/src/jobs/report-render.ts` `onCompleted` hook'u (Faz 13J
+--   tetikledi) scheduled rapor başarıyla bittikten sonra her recipient
+--   (`userId` set) için `notification_outbox` insert eder — channel `in_app`
+--   + `push`, type `report_scheduled_ready`. Mobile push tap → deep link
+--   `pusula://workspaces/{id}/reports/{savedReportId}`.
+--
+-- Email kanalı YAZILMAZ — `sendScheduledReportEmail` (Faz 13J) mail'i zaten
+-- gönderdi; duplicate önlenir.
+--
+-- `activity_event_type` DEĞİŞMEZ — scheduled rapor hazır olması bir activity
+-- event'i üretmiyor, outbox doğrudan worker tarafından insert ediliyor.
+--
+-- Kaynak: `@pusula/domain/constants.ts` `NOTIFICATION_TYPES` (`pgEnum(...)` ile
+-- bağlı — DB enum tek listeye eşitlenmek zorunda; aksi halde insert SQLSTATE
+-- 22P02 ile fail eder). `IF NOT EXISTS` idempotent (önceki pattern: 0028-0032).
+--
+-- Detay → `docs/architecture/16-raporlama-mimarisi.md` §16.14 "Faz 13S mobil
+-- entegrasyon" + `docs/architecture/08-web-ve-mobil.md` §8.2 Faz 13S satırı.
+ALTER TYPE "public"."notification_type" ADD VALUE IF NOT EXISTS 'report_scheduled_ready';

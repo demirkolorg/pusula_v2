@@ -153,6 +153,10 @@ export function SavedReportDetailBar({
           onClick={() => handleExport('xlsx')}
           disabled={exportMutation.isPending}
           data-testid="saved-report-detail-xlsx"
+          // Faz 13S (DEM-275) — mobile WebView embed mode'da Excel butonu
+          // gizlenir (mobil V1 sadece PDF; CSV daha mobile-friendly olabilir,
+          // V2). `data-embed-hide` selector `embed-mobile.css`'te.
+          data-embed-hide="true"
         >
           <FileDownIcon className="size-4" />
           {exportMutation.isPending
@@ -166,17 +170,21 @@ export function SavedReportDetailBar({
           size="sm"
           onClick={() => setScheduleOpen(true)}
           data-testid="saved-report-detail-schedule"
+          // Faz 13S — Zamanla butonu mobil V1'de yok (oluştur/zamanla web'de).
+          data-embed-hide="true"
         >
           <CalendarClockIcon className="size-4" />
           {t('reports.actions.schedule.label')}
         </PermissionGatedButton>
-        <SavedReportActions
-          workspaceId={workspaceId}
-          savedReportId={savedReportId}
-          scope={scope}
-          title={title}
-          isArchived={isArchived}
-        />
+        <span data-embed-hide="true">
+          <SavedReportActions
+            workspaceId={workspaceId}
+            savedReportId={savedReportId}
+            scope={scope}
+            title={title}
+            isArchived={isArchived}
+          />
+        </span>
       </div>
       {scheduleOpen && (
         <ScheduleDialog

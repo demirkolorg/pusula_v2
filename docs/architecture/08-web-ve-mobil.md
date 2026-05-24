@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-22
+updated: 2026-05-24
 ---
 
 # 08 — Web ve Mobil
@@ -845,3 +845,23 @@ DEM-202 epic'i `faz-bol` ile beş alt işe bölündü (önce-belge + dört imple
 - **Mobil: image upload UI + render (8.X.D — [DEM-246](https://linear.app/demirkol/issue/DEM-246))** — 8.X.A'da kurulan mobil background picker ekranına "Görsel yükle" butonu eklenir (`expo-image-picker` — galeri/kamera, permission prompt, image/* only). Upload akışı: `expo-image-picker` ile dosya seçimi → `board.backgroundUploadInitiate` → RN `fetch` PUT MinIO → `board.backgroundUploadCommit`. Progress + hata + retry + "Kaldır" (paralel 8.X.C UX'i). Mobil board ekranı `image:<id>` varyantı için `<ImageBackground>` veya `<View style={{ backgroundImage }}>` render eder; üstüne mobil overlay `LinearGradient` (gradient/solid varyantında olmayan ek katman). Header/topbar mobil eşdeğeri (board ayarları girişinin bulunduğu üst bar) image üstünde okunaklılık için ek yarı-saydam koyu zemin taşır. Admin-only UI: viewer/member için "Görsel yükle" girişi gizli. Test: Jest + RNTL `apps/mobile/src/__tests__/board-background-image.test.tsx` (mock `expo-image-picker` + initiate/commit sırası + admin-only gizleme). Native bağımlılık: `expo-image-picker` (mevcut — DEM-152 / Faz 7J kart eki yolunda kuruldu) yeniden kullanılır; **yeni native bağımlılık yok**.
 
 **Bağımlılık zinciri:** 8.X.0 (DEM-242, bu önce-belge) → (8.X.A ∥ 8.X.B); 8.X.B → 8.X.C; (8.X.A + 8.X.B) → 8.X.D. Implementasyon sırasında `02-teknoloji-kararlari.md` Karar kaydı 2026-05-20 sözleşmedir — burada netleşmeyen ayrıntılar (eski `attachments` migration numarası, image dominant rengi okuma, GIF reddinin client-side mi server-side mi yapıldığı) implementation alt işlerinde alınır + ilgili docs'a yansıtılır.
+
+### Faz 13S — Mobil rapor entegrasyonu ([DEM-275](https://linear.app/demirkol/issue/DEM-275)) (Wired, 2026-05-24)
+
+`apps/mobile` raporlama erişimi alır — yalnız **view + indir**, oluşturma/zamanlama web'de kalır (kapsam dışı). Teknik ayrıntı + push akışı: [`16-raporlama-mimarisi.md`](16-raporlama-mimarisi.md) §16.14.
+
+- **Yeni ekranlar (Expo Router, `(boards)` grubu altında):**
+  - `app/(app)/(boards)/workspace-reports/[id].tsx` — workspaceId param, tab switcher (Kaydedilmiş / Zamanlanmış), `report.listSaved` + `report.schedule.listByWorkspace` tüketir, `ListRow` + `EmptyState` Pusula mobile pattern.
+  - `app/(app)/(boards)/saved-reports/[id].tsx` — savedReportId param, `react-native-webview` ile web'in detay sayfasını `?embed=mobile` query'sini ekleyerek render; header'da PDF indir butonu.
+- **Workspace ekranı header'ı:** `(boards)/workspaces/[id].tsx` `headerRight`'ta mevcut "Üyeler" butonunun yanına "Raporlar" ikonu (`bar-chart`).
+- **Web `?embed=mobile`:** detay sayfası bu query'yi okuyup `<body data-embed-mode="mobile">` toggle eder; CSS `embed-mobile.css` app-shell header'ı + admin-only aksiyon butonlarını gizler (yalnız panel + Yenile + PDF kalır).
+- **Auth cookie share:** WebView `sharedCookiesEnabled` (iOS) + `thirdPartyCookiesEnabled` (Android) — Better Auth Expo client cookie'si parent domain (`.pusulaportal.com`) üzerinden cihaz cookie jar'ından WebView'a otomatik geçer. Cookie domain ayarı `apps/api/src/auth.ts` Faz 7 mobile auth pattern'inden geliyor.
+- **PDF indir:** `report.export` → polling `report.getRender` (2sn × 60 max) → `expo-file-system.downloadAsync` → `expo-sharing.shareAsync` (native share sheet). Polling V2'de Faz 5C mobile socket extension ile değişir.
+- **Push bildirimi `report_scheduled_ready`:** yeni notification tipi (APPEND-ONLY enum). Worker `onCompleted` hook'u (Faz 13J kullanıyor) `triggerKind='scheduled'` + recipient `userId` set ise `notification_outbox` insert (channel `in_app` + `push`; email YAZILMAZ — `sendScheduledReportEmail` zaten mail gönderdi). Push template `notification-templates.ts` `renderNotificationPush` switch'e yeni case → title `Raporunuz hazır`, body `"{reportTitle}" raporu indirilebilir.`, data `{ type, savedReportId, renderId, workspaceId }`.
+- **Deep link `pusula://workspaces/{workspaceId}/reports/{savedReportId}`:** `apps/mobile/src/lib/notification-target.ts` `payload.savedReportId` set ise yeni `NotificationTarget` varyantı (`/saved-reports/[id]`); `apps/mobile/src/lib/deep-link.ts` URL parser'ı `/workspaces/{id}/reports/{savedReportId}` segmentini tanır. Universal Links (`applinks:pusulaportal.com`) + scheme link (`pusula://`) Faz 7L'den geliyor — yalnız helper'larda yeni varyant eklenir.
+- **Yeni native bağımlılık:** `react-native-webview` (Expo SDK 54 uyumlu). `expo-sharing`, `expo-file-system` mevcut (Faz 7J).
+- **i18n:** `apps/mobile/src/lib/strings.ts` `strings.reports.*` section'ı (TR-only V1; web tarafında 13Q `@pusula/api/lib/locales/tr-reports.json` JSON locale'i kullanılıyor — mobile yapısı flat TS object).
+
+**Kapsam dışı (V2):** native chart render (Skia/Victory), mobilde oluştur/zamanla (composer + ScheduleDialog), Excel/PNG/SVG export, offline PDF cache (SQLite).
+
+**Bağımlılık:** 13H (workspace `/reports` merkez + detay route) ✅ + 13J (schedule cron + Resend) ✅ + 13Q (i18n — web tarafı reports.json) ✅. Sonra: 13T (production deploy + smoke).

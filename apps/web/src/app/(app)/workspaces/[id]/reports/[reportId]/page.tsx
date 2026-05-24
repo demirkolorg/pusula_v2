@@ -14,9 +14,9 @@
  */
 'use client';
 
-import { use, useMemo } from 'react';
+import { use, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { notFound } from 'next/navigation';
+import { notFound, useSearchParams } from 'next/navigation';
 import {
   type ComparisonConfig,
   type ReportFilters,
@@ -31,6 +31,27 @@ import {
   type WatchedReportScope,
 } from '@/lib/realtime/use-report-stale';
 import { useTRPC } from '@/trpc/client';
+import './embed-mobile.css';
+
+/**
+ * Faz 13S (DEM-275) — mobil WebView embed mode. URL `?embed=mobile` ile
+ * açıldıysa `<body data-embed-mode="mobile">` attribute eklenir; CSS
+ * (`embed-mobile.css`) app-shell header'ı + admin-only aksiyon butonlarını
+ * gizler. Unmount'ta temizlenir (normal Pusula kullanımı etkilenmesin).
+ */
+function useEmbedMode(): 'mobile' | null {
+  const searchParams = useSearchParams();
+  const embed = searchParams.get('embed');
+  const mode = embed === 'mobile' ? 'mobile' : null;
+  useEffect(() => {
+    if (!mode) return;
+    document.body.dataset.embedMode = mode;
+    return () => {
+      delete document.body.dataset.embedMode;
+    };
+  }, [mode]);
+  return mode;
+}
 
 export default function SavedReportDetailPage({
   params,
@@ -41,6 +62,8 @@ export default function SavedReportDetailPage({
   const { t } = useReportI18n();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  // Faz 13S — mobile WebView için body attribute toggle (CSS chrome gizleme).
+  useEmbedMode();
 
   const savedQuery = useQuery({
     ...trpc.report.getSaved.queryOptions({ id: reportId }),

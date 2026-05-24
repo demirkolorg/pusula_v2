@@ -459,6 +459,12 @@ const reportRenderWorker = new Worker(
       // ise email gönderim job'unu çağır; manual/save trigger'lar no-op
       // (UI socket event'inden alır, email gerekmiyor). Fire-and-forget;
       // email fail render'ı bozmaz.
+      //
+      // Faz 13S (DEM-275) — `sendScheduledReportEmail` mail gönderiminden
+      // sonra recipient.userId set olan alıcılar için `notification_outbox`
+      // satırı (in_app + push, type `report_scheduled_ready`) yazar; biz
+      // `enqueueNotificationPublish` ile publish job'u tetikleriz → mobil
+      // push deep link (`pusula://workspaces/{id}/reports/{savedReportId}`).
       onCompleted: async (input) => {
         if (input.triggerKind !== 'scheduled' || !input.scheduleId) return;
         await sendScheduledReportEmail(
@@ -471,6 +477,13 @@ const reportRenderWorker = new Worker(
                 reportRenderS3Client,
                 new GetObjectCommand({ Bucket: bucket, Key: key }),
                 { expiresIn: expiresInSeconds },
+              );
+            },
+            enqueueNotificationPublish: async ({ eventId }) => {
+              await notificationsQueue.add(
+                NOTIFICATION_PUBLISH_JOB_NAME,
+                { eventId },
+                { jobId: notificationPublishJobId(eventId) },
               );
             },
           },

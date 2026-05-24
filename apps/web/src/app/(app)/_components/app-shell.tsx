@@ -88,6 +88,12 @@ export function AppShell({
       )}
     >
       <header
+        // Faz 13S (DEM-275) — `data-app-chrome` mobile WebView embed mode'da
+        // (`?embed=mobile`) CSS ile gizlenir (`embed-mobile.css`). Diğer hiçbir
+        // ekranı etkilemez — yalnız Pusula mobile WebView'ın chrome-less render
+        // ettiği rapor detay sayfasında body[data-embed-mode="mobile"] selector
+        // bu header'ı kaldırır.
+        data-app-chrome="header"
         className={cn(
           'sticky top-0 z-20 border-b',
           fullBleed

@@ -840,6 +840,18 @@ export const NOTIFICATION_TYPES = [
   // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı.
   // Detay → `docs/domain/04-bildirim-kurallari.md` "DEM-175".
   'board_member_added',
+  // DEM-275 (Faz 13S) — scheduled rapor başarıyla render olduğunda recipient'a
+  // gönderilen push + in-app bildirim. Worker `report-render.ts` `onCompleted`
+  // hook'u (Faz 13J kullanıyor) `triggerKind='scheduled'` + recipient `userId`
+  // set ise `notification_outbox` insert eder (channel `in_app` + `push`;
+  // email YAZILMAZ — `sendScheduledReportEmail` zaten mail gönderdi, duplicate
+  // önlenir). Mobile push tap → deep link
+  // `pusula://workspaces/{id}/reports/{savedReportId}`. Activity event
+  // ÜRETMEZ — outbox doğrudan worker tarafından yazılır (`event_id IS NULL`).
+  // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı
+  // (migration `0039_dem275_faz13S_report_scheduled_ready.sql`).
+  // Detay → `docs/architecture/16-raporlama-mimarisi.md` §16.14.
+  'report_scheduled_ready',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */

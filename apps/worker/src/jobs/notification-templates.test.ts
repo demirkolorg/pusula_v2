@@ -6,7 +6,12 @@
  * subject formatı doğrulanır.
  */
 import { describe, expect, it } from 'vitest';
-import { renderDigestEmail, type DigestItem } from './notification-templates';
+import {
+  renderDigestEmail,
+  renderNotificationEmail,
+  renderNotificationPush,
+  type DigestItem,
+} from './notification-templates';
 
 const RECIPIENT = { name: 'Asya', email: 'asya@example.test' };
 const APP_URL = 'https://app.pusula.test';
@@ -148,5 +153,78 @@ describe('renderDigestEmail', () => {
     });
     expect(result.html).not.toContain('<script>alert(1)</script>');
     expect(result.html).toContain('&lt;script&gt;');
+  });
+});
+
+// ─── Faz 13S (DEM-275) — `report_scheduled_ready` push + email fallback ────
+
+describe('renderNotificationPush — report_scheduled_ready (Faz 13S)', () => {
+  const baseCtx = {
+    type: 'report_scheduled_ready' as const,
+    recipient: RECIPIENT,
+    appUrl: APP_URL,
+  };
+
+  it('title "Raporunuz hazır" + body rapor başlığını taşır', () => {
+    const result = renderNotificationPush({
+      ...baseCtx,
+      payload: {
+        savedReportId: 's-1',
+        workspaceId: 'ws-1',
+        renderId: 'r-1',
+        reportTitle: 'Sprint 23 Sağlık',
+      },
+    });
+    expect(result.title).toBe('Raporunuz hazır');
+    expect(result.body).toBe('"Sprint 23 Sağlık" raporu indirilebilir.');
+  });
+
+  it('data payload type + savedReportId + workspaceId + renderId taşır', () => {
+    const result = renderNotificationPush({
+      ...baseCtx,
+      payload: {
+        savedReportId: 's-1',
+        workspaceId: 'ws-1',
+        renderId: 'r-1',
+        reportTitle: 'X',
+      },
+    });
+    expect(result.data).toEqual({
+      type: 'report_scheduled_ready',
+      savedReportId: 's-1',
+      workspaceId: 'ws-1',
+      renderId: 'r-1',
+    });
+  });
+
+  it('reportTitle yoksa fallback "Rapor" kullanılır', () => {
+    const result = renderNotificationPush({
+      ...baseCtx,
+      payload: { savedReportId: 's-1', workspaceId: 'ws-1', renderId: 'r-1' },
+    });
+    expect(result.body).toBe('"Rapor" raporu indirilebilir.');
+  });
+
+  it('savedReportId/workspaceId/renderId yoksa data sadece type taşır', () => {
+    const result = renderNotificationPush({ ...baseCtx, payload: {} });
+    expect(result.data).toEqual({ type: 'report_scheduled_ready' });
+  });
+});
+
+describe('renderNotificationEmail — report_scheduled_ready fallback (Faz 13S)', () => {
+  it('email outbox satırı yok ama exhaustiveness için generic döner', () => {
+    // Bu tipte email kanalı outbox'a yazılmaz (`sendScheduledReportEmail`
+    // Faz 13J ile özel template gönderdi). Switch case yalnız tip
+    // exhaustiveness için tutulur — döndüğünde generic body içerir
+    // (pratik production yolunda hiç ulaşılmaz, defansif).
+    const result = renderNotificationEmail({
+      type: 'report_scheduled_ready',
+      recipient: RECIPIENT,
+      payload: { savedReportId: 's-1', reportTitle: 'X' },
+      appUrl: APP_URL,
+    });
+    expect(result.subject).toBeTruthy();
+    expect(result.html).toContain('Pusula');
+    expect(result.text).toBeTruthy();
   });
 });
