@@ -12,6 +12,8 @@ import {
   notificationsQueue,
   realtimePublishQueue,
   reportCacheInvalidatorQueue,
+  reportRenderQueue,
+  reportScheduleQueue,
   scheduledQueue,
 } from './queues';
 import { connection } from './redis';
@@ -96,6 +98,14 @@ import {
   s3PutObjectAdapter,
   type ReportRenderJobData,
 } from './jobs/report-render';
+import {
+  REPORT_SCHEDULE_TICK_CRON,
+  REPORT_SCHEDULE_TICK_JOB_NAME,
+  processReportScheduleTick,
+} from './jobs/report-schedule-tick';
+import { sendScheduledReportEmail } from './jobs/report-scheduled-email';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
  * Worker process skeleton. The notification / scheduled processors below are
@@ -429,6 +439,28 @@ const reportRenderWorker = new Worker(
       // (3, `queues.ts` reportRenderQueue defaultJobOptions).
       attemptsMade: job.attemptsMade,
       maxAttempts: job.opts.attempts ?? 1,
+      // Faz 13J (DEM-266) — onCompleted hook. Scheduled trigger (cron tetik)
+      // ise email gönderim job'unu çağır; manual/save trigger'lar no-op
+      // (UI socket event'inden alır, email gerekmiyor). Fire-and-forget;
+      // email fail render'ı bozmaz.
+      onCompleted: async (input) => {
+        if (input.triggerKind !== 'scheduled' || !input.scheduleId) return;
+        await sendScheduledReportEmail(
+          {
+            db,
+            mailer: emailMailer,
+            config: { from: env.EMAIL_FROM, appUrl: env.APP_URL },
+            createSignedUrl: async ({ bucket, key, expiresInSeconds }) => {
+              return getSignedUrl(
+                reportRenderS3Client,
+                new GetObjectCommand({ Bucket: bucket, Key: key }),
+                { expiresIn: expiresInSeconds },
+              );
+            },
+          },
+          { renderId: input.renderId },
+        );
+      },
     });
     if (result.outcome === 'completed') {
       console.warn(
@@ -444,6 +476,33 @@ const reportRenderWorker = new Worker(
   // memory limit 1GB → max 3 page (spec §16.8). 2 worker concurrency + 1
   // page singleton browser = makul.
   { connection, concurrency: 2 },
+);
+
+// Faz 13J (DEM-266) — schedule tick worker. Repeatable cron job (every
+// minute) due schedule'ları tarar → `report-render` queue'ya enqueue eder.
+// `notification-email-digest` pattern'i (Faz 10G) ile simetrik.
+const reportScheduleWorker = new Worker(
+  QUEUE.reportSchedule,
+  async (job) => {
+    if (job.name !== REPORT_SCHEDULE_TICK_JOB_NAME) {
+      console.warn(`[worker:report-schedule] unknown job ${job.name} — skipped`);
+      return;
+    }
+    const result = await processReportScheduleTick({
+      db,
+      enqueueReportRender: async ({ renderId }) => {
+        await reportRenderQueue.add('report-render', { renderId });
+      },
+    });
+    if (result.scanned > 0) {
+      console.warn(
+        `[worker:report-schedule] tick — scanned=${result.scanned} enqueued=${result.enqueued} failed=${result.failed}`,
+      );
+    }
+  },
+  // Concurrency 1: tick worker tek satırda işler (DB tarama + insert/update).
+  // notification-email-digest ile aynı disiplin.
+  { connection, concurrency: 1 },
 );
 
 const attachmentCleanupWorker = new Worker(
@@ -476,6 +535,7 @@ const workers = [
   realtimeWorker,
   reportCacheInvalidatorWorker,
   reportRenderWorker,
+  reportScheduleWorker,
   scheduledWorker,
   compactionWorker,
   searchReindexWorker,
@@ -564,6 +624,24 @@ void notificationsEmailDigestQueue
   )
   .catch((err) => {
     console.error('[worker:notification-email-digest] daily register failed:', err.message);
+  });
+
+// Faz 13J (DEM-266) — schedule cron tick. Every-minute repeatable; `jobId`
+// fixed → worker restart'ta tek scheduler row (BullMQ debounce). Hata:
+// log + Sentry breadcrumb (worker boot'u durdurmaz).
+void reportScheduleQueue
+  .add(
+    REPORT_SCHEDULE_TICK_JOB_NAME,
+    {},
+    {
+      jobId: 'report-schedule-tick-repeating',
+      repeat: { pattern: REPORT_SCHEDULE_TICK_CRON },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:report-schedule] tick register failed:', err.message);
   });
 
 // Faz 11C (DEM-149) — register the hourly attachment-cleanup sweeper. Same

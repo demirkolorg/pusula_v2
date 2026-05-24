@@ -162,6 +162,22 @@ export interface ReportRenderJobDeps {
    */
   attemptsMade?: number;
   maxAttempts?: number;
+  /**
+   * Faz 13J (DEM-266) — render başarıyla tamamlandıktan sonra çağrılan
+   * opsiyonel hook. `index.ts` bu callback'i `triggerKind === 'scheduled'
+   * && scheduleId` set ise `sendScheduledReportEmail`'e bağlar. Fire-and-
+   * forget: hata atarsa render outcome'u 'completed' kalır (DB değişmez),
+   * yalnız log + Sentry breadcrumb (kullanıcı yine `report.getRender` ile
+   * indirme alır).
+   */
+  onCompleted?: (input: {
+    renderId: string;
+    workspaceId: string;
+    scheduleId: string | null;
+    triggerKind: string;
+    triggeredBy: string | null;
+    s3Key: string;
+  }) => Promise<unknown> | unknown;
 }
 
 /**
@@ -384,6 +400,28 @@ export async function processReportRenderJob(
       '[worker:report-render] socket publish failed:',
       err instanceof Error ? err.message : String(err),
     );
+  }
+
+  // 8. Faz 13J (DEM-266) — onCompleted hook. `index.ts` scheduled trigger
+  // branch'inde email gönderim job'una bağlar; manual/save trigger'lar
+  // için undefined kalır (no-op). Fire-and-forget — email fail render'ı
+  // bozmaz.
+  if (deps.onCompleted) {
+    try {
+      await deps.onCompleted({
+        renderId: row.id,
+        workspaceId: row.workspaceId,
+        scheduleId: row.scheduleId ?? null,
+        triggerKind: row.triggerKind,
+        triggeredBy: row.triggeredBy ?? null,
+        s3Key,
+      });
+    } catch (err) {
+      console.warn(
+        '[worker:report-render] onCompleted hook failed:',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   return { outcome: 'completed', renderId: row.id, s3Key };

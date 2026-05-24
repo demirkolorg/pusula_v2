@@ -93,6 +93,14 @@ export const QUEUE = {
    */
   reportRender: 'pusula-report-render',
   /**
+   * Faz 13J ([DEM-266](https://linear.app/demirkol/issue/DEM-266)) — schedule
+   * cron tick queue. Repeatable job `every minute` BullMQ scheduler kayıt
+   * eder; worker tick'i `due schedule → report_renders insert + report-
+   * render queue enqueue` akışını koşar. `notification-email-digest` cron
+   * pattern'i (Faz 10G) ile simetrik.
+   */
+  reportSchedule: 'pusula-report-schedule',
+  /**
    * Faz 11C (DEM-149) — attachment cleanup queue. Two responsibilities,
    * dispatched by `job.name`:
    *  1. Delete trigger (`attachment-cleanup`): fired by `attachment.delete`
@@ -178,6 +186,18 @@ export const reportRenderQueue = new Queue(QUEUE.reportRender, {
     removeOnFail: { age: 60 * 60 * 24 * 7 },
   },
 });
+// Faz 13J (DEM-266) — schedule tick queue. Repeatable job tek (every-minute);
+// processor tarama + DB transaction'lar pahalı değil. notification-email-
+// digest pattern'i (Faz 10G) ile simetrik retry profili (2 attempt + 30s).
+export const reportScheduleQueue = new Queue(QUEUE.reportSchedule, {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential' as const, delay: 30_000 },
+    removeOnComplete: { age: 60 * 60, count: 100 },
+    removeOnFail: { age: 60 * 60 * 24 },
+  },
+});
 
 export const allQueues = [
   notificationsQueue,
@@ -191,4 +211,5 @@ export const allQueues = [
   attachmentCleanupQueue,
   reportCacheInvalidatorQueue,
   reportRenderQueue,
+  reportScheduleQueue,
 ];

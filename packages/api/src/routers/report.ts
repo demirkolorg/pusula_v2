@@ -656,6 +656,33 @@ const scheduleCreateRouter = protectedProcedure
       enforceReportPermission(canPerformReportAction('recipientEmail', scope, permCtx));
     }
 
+    // Faz 13J (DEM-266 security CRITICAL C1) — `recipientUserIds` workspace
+    // member intersect. `recipientUser` permission check ek olarak DB-level
+    // doğrulama: arbitrary user UUID kabul edilmez, yalnız aynı workspace'in
+    // üyeleri. Demote race: schedule oluşturulduktan sonra user'ın workspace
+    // erişimi kalkarsa `resolveScheduleRecipients` worker tarafında JOIN
+    // ile defense-in-depth (bkz. report-scheduled-email.ts).
+    if (input.recipientUserIds.length > 0) {
+      enforceReportPermission(canPerformReportAction('recipientUser', scope, permCtx));
+      const memberRows = await ctx.db
+        .select({ userId: workspaceMembers.userId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, saved.workspaceId),
+            inArray(workspaceMembers.userId, input.recipientUserIds),
+          ),
+        );
+      const validIds = new Set(memberRows.map((m) => m.userId));
+      const invalid = input.recipientUserIds.filter((id) => !validIds.has(id));
+      if (invalid.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'recipientUserIds workspace üyesi değil (cross-workspace recipient leak engeli).',
+        });
+      }
+    }
+
     // nextRunAt = "şimdi + 1 saat" — gerçek hesap 13J scheduler worker'da
     // (cadence + timezone'a göre). Burada konservatif placeholder.
     const nextRunAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -699,6 +726,29 @@ const scheduleUpdateRouter = protectedProcedure
     if (input.recipientEmails !== undefined && input.recipientEmails.length > 0) {
       enforceReportPermission(canPerformReportAction('recipientEmail', scope, permCtx));
     }
+    // Faz 13J (DEM-266 security CRITICAL C1) — recipientUserIds workspace
+    // member intersect (create ile simetrik).
+    if (input.recipientUserIds !== undefined && input.recipientUserIds.length > 0) {
+      enforceReportPermission(canPerformReportAction('recipientUser', scope, permCtx));
+      const memberRows = await ctx.db
+        .select({ userId: workspaceMembers.userId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, saved.workspaceId),
+            inArray(workspaceMembers.userId, input.recipientUserIds),
+          ),
+        );
+      const validIds = new Set(memberRows.map((m) => m.userId));
+      const invalid = input.recipientUserIds.filter((id) => !validIds.has(id));
+      if (invalid.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'recipientUserIds workspace üyesi değil (cross-workspace recipient leak engeli).',
+        });
+      }
+    }
+
 
     const patch: Partial<typeof existing> = {};
     if (input.cadenceConfig !== undefined) {
