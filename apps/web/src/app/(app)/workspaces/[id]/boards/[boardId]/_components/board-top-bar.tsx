@@ -21,6 +21,7 @@ import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
 import { BoardActivityDropdown } from './board-activity-dropdown';
 import { ArchivedItemsDropdown, type BoardArchiveList } from './archived-items-dropdown';
+import { BoardReportsButton } from '@/components/reports/entity-tab/board-reports-button';
 import { BoardFilterMenuContent, type BoardFilterMenuContentProps } from './board-filter-bar';
 import { BoardIconPicker } from './board-settings/board-icon-picker';
 import { BoardLabelsDropdown } from './board-settings/board-labels-dropdown';
@@ -296,6 +297,12 @@ export function BoardTopBar({
           onOpenChange={onBoardSearchOpenChange}
         />
         <BoardActivityDropdown boardId={boardId} />
+        {/* Faz 13G (DEM-263) — board scope rapor composer'ı açar. */}
+        <BoardReportsButton
+          boardId={boardId}
+          workspaceId={workspaceId}
+          className={boardChromeButtonClass}
+        />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

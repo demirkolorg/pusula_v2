@@ -148,6 +148,7 @@ describe('<BoardColumns>', () => {
     render(
       <BoardColumns
         boardId="b1"
+        workspaceId="ws-1"
         board={{ role: 'member', archivedAt: null }}
         lists={lists}
         cards={[] as BoardCard[]}
@@ -170,6 +171,7 @@ describe('<BoardColumns>', () => {
     render(
       <BoardColumns
         boardId="b1"
+        workspaceId="ws-1"
         board={{ role: 'member', archivedAt: null }}
         lists={lists}
         cards={cards}
@@ -189,6 +191,7 @@ describe('<BoardColumns>', () => {
     const { rerender } = render(
       <BoardColumns
         boardId="b1"
+        workspaceId="ws-1"
         board={{ role: 'member', archivedAt: null }}
         lists={lists}
         cards={cards}
@@ -205,6 +208,7 @@ describe('<BoardColumns>', () => {
     rerender(
       <BoardColumns
         boardId="b1"
+        workspaceId="ws-1"
         board={{ role: 'member', archivedAt: null }}
         lists={lists}
         cards={cards}

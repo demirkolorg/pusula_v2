@@ -2016,4 +2016,189 @@ export const strings = {
       'Aradığın sayfa burada değil — taşınmış ya da hiç var olmamış olabilir. Pusula seni geri götürür.',
     backHome: 'Ana sayfaya dön',
   },
+
+  /**
+   * Faz 13G (DEM-263) — raporlama composer + entity tab girişleri + panel.
+   * `useReportI18n` hook'u dot-notation key (`reports.composer.title.create`)
+   * lookup eder ve `{placeholder}` interpolation yapar. 13Q (DEM-266) full
+   * i18n provider'ı bu ağacı `next-intl` JSON'a taşır.
+   */
+  reports: {
+    composer: {
+      title: {
+        create: 'Yeni Rapor Oluştur',
+        edit: 'Raporu Düzenle',
+      },
+      scopeLabel: {
+        card: 'Kart raporu',
+        list: 'Liste raporu',
+        board: 'Pano raporu',
+        workspace: 'Çalışma alanı raporu',
+      },
+      preset: {
+        label: 'Şablon Seç',
+        includesCount: '{count} micro-report',
+      },
+      range: {
+        preset: {
+          today: 'Bugün',
+          yesterday: 'Dün',
+          last7d: 'Son 7 gün',
+          last30d: 'Son 30 gün',
+          last90d: 'Son 90 gün',
+          thisMonth: 'Bu ay',
+          lastMonth: 'Geçen ay',
+          thisQuarter: 'Bu çeyrek',
+          thisYear: 'Bu yıl',
+        },
+        custom: 'Özel aralık',
+        customSummary: '{from} → {to}',
+      },
+      filter: {
+        helperHint: 'Server bu filtreleri Zod ile doğrular; eksik alan yoksayılır.',
+        range: {
+          label: 'Tarih Aralığı',
+          selectPlaceholder: 'Hazır aralık seç',
+          fromLabel: 'Başlangıç tarihi',
+          toLabel: 'Bitiş tarihi',
+        },
+        members: {
+          label: 'Üyeler',
+          allMembers: 'Tüm üyeler',
+          selectedCount: '{count} üye',
+          empty: 'Bu kapsamda üye yok.',
+          summary: '{count} üye',
+          relations: {
+            assignee: 'Atanan',
+            actor: 'Aktör',
+            watcher: 'İzleyici',
+          },
+        },
+        labels: {
+          label: 'Etiketler',
+          allLabels: 'Tüm etiketler',
+          selectedCount: '{count} etiket',
+          empty: 'Bu kapsamda etiket yok.',
+          summary: '{count} etiket ({mode})',
+          mode: {
+            and: 'Tümü',
+            or: 'Herhangi',
+          },
+        },
+        scope: {
+          label: 'Kapsam',
+          cardStatus: 'Kart durumu',
+          lists: 'Listeler',
+          boards: 'Panolar',
+        },
+        clearSelection: 'Temizle',
+      },
+      comparison: {
+        toggleLabel: 'Önceki {period} ile karşılaştır',
+        infoTooltip: 'Karşılaştırılabilir metriklerde ↑/↓ rozeti gösterilir.',
+        infoAriaLabel: 'Karşılaştırma hakkında bilgi',
+        summary: 'Karşılaştırma açık',
+      },
+      save: {
+        titleLabel: 'Başlık',
+        titlePlaceholder: 'Örn. Sprint 23 sağlık',
+        descriptionLabel: 'Açıklama (opsiyonel)',
+        descriptionPlaceholder: 'Bu rapor neyi ölçer?',
+        saving: 'Kaydediliyor…',
+        successToast: 'Rapor kaydedildi.',
+        errorToast: 'Rapor kaydedilemedi.',
+      },
+      export: {
+        queuedToast: 'Rapor hazırlanıyor; bittiğinde bildirilecek.',
+        errorToast: 'Rapor üretimi başlatılamadı.',
+      },
+    },
+    actions: {
+      preview: 'Önizle',
+      previewing: 'Yükleniyor…',
+      save: 'Kaydet',
+      export: {
+        pdf: 'PDF İndir',
+        xlsx: 'Excel İndir',
+        preparing: 'Hazırlanıyor…',
+        xlsxComingSoon: 'Excel desteği yakında (13L).',
+      },
+      // Code-review M1: nested obje — `t('reports.actions.schedule.label')`
+      // doğru resolve eder. Önceki `'schedule.requiresSaved': ...` düz
+      // key dot-resolver tarafından alt-path olarak çözülemiyordu.
+      schedule: {
+        label: 'Zamanla',
+        requiresSaved: 'Zamanlama için önce raporu kaydedin.',
+      },
+      cancel: 'Vazgeç',
+      more: 'Daha fazla',
+      duplicate: 'Çoğalt',
+      delete: 'Sil',
+      archive: 'Arşivle',
+      refresh: 'Yenile',
+    },
+    schedule: {
+      dialogTitle: 'Raporu Zamanla',
+      dialogDescription: 'Belirlenen sıklıkta otomatik üretilip alıcılarına gönderilir.',
+      pendingPhaseNote: 'Email teslimi 13J (DEM-266) ile aktif olur.',
+      cadenceLabel: 'Sıklık',
+      cadence: {
+        daily: 'Günlük',
+        weekly: 'Haftalık',
+        monthly: 'Aylık',
+      },
+      hour: 'Saat',
+      minute: 'Dakika',
+      dayOfWeek: 'Haftanın günü',
+      weekday: {
+        '0': 'Pazar',
+        '1': 'Pazartesi',
+        '2': 'Salı',
+        '3': 'Çarşamba',
+        '4': 'Perşembe',
+        '5': 'Cuma',
+        '6': 'Cumartesi',
+      },
+      dayOfMonth: 'Ayın günü',
+      dayOfMonthHint: '1-31 arası bir gün veya "last".',
+      activeLabel: 'Schedule aktif',
+      recipientsComingSoon: 'Alıcı seçimi 13J ile gelir.',
+      createCta: 'Zamanla',
+      creating: 'Oluşturuluyor…',
+      successToast: 'Zamanlama oluşturuldu.',
+      errorToast: 'Zamanlama oluşturulamadı.',
+    },
+    panel: {
+      loading: 'Rapor hazırlanıyor…',
+      errorTitle: 'Rapor yüklenemedi',
+      emptyState: 'Bir şablon seçerek başlayın.',
+    },
+    entity: {
+      board: { openButton: 'Raporlar' },
+      card: { openButton: 'Kart raporu' },
+      list: { menuItem: 'Liste raporu' },
+      workspace: {
+        cardTitle: 'Raporlar',
+        cardDescription: 'Çalışma alanı için kaydedilmiş ve zamanlanmış raporlar.',
+        openCta: 'Raporları aç',
+      },
+    },
+    filters: {
+      scope: {
+        cardStatus: {
+          open: 'Açık',
+          completed: 'Tamamlanan',
+          archived: 'Arşivli',
+        },
+      },
+    },
+    errors: {
+      manifestMissing: 'Bu rapor bileşeni şu anda gösterilemiyor.',
+      widgetUnavailable: 'Bu rapor parçası şu anda yüklenemedi.',
+    },
+    permission: {
+      saveDeniedReason: 'Sadece yöneticiler kaydedebilir.',
+      scheduleDeniedReason: 'Sadece yöneticiler zamanlayabilir.',
+    },
+  },
 } as const;

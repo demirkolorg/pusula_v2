@@ -374,6 +374,7 @@ export default function BoardDetailPage({
         <div className="min-h-0 flex-1 overflow-hidden p-5">
           <BoardColumns
             boardId={boardId}
+            workspaceId={workspaceId}
             board={{ role: b.role, archivedAt: b.archivedAt }}
             lists={lists}
             cards={cards}

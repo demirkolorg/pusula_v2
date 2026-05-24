@@ -57,6 +57,7 @@ import {
 } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { ListReportsSubmenu } from '@/components/reports/entity-tab/list-reports-submenu';
 import { AddCardForm } from './add-card-form';
 import { useBoardDndContext } from './board-dnd-context';
 import {
@@ -89,6 +90,12 @@ export type BoardList = {
 
 type ListColumnProps = {
   boardId: string;
+  /**
+   * Faz 13G (DEM-263) — parent route'tan (`workspaces/[id]/...`) gelen
+   * workspaceId; `ListReportsSubmenu`'nun composer scope'unu kurması
+   * için. Optional: testler vermez → menu item gizlenir.
+   */
+  workspaceId?: string;
   list: BoardList;
   cards: BoardCard[];
   /**
@@ -198,6 +205,7 @@ const CONTEXT_MENU_KIT: ListMenuKit = {
  */
 export function ListColumn({
   boardId,
+  workspaceId,
   list,
   cards,
   canEdit,
@@ -444,6 +452,23 @@ export function ListColumn({
           )}
           <Separator />
         </>
+      )}
+      {/* Faz 13G (DEM-263) — list scope rapor composer'ı açar.
+          workspaceId yoksa item gizlenir; archive'dan önceki tek Separator
+          burada yer alır (ardışık ayraç UX regression'ı code-review H2). */}
+      {!listArchived && workspaceId ? (
+        <>
+          <Separator />
+          <ListReportsSubmenu
+            listId={list.id}
+            boardId={boardId}
+            workspaceId={workspaceId}
+            Item={Item}
+          />
+          <Separator />
+        </>
+      ) : (
+        <Separator />
       )}
       <Item onSelect={() => setArchiveOpen(true)}>
         {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}

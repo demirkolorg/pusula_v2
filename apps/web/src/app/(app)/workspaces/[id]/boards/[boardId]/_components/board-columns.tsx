@@ -21,6 +21,12 @@ import { type BoardCard, type BoardCardLabelOption, type BoardCardMemberOption }
 
 type BoardColumnsProps = {
   boardId: string;
+  /**
+   * Faz 13G (DEM-263) — parent route'tan gelen workspaceId; `ListColumn`
+   * (ve içindeki `ListReportsSubmenu`) composer scope'unu kurmak için
+   * ihtiyaç duyar.
+   */
+  workspaceId: string;
   /** The board's effective role for the viewer + its archived state. */
   board: { role: BoardRole; archivedAt: Date | string | null };
   /** Lists, archived included, already sorted by `position`. */
@@ -96,6 +102,7 @@ function archivedCardToBoardCard(card: RouterOutputs['card']['listArchived'][num
  */
 export function BoardColumns({
   boardId,
+  workspaceId,
   board,
   lists,
   cards,
@@ -198,6 +205,7 @@ export function BoardColumns({
                   )}
                 <ListColumn
                   boardId={boardId}
+                  workspaceId={workspaceId}
                   list={list}
                   cards={cardsByList.get(list.id) ?? (EMPTY_CARDS as BoardCard[])}
                   canEdit={canEdit}

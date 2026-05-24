@@ -48,6 +48,7 @@ import { CardDetailDueDate } from './card-detail-due-date';
 import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
+import { CardReportsButton } from '@/components/reports/entity-tab/card-reports-button';
 import { CardModalHeader } from './card-modal-header';
 import { ShareDialog } from './share-dialog';
 import { CardModalMetaChips, type CardModalMetaMenu } from './card-modal-meta-chips';
@@ -732,6 +733,12 @@ export function CardDetailDialog({
                       />
                     }
                   />
+
+                  {/* Faz 13G (DEM-263) — kart scope rapor composer butonu.
+                      Sticky header'ın altında, meta chip row'unun sonunda. */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <CardReportsButton cardId={cardId} boardId={boardId} />
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-[22px] px-4 pb-4 sm:px-6 sm:pb-5">

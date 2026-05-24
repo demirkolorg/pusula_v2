@@ -32,6 +32,7 @@ import {
 import { AppSpinner } from '@/components/app-spinner';
 import { EntityIconBadge } from '@/components/entity-icon';
 import { InfoTooltipButton } from '@/components/info-tooltip-button';
+import { WorkspaceReportsCard } from '@/components/reports/entity-tab/workspace-reports-card';
 import { strings, workspaceRoleLabels } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberDialog } from '../../_components/invite-member-dialog';
@@ -175,6 +176,9 @@ export default function WorkspaceManagePage({ params }: { params: Promise<{ id: 
               <BoardListSection workspaceId={workspaceId} canCreateBoard={canCreateBoard} />
             </CardContent>
           </Card>
+
+          {/* Faz 13G (DEM-263) — workspace scope rapor merkezi link kartı. */}
+          <WorkspaceReportsCard workspaceId={workspaceId} workspaceRole={ws.role} />
 
           <Card>
             <CardHeader>
