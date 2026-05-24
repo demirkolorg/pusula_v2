@@ -37,6 +37,7 @@ import {
 } from '@pusula/domain';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
+import { appendAudit } from '../lib/audit-log';
 import { generateShareToken } from '../lib/share-token';
 import { router } from '../trpc';
 
@@ -106,6 +107,22 @@ export const shareRouter = router({
         })
         .returning({ id: shareLinks.id, expiresAt: shareLinks.expiresAt });
       if (!row) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Faz 8E (DEM-282) — share token üretimi forensic kritik (linkin sırrı
+      // tarayıcıya 1 kerelik döner; sonradan kim hangi karta link açtığını
+      // hatırlamak için audit). `before: null` (link henüz yoktu).
+      await appendAudit(tx, {
+        workspaceId: ctx.card.workspaceId,
+        action: 'share.create',
+        targetType: 'share_link',
+        targetId: row.id,
+        actorId: ctx.session.user.id,
+        before: null,
+        after: { cardId: ctx.card.id, tokenPrefix, expiresAt: row.expiresAt },
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
+
       return row;
     });
 
@@ -149,15 +166,34 @@ export const shareRouter = router({
       return { id: link.id, revokedAt: link.revokedAt, changed: false as const };
     }
 
+    // Faz 8E (DEM-282) — share revoke audit'inin update ile aynı tx'te yazılması
+    // için açık transaction. Tx-içi insert tutarlılığı: revoke başarısız olursa
+    // audit de yazılmaz.
     const now = new Date();
-    const [updated] = await ctx.db
-      .update(shareLinks)
-      .set({ revokedAt: now, revokedById: ctx.session.user.id })
-      .where(eq(shareLinks.id, link.id))
-      .returning({ id: shareLinks.id });
-    if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+    const result = await ctx.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(shareLinks)
+        .set({ revokedAt: now, revokedById: ctx.session.user.id })
+        .where(eq(shareLinks.id, link.id))
+        .returning({ id: shareLinks.id });
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-    return { id: updated.id, revokedAt: now, changed: true as const };
+      await appendAudit(tx, {
+        workspaceId: ctx.card.workspaceId,
+        action: 'share.revoke',
+        targetType: 'share_link',
+        targetId: link.id,
+        actorId: ctx.session.user.id,
+        before: { revokedAt: null, cardId: ctx.card.id },
+        after: { revokedAt: now, cardId: ctx.card.id },
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
+
+      return updated;
+    });
+
+    return { id: result.id, revokedAt: now, changed: true as const };
   }),
 
   /**

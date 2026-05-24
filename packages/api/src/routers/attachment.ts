@@ -47,7 +47,9 @@ import {
   type AttachmentKind,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { maybeEnqueueAttachmentCleanup } from '../lib/attachment-cleanup';
+import { appendAudit } from '../lib/audit-log';
 import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
@@ -259,12 +261,7 @@ export const attachmentRouter = router({
     if (!canEditBoardContent(accessFromBoardRole(board.role))) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Dosya yukleme yetkiniz yok.' });
     }
-    if (board.archivedAt) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'Arsivli board icin dosya yuklenemez.',
-      });
-    }
+    assertNotArchived('board', board, 'Arsivli board icin dosya yuklenemez.');
 
     // Idempotency: already committed → return the existing summary, no audit
     // writes. The `committedAt` snapshot is loaded inside the helper below
@@ -562,6 +559,26 @@ export const attachmentRouter = router({
         clientMutationId: ctx.clientMutationId,
         seq,
         data: { attachmentId: existing.id },
+      });
+
+      // Faz 8E (DEM-282) — attachment silme forensic audit'e (hard delete: objesi
+      // de async cleanup queue'ya gider — `maybeEnqueueAttachmentCleanup` tx
+      // sonrası tetiklenir; audit'in `before` snapshot'ı dosya metadatasını korur).
+      await appendAudit(tx, {
+        workspaceId: board.workspaceId,
+        action: 'attachment.delete',
+        targetType: 'attachment',
+        targetId: existing.id,
+        actorId: ctx.session.user.id,
+        before: {
+          cardId: existing.cardId,
+          fileName: existing.fileName,
+          mimeType: existing.mimeType,
+          size: existing.size,
+        },
+        after: null,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
       });
     });
 

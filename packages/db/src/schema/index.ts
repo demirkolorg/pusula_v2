@@ -12,3 +12,4 @@ export * from './activity';
 export * from './notifications';
 export * from './search';
 export * from './reports';
+export * from './audit-log';

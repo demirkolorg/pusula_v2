@@ -76,6 +76,7 @@ import {
   updateCardInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { cardCols, createCardInTransaction } from '../lib/card-create';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import {
@@ -209,12 +210,8 @@ export const cardRouter = router({
       if (!canEditBoardContent(accessFromBoardRole(board.role))) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Kart oluşturma yetkiniz yok.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: "Arşivli board'a kart eklenemez." });
-      }
-      if (list.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart eklenemez.' });
-      }
+      assertNotArchived('board', board, "Arşivli board'a kart eklenemez.");
+      assertNotArchived('list', list, 'Arşivli listeye kart eklenemez.');
 
       const result = await createCardInTransaction(tx, {
         list: { id: list.id, boardId: list.boardId },
@@ -349,9 +346,7 @@ export const cardRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const dueAtChanged =
         wantsDueAt && (card.dueAt?.getTime() ?? null) !== (input.dueAt?.getTime() ?? null);
@@ -687,9 +682,7 @@ export const cardRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const isArchived = card.archivedAt !== null;
       if (isArchived === input.archived) {
@@ -704,12 +697,11 @@ export const cardRouter = router({
         if (!list) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Liste bulunamadı.' });
         }
-        if (list.archivedAt) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'Arşivli listedeki kartı geri yüklemek için önce aktif bir listeye taşıyın.',
-          });
-        }
+        assertNotArchived(
+          'list',
+          list,
+          'Arşivli listedeki kartı geri yüklemek için önce aktif bir listeye taşıyın.',
+        );
       }
 
       const nextArchivedAt = input.archived ? new Date() : null;
@@ -815,9 +807,7 @@ export const cardRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       if (card.completed) {
         return {
@@ -937,9 +927,7 @@ export const cardRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       if (!card.completed) {
         return {
@@ -1094,9 +1082,7 @@ export const cardRouter = router({
         // `cards.board_id` and re-check authorization on the target board).
         throw new TRPCError({ code: 'BAD_REQUEST', message: "Kart başka bir board'a taşınamaz." });
       }
-      if (toList.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
-      }
+      assertNotArchived('list', toList, 'Arşivli listeye kart taşınamaz.');
 
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -1106,9 +1092,7 @@ export const cardRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       // A card cannot be positioned relative to itself (degenerate).
       if (input.beforeCardId === card.id || input.afterCardId === card.id) {
@@ -1304,9 +1288,7 @@ export const cardRouter = router({
       if (!toList) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Hedef liste bulunamadı.' });
       }
-      if (toList.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart taşınamaz.' });
-      }
+      assertNotArchived('list', toList, 'Arşivli listeye kart taşınamaz.');
 
       // Target-board access (may differ from the source board). `resolveBoardAccess`
       // propagates `NOT_FOUND` / `FORBIDDEN` if the caller can't reach it.
@@ -1541,9 +1523,7 @@ export const cardRouter = router({
       if (!toList) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Hedef liste bulunamadı.' });
       }
-      if (toList.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart eklenemez.' });
-      }
+      assertNotArchived('list', toList, 'Arşivli listeye kart eklenemez.');
 
       const targetBoard = await resolveBoardAccess(tx, toList.boardId, ctx.session.user.id);
       if (!canEditBoardContent(accessFromBoardRole(targetBoard.role))) {

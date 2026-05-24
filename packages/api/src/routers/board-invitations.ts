@@ -38,6 +38,9 @@ import {
   revokeBoardInvitationInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
+import { appendAudit } from '../lib/audit-log';
+import { INVITATION_MESSAGES } from '../lib/permission-strings';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import {
   bumpBoardVersionForRealtime,
@@ -91,7 +94,7 @@ export const boardInvitationsRouter = router({
         .where(eq(boardInvitations.id, input.invitationId))
         .limit(1);
       if (!invitation || invitation.boardId !== ctx.board.id) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
       }
       if (invitation.status !== 'pending') {
         throw new TRPCError({
@@ -122,6 +125,19 @@ export const boardInvitationsRouter = router({
         clientMutationId: ctx.clientMutationId,
         seq,
         data: { invitationId: invitation.id, email: invitation.email },
+      });
+
+      // Faz 8E (DEM-282) — board davet iptali forensic audit'e.
+      await appendAudit(tx, {
+        workspaceId: ctx.board.workspaceId,
+        action: 'board.invitation.revoke',
+        targetType: 'board',
+        targetId: invitation.id,
+        actorId: ctx.session.user.id,
+        before: { status: 'pending', email: invitation.email, boardId: ctx.board.id },
+        after: { status: 'revoked', email: invitation.email, boardId: ctx.board.id },
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
       });
 
       return { id: invitation.id, status: 'revoked' as const };
@@ -181,14 +197,14 @@ export const boardInvitationsRouter = router({
       .where(eq(boardInvitations.token, input.token))
       .limit(1);
     if (!pre) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+      throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
     }
     if (pre.status === 'pending' && pre.expiresAt.getTime() <= Date.now()) {
       await ctx.db
         .update(boardInvitations)
         .set({ status: 'expired' })
         .where(eq(boardInvitations.id, pre.id));
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.expired });
     }
 
     let realtimeEventId: string | undefined;
@@ -208,18 +224,18 @@ export const boardInvitationsRouter = router({
         .for('update')
         .limit(1);
       if (!invitation) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
       }
       if (invitation.status !== 'pending') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.noLongerValid });
       }
       if (invitation.expiresAt.getTime() <= Date.now()) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.expired });
       }
       if (invitation.email.toLowerCase() !== userEmail) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: 'Bu davet başka bir e-postaya gönderildi.',
+          message: INVITATION_MESSAGES.wrongEmail,
         });
       }
 
@@ -231,12 +247,7 @@ export const boardInvitationsRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Arşivli board için davet kabul edilemez.',
-        });
-      }
+      assertNotArchived('board', board, 'Arşivli board için davet kabul edilemez.');
 
       const [workspace] = await tx
         .select({ archivedAt: workspaces.archivedAt })
@@ -246,12 +257,7 @@ export const boardInvitationsRouter = router({
       if (!workspace) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace bulunamadı.' });
       }
-      if (workspace.archivedAt) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Arşivli workspace için davet kabul edilemez.',
-        });
-      }
+      assertNotArchived('workspace', workspace, 'Arşivli workspace için davet kabul edilemez.');
 
       // Lazily make the caller a workspace `guest` if they aren't a member yet.
       const [wsMember] = await tx
@@ -338,16 +344,16 @@ export const boardInvitationsRouter = router({
           .where(eq(boardInvitations.token, input.token))
           .limit(1);
         if (!invitation) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
         }
         if (invitation.email.toLowerCase() !== userEmail) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'Bu davet başka bir e-postaya gönderildi.',
+            message: INVITATION_MESSAGES.wrongEmail,
           });
         }
         if (invitation.status !== 'pending') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
+          throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.noLongerValid });
         }
         const [board] = await tx
           .select({ workspaceId: boards.workspaceId })

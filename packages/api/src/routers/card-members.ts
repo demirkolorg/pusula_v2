@@ -48,6 +48,7 @@ import {
   removeCardMemberInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
@@ -109,9 +110,7 @@ export const cardMembersRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       // The candidate must be able to reach the card's board (invariant 12).
       const [wsMember] = await tx
@@ -242,9 +241,7 @@ export const cardMembersRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const deleted = await tx
         .delete(cardMembers)

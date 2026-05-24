@@ -56,6 +56,8 @@ import {
   updateBoardMemberRoleInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
+import { appendAudit } from '../lib/audit-log';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import type { Queryable } from '../middleware/board-access';
 import {
@@ -205,9 +207,7 @@ export const boardMembersRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const bumpVersion = () => bumpBoardVersionForRealtime(tx, ctx.board.id);
 
@@ -450,9 +450,7 @@ export const boardMembersRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       // `.for('update')` locks the target row so two concurrent demote/remove
       // calls serialize — neither can read `explicitAdminCount > 1` against a
@@ -534,6 +532,19 @@ export const boardMembersRouter = router({
         data: { userId: input.userId, oldRole: member.role, newRole: input.role },
       });
 
+      // Faz 8E (DEM-282) — board permission değişimi forensic audit'e yazılır.
+      await appendAudit(tx, {
+        workspaceId: ctx.board.workspaceId,
+        action: 'board.member.role_change',
+        targetType: 'user',
+        targetId: input.userId,
+        actorId: ctx.session.user.id,
+        before: { boardId: ctx.board.id, role: member.role },
+        after: { boardId: ctx.board.id, role: input.role },
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
+
       return { userId: input.userId, role: input.role, changed: true as const };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
@@ -568,9 +579,7 @@ export const boardMembersRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       // `.for('update')` locks the target row so two concurrent demote/remove
       // calls serialize — neither can read `explicitAdminCount > 1` against a
@@ -636,6 +645,19 @@ export const boardMembersRouter = router({
         clientMutationId: ctx.clientMutationId,
         seq,
         data: { userId: input.userId, role: member.role },
+      });
+
+      // Faz 8E (DEM-282) — üye çıkarma forensic audit'e yazılır (self-leave dahil).
+      await appendAudit(tx, {
+        workspaceId: ctx.board.workspaceId,
+        action: 'board.member.remove',
+        targetType: 'user',
+        targetId: input.userId,
+        actorId: ctx.session.user.id,
+        before: { boardId: ctx.board.id, role: member.role },
+        after: null,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
       });
 
       return { userId: input.userId, changed: true as const };

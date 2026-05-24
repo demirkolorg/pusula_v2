@@ -5,3 +5,4 @@ export * from './position';
 export * from './events';
 export * from './schemas';
 export * from './reports';
+export * from './audit';

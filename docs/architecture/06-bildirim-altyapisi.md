@@ -348,6 +348,16 @@ Kullanıcı geçici bir süre (örn. 1 saat, 1 gün, hafta sonu) belirli bir kar
 
 - **Scope:** Sadece **card-level**.
 
+## Davet süresi (expiry) sweeper — Faz 8F
+
+> **Wired (2026-05-24 — Faz 8F / [DEM-283](https://linear.app/demirkol/issue/DEM-283)):** Bu sweeper canlı. Kuyruk `pusula-invitation-expiry-sweeper` (`apps/worker/src/queues.ts:QUEUE.invitationExpirySweeper` + `invitationExpirySweeperQueue`). Cron `0 3 * * *` UTC (daily 03:00, `reportRetention` ile aynı düşük-trafik penceresi). Job processor `apps/worker/src/jobs/invitation-expiry-sweeper.ts` (`sweepExpiredInvitations` — `pending + expires_at < NOW()` satırları `status='expired'` UPDATE, workspace + board ayrı UPDATE). İdempotent (zaten expired satırlar WHERE'i geçmez). `accept` mutation'ı **zaten** lazy expiry kontrolü yapıyordu (workspace.ts:506 + board-invitations.ts:186 — Faz 1.3 / 2.5C); bu sweeper "davete hiç tıklanmazsa" durumu kapatır → admin yönetim ekranı (`workspace.invitations.list` / `board.invitations.list`) "Bekliyor" sahte gösterimi yerine "Süresi dolmuş" gösterir. Retry profili `reportRetention` ile aynı (2 attempt + 5dk backoff); kaçırılan tick zaten 24 saat sonra rekapture eder (`expires_at` geriye gitmez). Vitest `invitation-expiry-sweeper.test.ts` 7/7 PASS (flip pending → expired, future-date no-op, non-pending no-op, idempotent, mixed batch).
+
+- **Tetik:** Daily 03:00 UTC repeatable cron (`jobId = 'invitation-expiry-sweeper-repeating'` BullMQ debounce).
+- **İşlem:** İki bağımsız UPDATE — `workspace_invitations` + `board_invitations` aynı kalıp.
+- **Türkçe mesaj standardı:** Reject mesajları `packages/api/src/lib/permission-strings.ts:INVITATION_MESSAGES` sözlüğünden gelir (`expired` = "Davet süresi doldu. Davet edenden yeni link isteyin." + `notFound`/`noLongerValid`/`wrongEmail`). 8F öncesi 8 yerde elle yazılmış literal'ler bu sözlüğe taşındı.
+- **Job payload:** `{}` (boş; tüm DB'yi tarayıp UPDATE eder).
+- **Domain referansı:** [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) Faz 8F edge case 2.
+
 ## Worker job'ları (özet — güncel)
 
-notification outbox tüketme · notification-email (Resend) · **notification-email-digest (Faz 10G — Wired 2026-05-15 / DEM-141)** · notification-push (Expo) · realtime-publish (Faz 5B) · realtime-publish-sweeper (Faz 5B) · notification-publish-sweeper (Faz 6A) · due-date scheduler (Faz 6A) · **attachment-cleanup (Faz 11C — Wired 2026-05-15 / [DEM-149](https://linear.app/demirkol/issue/DEM-149)) · attachment-cleanup-sweeper (Faz 11C — Wired 2026-05-15)** · failed job retry · dead-letter job kaydı · position compaction (Faz 3C). Queue: BullMQ + Redis. Bkz. [`10-platform.md`](10-platform.md).
+notification outbox tüketme · notification-email (Resend) · **notification-email-digest (Faz 10G — Wired 2026-05-15 / DEM-141)** · notification-push (Expo) · realtime-publish (Faz 5B) · realtime-publish-sweeper (Faz 5B) · notification-publish-sweeper (Faz 6A) · due-date scheduler (Faz 6A) · **attachment-cleanup (Faz 11C — Wired 2026-05-15 / [DEM-149](https://linear.app/demirkol/issue/DEM-149)) · attachment-cleanup-sweeper (Faz 11C — Wired 2026-05-15)** · **invitation-expiry-sweeper (Faz 8F — Wired 2026-05-24 / [DEM-283](https://linear.app/demirkol/issue/DEM-283))** · failed job retry · dead-letter job kaydı · position compaction (Faz 3C). Queue: BullMQ + Redis. Bkz. [`10-platform.md`](10-platform.md).

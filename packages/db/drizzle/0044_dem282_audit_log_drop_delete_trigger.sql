@@ -1,0 +1,16 @@
+-- DEM-282 (Faz 8E) follow-up — `audit_log_no_delete` trigger'ı düşürülür.
+-- 0043'te workspace_id FK CASCADE'e çekildi (kullanıcı kararı 2026-05-24);
+-- workspace silindiğinde PG cascade audit satırlarını DELETE eder ve bu
+-- DELETE de trigger'a takılır → cascade çalışmaz.
+--
+-- Trade-off: app layer'da `db.delete(auditLog)` çağırılırsa DB engellemez.
+-- Forensic guarantee artık iki kaynaktan:
+--   1. UPDATE trigger (0041 + 0042) — UPDATE girişimleri reddedilir
+--      (actor_id ON DELETE SET NULL cascade istisnası hariç).
+--   2. App convention — `appendAudit` dışında `auditLog` tablosuna yazan
+--      veya `db.delete(auditLog)` çağıran procedure yazılmaz. Code review +
+--      grep gate (`packages/api/src/lib/audit-log.ts` tek modify yolu).
+--
+-- Append-only invariant tabloda korunur (UPDATE yok); workspace silindiğinde
+-- audit kayıtlarının da gitmesi CASCADE kararının kaçınılmaz sonucu.
+DROP TRIGGER IF EXISTS "audit_log_no_delete" ON "audit_log";

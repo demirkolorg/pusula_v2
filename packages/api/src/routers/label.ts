@@ -30,6 +30,7 @@ import {
   updateLabelInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import {
   deleteSearchDocument,
   syncSearchDocumentsForScope,
@@ -112,9 +113,7 @@ export const labelRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const [created] = await withLabelConflict(() =>
         tx
@@ -178,9 +177,7 @@ export const labelRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const [label] = await tx
         .select(labelCols)
@@ -252,9 +249,7 @@ export const labelRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const [label] = await tx
         .select({ id: labels.id, boardId: labels.boardId })

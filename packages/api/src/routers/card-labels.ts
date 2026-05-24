@@ -30,6 +30,7 @@ import { and, eq } from '@pusula/db';
 import { activityEvents, boards, cardLabels, labels } from '@pusula/db';
 import { addCardLabelInput, canEditBoardContent, removeCardLabelInput } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
@@ -81,9 +82,7 @@ export const cardLabelsRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const [label] = await tx
         .select({ id: labels.id, boardId: labels.boardId, name: labels.name, color: labels.color })
@@ -179,9 +178,7 @@ export const cardLabelsRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const deleted = await tx
         .delete(cardLabels)

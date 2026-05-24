@@ -6,6 +6,12 @@
 -- bu yüzden bu dosyadan kaldırıldı. Yalnız Faz 13P retention index'leri
 -- (snapshot'a aitti, eski `0038_dem272_faz13P_retention_indexes.sql` SQL
 -- dosyasında yer almıyordu) bu migration'da kalır.
-CREATE INDEX "report_render_assets_render_idx" ON "report_render_assets" USING btree ("render_id");--> statement-breakpoint
-CREATE INDEX "report_renders_retention_saved_idx" ON "report_renders" USING btree ("saved_report_id","created_at") WHERE "report_renders"."saved_report_id" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "report_renders_retention_adhoc_idx" ON "report_renders" USING btree ("created_at") WHERE "report_renders"."saved_report_id" IS NULL;
+--
+-- DEM-282 (Faz 8E) 2026-05-24 ek not: Bu dosya henüz tablo state olarak
+-- uygulanmadan kısa süre sonra DEM-275'te 0040'a düşmüş olabilir; üretim/
+-- staging DB'lerinde bazı index'ler 13P sırasında zaten oluşmuş olabilir.
+-- Idempotency için `CREATE INDEX IF NOT EXISTS` eklendi — fresh DB +
+-- ileri uygulanmış DB her iki yolda da güvenle çalışır.
+CREATE INDEX IF NOT EXISTS "report_render_assets_render_idx" ON "report_render_assets" USING btree ("render_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "report_renders_retention_saved_idx" ON "report_renders" USING btree ("saved_report_id","created_at") WHERE "report_renders"."saved_report_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "report_renders_retention_adhoc_idx" ON "report_renders" USING btree ("created_at") WHERE "report_renders"."saved_report_id" IS NULL;

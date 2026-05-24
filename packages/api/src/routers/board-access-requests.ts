@@ -27,6 +27,7 @@ import {
 } from '@pusula/domain';
 import type { BoardRole, WorkspaceRole } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import type { Queryable } from '../middleware/board-access';
 import {
@@ -341,12 +342,7 @@ export const boardAccessRequestsRouter = router({
         .where(eq(boards.id, ctx.board.id))
         .limit(1);
       if (!board) throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
-      if (board.archivedAt) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Arşivli board için erişim talebi onaylanamaz.',
-        });
-      }
+      assertNotArchived('board', board, 'Arşivli board için erişim talebi onaylanamaz.');
 
       const [workspaceMembership] = await tx
         .select({ role: workspaceMembers.role })

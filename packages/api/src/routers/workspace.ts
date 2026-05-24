@@ -27,10 +27,12 @@ import {
   type WorkspaceRole,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { appendAudit } from '../lib/audit-log';
 import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import { INVITATION_MESSAGES } from '../lib/permission-strings';
 import { workspaceProcedure } from '../middleware/workspace';
 import { protectedProcedure, router } from '../trpc';
 
@@ -148,6 +150,19 @@ const workspaceMembersRouter = router({
         });
         if (dispatched.inserted > 0) notificationEventId = roleActivity.id;
 
+        // Faz 8E (DEM-282) — kritik permission değişimi forensic audit hattına yazılır.
+        await appendAudit(tx, {
+          workspaceId: ctx.workspace.id,
+          action: 'workspace.member.role_change',
+          targetType: 'user',
+          targetId: input.userId,
+          actorId: ctx.session.user.id,
+          before: { role: target.role },
+          after: { role: input.role },
+          ip: ctx.ip,
+          userAgent: ctx.userAgent,
+        });
+
         return { userId: input.userId, role: input.role, changed: true as const };
       });
       maybeEnqueueNotificationPublish(ctx, notificationEventId);
@@ -225,6 +240,19 @@ const workspaceMembersRouter = router({
         payload: removedPayload,
       });
       if (dispatched.inserted > 0) notificationEventId = removedActivity.id;
+
+      // Faz 8E (DEM-282) — üye çıkarma forensic audit'e yazılır (self-leave dahil).
+      await appendAudit(tx, {
+        workspaceId: ctx.workspace.id,
+        action: 'workspace.member.remove',
+        targetType: 'user',
+        targetId: input.userId,
+        actorId: ctx.session.user.id,
+        before: { role: target.role },
+        after: null,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
 
       return { userId: input.userId, removed: true as const };
     });
@@ -427,7 +455,7 @@ const workspaceInvitationsRouter = router({
           )
           .limit(1);
         if (!invitation) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
         }
         if (invitation.status !== 'pending') {
           throw new TRPCError({
@@ -446,6 +474,20 @@ const workspaceInvitationsRouter = router({
           actorId: ctx.session.user.id,
           type: 'workspace.invitation_revoked',
           payload: { invitationId: invitation.id, email: invitation.email },
+        });
+
+        // Faz 8E (DEM-282) — davet iptali audit hattına: kim hangi e-postanın
+        // pending davetini ne zaman geri çekti.
+        await appendAudit(tx, {
+          workspaceId: ctx.workspace.id,
+          action: 'workspace.invitation.revoke',
+          targetType: 'workspace',
+          targetId: invitation.id,
+          actorId: ctx.session.user.id,
+          before: { status: 'pending', email: invitation.email },
+          after: { status: 'revoked', email: invitation.email },
+          ip: ctx.ip,
+          userAgent: ctx.userAgent,
         });
 
         return { invitationId: invitation.id, revoked: true as const };
@@ -501,14 +543,14 @@ const workspaceInvitationsRouter = router({
         .where(eq(workspaceInvitations.token, input.token))
         .limit(1);
       if (!pre) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
       }
       if (pre.status === 'pending' && pre.expiresAt.getTime() <= Date.now()) {
         await ctx.db
           .update(workspaceInvitations)
           .set({ status: 'expired' })
           .where(eq(workspaceInvitations.id, pre.id));
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.expired });
       }
 
       return ctx.db.transaction(async (tx) => {
@@ -529,19 +571,19 @@ const workspaceInvitationsRouter = router({
           .for('update')
           .limit(1);
         if (!invitation) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
         }
         if (invitation.status !== 'pending') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
+          throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.noLongerValid });
         }
         if (invitation.expiresAt.getTime() <= Date.now()) {
           // Lost a race with expiry: bail; the next call flips the status.
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet süresi doldu.' });
+          throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.expired });
         }
         if (invitation.email.toLowerCase() !== userEmail) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'Bu davet başka bir e-postaya gönderildi.',
+            message: INVITATION_MESSAGES.wrongEmail,
           });
         }
 
@@ -613,16 +655,16 @@ const workspaceInvitationsRouter = router({
           .where(eq(workspaceInvitations.token, input.token))
           .limit(1);
         if (!invitation) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Davet bulunamadı.' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: INVITATION_MESSAGES.notFound });
         }
         if (invitation.email.toLowerCase() !== userEmail) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'Bu davet başka bir e-postaya gönderildi.',
+            message: INVITATION_MESSAGES.wrongEmail,
           });
         }
         if (invitation.status !== 'pending') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Davet artık geçerli değil.' });
+          throw new TRPCError({ code: 'BAD_REQUEST', message: INVITATION_MESSAGES.noLongerValid });
         }
 
         await tx
@@ -978,6 +1020,25 @@ export const workspaceRouter = router({
           message: 'Onay için workspace adını tam yazın.',
         });
       }
+
+      // Faz 8E (DEM-282) — workspace silme forensic audit'e yazılır.
+      // `audit_log.workspace_id` FK ON DELETE CASCADE olduğu için aynı tx
+      // içinde önce audit insert + sonra workspace delete + cascade audit
+      // wipe akışı çalışır (audit kayıt insert edilir → workspace delete
+      // tetikleyince cascade audit'i de düşürür). Audit önceden yazılır ki
+      // delete başarısız olursa (FK RESTRICT'li başka tablodan, mesela
+      // realtime_events) audit de yazılmamış olsun.
+      await appendAudit(tx, {
+        workspaceId: ctx.workspace.id,
+        action: 'workspace.delete',
+        targetType: 'workspace',
+        targetId: ctx.workspace.id,
+        actorId: ctx.session.user.id,
+        before: { name: current.name },
+        after: null,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
 
       const [deleted] = await tx
         .delete(workspaces)

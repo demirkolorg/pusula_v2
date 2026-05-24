@@ -12,7 +12,7 @@ tags:
   - 'compliance'
 type: 'architecture'
 axis: 'architecture'
-status: 'draft'
+status: 'stable'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/03-backend|03 — Backend]]'
@@ -20,6 +20,7 @@ related:
   - '[[docs/domain/02-yetkilendirme-kurallari|02 — Yetkilendirme Kuralları]]'
   - '[[docs/architecture/06-bildirim-altyapisi|06 — Bildirim Altyapısı]]'
 updated: 2026-05-24
+implementation: 'DEM-282 (2026-05-24) — migration 0041 + 0042 (actor cascade trigger istisnası) + 0043 (workspace_id FK CASCADE) + 0044 (DELETE trigger drop), 10 mutation caller, 16 vitest + 5 domain unit + 593 mevcut suite PASS'
 ---
 
 # 17 — Audit Log Mimarisi
@@ -49,16 +50,16 @@ Faz 8 (Sertleştirme) kapsamı — DEM-277 (8.0) önce-belgesinde alınan kararl
 
 ### 2.1 Migration
 
-Yeni migration: `packages/db/src/migrations/0028_dem282_faz8E_audit_log.sql` (numara sıradaki müsait — 0027 Faz 11 sonrası).
+Yeni migration: `packages/db/drizzle/0041_dem282_faz8E_audit_log.sql` (sıradaki müsait — 0040 retention index'leri Faz 13P snapshot diff'inden gelmişti). ID/FK kolonları `text` (codebase'in `primaryId() = text + nanoid` standardına uygun — workspaces/users id'leri zaten `text`); `targetId` da `text` çünkü hedef her zaman bir entity (workspace/board/card/...) ve onların id'leri nanoid.
 
 ```sql
 CREATE TABLE audit_log (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
-  actor_id     uuid REFERENCES users(id) ON DELETE SET NULL,
+  id           text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  actor_id     text REFERENCES users(id) ON DELETE SET NULL,
   action       text NOT NULL,
   target_type  text NOT NULL,
-  target_id    uuid NOT NULL,
+  target_id    text NOT NULL,
   before       jsonb,
   after        jsonb,
   ip           text,
@@ -72,11 +73,32 @@ CREATE INDEX audit_log_workspace_idx
 CREATE INDEX audit_log_target_idx
   ON audit_log (target_type, target_id);
 
--- Immutable: UPDATE ve DELETE reddedilir (workspaces DELETE'i hariç — ON DELETE RESTRICT)
+-- Immutable: UPDATE reddedilir (DELETE trigger 0044'te düşürüldü — bkz. aşağı).
+-- Tek istisna: `actor_id` ON DELETE SET NULL FK cascade (kullanıcı silindiğinde
+-- PG `UPDATE audit_log SET actor_id = NULL` üretir — bu desene izin verilir,
+-- diğer her UPDATE girişimi reddedilir). Bu desen sadece `actor_id`
+-- NOT NULL → NULL geçişi + diğer tüm kolonların aynı kalması ile eşleşir.
 CREATE OR REPLACE FUNCTION audit_log_reject_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'audit_log is append-only: % operation rejected', TG_OP;
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.actor_id IS NOT NULL
+       AND NEW.actor_id IS NULL
+       AND OLD.id = NEW.id
+       AND OLD.workspace_id IS NOT DISTINCT FROM NEW.workspace_id
+       AND OLD.action IS NOT DISTINCT FROM NEW.action
+       AND OLD.target_type IS NOT DISTINCT FROM NEW.target_type
+       AND OLD.target_id IS NOT DISTINCT FROM NEW.target_id
+       AND OLD.before IS NOT DISTINCT FROM NEW.before
+       AND OLD.after IS NOT DISTINCT FROM NEW.after
+       AND OLD.ip IS NOT DISTINCT FROM NEW.ip
+       AND OLD.user_agent IS NOT DISTINCT FROM NEW.user_agent
+       AND OLD.created_at IS NOT DISTINCT FROM NEW.created_at THEN
+      RETURN NEW;
+    END IF;
+  END IF;
+  RAISE EXCEPTION 'audit_log is append-only: % operation rejected', TG_OP
+    USING ERRCODE = 'check_violation';
 END;
 $$;
 
@@ -89,7 +111,11 @@ CREATE TRIGGER audit_log_no_delete
   FOR EACH ROW EXECUTE FUNCTION audit_log_reject_mutation();
 ```
 
-`workspace_id` üzerinde `ON DELETE RESTRICT` — workspace silinemez (audit kayıtları varsa). Workspace silme zaten `workspace.delete` audit kaydı üretir; ardışık silme isteği önce audit log'u export etmeyi gerektirir (manuel — UI bu issue dışı).
+Trigger fonksiyonu üç migration'a yayılır: tablo + ilk fonksiyon tanımı `0041`, actor cascade istisnası `0042_dem282_audit_log_trigger_cascade.sql` (vitest cascade testinde ortaya çıktı), DELETE trigger drop `0044_dem282_audit_log_drop_delete_trigger.sql` (workspace cascade CASCADE → audit cascade DELETE'i bloklamasın diye). Workspace FK CASCADE değişikliği `0043_dem282_audit_log_workspace_cascade.sql`.
+
+`workspace_id` üzerinde `ON DELETE CASCADE` — workspace silindiğinde audit kayıtları da temizlenir. 8.0'da RESTRICT seçilmişti ("önce manuel cleanup, sonra workspace delete") ama pratikte uygulanamadı: (a) `workspace.delete` same-tx audit insert + workspace delete self-FK ihlali, (b) mevcut 7 integration test teardown'u workspace silmeden audit'i temizlemiyor — `RESTRICT` zincirleme reddiyle teardown patladı. Kullanıcı 2026-05-24'te CASCADE seçti. Forensic etki: workspace yaşadığı sürece audit korunur (UPDATE trigger immutability); silme sonrası kayıt gider — workspace owner zaten silindiği için okuyucusu kalmaz. Follow-up migration: `0043_dem282_audit_log_workspace_cascade.sql`. Karar gerekçesi: [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-24 satırı.
+
+CASCADE'in trigger ile etkileşimi: workspace cascade'i `DELETE FROM audit_log WHERE workspace_id = X` üretir, bu DELETE de `audit_log_no_delete` trigger'ına takılıyordu. Çözüm: `audit_log_no_delete` trigger'ı `0044_dem282_audit_log_drop_delete_trigger.sql` ile düşürüldü. Trade-off: app layer `db.delete(auditLog)` DB seviyesinde engellenmez; forensic guarantee artık (i) UPDATE trigger + actor_id cascade istisnası, (ii) app convention (`appendAudit` dışında audit tablosuna yazan/silmeyen procedure yazılmaz — code review + grep gate) iki kaynaktan.
 
 `actor_id` `ON DELETE SET NULL` — kullanıcı silinince audit kaydı kalır (`actor_id = NULL` = "silinmiş kullanıcı"); tarihsel kayıt korunur.
 
@@ -98,41 +124,46 @@ CREATE TRIGGER audit_log_no_delete
 `packages/db/src/schema/audit-log.ts` (yeni):
 
 ```typescript
-import { pgTable, text, uuid, jsonb, timestamp, index } from 'drizzle-orm/pg-core'
-import { workspaces } from './workspaces'
-import { users } from './users'
+import { desc } from 'drizzle-orm';
+import { index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { users } from './auth';
+import { workspaces } from './workspaces';
+import { primaryId } from './_common';
 
 export const auditLog = pgTable(
   'audit_log',
   {
-    id: uuid().primaryKey().defaultRandom(),
-    workspaceId: uuid()
+    id: primaryId(),
+    workspaceId: text()
       .notNull()
       .references(() => workspaces.id, { onDelete: 'restrict' }),
-    actorId: uuid().references(() => users.id, { onDelete: 'set null' }),
+    actorId: text().references(() => users.id, { onDelete: 'set null' }),
     action: text().notNull(),
     targetType: text().notNull(),
-    targetId: uuid().notNull(),
+    targetId: text().notNull(),
     before: jsonb(),
     after: jsonb(),
     ip: text(),
     userAgent: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
-    workspaceIdx: index('audit_log_workspace_idx').on(t.workspaceId, t.createdAt.desc()),
-    targetIdx: index('audit_log_target_idx').on(t.targetType, t.targetId),
-  })
-)
+  (t) => [
+    index('audit_log_workspace_idx').on(t.workspaceId, desc(t.createdAt)),
+    index('audit_log_target_idx').on(t.targetType, t.targetId),
+  ],
+);
+
+export type AuditLog = typeof auditLog.$inferSelect;
+export type NewAuditLog = typeof auditLog.$inferInsert;
 ```
 
-Drizzle instance `casing: 'snake_case'` aktif olduğu için TS'te camelCase, DB'de snake_case ([`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md)).
+Drizzle instance `casing: 'snake_case'` aktif olduğu için TS'te camelCase, DB'de snake_case ([`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md)). `primaryId()` `_common.ts`'ten geliyor: `text + nanoid` — codebase'in tüm tabloları gibi.
 
 ## 3. Domain (`packages/domain`)
 
 ### 3.1 Action enum
 
-`packages/domain/src/audit/actions.ts` (yeni):
+`packages/domain/src/audit/actions.ts` (yeni — `board.delete` ve `card.delete` action'ları enum'da forward-compat olarak yer alır; bugün hard delete mutation'ı yok — yalnızca `archive` var ve archive reversible olduğu için kriter 1'i sağlamıyor. Hard delete eklendiğinde caller hazır. 2026-05-24 kararı):
 
 ```typescript
 /**
@@ -205,17 +236,23 @@ export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>
 `packages/api/src/lib/audit-log.ts`:
 
 ```typescript
-import type { Context } from '../context'
-import type { AuditAction, AuditTargetType } from '@pusula/domain/audit'
-import { auditLog } from '@pusula/db/schema/audit-log'
+import { auditLog } from '@pusula/db';
+import type { Database } from '@pusula/db';
+import type { AuditAction, AuditTargetType } from '@pusula/domain';
 
-interface AppendAuditInput {
-  action: AuditAction
-  targetType: AuditTargetType
-  targetId: string
-  workspaceId: string
-  before?: unknown
-  after?: unknown
+/** Minimal slice the helper needs — tx OR db handle (notification-outbox pattern). */
+type Tx = Pick<Database, 'insert'>;
+
+export interface AppendAuditInput {
+  workspaceId: string;
+  action: AuditAction;
+  targetType: AuditTargetType;
+  targetId: string;
+  actorId: string | null;
+  before?: unknown;
+  after?: unknown;
+  ip?: string | null;
+  userAgent?: string | null;
 }
 
 /**
@@ -223,24 +260,26 @@ interface AppendAuditInput {
  * Worker outbox YOK: audit log fire-and-forget değil; kritik mutation tx'inde
  * insert yapılır ki tutarlılık garanti olsun (mutation başarılı → audit yazılı).
  *
- * IP ve User-Agent ctx.request'ten okunur (Hono request header'ları).
+ * IP / User-Agent / actorId çağıran tarafından (mutation gövdesi) `ctx`'ten
+ * alınıp parametre olarak verilir — helper `ctx` Type'ına bağımlı değil
+ * (`notification-outbox` pattern'i). actorId null = sistem/anonim.
  */
-export async function appendAudit(ctx: Context, input: AppendAuditInput): Promise<void> {
-  await ctx.tx.insert(auditLog).values({
+export async function appendAudit(tx: Tx, input: AppendAuditInput): Promise<void> {
+  await tx.insert(auditLog).values({
     workspaceId: input.workspaceId,
-    actorId: ctx.session?.userId ?? null,
+    actorId: input.actorId,
     action: input.action,
     targetType: input.targetType,
     targetId: input.targetId,
     before: input.before ?? null,
     after: input.after ?? null,
-    ip: ctx.request?.headers.get('x-forwarded-for') ?? ctx.request?.headers.get('x-real-ip') ?? null,
-    userAgent: ctx.request?.headers.get('user-agent') ?? null,
-  })
+    ip: input.ip ?? null,
+    userAgent: input.userAgent ?? null,
+  });
 }
 ```
 
-`ctx.tx` — mutation procedure'ün açtığı transaction. `tx` yoksa (procedure transaction kullanmıyorsa) compile-time error.
+IP/UA `ctx.ip`/`ctx.userAgent`'tan gelir (Hono `apps/api` boot bunları context'e doldurur, `context.ts` zaten alan tutuyor). actorId `ctx.session.user.id` (protectedProcedure session'ı non-null garantiler).
 
 ### 4.2 Mutation entegrasyonu
 
@@ -249,31 +288,48 @@ Helper kullanım örneği (`packages/api/src/routers/workspace.ts` `delete` muta
 ```typescript
 .mutation(async ({ ctx, input }) => {
   return await ctx.db.transaction(async (tx) => {
-    const txCtx = { ...ctx, tx }
-    const before = await tx.query.workspaces.findFirst({
-      where: eq(workspaces.id, input.workspaceId),
-    })
-    if (!before) throw new TRPCError({ code: 'NOT_FOUND' })
+    const [before] = await tx
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, input.workspaceId))
+      .limit(1);
+    if (!before) throw new TRPCError({ code: 'NOT_FOUND' });
 
     // ... permission check, cascade delete ...
 
-    await tx.delete(workspaces).where(eq(workspaces.id, input.workspaceId))
+    await tx.delete(workspaces).where(eq(workspaces.id, input.workspaceId));
 
-    await appendAudit(txCtx, {
+    await appendAudit(tx, {
+      workspaceId: input.workspaceId,
       action: 'workspace.delete',
       targetType: 'workspace',
       targetId: input.workspaceId,
-      workspaceId: input.workspaceId,
+      actorId: ctx.session.user.id,
       before,
       after: null,
-    })
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
 
-    return { ok: true }
-  })
+    return { ok: true };
+  });
 })
 ```
 
-12 action × ortalama 1-2 mutation = ~15 mutation noktasında `appendAudit` çağrısı. Tek noktada (helper) IP/UA toplama → DRY.
+8E kapsamında bugün **10 mutation noktasına** `appendAudit` çağrısı eklenir (12 action'ın 10'u; `board.delete` + `card.delete` enum'da forward-compat — hard delete eklendiğinde caller hazır). `workspace.delete` 0043 migration (FK CASCADE) sonrası caller listesine eklendi — audit row önce yazılır, sonra workspace DELETE cascade ile audit'i (kendisi dahil) temizler. Çağrı yapılan procedure'ler:
+
+| # | Action | Procedure |
+|---|--------|-----------|
+| 1 | `workspace.delete` | `workspace.delete` |
+| 2 | `workspace.member.role_change` | `workspace.members.updateRole` |
+| 3 | `workspace.member.remove` | `workspace.members.remove` |
+| 4 | `workspace.invitation.revoke` | `workspace.invitations.revoke` |
+| 5 | `board.member.role_change` | `board.members.updateRole` |
+| 6 | `board.member.remove` | `board.members.remove` |
+| 7 | `board.invitation.revoke` | `board.invitations.revoke` |
+| 8 | `attachment.delete` | `attachment.delete` |
+| 9 | `share.create` | `share.create` |
+| 10 | `share.revoke` | `share.revoke` |
 
 ### 4.3 tRPC procedure
 
@@ -315,19 +371,33 @@ Audit log = compliance + forensic. **Yalnız workspace owner** görür:
 
 ### 5.2 Helper
 
-`packages/api/src/lib/permission-guards.ts`'e ekleme:
+`packages/api/src/lib/audit-log.ts` içine eklenir (yeni dosya açmaktan kaçınılıyor — audit'e özel):
 
 ```typescript
+import { TRPCError } from '@trpc/server';
+import { and, eq } from '@pusula/db';
+import { workspaceMembers } from '@pusula/db';
+import type { Context } from '../context';
+
 export async function assertWorkspaceOwner(ctx: Context, workspaceId: string): Promise<void> {
-  const member = await ctx.db.query.workspaceMembers.findFirst({
-    where: and(
-      eq(workspaceMembers.workspaceId, workspaceId),
-      eq(workspaceMembers.userId, ctx.session.userId),
-      eq(workspaceMembers.role, 'owner')
-    ),
-  })
-  if (!member) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Audit log yalnız workspace owner tarafından görüntülenebilir.' })
+  if (!ctx.session) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Oturum gerekli.' });
+  }
+  const [member] = await ctx.db
+    .select({ role: workspaceMembers.role })
+    .from(workspaceMembers)
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, ctx.session.user.id),
+      ),
+    )
+    .limit(1);
+  if (!member || member.role !== 'owner') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Audit log yalnız workspace owner tarafından görüntülenebilir.',
+    });
   }
 }
 ```
@@ -369,11 +439,11 @@ Audit log **kullanmaz**:
 ## 9. Test stratejisi (8E kapsamı)
 
 ### Vitest backend
-- **Helper:** `appendAudit` IP/UA okuma, actor null fallback.
-- **Append:** her 12 action × bir mutation senaryosu — tx içinde insert.
+- **Helper:** `appendAudit` actor null fallback + before/after JSON serialization.
+- **Append:** mevcut 10 mutation × bir senaryo — tx içinde insert + row verify.
 - **Immutability:** UPDATE/DELETE trigger reddi (RAISE EXCEPTION).
 - **Permission:** `audit.list` member/admin reject (owner only).
-- **Filter:** action + targetType + cursor pagination.
+- **Filter:** action + targetType + cursor pagination + workspace izolasyonu.
 - **Cascade:** user delete → `actor_id` SET NULL; workspace delete RESTRICT (audit varsa).
 
 ### Migration test
@@ -388,11 +458,11 @@ Audit log **kullanmaz**:
 - `audit_log`'a `activity_events` ile **aynı** mutation'ları yazma — kapsam farklı (kritik vs hepsi).
 - Audit log'u worker outbox'a koyma — fire-and-forget tutarlılığı bozar.
 - Owner dışına okuma izni verme (admin de dahil) — V1'de sıkı tut.
-- UPDATE/DELETE trigger'ı atlama — append-only iddiasını kıran kod.
-- Retention politikası ekleme — V1'de süresiz tut.
+- UPDATE trigger'ı atlama — append-only iddiasını kıran kod.
+- `db.delete(auditLog).where(...)` çağırma — DELETE trigger düşürüldü (0044), DB engellemez. App convention: `appendAudit` dışında audit tablosuna yazan/silmeyen procedure YOK.
+- Retention politikası ekleme — V1'de süresiz tut (workspace CASCADE dışında).
 - `before`/`after` field'larını insan-okur formatta yazma — audit log makine-okur; UI formatta gösterir.
 - IP/UA toplama eksik bırakma — forensic kanıt zayıflar.
-- `workspace.delete` audit yazmadan workspace silme — silme öncesi audit yaz, sonra cascade.
 
 ## 11. Bağımlılıklar
 

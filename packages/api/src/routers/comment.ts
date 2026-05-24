@@ -37,6 +37,7 @@ import {
   updateCommentInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
@@ -161,9 +162,7 @@ export const commentRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: "Arşivli board'a yorum eklenemez." });
-      }
+      assertNotArchived('board', board, "Arşivli board'a yorum eklenemez.");
 
       const [createdComment] = await tx
         .insert(comments)
@@ -321,9 +320,7 @@ export const commentRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const isAuthor = comment.authorId === ctx.session.user.id;
       if (!isAuthor && !canManageBoard(accessFromBoardRole(ctx.card.boardRole))) {
@@ -432,9 +429,7 @@ export const commentRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const isAuthor = comment.authorId === ctx.session.user.id;
       if (!isAuthor && !canManageBoard(accessFromBoardRole(ctx.card.boardRole))) {

@@ -36,6 +36,7 @@ import {
   updateListInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
@@ -82,9 +83,7 @@ export const listRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: "Arşivli board'a liste eklenemez." });
-      }
+      assertNotArchived('board', board, "Arşivli board'a liste eklenemez.");
 
       // Highest-position list in the board (active *and* archived — positions are
       // a single sequence per board); place the new one right after it.
@@ -189,12 +188,8 @@ export const listRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
-      if (list.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli liste düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
+      assertNotArchived('list', list);
 
       const titleChanged = wantsTitle && input.title !== list.title;
       const colorChanged = wantsColor && (list.color ?? null) !== (input.color ?? null);
@@ -364,9 +359,7 @@ export const listRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const isArchived = list.archivedAt !== null;
       if (isArchived === input.archived) {
@@ -454,9 +447,7 @@ export const listRouter = router({
       if (!board) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
-      if (board.archivedAt) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-      }
+      assertNotArchived('board', board);
 
       const [list] = await tx
         .select(listCols)

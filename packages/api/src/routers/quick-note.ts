@@ -26,6 +26,7 @@ import {
   updateQuickNoteInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { createCardInTransaction } from '../lib/card-create';
 import { maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole } from '../middleware/board';
@@ -142,12 +143,8 @@ export const quickNoteRouter = router({
         if (!canEditBoardContent(accessFromBoardRole(board.role))) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Kart oluşturma yetkiniz yok.' });
         }
-        if (board.archivedAt) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: "Arşivli board'a kart eklenemez." });
-        }
-        if (list.archivedAt) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli listeye kart eklenemez.' });
-        }
+        assertNotArchived('board', board, "Arşivli board'a kart eklenemez.");
+        assertNotArchived('list', list, 'Arşivli listeye kart eklenemez.');
 
         // (3) Create the card (same side effects as `card.create`). Placement
         // is forwarded as-is: with no neighbours the card is appended to the

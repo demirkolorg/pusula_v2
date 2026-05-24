@@ -227,12 +227,30 @@ Workspace/board/card rollerinden bağımsız: Hızlı Not **kişiye özel ve glo
 |---|---|
 | Audit log'a **yazma** | Sistem (mutation tx içinde otomatik — `appendAudit` helper); herhangi bir kullanıcı mutation'ı tetikleyebilir (eylem audit'e düşer) |
 | Audit log'u **görüntüleme** (`audit.list`) | **Yalnız workspace owner** — admin değil, member değil. `assertWorkspaceOwner` guard reddi: `FORBIDDEN` + "Audit log yalnız workspace owner tarafından görüntülenebilir." |
-| Audit log'u **düzenleme** | **Kimse** — DB trigger UPDATE/DELETE reddi (`audit_log_no_update`/`audit_log_no_delete`); silme dahi engellenir |
-| Audit log'u **silme** | **Kimse** (yukarıdaki ile aynı); workspace silme audit varsa RESTRICT (önce export gerekir) |
+| Audit log'u **düzenleme** | **Kimse** — DB trigger UPDATE reddi (`audit_log_no_update`); `actor_id` ON DELETE SET NULL cascade istisnası tek izin |
+| Audit log'u **silme** | App layer: convention (`appendAudit` dışında DELETE çağrısı YOK); DB layer: workspace silme CASCADE ile audit'i wipe eder (`audit_log_no_delete` trigger 0044'te düşürüldü — gerekçe [`../architecture/17-audit-log-mimarisi.md`](../architecture/17-audit-log-mimarisi.md) §2.1) |
 
-**Kapsam (yalnız kritik):** `workspace.delete`, `workspace.member.role_change`, `workspace.member.remove`, `workspace.invitation.revoke`, `board.delete`, `board.member.role_change`, `board.member.remove`, `board.invitation.revoke`, `card.delete`, `attachment.delete`, `share.create`, `share.revoke` — toplam 12 action.
+**Kapsam (yalnız kritik):** `workspace.delete`, `workspace.member.role_change`, `workspace.member.remove`, `workspace.invitation.revoke`, `board.delete`, `board.member.role_change`, `board.member.remove`, `board.invitation.revoke`, `card.delete`, `attachment.delete`, `share.create`, `share.revoke` — toplam **12 action enum** (`@pusula/domain` `AUDIT_ACTIONS`).
 
-**Retention:** Süresiz (silme yok). GDPR "right to erasure" → `actor_id` SET NULL (anonimleştirme); satır kalır.
+**Bugünkü caller'lar (10 — 2026-05-24 implementasyon):**
+
+| Action | Procedure | Not |
+|---|---|---|
+| `workspace.delete` | `workspace.delete` | hard delete; audit önce yazılır + workspace DELETE cascade audit'i de wipe eder (CASCADE FK 0043); before = `{ name }`, after = `null` |
+| `workspace.member.role_change` | `workspace.members.updateRole` | before/after = `{ role }` |
+| `workspace.member.remove` | `workspace.members.remove` | self-leave dahil; before = `{ role }`, after = `null` |
+| `workspace.invitation.revoke` | `workspace.invitations.revoke` | before/after = `{ status, email }` |
+| `board.member.role_change` | `board.members.updateRole` | before/after = `{ boardId, role }` |
+| `board.member.remove` | `board.members.remove` | self-leave dahil; before = `{ boardId, role }`, after = `null` |
+| `board.invitation.revoke` | `board.invitations.revoke` | before/after = `{ status, email, boardId }` |
+| `attachment.delete` | `attachment.delete` | hard delete; before = `{ cardId, fileName, mimeType, size }`, after = `null` |
+| `share.create` | `share.create` | token plain bir kerelik response'ta; before = `null`, after = `{ cardId, tokenPrefix, expiresAt }` |
+| `share.revoke` | `share.revoke` | before = `{ revokedAt: null, cardId }`, after = `{ revokedAt, cardId }` |
+
+**Caller'sız enum girdileri (forward-compat 2):**
+- `board.delete`, `card.delete`: kodda hard delete mutation yok (yalnız `archive` var ve archive reversible → criterion-1 dışı). Hard delete eklendiğinde caller hazır (enum + helper imzası). Karar: 2026-05-24.
+
+**Retention:** Workspace yaşadığı sürece süresiz. Workspace silindiğinde **CASCADE** ile audit kayıtları temizlenir (kullanıcı kararı 2026-05-24 — RESTRICT pratikte uygulanamadı; gerekçe [`../architecture/17-audit-log-mimarisi.md`](../architecture/17-audit-log-mimarisi.md) §2.1). GDPR "right to erasure" → `actor_id` SET NULL (anonimleştirme); satır kalır. DB trigger immutability UPDATE'i (cascade istisnası hariç) reddeder; DELETE trigger 0044 ile düşürüldü → forensic guarantee app convention + UPDATE trigger.
 
 ## Faz 8F — Permission edge case envanteri ([DEM-283](https://linear.app/demirkol/issue/DEM-283))
 
@@ -299,3 +317,28 @@ Mevcut permission kapıları (member/admin/owner) genel mutation'ları kapatıyo
 **Beklenen davranış:** Workspace silme **reject** edilir (`BAD_REQUEST` + Türkçe: **"Bu workspace'te audit log kayıtları var. Önce audit log'u dışa aktarın, sonra workspace'i silin."**). DB seviyesinde `ON DELETE RESTRICT` zorlar.
 
 **Implementation:** DB FK constraint yeterli (audit log migration'ında `ON DELETE RESTRICT`); API silme procedure'ünde `try/catch` ile FK violation → Türkçe `BAD_REQUEST`. UI'da "Audit log'u dışa aktar" butonu (Faz 8 sonrası ayrı issue).
+
+### Faz 8F uygulama notu (2026-05-24 — DEM-283)
+
+8.0'daki envanter 6 edge case tanımladı; 8F'de gerçek implementasyonu şu şekilde dağıldı:
+
+| Edge case | Önce-implementasyon durumu | 8F çıktısı |
+|---|---|---|
+| 1 — Rol race | Server-side reject zaten var (`assertBoardAdmin` mevcut) | UI'ye Türkçe mesaj (`"Yetkiniz artık yetersiz; sayfayı yenileyin."`) frontend tarafında ekleme (UI scope'u ayrı; server PR'ı sadece reject sözleşmesini koruyor) |
+| 2 — Davet expiry | `accept` mutation `expires_at <= NOW()` reddi zaten **var** (workspace + board); reddedilen davet `status='expired'` damgalanıyor | **Türkçe mesaj standardı** `packages/api/src/lib/permission-strings.ts` (`INVITATION_MESSAGES.expired = 'Davet süresi doldu. Davet edenden yeni link isteyin.'` + diğer 3 davet mesajı tek noktadan). **Yeni worker:** `apps/worker/src/jobs/invitation-expiry-sweeper.ts` (daily 03:00 UTC, BullMQ cron) — tıklanmamış expired davetleri proaktif olarak `status='expired'` damgalar (admin yönetim ekranında "Bekliyor" sahte göstermek yerine "Süresi dolmuş") |
+| 3 — Arşiv matrisi | Dağınık (`if (board.archivedAt)` 25 dosyada elle) | **Yeni helper:** `packages/api/src/lib/archive-guard.ts` (`assertNotArchived(entity, row, message?)` — workspace/board/list/card). 13 router dosyasındaki 31 elle kontrolün tamamı helper çağrısına dönüştü. Default Türkçe mesajlar 8F öncesi yaygın olanlarla eşitlendi (regression yok); context-spesifik mesajlar override ile (`"Arşivli board'a liste eklenemez."` vs `"Arşivli listeye kart taşınamaz."`) |
+| 4 — Owner self-demote | `workspace.members.updateRole` `target.role === 'owner'` reject ile **zaten kapalı** (workspace.ts:98–103, `"Owner rolü değiştirilemez; önce devredilmeli."`). Bu kural "owner kim olursa olsun (kendi dahil) rolden indirilemez" demek; self-demote ayrı bir helper'a gerek yok | Sadece test (mevcut `workspace.test.ts:141–165` zaten kapsıyor) |
+| 5 — Cross-board | `card.moveToList` (Faz 3E [DEM-69](https://linear.app/demirkol/issue/DEM-69)) cross-board permission'ı `resolveBoardAccess` ile zaten enforce ediyor | Mevcut test zaten kapsıyor (`card.test.ts:1535` "no edit access on target board → FORBIDDEN") |
+| 6 — Workspace silme + audit FK | DEM-282 (Faz 8E) audit log migration kapsamında | 8F'de yok — 8E'ye ait |
+
+**Yeni kod birimleri:**
+
+* `packages/api/src/lib/archive-guard.ts` — `assertNotArchived` + 4 entity default mesaj (test: `archive-guard.test.ts`, 11 case).
+* `packages/api/src/lib/permission-strings.ts` — `INVITATION_MESSAGES` (4 mesaj: `notFound`/`noLongerValid`/`expired`/`wrongEmail`). `workspace.ts` + `board-invitations.ts` davet akışlarında 8'er literal kullanım bu sözlüğe taşındı.
+* `apps/worker/src/jobs/invitation-expiry-sweeper.ts` — `sweepExpiredInvitations` (test: `invitation-expiry-sweeper.test.ts`, 7 case). Pattern: `reportRetention` daily cron + `attachment-cleanup-sweeper` storage-first disiplin (burada storage yok, sadece DB UPDATE).
+* `apps/worker/src/queues.ts` — `invitationExpirySweeperQueue` (`pusula-invitation-expiry-sweeper`).
+* `apps/worker/src/index.ts` — sweeper worker + cron register (`0 3 * * *`).
+
+**Test:** archive-guard 11/11 + invitation-expiry-sweeper 7/7 + etkilenen router test'leri (list/card/comment/checklist/card-labels/card-members/label) 158/158 PASS. Davet mesajı string'ini doğrudan match eden test yoktu (testler `code: 'BAD_REQUEST'` üzerinden kontrol ediyor) — konsolidasyon regression yapmadı.
+
+**Önemli sınırlandırma:** Edge case 1'in UI mesajı (`"Yetkiniz artık yetersiz; sayfayı yenileyin."`) backend PR'ı dışında — frontend tRPC reject'i yakalayıp gösterecek (UI scope'u zaten 8A E2E ile birlikte gidecek). Server sözleşmesi (`FORBIDDEN` reject) bu PR'da sabitlendi.

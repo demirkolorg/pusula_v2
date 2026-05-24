@@ -48,6 +48,7 @@ import {
   updateChecklistItemInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
+import { assertNotArchived } from '../lib/archive-guard';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
@@ -97,9 +98,7 @@ async function assertBoardWritable(tx: Transaction, boardId: string): Promise<vo
   if (!board) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
   }
-  if (board.archivedAt) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
-  }
+  assertNotArchived('board', board);
 }
 
 /** Load a checklist and assert it belongs to `cardId`; `NOT_FOUND` otherwise. */
