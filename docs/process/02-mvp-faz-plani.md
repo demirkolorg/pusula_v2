@@ -11,7 +11,7 @@ type: 'plan'
 axis: 'process'
 status: 'active'
 parent: '[[docs/process/README|Süreç]]'
-updated: 2026-05-23
+updated: 2026-05-24
 ---
 
 # 02 — MVP Faz Planı
@@ -217,8 +217,8 @@ Kapsam kararları (kullanıcı onayı 2026-05-16): mobil MVP **store yayını da
 - **[DEM-203](https://linear.app/demirkol/issue/DEM-203)** (`In Progress`, Medium) — mobil alt tab bar ortasında yükseltilmiş "Ekle" aksiyon butonu: dokunma → Hızlı Notlar ekranı, uzun basış → oluşturma menüsü (Kart/Liste/Pano/Workspace). Yeni domain entity **Hızlı Not** (kişiye özel + global) + yeni `quick_notes` DB tablosu + `quickNote` tRPC router + not → kart dönüşümü (dönüşümde not tüketilir). Bu rafinasyon listesinin diğer issue'larından (DEM-194…202) farklı olarak **yeni backend içerir** (yeni tablo + tRPC) — diğerleri mevcut tRPC sözleşmesini tüketiyordu. Web tarafı ayrı issue olarak açılacak (mobil-öncelikli kapsam).
 
 - **[DEM-204](https://linear.app/demirkol/issue/DEM-204)** (`In Progress` — kod tamam, commit `7950efe`) — kart detay bölüm yüzeyleri + hiyerarşi rafinasyonu: düz akış `bg-card` bölüm kartlarına, başlık + meta çubuğu "header card"ta, composer'lar "+ ekle" tetikleyicisine, aktivite son-N + genişlet.
-- **[DEM-207](https://linear.app/demirkol/issue/DEM-207)** (`In Progress` — kod tamam, commit `fcbe27e`) — kullanıcı-seçimli tema (Açık/Koyu/Sistem): `Appearance.setColorScheme()` + `AsyncStorage` tercih + kök `ThemeProvider`. Codemod yok.
-- **[DEM-208](https://linear.app/demirkol/issue/DEM-208)** (`In Progress` — kod tamam, commit `fcbe27e`) — Hesap sayfası yeniden tasarımı: `(account)` route grubu, gruplu ayar listesi (profil / görünüm / bildirim / güvenlik / hakkında / çıkış), profil düzenleme + şifre değiştir (Better Auth client uçları).
+- **[DEM-207](https://linear.app/demirkol/issue/DEM-207)** (`Done` 2026-05-19, commit `fcbe27e`) — kullanıcı-seçimli tema (Açık/Koyu/Sistem): `Appearance.setColorScheme()` + `AsyncStorage` tercih + kök `ThemeProvider`. Codemod yok.
+- **[DEM-208](https://linear.app/demirkol/issue/DEM-208)** (`Done` 2026-05-19, commit `fcbe27e`) — Hesap sayfası yeniden tasarımı: `(account)` route grubu, gruplu ayar listesi (profil / görünüm / bildirim / güvenlik / hakkında / çıkış), profil düzenleme + şifre değiştir (Better Auth client uçları).
 - **[DEM-209](https://linear.app/demirkol/issue/DEM-209)** (`Todo`, Low) — mobil board kolonunda liste rengi + ikonu render (web parite; `board.get` verisini tüketir, yeni backend yok). `bosluk-tara` 2026-05-18.
 - **[DEM-210](https://linear.app/demirkol/issue/DEM-210)** (`Todo`, Medium) — mobil üye yönetimi tamamlama: rol değiştir / üye çıkar / davet iptal (DEM-180'de kapsam dışıydı). `bosluk-tara` 2026-05-18.
 - **[DEM-211](https://linear.app/demirkol/issue/DEM-211)** (`Todo`, Medium) — mobil board aksiyonları: board yeniden adlandır + arşivle (board ekranı ⋮ menüsü; liste/kart ⋮ deseniyle simetrik). `bosluk-tara` 2026-05-18.
