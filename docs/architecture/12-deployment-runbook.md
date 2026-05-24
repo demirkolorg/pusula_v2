@@ -423,6 +423,7 @@ Hepsi yeşilse → Aşama 6.
 - Her deploy'da `migrate` servisi tekrar koşar; idempotent (uygulanmış migration'ları atlar).
 - İstersen "production" branch'i ayrı tutup `main` → staging, `production` → prod ayrımı yapılabilir
   (şimdilik tek `main` yeterli).
+- **Faz 8G** ([DEM-279](https://linear.app/demirkol/issue/DEM-279)) sertleştirme detayı + Sentry source-map + off-site yedek + restore tatbikatı + Dokploy Auto Deploy aktivasyonu için → §12.15.
 
 ---
 
@@ -447,6 +448,7 @@ Hepsi yeşilse → Aşama 6.
 - **Redis:** kritik değil (queue + Socket.IO adapter; source of truth Postgres + outbox) — AOF yeterli,
   ayrı yedek şart değil.
 - Restore tatbikatı: ara sıra dump'tan ayrı bir ortama restore edip smoke test (yedeğin gerçekten çalıştığını gör).
+- **Faz 8G** ([DEM-279](https://linear.app/demirkol/issue/DEM-279)) — off-site yedek somutlaştırma (rclone → S3/B2/R2), 90 gün retention, restore tatbikatı runbook → §12.15.
 
 ---
 
@@ -574,6 +576,111 @@ Notlar:
 - Push bildirim token'ı cihaz bildirimi içindir — Apple beyanında ayrı "data type" değil; bildirim altyapısının parçası.
 - **Gizlilik politikası URL'i zorunlu** (Adım 5). `pusulaportal.com` üzerinde bir gizlilik politikası sayfası yayınlanmış olmalı — yoksa Adım 5 öncesi oluşturulmalı (**açık iş**).
 - Konum, kişi rehberi, sağlık, finans ve reklam verisi **toplanmaz**.
+
+---
+
+## 12.15 Faz 8G — Production sertleştirme ([DEM-279](https://linear.app/demirkol/issue/DEM-279))
+
+Üretim ortamı (`pusulaportal.com` — DEM-164 ile canlı 2026-05-16) için DEM-164 kapanış follow-up'larını sertleştirir. Karar kaydı: [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) "Karar kaydı" 2026-05-24.
+
+### 12.15.1 Auto-deploy (Dokploy native Git polling)
+
+**Karar:** Dokploy native "Auto Deploy" (Git polling) — GitHub Action workflow gerekmez (daha basit, mevcut Dokploy webhook altyapısı yeterli). Polling aralığı Dokploy default (60 saniye).
+
+**Adımlar:**
+1. Dokploy UI → `pusula` compose servisi → **Settings** → **Auto Deploy** toggle: **ON**.
+2. Git branch: `main` (varsayılan).
+3. Build trigger: `git push` → Dokploy 60sn içinde değişikliği görür → otomatik `docker compose build --pull` + `up -d`.
+4. `migrate` servisi her deploy'da koşar (idempotent — uygulanmış migration'ları atlar).
+5. Build log: Dokploy panel → Deployments → ilgili deploy → Logs.
+
+**Smoke test (deploy sonrası otomatik):**
+- Dokploy "Healthcheck" tanımı: `compose.prod.yml` `healthcheck` direktifleri (api: `/health` 200, web: `/` 200).
+- Healthcheck FAIL → Dokploy deploy `unhealthy` damgalar; UI'da kırmızı + Sentry alert (Faz 8D).
+- **Faz 8G manuel smoke test runbook** (deploy sonrası operator):
+  ```bash
+  curl -fsS https://pusulaportal.com/health
+  curl -fsS https://api.pusulaportal.com/health
+  curl -fsS -o /dev/null -w "%{http_code}\n" https://pusulaportal.com/login
+  # Expected: 200 / 200 / 200
+  ```
+- Smoke test fail → Dokploy "Rollback" (§12.11).
+
+### 12.15.2 Sentry source-map upload (Faz 8D ile koordine)
+
+**Karar:** `@sentry/webpack-plugin` (web) + `@sentry/esbuild-plugin` (api + worker, tsup esbuild kullanır). Build time'da source-map otomatik upload — minified stack trace yerine gerçek satır/dosya.
+
+**Env (Dokploy build args + GitHub Actions secrets):**
+- `SENTRY_AUTH_TOKEN` (Sentry org settings → Auth Tokens → "Project: Releases" scope).
+- `SENTRY_ORG` (örn. `pusula`).
+- `SENTRY_PROJECT` (üç ayrı: `pusula-web`, `pusula-api`, `pusula-worker`).
+
+**Config (`apps/web/next.config.js`):**
+```js
+const { withSentryConfig } = require('@sentry/nextjs')
+
+module.exports = withSentryConfig(
+  /* mevcut nextConfig */,
+  {
+    org: process.env.SENTRY_ORG,
+    project: 'pusula-web',
+    silent: !process.env.SENTRY_AUTH_TOKEN, // token yoksa atla
+    widenClientFileUpload: true,
+  }
+)
+```
+
+**Token yoksa:** `silent: !process.env.SENTRY_AUTH_TOKEN` → upload atlanır (lokal dev + token'sız CI çalışır).
+
+**Runtime'da yok:** `SENTRY_AUTH_TOKEN` yalnız build time secret; runtime container env'inde tutulmaz.
+
+### 12.15.3 Off-site yedek (rclone)
+
+**Karar:** `rclone` ile MinIO + Postgres dump'ları → harici S3-uyumlu target (Backblaze B2 önerilen — maliyet/güven oranı; AWS S3 veya Cloudflare R2 alternatif).
+
+**Adımlar:**
+1. VDS'te rclone kurulumu (`apt install rclone` veya `curl https://rclone.org/install.sh | sudo bash`).
+2. `rclone config` → harici target (Backblaze B2 için: bucket + access key + secret).
+3. Cron entry (gece 06:00 — Dokploy backup'tan 1 saat sonra):
+   ```cron
+   0 6 * * * rclone sync /backups/postgres b2:pusula-backups-offsite/postgres --transfers=4
+   0 6 * * * rclone sync /var/lib/docker/volumes/minio_data b2:pusula-backups-offsite/minio --transfers=4
+   ```
+4. **90 gün retention** off-site target'ta (Backblaze B2 lifecycle policy):
+   - 30 gün hot (sık erişim).
+   - 30-90 gün cold storage (B2 "long-term").
+   - 90 gün sonrası otomatik silinir.
+
+**Maliyet (Backblaze B2 örnek, 2026):** ~$6/TB/ay (hot) + ~$1/TB/ay (cold). 50 GB tahmini yıllık → ~$1/ay.
+
+**Faz 8G dışı (V2):** Multi-region replication, encryption-at-rest key yönetimi.
+
+### 12.15.4 Restore tatbikatı runbook
+
+**Sıklık:** 6 ayda bir (kapanış: Faz 8G ilk tatbikat).
+
+**Tatbikat adımları (staging ortamında, prod'a dokunmadan):**
+
+1. **Yedek seç:** `rclone ls b2:pusula-backups-offsite/postgres` → en son `pusula-YYYY-MM-DD.dump` dosyasını listele; 7 gün önceki yedeği seç.
+2. **İndir:** `rclone copy b2:pusula-backups-offsite/postgres/pusula-2026-05-17.dump /tmp/restore/`.
+3. **Staging DB'ye restore:**
+   ```bash
+   docker exec -i pusula-postgres-staging pg_restore -U pusula -d pusula_staging --clean --if-exists < /tmp/restore/pusula-2026-05-17.dump
+   ```
+4. **Sanity check:** Staging API'ye smoke test (auth + board create + card create); satır sayıları (`SELECT COUNT(*) FROM workspaces/boards/cards`) prod ile kıyaslanabilir mi.
+5. **MinIO restore:** `rclone sync b2:pusula-backups-offsite/minio /var/lib/docker/volumes/minio_data_staging` (staging MinIO container).
+6. **Staging URL'den manuel UI test** (login → board aç → kart önizle → attachment indir).
+7. **Tatbikat raporu:** `docs/process/05-is-kayit-defteri.md`'ye `INFRA-YYYY-MM-DD-XXX` satır ekle (tatbikat tarihi + bulgular + RTO/RPO ölçümü).
+
+**Beklenen RTO (Recovery Time Objective):** < 2 saat (yedek seç + indir + restore + smoke).
+**Beklenen RPO (Recovery Point Objective):** < 25 saat (gece 05:00 + 06:00 yedek window).
+
+### 12.15.5 Açık follow-up'lar (V2)
+
+- Multi-region off-site (B2 + S3 — geographic redundancy).
+- Encryption-at-rest key yönetimi (KMS).
+- Automated restore test (CI nightly — staging'e otomatik restore + smoke).
+- PgBackRest entegrasyonu (incremental backup — büyük DB'lerde faydalı).
 
 ---
 

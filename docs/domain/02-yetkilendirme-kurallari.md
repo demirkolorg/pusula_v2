@@ -12,7 +12,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-20
+updated: 2026-05-24
 ---
 
 # 02 — Yetkilendirme Kuralları
@@ -218,3 +218,84 @@ Workspace/board/card rollerinden bağımsız: Hızlı Not **kişiye özel ve glo
 - Her mutation/query procedure: önce session, sonra workspace, sonra (varsa) board, sonra (varsa) card/list permission — eksikse `FORBIDDEN`/`UNAUTHORIZED`.
 - Realtime room join'de aynı kontrol uygulanır (`board:{id}` room'a join ancak board erişimi varsa).
 - Davet token'ları süreli (expiration) ve tek kullanımlık mantığıyla işlenir; bkz. [`../architecture/10-platform.md`](../architecture/10-platform.md) §10.6.
+
+## Faz 8E — Audit log permission ([DEM-282](https://linear.app/demirkol/issue/DEM-282))
+
+> Audit log = compliance + forensic; `activity_events` ile dublike değil. Mimari detay: [`../architecture/17-audit-log-mimarisi.md`](../architecture/17-audit-log-mimarisi.md).
+
+| Aksiyon | Kim |
+|---|---|
+| Audit log'a **yazma** | Sistem (mutation tx içinde otomatik — `appendAudit` helper); herhangi bir kullanıcı mutation'ı tetikleyebilir (eylem audit'e düşer) |
+| Audit log'u **görüntüleme** (`audit.list`) | **Yalnız workspace owner** — admin değil, member değil. `assertWorkspaceOwner` guard reddi: `FORBIDDEN` + "Audit log yalnız workspace owner tarafından görüntülenebilir." |
+| Audit log'u **düzenleme** | **Kimse** — DB trigger UPDATE/DELETE reddi (`audit_log_no_update`/`audit_log_no_delete`); silme dahi engellenir |
+| Audit log'u **silme** | **Kimse** (yukarıdaki ile aynı); workspace silme audit varsa RESTRICT (önce export gerekir) |
+
+**Kapsam (yalnız kritik):** `workspace.delete`, `workspace.member.role_change`, `workspace.member.remove`, `workspace.invitation.revoke`, `board.delete`, `board.member.role_change`, `board.member.remove`, `board.invitation.revoke`, `card.delete`, `attachment.delete`, `share.create`, `share.revoke` — toplam 12 action.
+
+**Retention:** Süresiz (silme yok). GDPR "right to erasure" → `actor_id` SET NULL (anonimleştirme); satır kalır.
+
+## Faz 8F — Permission edge case envanteri ([DEM-283](https://linear.app/demirkol/issue/DEM-283))
+
+Mevcut permission kapıları (member/admin/owner) genel mutation'ları kapatıyor; **edge case'ler** (yarış koşulları + arşiv + expired davet + owner devir + cross-board) burada listelenir + Faz 8F'de implement edilir + test edilir.
+
+### Edge case 1 — Rol değişimi yarış koşulu
+
+**Senaryo:** Alice (board admin) board üye listesini açıyor; Bob (owner) Alice'i `member`'a düşürüyor; Alice "üye sil" tıklıyor (cache'inde hâlâ admin gözüküyor).
+
+**Beklenen davranış:** `board.members.remove` mutation'ı server-side permission check'i ile reddedilir (`FORBIDDEN`). UI Türkçe hata mesajı gösterir: **"Yetkiniz artık yetersiz; sayfayı yenileyin."**
+
+**Implementation (Faz 8F):** Mevcut `assertBoardAdmin` guard yeterli — UI hata mesajı yeni (`strings.permission.staleRole`). Vitest: cache stale + role downgrade → mutation reject senaryosu.
+
+### Edge case 2 — Davet süresi dolması
+
+**Senaryo:** Alice 1 ay önce Bob'u workspace'e davet etti; Bob davet linkine tıklıyor — link hâlâ açılıyor, hâlâ "Kabul Et" butonu var, kabul edince workspace'e giriyor (expiry kontrolü yok!).
+
+**Beklenen davranış:** Davet token'ları **maksimum 30 gün** geçerli (Trello/Linear paterni). Süre dolunca `accept` mutation'ı `BAD_REQUEST` + Türkçe mesaj: **"Davet süresi dolmuş. Davet edenden yeni link isteyin."**
+
+**Implementation (Faz 8F):**
+1. `workspace_invitations.expires_at` + `board_invitations.expires_at` kolonları (varsa kontrol; yoksa migration — default `created_at + INTERVAL '30 days'`).
+2. `accept` mutation: `expires_at < NOW()` reddet.
+3. Worker `pusula-invitation-expiry-sweeper` (gece 03:00 cron): expired davet'leri `revoked_at = NOW()` damgalar (UI'da "Süresi dolmuş" olarak görünür).
+4. Davet linkine tıklayan kullanıcı için frontend Türkçe hata sayfası.
+
+### Edge case 3 — Arşiv etkileşimleri matrisi
+
+**Sorun:** Arşivli board/list/card mutation reject **dağınık** — bazı procedure'lerde kontrol var, bazısında yok. Tutarlılık zayıf.
+
+**Hedef:** Tek noktadan `assertNotArchived(entity)` helper (`packages/api/src/lib/archive-guard.ts`); tüm collaborative mutation'larda çağrı.
+
+**Matris:**
+
+| Entity arşivli | İzin verilen mutation | Reddedilen mutation |
+|---|---|---|
+| Board arşivli | `board.unarchive` + `board.delete` + `audit.list` | Tüm board/list/card mutation'ları (create/update/move/comment/...) |
+| List arşivli | `list.unarchive` + `list.delete` + read | Yeni kart, kart taşıma (hedef bu liste), liste update |
+| Card arşivli | `card.unarchive` + `card.delete` + read | Yorum, checklist, atama, etiket, due date, kart taşıma |
+
+**Implementation (Faz 8F):** `assertNotArchived` helper + ilgili 20+ mutation'da çağrı + Vitest matris testi (her mutation × her arşiv durumu).
+
+### Edge case 4 — Owner self-demote (rol kendini düşürme)
+
+**Senaryo:** Workspace owner kendi rolünü `admin`'e düşürmeye çalışıyor → owner'sız workspace oluşur (kritik invariant ihlali!).
+
+**Beklenen davranış:** `workspace.members.updateRole` reddedilir (`BAD_REQUEST` + Türkçe: **"Owner kendi rolünü düşüremez. Önce başka bir üyeyi owner yapın."**).
+
+**Implementation (Faz 8F):** `assertOwnerNotSelfDemoting(ctx, workspaceId, targetUserId, newRole)` helper — `targetUserId === ctx.session.userId && newRole !== 'owner' && currentRole === 'owner'` ise reject. Audit log: rol değişimi `workspace.member.role_change` audit kaydı üretir; reject edilen değişim audit'e yazılmaz.
+
+**İlgili:** Hesap silme `canDeleteOwnAccount` ([DEM-212](https://linear.app/demirkol/issue/DEM-212)) son owner check'i zaten var; bu pattern paralel.
+
+### Edge case 5 — Cross-board permission (card.moveToList)
+
+**Senaryo:** Alice board A'da admin, board B'de viewer; `card.moveToList` ile board A'dan board B'ye kart taşımaya çalışıyor (board B'de yazma yetkisi yok).
+
+**Beklenen davranış:** Mutation reddedilir — Alice **hem source board'da** kart taşıma yetkisine (member+), **hem target board'da** kart yazma yetkisine (member+) sahip olmalı.
+
+**Implementation:** `card.moveToList` (Faz 3E [DEM-69](https://linear.app/demirkol/issue/DEM-69)) zaten cross-board permission kontrolü içeriyor — **test eksik**. Faz 8F: Vitest matris testi (admin/member/viewer × source board + target board, 9 senaryo).
+
+### Edge case 6 — Workspace silme + audit retention çatışması
+
+**Senaryo:** Workspace owner workspace'i silmek istiyor; audit log satırları var (`audit_log.workspace_id` FK).
+
+**Beklenen davranış:** Workspace silme **reject** edilir (`BAD_REQUEST` + Türkçe: **"Bu workspace'te audit log kayıtları var. Önce audit log'u dışa aktarın, sonra workspace'i silin."**). DB seviyesinde `ON DELETE RESTRICT` zorlar.
+
+**Implementation:** DB FK constraint yeterli (audit log migration'ında `ON DELETE RESTRICT`); API silme procedure'ünde `try/catch` ile FK violation → Türkçe `BAD_REQUEST`. UI'da "Audit log'u dışa aktar" butonu (Faz 8 sonrası ayrı issue).

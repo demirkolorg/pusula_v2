@@ -450,6 +450,51 @@ Faz 0 DEM-110 cover-image-only `attachment.{createUpload, getDownloadUrl}` yolu 
 | `quickNote` | `delete`        | `protectedProcedure` | Input `{ noteId }`. Notu oku → sahiplik kontrolü → `quick_notes` satırını DELETE. İdempotent: not zaten yoksa sessiz no-op. Activity/realtime/notification **yazılmaz**.                                                                                                                                                                                                                                                                                                                                        |
 | `quickNote` | `convertToCard` | `protectedProcedure` | Input `{ noteId, listId, beforeCardId?, afterCardId?, newPosition?, clientMutationId }`. Not → kart dönüşümü. Akış: (1) notu oku → sahiplik kontrolü; (2) hedef `listId`'nin board'unu çöz → board `member+` kontrolü (`canEditBoardContent` — kullanıcı board'a yazamıyorsa `FORBIDDEN`); arşivli liste/board reject (`BAD_REQUEST`); (3) **tek transaction**: notun `content`'i kart başlığı olacak şekilde `cards` satırı oluştur → normal kart-create gibi `activity_events` (`card.created`) + `realtime_events` outbox + `notification_outbox` + `boards.version + 1` → ardından `quick_notes` satırını **sessizce** sil (not silme için activity/event yok). **Kart konumu (DEM-205):** `beforeCardId`/`afterCardId` verilirse her ikisi de hedef listede **aktif** kart olmalı (`BAD_REQUEST` aksi halde), `newPosition` bu komşulara karşı server-side doğrulanır/yeniden hesaplanır (`@pusula/domain/position` — `card.move` simetrisi); verilmezse kart listenin **sonuna** eklenir (mobil `convertToCard` davranışı). İdempotent: aynı `clientMutationId` ile tekrar gelen istek duplicate kart/activity üretmez. Çıkış oluşturulan kart. |
 
+### Faz 8 — Sertleştirme procedure'leri ([DEM-31](https://linear.app/demirkol/issue/DEM-31) epic)
+
+> Faz 8 (Sertleştirme) backend'e iki yeni katman ekler: **audit log** ([DEM-282](https://linear.app/demirkol/issue/DEM-282) 8E) ve **realtime init disiplini** ([DEM-278](https://linear.app/demirkol/issue/DEM-278) 8B). E2E test stratejisi + CI matrix detayı [`10-platform.md`](10-platform.md)'da. Faz 8 önce-belgesi: DEM-277 (8.0).
+
+#### Faz 8E — `audit.*` router ([DEM-282](https://linear.app/demirkol/issue/DEM-282))
+
+Mimari detay: [`17-audit-log-mimarisi.md`](17-audit-log-mimarisi.md). Kapsam: yalnız **kritik mutation** (delete + role/permission change + share); permission **yalnız workspace owner**; tx-içi insert (worker outbox YOK); süresiz retention; append-only DB trigger (UPDATE/DELETE reddi).
+
+| Router  | Procedure | Middleware                                  | Not                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------- | --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audit` | `list`    | `workspaceProcedure` + `assertWorkspaceOwner` | Input `{ workspaceId, cursor?, limit?, action?, targetType? }`. **Owner-only** (admin reject). Pagination cursor-based, `limit ≤ 100` (default 50). JOIN `users` aktör adı için (silinmişse `null` → UI "silinmiş kullanıcı" render). Çıkış `{ entries: AuditLogEntry[], nextCursor?: string }`. Activity/realtime/notification yazılmaz (audit kendi tablosu). |
+
+**Mutation entegrasyonu:** `appendAudit(ctx, { action, targetType, targetId, workspaceId, before, after })` helper'ı 12 action × ortalama 1-2 mutation = ~15 mutation noktasında çağrılır (workspace/board/card delete + role_change + member.remove + invitation.revoke + share.create/revoke + attachment.delete). Helper IP/UA'yı `ctx.request.headers`'tan otomatik okur; actor `ctx.session.userId`'dir (null-fallback olarak `actor_id` SET NULL, silinmiş kullanıcı senaryosu).
+
+**Kritik kural:** Audit insert mutation transaction'ı **içinde** yapılır (`ctx.tx.insert(auditLog)`). Worker outbox kullanılmaz — fire-and-forget tutarlılığı bozar. Audit ~1 ms latency ekler; mutation latency'sine etkisi ihmal edilebilir.
+
+#### Faz 8B — Socket.IO server init disiplini ([DEM-278](https://linear.app/demirkol/issue/DEM-278))
+
+DEM-86 (Faz 5D) kapanış notunda belgelenmiş açık: `apps/api/src/index.ts`'de `server.listen()` öncesi `void setupSocketServer(...)` async başlatılıyor; `/health` endpoint Socket.IO + Redis adapter bridge attach edilmeden ÖNCE ready oluyor → Playwright webServer `/health`'i bekliyor ama ilk testler bridge subscribe etmeden başlıyor → ilk realtime envelope kaybediliyor.
+
+**Faz 8B fix:**
+- `apps/api/src/index.ts`'de `await setupSocketServer(...)` (server.listen öncesi).
+- `/health` endpoint Socket.IO bridge attach **edilene kadar 503 Service Unavailable** döner; ready olunca 200.
+- `e2e/realtime-board-sync.spec.ts`'deki `waitForSocketJoin` helper'ı kaldırılır; spec doğrudan envelope'a güvenir.
+- Lokal docker stack üstünde 6/6 senaryo PASS doğrulaması.
+
+**Pattern (gelecek init için):** Async init işlerini `void` ile fire-and-forget başlatma — `/health` ready sinyali, tüm bağlı altyapı (Socket.IO bridge, Redis adapter, BullMQ worker connection) hazır olduğunda dönmeli. `setupSocketServer` Promise döndürmeli ve `server.listen()` öncesi await edilmeli.
+
+#### Faz 8A — E2E test stratejisi (özet)
+
+7 yeni Playwright spec (`auth-flow` + `workspace-lifecycle` + `board-lifecycle` + `card-collaboration` + `notification-flow` + `permission-matrix` + `full-text-search`) + CI matrix (PR smoke / main critical / nightly full). Detay [`10-platform.md`](10-platform.md) "Test stratejisi" + "CI/CD" bölümleri. Backend tarafında ek procedure yok; mevcut router'lar tüketilir.
+
+#### Faz 8F — Permission edge case helper'ları ([DEM-283](https://linear.app/demirkol/issue/DEM-283))
+
+5 edge case için backend helper:
+1. **Rol değişimi yarış koşulu:** mevcut `assertBoardAdmin` / `assertWorkspaceAdmin` guard'ları yeterli (server-side); UI'ye anlamlı hata mesajı (`FORBIDDEN` + Türkçe "Yetkiniz artık yetersiz; sayfayı yenileyin").
+2. **Davet expiry:** `workspace_invitations.expires_at` + `board_invitations.expires_at` standartlaştır (varsa kontrol, yoksa migration); `accept` mutation `expires_at < NOW()` reddet (`BAD_REQUEST` + "Davet süresi dolmuş.").
+3. **Arşiv guard:** yeni `packages/api/src/lib/archive-guard.ts` → `assertNotArchived(entity)`; tüm collaborative mutation'lara çağrı (board/list/card update/delete). Vitest: her mutation × her arşiv durumu matrisi.
+4. **Owner self-demote:** `workspace.members.updateRole` mutation'ında `assertOwnerNotSelfDemoting` guard (`BAD_REQUEST` + "Owner kendi rolünü düşüremez.").
+5. **Cross-board permission:** `card.moveToList` Faz 3E'de var; permission test matrisi genişletilir (admin/member/viewer × source board + target board).
+
+İlgili sweeper: `pusula-invitation-expiry-sweeper` ([`06-bildirim-altyapisi.md`](06-bildirim-altyapisi.md) Faz 8F bölümü) — gece 03:00, 30 gün default expiry, `revoked_at = NOW()` damgalar.
+
+Domain edge case envanteri tam liste: [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md).
+
 ## Worker (background job)
 
 `apps/worker` ayrı uygulama (API ile aynı image, farklı command olabilir; ama ayrı process):
