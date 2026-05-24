@@ -20,19 +20,26 @@ const server = serve({ fetch: app.fetch, port: env.API_PORT }, (info) => {
 // emit helpers reachable from the tRPC context (`buildTrpcContext`).
 // `@hono/node-server` returns the union `ServerType` (`http.Server | Http2*`)
 // — narrow it to the union Socket.IO actually accepts.
+//
+// Faz 8B (DEM-278) — `setupSocketServer` artık top-level `await` ile beklenir
+// (önceden `void` fire-and-forget'di). `/health` zaten `markApiStartupReady()`
+// çağrılana kadar 503 dönüyor (`app.ts` readiness gate); ama await disiplini
+// startup hatalarının (Redis/bridge attach) deterministik şekilde
+// loglanmasını ve `SIGINT`/`SIGTERM` handler'larının ancak socket attach
+// tamamlandıktan sonra register edilmesini sağlar. Startup başarısız olursa
+// `markApiStartupFailed` çağrılır → `/health` 503 kalır → orchestrator
+// (Dokploy) container'ı yeniden başlatır.
 let socketHandle: SocketServerHandle | undefined;
-void setupSocketServer(server as unknown as AttachableHttpServer)
-  .then((handle) => {
-    socketHandle = handle;
-    setRealtimeEmit(handle.realtime);
-    markApiStartupReady();
-    console.warn('[api] socket.io attached (transport=websocket, redis-adapter=on)');
-  })
-  .catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    markApiStartupFailed(message);
-    console.error('[api] failed to attach socket.io:', message);
-  });
+try {
+  socketHandle = await setupSocketServer(server as unknown as AttachableHttpServer);
+  setRealtimeEmit(socketHandle.realtime);
+  markApiStartupReady();
+  console.warn('[api] socket.io attached (transport=websocket, redis-adapter=on)');
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  markApiStartupFailed(message);
+  console.error('[api] failed to attach socket.io:', message);
+}
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {

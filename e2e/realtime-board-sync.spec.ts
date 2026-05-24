@@ -28,12 +28,10 @@
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/realtime.fixture';
 import { BoardPage } from './fixtures/board.fixture';
 import { dragElement } from './helpers/dnd';
 import { E2E_DATABASE_URL } from './fixtures/env';
-import { E2E } from './fixtures/e2e-data';
 import { strings } from '../apps/web/src/lib/strings';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,21 +55,13 @@ function reseed(): void {
  */
 const SYNC_TIMEOUT_MS = 10_000;
 
-/**
- * `useBoardRealtime` mounts after `board.goto()` returns (which only waits on
- * the first list to paint). The socket handshake + `board:join` ack is async,
- * and the page exposes the server-acknowledged room state. A peer can miss the
- * first envelope if alice mutates before bob has joined the room.
- *
- * `/health` now opens only after Socket.IO + the realtime bridge are ready, so
- * the helper waits for the client-side room join ack rather than sleeping for a
- * fixed window.
- */
-async function waitForSocketJoin(page: Page): Promise<void> {
-  await expect(
-    page.locator(`[data-realtime-board-id="${E2E.boardId}"][data-realtime-board-joined="true"]`),
-  ).toBeAttached({ timeout: SYNC_TIMEOUT_MS });
-}
+// Faz 8B (DEM-278) — `waitForSocketJoin` helper'ı kaldırıldı. `apps/api/src/index.ts`
+// artık `setupSocketServer` 'ı `await` ediyor; `/health` Socket.IO + realtime bridge
+// attach edilene kadar 503 dönüyor (`app.ts` readiness gate). Playwright webServer
+// /health 200 görene kadar test başlatmıyor, dolayısıyla server hazır olduktan
+// sonra bob/alice'in `board:join` ack'i drag/mutation latency'sinden çok daha
+// hızlı tamamlanıyor (LAN ms cinsinden); spec doğrudan envelope assertion'larına
+// güveniyor.
 
 test.describe.configure({ mode: 'serial' });
 
@@ -93,9 +83,6 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    // Settle both sockets before alice mutates — otherwise bob can miss the
-    // first envelope if his `board:join` ack hasn't landed yet.
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
       .poll(() => bobBoard.cardTitlesIn('Liste 1'))
@@ -145,7 +132,6 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect.poll(() => bobBoard.columnTitles()).toEqual(['Liste 1', 'Liste 2', 'Liste 3']);
 
@@ -182,21 +168,27 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect.poll(() => bobBoard.cardTitlesIn('Liste 3')).toEqual(['Kart F', 'Kart G']);
 
     // `AddCardForm` uses a `<textarea>` (Enter inserts a newline, not submit),
     // and the column closes the form after each submit. So the natural flow is:
     // open → fill → click "Ekle" → reopen → fill → click "Ekle".
+    //
+    // Faz 8B (DEM-278) — `list-column.tsx` "Kart ekle" butonu kolonun
+    // `group-hover/list` durumuna gated (default `pointer-events-none opacity-0`).
+    // Playwright auto-hover'ı CSS transition + pointer-events anahtarlanmasıyla
+    // yarışıyor; deterministik tetik için kolonu ön-hover'la activate ederiz.
     const liste3 = aliceBoard.column('Liste 3');
     const cardCopy = strings.board.card;
     const addCardButton = liste3.getByRole('button', { name: cardCopy.addCard });
 
+    await liste3.hover();
     await addCardButton.click();
     await liste3.getByLabel(cardCopy.addCardPlaceholder).fill('Kart H');
     await liste3.getByRole('button', { name: cardCopy.addCardSubmit, exact: true }).click();
 
+    await liste3.hover();
     await addCardButton.click();
     await liste3.getByLabel(cardCopy.addCardPlaceholder).fill('Kart I');
     await liste3.getByRole('button', { name: cardCopy.addCardSubmit, exact: true }).click();
@@ -220,7 +212,6 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
       .poll(() => bobBoard.cardTitlesIn('Liste 1'))
@@ -256,7 +247,6 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
       .poll(() => bobBoard.cardTitlesIn('Liste 1'))
@@ -307,7 +297,6 @@ test.describe('realtime board sync', () => {
     // olabiliyor). Sıralı `goto` deterministik başlangıç verir.
     await aliceBoard.goto();
     await bobBoard.goto();
-    await Promise.all([waitForSocketJoin(alicePeer.page), waitForSocketJoin(bobPeer.page)]);
 
     await expect
       .poll(() => aliceBoard.cardTitlesIn('Liste 1'))
