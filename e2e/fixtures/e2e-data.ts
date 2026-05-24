@@ -37,11 +37,92 @@ export const E2E = {
     email: 'e2e-bob@pusula.test',
     password: 'e2e-password-1234',
   },
+  /**
+   * Faz 8A (DEM-284) — workspace admin (≠ owner). `permission-matrix.spec.ts`
+   * için ek seviye: workspace.role='admin' + board.role='admin'. Mevcut
+   * `user` workspace owner, `viewer` workspace guest, `alice/bob` workspace
+   * member — `admin` tier eksikti.
+   */
+  wsAdmin: {
+    id: 'e2e-ws-admin',
+    name: 'E2E WS Admin',
+    email: 'e2e-wsadmin@pusula.test',
+    password: 'e2e-password-1234',
+  },
+  /**
+   * Faz 8A (DEM-284) — `auth-flow.spec.ts` signup testi. Reset-then-seed
+   * tipik akışta `e2e-*` ID'leri siler; signup ile yaratılan satırı da
+   * temizleyebilmek için sabit email kullanılır (seed başında explicit
+   * `delete where email = ...`).
+   */
+  signup: {
+    email: 'e2e-signup-test@pusula.test',
+    password: 'e2e-new-pass-5678',
+    name: 'E2E Yeni Üye',
+  },
+  /**
+   * Faz 8A (DEM-284) — `workspace-lifecycle.spec.ts` davet/kabul akışı.
+   * Davet hedefi kullanıcı seed'de hazır; davet kabul edildiğinde
+   * `workspace_members` satırı oluşur (reseed temizler).
+   */
+  inviteTarget: {
+    id: 'e2e-invite-target',
+    name: 'E2E Davet Hedefi',
+    email: 'e2e-invite-target@pusula.test',
+    password: 'e2e-password-1234',
+  },
   /** Fixed card ids used by the notification e2e suite (DEM-94). */
   cardIds: {
     assignment: 'e2e-card-1-1',
     watched: 'e2e-card-1-2',
     mention: 'e2e-card-1-3',
+    /** Faz 8A — `card-collaboration.spec.ts` ana kartı (yorum/checklist/assign). */
+    collabMain: 'e2e-collab-card-1',
+    /** Faz 8A — `card-collaboration.spec.ts` arşiv testi için. */
+    collabArchive: 'e2e-collab-card-archive',
+  },
+  /**
+   * Faz 8A (DEM-284) — silinebilir/arşivlenebilir kaynaklar. `E2E.workspaceId`
+   * ve `E2E.boardId` test suite genelinde kullanıldığından lifecycle testlerinin
+   * onlara dokunması diğer testleri kırardı. Bu izole kaynaklar üzerinde
+   * archive/delete çalıştırılır.
+   */
+  deletable: {
+    workspaceId: 'e2e-ws-deletable',
+    workspaceSlug: 'e2e-ws-deletable',
+    boardId: 'e2e-board-deletable',
+    /** workspace-lifecycle.spec.ts pending davet — kabul akışı. */
+    wsInvitationToken: 'e2e-ws-invite-token-aaa',
+    /** workspace-lifecycle.spec.ts reddedilmiş davet — gösterim. */
+    wsInvitationDeclinedToken: 'e2e-ws-invite-token-decl',
+    /** board-lifecycle.spec.ts pending davet. */
+    boardInvitationToken: 'e2e-board-invite-token-bbb',
+    boardInvitationEmail: 'e2e-board-invite@pusula.test',
+  },
+  /** Faz 8A — board-lifecycle.spec.ts ek label'lar. */
+  extraLabels: {
+    editable: { id: 'e2e-label-editable', name: 'Düzenlenecek Etiket', color: 'green' },
+    deletable: { id: 'e2e-label-deletable', name: 'Silinecek Etiket', color: 'red' },
+  },
+  /** Faz 8A — card-collaboration.spec.ts checklist veri seti. */
+  collab: {
+    checklistId: 'e2e-checklist-1',
+    items: [
+      { id: 'e2e-ci-1', content: 'Madde 1', completed: false },
+      { id: 'e2e-ci-2', content: 'Madde 2', completed: true },
+    ] as const,
+  },
+  /** Faz 8A — notification-flow.spec.ts preference + push token. */
+  notifPrefs: {
+    bobGlobalId: 'e2e-pref-bob-global',
+    bobBoardMutedId: 'e2e-pref-bob-board',
+  },
+  pushTokens: {
+    bobIos: {
+      id: 'e2e-push-token-bob',
+      token: 'ExponentPushToken[e2e-test-token]',
+      platform: 'ios' as const,
+    },
   },
   /** Fixed search terms used by the DEM-108 Playwright search suite. */
   search: {
@@ -53,6 +134,10 @@ export const E2E = {
     hiddenWorkspaceId: 'e2e-hidden-search-workspace',
     hiddenBoardId: 'e2e-hidden-search-board',
     hiddenTerm: 'gizli arama hazinesi',
+    /** Faz 8A — full-text-search.spec.ts: boş sonuç testi için sözlüksüz terim. */
+    noResultTerm: 'xyznomatch9876',
+    /** Faz 8A — full-text-search.spec.ts: runtime'da yaratılan kart başlığı. */
+    newCardTerm: 'yeni-arama-test-karti',
   },
   /** List titles in `position` order. */
   listTitles: ['Liste 1', 'Liste 2', 'Liste 3'] as const,

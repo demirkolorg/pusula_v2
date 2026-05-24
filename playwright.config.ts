@@ -106,10 +106,26 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 30_000,
   },
+  // Faz 8A (DEM-284) CI matrix — 8.0 önce-belge kararı: PR `--project=smoke`
+  // (5-10 dk; sadece `@smoke` etiketli kritik akışlar), main push
+  // `--project=critical` (20-30 dk; `@flaky` hariç tüm spec'ler), nightly cron
+  // `--project=full` (60+ dk; her şey + 2x flake retry). Lokal default için
+  // `package.json` `test:e2e` script'i `--project=critical` flag'i geçer.
   projects: [
     {
-      name: 'chromium',
+      name: 'smoke',
       use: { ...devices['Desktop Chrome'] },
+      grep: /@smoke/,
+    },
+    {
+      name: 'critical',
+      use: { ...devices['Desktop Chrome'] },
+      grepInvert: /@flaky/,
+    },
+    {
+      name: 'full',
+      use: { ...devices['Desktop Chrome'] },
+      retries: 2,
     },
   ],
   webServer: [

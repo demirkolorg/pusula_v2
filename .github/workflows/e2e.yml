@@ -1,0 +1,109 @@
+name: E2E
+
+# Faz 8A (DEM-284) — Playwright CI matrix.
+# 8.0 önce-belge kararı: PR `smoke` (5-10 dk), main push `critical` (20-30 dk),
+# nightly cron `full` (60+ dk + 2x flake retry). Manuel tetikleme `workflow_dispatch`.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *' # her gece 02:00 UTC = 05:00 Europe/Istanbul
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Playwright project (smoke / critical / full)'
+        type: choice
+        options: [smoke, critical, full]
+        default: critical
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playwright:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ github.event_name == 'schedule' && 120 || (github.event_name == 'pull_request' && 20 || 45) }}
+    env:
+      # 8.0 önce-belge: e2e infra repo kökü docker-compose.yml ile çalışır;
+      # ekstra env burada explicit set edilir (apps/api + apps/web webServer'larına geçer).
+      AUTH_SECRET: pusula-ci-auth-secret-please-change-min-32chars
+      WORKER_SHARED_SECRET: pusula-ci-worker-shared-secret-do-not-use-in-prod
+      NOTIFICATION_EXTERNAL_DRY_RUN: '1'
+      # Better Auth e-posta doğrulama akışı için dry-run (Faz 8A mocksmith
+      # önerisi — auth-flow.spec.ts reset/verify tokenını DB'den okur).
+      AUTH_EMAIL_DRY_RUN: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Boot infra (postgres + redis + minio)
+        # docker-compose.yml: postgres 5436, redis 6380, minio 9100/9101.
+        # --wait healthcheck'leri bekler; minio-setup tek seferlik exit eder.
+        run: docker compose up -d --wait postgres redis minio
+
+      - name: Wait for minio-setup (bucket init)
+        run: |
+          docker compose up minio-setup
+          docker compose logs minio-setup
+
+      - name: Database migrate
+        run: pnpm db:migrate
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Select Playwright project
+        id: project
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=smoke" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "name=full" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.project }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=critical" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Typecheck e2e
+        run: pnpm typecheck:e2e
+
+      - name: Run Playwright (${{ steps.project.outputs.name }})
+        run: pnpm exec playwright test --project=${{ steps.project.outputs.name }}
+        env:
+          CI: '1'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ steps.project.outputs.name }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            playwright-results.xml
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Shut down infra
+        if: always()
+        run: docker compose down -v

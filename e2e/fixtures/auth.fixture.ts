@@ -47,8 +47,21 @@ export async function signIn(
 }
 
 type AuthFixtures = {
+  /** `E2E.user` — workspace `owner`, board `admin`. Default actor. */
   authedPage: Page;
+  /** `E2E.viewer` — workspace `guest`, board `viewer` (RO). */
   viewerPage: Page;
+  /**
+   * Faz 8A (DEM-284) — `E2E.alice` — workspace `member`, board `member`.
+   * `permission-matrix.spec.ts` member tier'ı için; `card-collaboration.spec.ts`
+   * yorum/atama yapan kullanıcı için.
+   */
+  memberPage: Page;
+  /**
+   * Faz 8A (DEM-284) — `E2E.wsAdmin` — workspace `admin` (≠ owner) + board
+   * `admin`. `permission-matrix.spec.ts` admin tier'ı için.
+   */
+  wsAdminPage: Page;
 };
 
 export const test = base.extend<AuthFixtures>({
@@ -61,6 +74,20 @@ export const test = base.extend<AuthFixtures>({
     const context = await browser.newContext();
     const page = await context.newPage();
     await signIn(page, E2E.viewer);
+    await use(page);
+    await context.close();
+  },
+  memberPage: async ({ browser }, use) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await signIn(page, E2E.alice);
+    await use(page);
+    await context.close();
+  },
+  wsAdminPage: async ({ browser }, use) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await signIn(page, E2E.wsAdmin);
     await use(page);
     await context.close();
   },

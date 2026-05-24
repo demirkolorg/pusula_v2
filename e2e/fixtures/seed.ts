@@ -32,16 +32,22 @@ import {
   createDb,
   eq,
   accounts,
+  boardInvitations,
   boardMembers,
   boards,
   cardLabels,
   cardMembers,
   cards,
+  checklists,
+  checklistItems,
   comments,
   lists,
   labels,
+  notificationPreferences,
+  pushTokens,
   reindexSearchDocuments,
   users,
+  workspaceInvitations,
   workspaceMembers,
   workspaces,
 } from '@pusula/db';
@@ -51,24 +57,48 @@ type Db = ReturnType<typeof createDb>['db'];
 
 async function resetThenSeed(db: Db): Promise<void> {
   // --- Reset (cascades clean up board_members / lists / cards / accounts) ---
+  // Faz 8A (DEM-284) — `e2e-ws-deletable` workspace lifecycle testinde
+  // silinebilir; reset bunu da temizler.
+  await db.delete(workspaces).where(eq(workspaces.id, E2E.deletable.workspaceId));
   await db.delete(workspaces).where(eq(workspaces.id, E2E.search.hiddenWorkspaceId));
   await db.delete(workspaces).where(eq(workspaces.id, E2E.workspaceId));
-  for (const u of [E2E.user, E2E.viewer, E2E.alice, E2E.bob]) {
+  for (const u of [E2E.user, E2E.viewer, E2E.alice, E2E.bob, E2E.wsAdmin, E2E.inviteTarget]) {
     await db.delete(users).where(eq(users.id, u.id));
   }
+  // Faz 8A (DEM-284) — `auth-flow.spec.ts` signup'la yarattığı kullanıcı
+  // sabit e-postada kalır; reseed bu satırı da temizler (e2e-* prefix'i yok).
+  await db.delete(users).where(eq(users.email, E2E.signup.email));
 
   // --- Users + password credentials ---
-  const [passwordHash, viewerPasswordHash, alicePasswordHash, bobPasswordHash] = await Promise.all([
+  const [
+    passwordHash,
+    viewerPasswordHash,
+    alicePasswordHash,
+    bobPasswordHash,
+    wsAdminPasswordHash,
+    inviteTargetPasswordHash,
+  ] = await Promise.all([
     hashPassword(E2E.user.password),
     hashPassword(E2E.viewer.password),
     hashPassword(E2E.alice.password),
     hashPassword(E2E.bob.password),
+    hashPassword(E2E.wsAdmin.password),
+    hashPassword(E2E.inviteTarget.password),
   ]);
   await db.insert(users).values([
     { id: E2E.user.id, name: E2E.user.name, email: E2E.user.email, emailVerified: true },
     { id: E2E.viewer.id, name: E2E.viewer.name, email: E2E.viewer.email, emailVerified: true },
     { id: E2E.alice.id, name: E2E.alice.name, email: E2E.alice.email, emailVerified: true },
     { id: E2E.bob.id, name: E2E.bob.name, email: E2E.bob.email, emailVerified: true },
+    // Faz 8A (DEM-284) — permission-matrix.spec.ts için admin tier.
+    { id: E2E.wsAdmin.id, name: E2E.wsAdmin.name, email: E2E.wsAdmin.email, emailVerified: true },
+    // Faz 8A (DEM-284) — workspace-lifecycle.spec.ts davet kabul akışı için.
+    {
+      id: E2E.inviteTarget.id,
+      name: E2E.inviteTarget.name,
+      email: E2E.inviteTarget.email,
+      emailVerified: true,
+    },
   ]);
   await db.insert(accounts).values([
     {
@@ -99,6 +129,20 @@ async function resetThenSeed(db: Db): Promise<void> {
       userId: E2E.bob.id,
       password: bobPasswordHash,
     },
+    {
+      id: `${E2E.wsAdmin.id}-credential`,
+      accountId: E2E.wsAdmin.id,
+      providerId: 'credential',
+      userId: E2E.wsAdmin.id,
+      password: wsAdminPasswordHash,
+    },
+    {
+      id: `${E2E.inviteTarget.id}-credential`,
+      accountId: E2E.inviteTarget.id,
+      providerId: 'credential',
+      userId: E2E.inviteTarget.id,
+      password: inviteTargetPasswordHash,
+    },
   ]);
 
   // --- Workspace + memberships ---
@@ -117,6 +161,8 @@ async function resetThenSeed(db: Db): Promise<void> {
     // edit access so either side can drive the mutation under test.
     { workspaceId: E2E.workspaceId, userId: E2E.alice.id, role: 'member' },
     { workspaceId: E2E.workspaceId, userId: E2E.bob.id, role: 'member' },
+    // Faz 8A (DEM-284) — workspace admin (≠ owner) tier; permission-matrix.spec.ts.
+    { workspaceId: E2E.workspaceId, userId: E2E.wsAdmin.id, role: 'admin' },
   ]);
 
   // --- Board + members ---
@@ -130,6 +176,8 @@ async function resetThenSeed(db: Db): Promise<void> {
     { boardId: E2E.boardId, userId: E2E.viewer.id, role: 'viewer' },
     { boardId: E2E.boardId, userId: E2E.alice.id, role: 'member' },
     { boardId: E2E.boardId, userId: E2E.bob.id, role: 'member' },
+    // Faz 8A (DEM-284) — board admin (workspace admin tier'ı için).
+    { boardId: E2E.boardId, userId: E2E.wsAdmin.id, role: 'admin' },
   ]);
 
   // --- Lists (known positions) ---
@@ -216,6 +264,17 @@ async function resetThenSeed(db: Db): Promise<void> {
   // dışlanması) için minimum dataset. Saved/schedule kayıtları test
   // runtime'ında oluşturulur (tabula rasa).
   await seedReportsExtraBoards(db);
+
+  // ── Faz 8A (DEM-284) — Genişletilmiş E2E suite fixture'ları ──────────────
+  // Her biri ek deterministik veri ekler; mevcut `E2E.*` ID'lerine dokunmaz.
+  // workspace-lifecycle.spec.ts → davet + deletable workspace.
+  await seedWorkspaceLifecycleExtras(db);
+  // board-lifecycle.spec.ts → davet + deletable board + ek label'lar.
+  await seedBoardLifecycleExtras(db);
+  // card-collaboration.spec.ts → ana kart + arşiv kartı + checklist + item.
+  await seedCollabCards(db);
+  // notification-flow.spec.ts → bob için global + board-mute preference + push token.
+  await seedNotificationExtras(db);
 }
 
 async function seedReportsExtraBoards(db: Db): Promise<void> {
@@ -329,6 +388,200 @@ async function seedReportsExtraBoards(db: Db): Promise<void> {
   //    (DEM-108 reindex helper). reportsRetention veya başka downstream'ler
   //    direkt olarak search'e bakmaz ama tutarlılık için.
   await reindexSearchDocuments(db, { workspaceId: E2E.workspaceId });
+}
+
+// ── Faz 8A (DEM-284) — Ek E2E suite seed fonksiyonları ──────────────────────
+
+/**
+ * workspace-lifecycle.spec.ts — `E2E.workspaceId` (ana workspace) üzerinde
+ * pending + declined davet satırları + ayrı bir `e2e-ws-deletable` workspace
+ * (lifecycle silme/leave/rename testlerinin ana workspace'i kırmadan
+ * koşabilmesi için). `inviteTarget` kullanıcısı seed.ts başında yaratılmış.
+ */
+async function seedWorkspaceLifecycleExtras(db: Db): Promise<void> {
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  // 1. Pending davet — kabul akışı için. `E2E.inviteTarget` kullanıcısı
+  //    `/invitations/accept?token=...` ile kabul edebilir.
+  await db.insert(workspaceInvitations).values([
+    {
+      id: 'e2e-ws-inv-pending',
+      workspaceId: E2E.workspaceId,
+      email: E2E.inviteTarget.email,
+      role: 'member',
+      token: E2E.deletable.wsInvitationToken,
+      status: 'pending',
+      expiresAt: new Date(now + sevenDaysMs),
+      invitedById: E2E.user.id,
+    },
+    {
+      // Declined davet — workspace ayarlarında "geçmiş davetler" gösterimi
+      // için. Aynı (workspace, email) altında pending olmadığı için partial
+      // UNIQUE index ihlal edilmez.
+      id: 'e2e-ws-inv-declined',
+      workspaceId: E2E.workspaceId,
+      email: 'e2e-declined-target@pusula.test',
+      role: 'member',
+      token: E2E.deletable.wsInvitationDeclinedToken,
+      status: 'declined',
+      expiresAt: new Date(now + sevenDaysMs),
+      invitedById: E2E.user.id,
+    },
+  ]);
+
+  // 2. Silinebilir workspace — `E2E.user` owner; lifecycle testi bunu silebilir.
+  await db.insert(workspaces).values({
+    id: E2E.deletable.workspaceId,
+    name: 'Silinecek Çalışma Alanı',
+    slug: E2E.deletable.workspaceSlug,
+    ownerId: E2E.user.id,
+  });
+  await db.insert(workspaceMembers).values({
+    workspaceId: E2E.deletable.workspaceId,
+    userId: E2E.user.id,
+    role: 'owner',
+  });
+}
+
+/**
+ * board-lifecycle.spec.ts — `E2E.boardId` üzerinde ek label'lar + pending board
+ * davet + ayrı `e2e-board-deletable` board (lifecycle silme/arşiv testleri için).
+ */
+async function seedBoardLifecycleExtras(db: Db): Promise<void> {
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+  // 1. Pending board davet.
+  await db.insert(boardInvitations).values({
+    id: 'e2e-board-inv-pending',
+    boardId: E2E.boardId,
+    email: E2E.deletable.boardInvitationEmail,
+    role: 'member',
+    token: E2E.deletable.boardInvitationToken,
+    status: 'pending',
+    expiresAt: new Date(Date.now() + sevenDaysMs),
+    invitedById: E2E.user.id,
+  });
+
+  // 2. Ek label'lar — etiket CRUD test için (rename/delete).
+  await db.insert(labels).values([
+    {
+      id: E2E.extraLabels.editable.id,
+      boardId: E2E.boardId,
+      name: E2E.extraLabels.editable.name,
+      color: E2E.extraLabels.editable.color,
+    },
+    {
+      id: E2E.extraLabels.deletable.id,
+      boardId: E2E.boardId,
+      name: E2E.extraLabels.deletable.name,
+      color: E2E.extraLabels.deletable.color,
+    },
+  ]);
+
+  // 3. Silinebilir board — `E2E.user` admin; archive/delete testleri için.
+  await db.insert(boards).values({
+    id: E2E.deletable.boardId,
+    workspaceId: E2E.workspaceId,
+    title: 'Silinecek Pano',
+  });
+  await db.insert(boardMembers).values({
+    boardId: E2E.deletable.boardId,
+    userId: E2E.user.id,
+    role: 'admin',
+  });
+}
+
+/**
+ * card-collaboration.spec.ts — `e2e-list-2`'de 2 ek kart (ana + arşivlenebilir)
+ * + 1 checklist + 2 checklist item (biri tamamlanmış, biri açık).
+ */
+async function seedCollabCards(db: Db): Promise<void> {
+  const cardPositions = positionsBetween(null, null, 2);
+  await db.insert(cards).values([
+    {
+      id: E2E.cardIds.collabMain,
+      boardId: E2E.boardId,
+      listId: 'e2e-list-2',
+      title: 'İşbirliği Kartı',
+      position: cardPositions[0]!,
+    },
+    {
+      id: E2E.cardIds.collabArchive,
+      boardId: E2E.boardId,
+      listId: 'e2e-list-2',
+      title: 'Arşivlenecek Kart',
+      position: cardPositions[1]!,
+    },
+  ]);
+
+  // Checklist + items (madde 2 önceden tamamlanmış).
+  await db.insert(checklists).values({
+    id: E2E.collab.checklistId,
+    cardId: E2E.cardIds.collabMain,
+    title: 'E2E Kontrol Listesi',
+    position: positionsBetween(null, null, 1)[0]!,
+  });
+  const itemPositions = positionsBetween(null, null, E2E.collab.items.length);
+  await db.insert(checklistItems).values(
+    E2E.collab.items.map((item, i) => ({
+      id: item.id,
+      checklistId: E2E.collab.checklistId,
+      content: item.content,
+      position: itemPositions[i]!,
+      completed: item.completed,
+      completedAt: item.completed ? new Date(Date.now() - 60 * 60 * 1000) : null,
+      completedBy: item.completed ? E2E.user.id : null,
+    })),
+  );
+}
+
+/**
+ * notification-flow.spec.ts — bob için global default preference + board mute
+ * preference (E2E.boardId) + bir push token (revoke testi için).
+ *
+ * UNIQUE constraint `notification_preferences_scope_uq` COALESCE'lu — global
+ * satır (`workspaceId/boardId/cardId = NULL`) yalnız bir kez insert edilebilir;
+ * reset aşaması user satırını cascade temizler, burada güvenle eklenir.
+ */
+async function seedNotificationExtras(db: Db): Promise<void> {
+  await db.insert(notificationPreferences).values([
+    {
+      id: E2E.notifPrefs.bobGlobalId,
+      userId: E2E.bob.id,
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      muteLevel: 'none',
+      mentionOnly: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      emailMode: 'instant',
+    },
+    {
+      // Board mute — bob `E2E.boardId`'deki aktiviteyi (mention dışında)
+      // sustırır; rule engine `mute_level='all'` davranışını test eder.
+      id: E2E.notifPrefs.bobBoardMutedId,
+      userId: E2E.bob.id,
+      workspaceId: null,
+      boardId: E2E.boardId,
+      cardId: null,
+      muteLevel: 'all',
+      mentionOnly: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      emailMode: 'instant',
+    },
+  ]);
+
+  await db.insert(pushTokens).values({
+    id: E2E.pushTokens.bobIos.id,
+    userId: E2E.bob.id,
+    token: E2E.pushTokens.bobIos.token,
+    platform: E2E.pushTokens.bobIos.platform,
+    deviceName: "Bob'un iPhone",
+    revokedAt: null,
+  });
 }
 
 export async function seed(): Promise<void> {
