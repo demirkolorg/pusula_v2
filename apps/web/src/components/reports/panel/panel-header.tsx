@@ -21,6 +21,12 @@ import { FilterSummaryChips } from '../shared/filter-summary-chips';
 export interface PanelHeaderProps {
   filters: ReportFilters;
   comparison?: ComparisonConfig | null;
+  /**
+   * Faz 13M (DEM-269) — backend'in hesapladığı previous-period mutlak
+   * aralığı. `FilterSummaryChips` "Karşılaştırma açık" chip'inin tooltip'i
+   * "Önceki: 2026-04-22 — 2026-05-22" formatında gösterir.
+   */
+  comparisonRange?: { from: string; to: string } | null;
   /** 13N (DEM-270) socket event tetiği — bu fazda daima false. */
   isStale?: boolean;
   /** Loading state'inde Yenile butonu animate. */
@@ -36,6 +42,7 @@ export interface PanelHeaderProps {
 export function PanelHeader({
   filters,
   comparison,
+  comparisonRange = null,
   isStale = false,
   isFetching = false,
   onRefresh,
@@ -53,7 +60,11 @@ export function PanelHeader({
       data-testid="report-panel-header"
     >
       <div className="flex flex-1 flex-wrap items-center gap-2">
-        <FilterSummaryChips filters={filters} comparison={comparison} />
+        <FilterSummaryChips
+          filters={filters}
+          comparison={comparison}
+          comparisonRange={comparisonRange}
+        />
         {isStale && onRefresh && (
           <StaleBadge visible={isStale} onRefresh={onRefresh} t={t} />
         )}

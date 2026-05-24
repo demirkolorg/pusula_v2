@@ -101,6 +101,16 @@ export const QUEUE = {
    */
   reportSchedule: 'pusula-report-schedule',
   /**
+   * Faz 13P ([DEM-272](https://linear.app/demirkol/issue/DEM-272)) — rapor
+   * render retention queue. Repeatable cron tick (daily 03:00 UTC) eski
+   * (`> 90g`) saved-attached render'ları (son 5 sürüm hariç) ve ad-hoc
+   * render'ları MinIO + DB'den siler. Dry-run modu (`REPORT_RETENTION_DRY
+   * _RUN=true`) ilk haftada aktif kalır. Pattern: `notification-email-
+   * digest` (Faz 10G) cron + `attachment-cleanup-sweeper` (Faz 11C) storage-
+   * first disiplin.
+   */
+  reportRetention: 'pusula-report-retention',
+  /**
    * Faz 11C (DEM-149) — attachment cleanup queue. Two responsibilities,
    * dispatched by `job.name`:
    *  1. Delete trigger (`attachment-cleanup`): fired by `attachment.delete`
@@ -198,6 +208,18 @@ export const reportScheduleQueue = new Queue(QUEUE.reportSchedule, {
     removeOnFail: { age: 60 * 60 * 24 },
   },
 });
+// Faz 13P (DEM-272) — retention tick queue. Daily cron (03:00 UTC). Tick
+// idempotent (DB durumuna göre çalışır); 2 attempt + 5dk backoff yeterli.
+// Bir sonraki gün tick zaten 24 saat sonra (kaçırılan iş düşük öncelik).
+export const reportRetentionQueue = new Queue(QUEUE.reportRetention, {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential' as const, delay: 5 * 60_000 },
+    removeOnComplete: { age: 60 * 60 * 24 * 7, count: 30 },
+    removeOnFail: { age: 60 * 60 * 24 * 30 },
+  },
+});
 
 export const allQueues = [
   notificationsQueue,
@@ -212,4 +234,5 @@ export const allQueues = [
   reportCacheInvalidatorQueue,
   reportRenderQueue,
   reportScheduleQueue,
+  reportRetentionQueue,
 ];

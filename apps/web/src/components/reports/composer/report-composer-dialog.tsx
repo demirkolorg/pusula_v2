@@ -168,7 +168,8 @@ function ComposerBody({
             dataset={dataset}
             loading={state.previewQuery.isFetching}
             errorMessage={previewError}
-            onRefresh={() => void state.previewQuery.refetch()}
+            onRefresh={state.refreshPreview}
+            isStale={state.isStale}
             compact
           />
         </div>

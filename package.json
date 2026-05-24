@@ -15,6 +15,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:e2e": "eslint e2e/",
+    "check-i18n-keys": "turbo run check-i18n-keys",
     "typecheck": "turbo run typecheck",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "test": "turbo run test",

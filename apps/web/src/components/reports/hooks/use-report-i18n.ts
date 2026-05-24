@@ -1,24 +1,31 @@
 /**
- * Faz 13G (DEM-263) — i18n key resolver hook'u.
+ * Faz 13G (DEM-263) + Faz 13Q (DEM-273) — i18n key resolver hook'u.
  *
- * Pusula şu an `strings.reports.*` (hardcoded TR — `apps/web/src/lib/
- * strings.ts`) kullanıyor; 13Q (DEM-266) `next-intl` provider'ı getirir.
- * Bu hook iki sistem arasında köprü:
- *  - Mevcut: `strings.reports.<path>` lookup'u dot-notation key'i çözümler.
- *  - 13Q sonrası: `useTranslations('reports')` ile değişir, signature aynı.
+ * 13Q öncesi resolver `strings.reports.*` (TS) üzerinden yapıyordu; 13Q
+ * raporlama modülünün TR/EN locale dosyalarını ayrı JSON dosyalarına
+ * (`apps/web/src/locales/{tr,en}/reports.json`) çıkardı. Bu hook hâlâ
+ * dot-notation key resolver (`reports.composer.title.create`) sunuyor;
+ * sadece kaynak değişti. UI bileşenleri (`@pusula/ui/reports`)
+ * `MicroReportProps.t` prop'u alır — değişiklik yok.
  *
- * UI bileşenleri (`@pusula/ui/reports`) `t(key, params)` prop'u alır
- * (`MicroReportProps.t`). Bu hook composer + panel + entity tab girişleri
- * için aynı resolver'ı çıkarır — kod tekrarı yok, drift-proof.
- *
- * Placeholder interpolation: `{count}` → params.count. `{{count}}`
- * alternatifi 13I print sayfası `makeTranslator` ile uyumlu — Pusula
- * standart `{name}` single brace.
+ * V1 davranışı:
+ *  - Workspace locale `tr-TR` sabit (Pusula şu an tek dil).
+ *  - EN locale dosyası eklendi (Faz 14+ için, bu hook'tan çağrılmıyor).
+ *  - Eksik key → key string'i ekrana (debug için görünür kalır).
+ *  - Placeholder formatı `{count}` (single brace). 13I print sayfası
+ *    `makeTranslator` da single-brace ile uyumlu.
  */
 'use client';
 
 import { useMemo } from 'react';
-import { strings } from '@/lib/strings';
+import trReports from '@/locales/tr/reports.json';
+
+/**
+ * `reports.*` JSON locale'inin tipi — JSON `Record<string, unknown>`
+ * olarak gelir, lookup için yeterli (`any` cursor pattern).
+ */
+type LocaleTree = Record<string, unknown>;
+const LOCALE_TREE: LocaleTree = trReports as LocaleTree;
 
 export interface UseReportI18nResult {
   /**
@@ -33,21 +40,23 @@ export interface UseReportI18nResult {
    * KpiCard formatlanmış değer olarak Date/BigInt vs. geçirebilir).
    */
   t: (key: string, params?: Record<string, unknown>) => string;
-  /** Workspace locale — 13Q'da workspace meta'sından gelecek. */
+  /** Workspace locale — V1 sabit `tr-TR`; Faz 14+'da workspace meta'sından gelecek. */
   locale: string;
 }
 
 /**
- * Dot-notation key (`reports.foo.bar`) lookup. `strings` objesi `reports`
- * dalını taşır; eksik path → undefined → key kendi adıyla dön.
+ * Dot-notation key (`reports.foo.bar`) JSON locale ağacında lookup.
+ * `reports.` prefix'i strip edilir — JSON kökü doğrudan `composer`,
+ * `list`, ... taşır. Eksik path → undefined.
  */
 function resolveKey(key: string): string | undefined {
-  const parts = key.split('.');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let cursor: any = strings;
+  if (!key.startsWith('reports.')) return undefined;
+  const parts = key.slice('reports.'.length).split('.');
+  let cursor: unknown = LOCALE_TREE;
   for (const part of parts) {
     if (cursor === undefined || cursor === null) return undefined;
-    cursor = cursor[part];
+    if (typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[part];
   }
   return typeof cursor === 'string' ? cursor : undefined;
 }
@@ -65,11 +74,9 @@ export function useReportI18n(): UseReportI18nResult {
     () => ({
       t: (key, params) => {
         const template = resolveKey(key);
-        if (!template) return key; // debug fallback — key görünür kalır.
+        if (template === undefined) return key; // debug fallback.
         return interpolate(template, params);
       },
-      // V1: workspace locale'i hardcoded `tr-TR` (Pusula şu an tek dil);
-      // 13Q dynamic workspace meta'sından gelecek.
       locale: 'tr-TR',
     }),
     [],

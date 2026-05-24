@@ -27,7 +27,7 @@ import { roomName } from '@pusula/domain';
 import { createSocketServer, type SocketServerHandle } from './server';
 import { REALTIME_EVENT_CHANNEL } from './emit';
 import type { SocketSessionResolver } from './auth';
-import type { BoardAccessResolver } from './rooms';
+import type { BoardAccessResolver, WorkspaceAccessResolver } from './rooms';
 
 interface Harness {
   httpServer: HttpServer;
@@ -35,11 +35,13 @@ interface Harness {
   port: number;
   resolveSession: ReturnType<typeof vi.fn<SocketSessionResolver>>;
   resolveBoardAccess: ReturnType<typeof vi.fn<BoardAccessResolver>>;
+  resolveWorkspaceAccess: ReturnType<typeof vi.fn<WorkspaceAccessResolver>>;
 }
 
 async function buildHarness(): Promise<Harness> {
   const resolveSession = vi.fn<SocketSessionResolver>(async () => null);
   const resolveBoardAccess = vi.fn<BoardAccessResolver>(async () => null);
+  const resolveWorkspaceAccess = vi.fn<WorkspaceAccessResolver>(async () => null);
 
   const httpServer = createServer();
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
@@ -51,9 +53,17 @@ async function buildHarness(): Promise<Harness> {
     corsOrigin: 'http://localhost:3000',
     resolveSession,
     resolveBoardAccess,
+    resolveWorkspaceAccess,
   });
 
-  return { httpServer, socketHandle, port, resolveSession, resolveBoardAccess };
+  return {
+    httpServer,
+    socketHandle,
+    port,
+    resolveSession,
+    resolveBoardAccess,
+    resolveWorkspaceAccess,
+  };
 }
 
 async function teardown(h: Harness): Promise<void> {
@@ -243,6 +253,113 @@ describe('Socket.IO server — Faz 5A (DEM-83)', () => {
 
       const sockets = await h.socketHandle.io.in(roomName('user', 'user_aria')).fetchSockets();
       expect(sockets).toHaveLength(1);
+
+      client.disconnect();
+    });
+  });
+
+  // Faz 13N (DEM-270) — workspace:join handshake. Mirror'lar board:join
+  // testlerini: payload doğrulama, permission resolver (member/non-member),
+  // resolver throw, leave davranışı.
+  describe('workspace:join / workspace:leave (Faz 13N)', () => {
+    it('joins the workspace:{id} room when the resolver returns a role', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_aria' });
+      h.resolveWorkspaceAccess.mockResolvedValueOnce({ role: 'member' });
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      const ack = await emitWithAck(client, 'workspace:join', { workspaceId: 'ws_1' });
+      expect(ack).toEqual({ ok: true });
+      expect(h.resolveWorkspaceAccess).toHaveBeenCalledWith('ws_1', 'user_aria');
+
+      const sockets = await h.socketHandle.io
+        .in(roomName('workspace', 'ws_1'))
+        .fetchSockets();
+      expect(sockets).toHaveLength(1);
+
+      client.disconnect();
+    });
+
+    it('accepts workspace:join for any non-null workspace role (owner/admin/member/guest)', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_aria' });
+      h.resolveWorkspaceAccess.mockResolvedValueOnce({ role: 'guest' });
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      const ack = await emitWithAck(client, 'workspace:join', { workspaceId: 'ws_guest' });
+      expect(ack).toEqual({ ok: true });
+
+      client.disconnect();
+    });
+
+    it('rejects workspace:join with Forbidden when the resolver returns null', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_outsider' });
+      h.resolveWorkspaceAccess.mockResolvedValueOnce(null);
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      const ack = await emitWithAck(client, 'workspace:join', { workspaceId: 'ws_locked' });
+      expect(ack).toEqual({ ok: false, error: 'Forbidden' });
+
+      const sockets = await h.socketHandle.io
+        .in(roomName('workspace', 'ws_locked'))
+        .fetchSockets();
+      expect(sockets).toHaveLength(0);
+
+      client.disconnect();
+    });
+
+    it('rejects workspace:join with Forbidden when the resolver throws', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_aria' });
+      h.resolveWorkspaceAccess.mockRejectedValueOnce(new Error('db blew up'));
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      const ack = await emitWithAck(client, 'workspace:join', { workspaceId: 'ws_x' });
+      expect(ack).toEqual({ ok: false, error: 'Forbidden' });
+
+      client.disconnect();
+    });
+
+    it('acks BadRequest when workspace:join payload has no workspaceId', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_aria' });
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      const ack = await emitWithAck(client, 'workspace:join', { workspaceId: '' });
+      expect(ack).toEqual({ ok: false, error: 'BadRequest' });
+      expect(h.resolveWorkspaceAccess).not.toHaveBeenCalled();
+
+      client.disconnect();
+    });
+
+    it('workspace:leave removes the socket from the room', async () => {
+      h.resolveSession.mockResolvedValueOnce({ userId: 'user_aria' });
+      h.resolveWorkspaceAccess.mockResolvedValueOnce({ role: 'admin' });
+
+      const client = connect(h.port);
+      await waitForConnect(client);
+
+      await emitWithAck(client, 'workspace:join', { workspaceId: 'ws_leavable' });
+      let sockets = await h.socketHandle.io
+        .in(roomName('workspace', 'ws_leavable'))
+        .fetchSockets();
+      expect(sockets).toHaveLength(1);
+
+      const leaveAck = await emitWithAck(client, 'workspace:leave', {
+        workspaceId: 'ws_leavable',
+      });
+      expect(leaveAck).toEqual({ ok: true });
+
+      sockets = await h.socketHandle.io
+        .in(roomName('workspace', 'ws_leavable'))
+        .fetchSockets();
+      expect(sockets).toHaveLength(0);
 
       client.disconnect();
     });

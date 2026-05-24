@@ -75,4 +75,32 @@ describe('FilterSummaryChips', () => {
     );
     expect(screen.queryByText('Karşılaştırma açık')).toBeNull();
   });
+
+  // Faz 13M (DEM-269) — comparisonRange tooltip
+  it('comparison aktif + comparisonRange → badge test id mevcut', () => {
+    render(
+      <FilterSummaryChips
+        filters={BASE}
+        comparison={{ enabled: true, mode: 'previousPeriod' }}
+        comparisonRange={{
+          from: '2026-04-22T00:00:00.000Z',
+          to: '2026-05-22T00:00:00.000Z',
+        }}
+      />,
+    );
+    // Tooltip render edilir (Radix Portal'a yazılır; trigger erişilebilir);
+    // badge data-testid'i wire'lanmış.
+    expect(screen.getByTestId('report-comparison-badge')).toBeInTheDocument();
+  });
+
+  it('comparison aktif + comparisonRange yoksa → badge yine görünür (tooltip\'siz)', () => {
+    render(
+      <FilterSummaryChips
+        filters={BASE}
+        comparison={{ enabled: true, mode: 'previousPeriod' }}
+        comparisonRange={null}
+      />,
+    );
+    expect(screen.getByTestId('report-comparison-badge')).toBeInTheDocument();
+  });
 });

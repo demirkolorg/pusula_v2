@@ -1,19 +1,22 @@
 /**
  * Socket.IO room management — Faz 5A (DEM-83).
  *
- * Two rooms matter in Faz 5:
+ * Three rooms matter:
  *  - `user:{userId}` — auto-joined on connection. Faz 6 notification fan-out
  *    targets this room; Faz 5 already populates it so server-initiated user
  *    events (e.g. a board the user no longer has access to) have a destination.
- *  - `board:{boardId}` — joined on demand. The client emits `board:join` when
- *    a board page mounts; the server resolves the user's effective board role
- *    (`viewer+` suffices — viewers see events but `apps/web` Faz 4C won't let
- *    them mutate). Archived boards reject the join (Karar 2026-05-13(c)) —
- *    the production resolver in `index.ts` is what enforces this; this module
- *    just sees a `null` resolver result and acks `Forbidden`.
+ *  - `board:{boardId}` — joined on demand via `board:join`. Server resolves
+ *    the user's effective board role (`viewer+` suffices). Archived boards
+ *    reject (Karar 2026-05-13(c)).
+ *  - `workspace:{workspaceId}` — joined on demand via `workspace:join` (Faz
+ *    13N / DEM-270). 13E report-cache-invalidator publishes
+ *    `report.invalidated` to this room so any open report panel in that
+ *    workspace can render the stale badge. Membership (`owner/admin/member/
+ *    guest`) is required; non-members reject with `Forbidden`.
  *
- * `resolveBoardAccess` is injected so the socket tests can swap in a stub
- * (the real implementation in `@pusula/api` reads the DB).
+ * `resolveBoardAccess` + `resolveWorkspaceAccess` are injected so the socket
+ * tests can swap in stubs (the real implementations in `@pusula/api` read
+ * the DB).
  */
 import type { Server, Socket } from 'socket.io';
 import { roomName, type BoardRoomAck } from '@pusula/domain';
@@ -25,6 +28,16 @@ export type BoardAccessResolver = (
 ) => Promise<{ role: string } | null>;
 
 /**
+ * Pluggable workspace-access resolver — Faz 13N (DEM-270). Returns the
+ * workspace role string (`owner/admin/member/guest`) or `null` when the
+ * user is not a member of the workspace.
+ */
+export type WorkspaceAccessResolver = (
+  workspaceId: string,
+  userId: string,
+) => Promise<{ role: string } | null>;
+
+/**
  * Inbound `board:join` payload — currently just the board id, kept open so we
  * can add e.g. a desired role bound check later without breaking the wire.
  */
@@ -32,12 +45,27 @@ export interface BoardJoinPayload {
   boardId: string;
 }
 
+/** Inbound `workspace:join` / `workspace:leave` payload — Faz 13N. */
+export interface WorkspaceJoinPayload {
+  workspaceId: string;
+}
+
+export interface AttachRoomHandlersDeps {
+  resolveBoardAccess: BoardAccessResolver;
+  /**
+   * Faz 13N — optional during transition; when omitted, `workspace:join`
+   * rejects with `Forbidden` (defense-in-depth: no silent open room).
+   * Production wiring in `index.ts` always supplies this.
+   */
+  resolveWorkspaceAccess?: WorkspaceAccessResolver;
+}
+
 /**
  * Wire the per-connection room handlers onto a freshly authenticated socket.
  * Called from inside the `connection` handler — by then `socket.data.userId`
  * has been set by the auth middleware.
  */
-export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAccessResolver): void {
+export function attachRoomHandlers(socket: Socket, deps: AttachRoomHandlersDeps): void {
   const userId = socket.data.userId as string | undefined;
   if (!userId) {
     // Defensive: the auth middleware should have already rejected this connection.
@@ -69,7 +97,7 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
       return;
     }
     try {
-      const access = await resolveBoardAccess(boardId, userId);
+      const access = await deps.resolveBoardAccess(boardId, userId);
       if (!access) {
         respond(ack, { ok: false, error: 'Forbidden' });
         return;
@@ -95,6 +123,59 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
     await socket.leave(roomName('board', boardId));
     respond(ack, { ok: true });
   });
+
+  // Faz 13N (DEM-270) — workspace room handlers. Mirror'lar board:join
+  // pattern'ini: payload doğrulama → permission check → join + ack.
+  // Permission tek bilgi: workspace membership var mı? (owner/admin/member/
+  // guest) — board-only kullanıcı (workspace üyesi olmayan) workspace
+  // room'a join edemez; stale event'i de almaz (workspace scope rapor
+  // göremedikleri için zaten alakasız).
+  socket.on(
+    'workspace:join',
+    async (payload: WorkspaceJoinPayload, ack?: (res: BoardRoomAck) => void) => {
+      const workspaceId =
+        typeof payload?.workspaceId === 'string' ? payload.workspaceId : '';
+      if (!workspaceId) {
+        respond(ack, { ok: false, error: 'BadRequest' });
+        return;
+      }
+      if (!deps.resolveWorkspaceAccess) {
+        // Production wiring her zaman resolver verir; test injection'da
+        // omit edilebilir — fail-secure default Forbidden.
+        respond(ack, { ok: false, error: 'Forbidden' });
+        return;
+      }
+      try {
+        const access = await deps.resolveWorkspaceAccess(workspaceId, userId);
+        if (!access) {
+          respond(ack, { ok: false, error: 'Forbidden' });
+          return;
+        }
+        await socket.join(roomName('workspace', workspaceId));
+        respond(ack, { ok: true });
+      } catch (err) {
+        console.warn(
+          `[api:socket] workspace:join resolver error (workspace=${workspaceId} user=${userId}):`,
+          err instanceof Error ? err.message : String(err),
+        );
+        respond(ack, { ok: false, error: 'Forbidden' });
+      }
+    },
+  );
+
+  socket.on(
+    'workspace:leave',
+    async (payload: WorkspaceJoinPayload, ack?: (res: BoardRoomAck) => void) => {
+      const workspaceId =
+        typeof payload?.workspaceId === 'string' ? payload.workspaceId : '';
+      if (!workspaceId) {
+        respond(ack, { ok: false, error: 'BadRequest' });
+        return;
+      }
+      await socket.leave(roomName('workspace', workspaceId));
+      respond(ack, { ok: true });
+    },
+  );
 }
 
 /**
@@ -102,9 +183,12 @@ export function attachRoomHandlers(socket: Socket, resolveBoardAccess: BoardAcce
  * `attachRoomHandlers` so a host can replace it (e.g. tests) without
  * re-wiring the auth middleware too.
  */
-export function attachConnectionHandler(io: Server, resolveBoardAccess: BoardAccessResolver): void {
+export function attachConnectionHandler(
+  io: Server,
+  deps: AttachRoomHandlersDeps,
+): void {
   io.on('connection', (socket) => {
-    attachRoomHandlers(socket, resolveBoardAccess);
+    attachRoomHandlers(socket, deps);
   });
 }
 

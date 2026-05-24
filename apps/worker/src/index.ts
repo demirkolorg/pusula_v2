@@ -13,6 +13,7 @@ import {
   realtimePublishQueue,
   reportCacheInvalidatorQueue,
   reportRenderQueue,
+  reportRetentionQueue,
   reportScheduleQueue,
   scheduledQueue,
 } from './queues';
@@ -108,6 +109,11 @@ import {
   REPORT_SCHEDULE_TICK_JOB_NAME,
   processReportScheduleTick,
 } from './jobs/report-schedule-tick';
+import {
+  REPORT_RETENTION_TICK_CRON,
+  REPORT_RETENTION_TICK_JOB_NAME,
+  processReportRetentionTick,
+} from './jobs/report-retention';
 import { sendScheduledReportEmail } from './jobs/report-scheduled-email';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -488,6 +494,46 @@ const reportRenderWorker = new Worker(
   { connection, concurrency: 2 },
 );
 
+// Faz 13P (DEM-272) — rapor render retention worker. Daily cron tick
+// (03:00 UTC) `attachment-cleanup-sweeper` (Faz 11C) storage-first pattern'i
+// ile saved (son 5 sürüm hariç) + ad-hoc render'ları MinIO + DB'den siler.
+// Dry-run modu (`REPORT_RETENTION_DRY_RUN=true`) production'ın ilk haftası
+// aktif kalır → operator log inceledikten sonra `false` set eder.
+const reportRetentionStorage = s3DeleteObjectAdapter(reportRenderS3Client);
+const reportRetentionWorker = new Worker(
+  QUEUE.reportRetention,
+  async (job) => {
+    if (job.name !== REPORT_RETENTION_TICK_JOB_NAME) {
+      console.warn(`[worker:report-retention] unknown job ${job.name} — skipped`);
+      return;
+    }
+    const result = await processReportRetentionTick({
+      db,
+      storage: reportRetentionStorage,
+      dryRun: env.REPORT_RETENTION_DRY_RUN,
+      keepVersions: env.REPORT_RETENTION_KEEP_VERSIONS,
+      maxAgeDays: env.REPORT_RETENTION_MAX_AGE_DAYS,
+      captureException: (err, ctx) => {
+        Sentry.captureException(err, {
+          tags: { queue: QUEUE.reportRetention, dryRun: String(env.REPORT_RETENTION_DRY_RUN) },
+          extra: ctx,
+        });
+      },
+    });
+    const prefix = result.dryRun ? '[DRY-RUN]' : '[LIVE]';
+    if (result.evaluated > 0 || result.failed > 0) {
+      console.warn(
+        `[worker:report-retention] ${prefix} tick — savedScanned=${result.savedScanned} ` +
+          `adHocScanned=${result.adHocScanned} evaluated=${result.evaluated} ` +
+          `kept=${result.kept} deleted=${result.deleted} failed=${result.failed}`,
+      );
+    }
+  },
+  // Concurrency 1: tek tick aynı satırlar üzerinde race YOK; daily cron
+  // zaten seyrek. notification-email-digest pattern'i.
+  { connection, concurrency: 1 },
+);
+
 // Faz 13J (DEM-266) — schedule tick worker. Repeatable cron job (every
 // minute) due schedule'ları tarar → `report-render` queue'ya enqueue eder.
 // `notification-email-digest` pattern'i (Faz 10G) ile simetrik.
@@ -545,6 +591,7 @@ const workers = [
   realtimeWorker,
   reportCacheInvalidatorWorker,
   reportRenderWorker,
+  reportRetentionWorker,
   reportScheduleWorker,
   scheduledWorker,
   compactionWorker,
@@ -652,6 +699,25 @@ void reportScheduleQueue
   )
   .catch((err) => {
     console.error('[worker:report-schedule] tick register failed:', err.message);
+  });
+
+// Faz 13P (DEM-272) — register the daily retention tick. Cron pattern
+// `0 3 * * *` (03:00 UTC); `jobId` fixed → worker restart'ta tek scheduler
+// row (BullMQ debounce). Hata: log + Sentry (worker boot'u durdurmaz);
+// kaçırılan tick zaten 24 saat sonra rekapture eder.
+void reportRetentionQueue
+  .add(
+    REPORT_RETENTION_TICK_JOB_NAME,
+    {},
+    {
+      jobId: 'report-retention-tick-repeating',
+      repeat: { pattern: REPORT_RETENTION_TICK_CRON },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 * 30 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:report-retention] tick register failed:', err.message);
   });
 
 // Faz 11C (DEM-149) — register the hourly attachment-cleanup sweeper. Same

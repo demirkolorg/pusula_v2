@@ -1,0 +1,744 @@
+{
+  "composer": {
+    "title": {
+      "create": "Create Report",
+      "edit": "Edit Report"
+    },
+    "scopeLabel": {
+      "card": "Card report",
+      "list": "List report",
+      "board": "Board report",
+      "workspace": "Workspace report"
+    },
+    "preset": {
+      "label": "Choose Preset",
+      "includesCount": "{count} micro-reports"
+    },
+    "range": {
+      "preset": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "last7d": "Last 7 days",
+        "last30d": "Last 30 days",
+        "last90d": "Last 90 days",
+        "thisMonth": "This month",
+        "lastMonth": "Last month",
+        "thisQuarter": "This quarter",
+        "thisYear": "This year"
+      },
+      "custom": "Custom range",
+      "customSummary": "{from} → {to}"
+    },
+    "filter": {
+      "helperHint": "The server validates these filters with Zod; missing fields are ignored.",
+      "range": {
+        "label": "Date Range",
+        "selectPlaceholder": "Choose a preset range",
+        "fromLabel": "Start date",
+        "toLabel": "End date"
+      },
+      "members": {
+        "label": "Members",
+        "allMembers": "All members",
+        "selectedCount": "{count} members",
+        "empty": "No members in this scope.",
+        "summary": "{count} members",
+        "relations": {
+          "assignee": "Assignee",
+          "actor": "Actor",
+          "watcher": "Watcher"
+        }
+      },
+      "labels": {
+        "label": "Labels",
+        "allLabels": "All labels",
+        "selectedCount": "{count} labels",
+        "empty": "No labels in this scope.",
+        "summary": "{count} labels ({mode})",
+        "mode": {
+          "and": "All",
+          "or": "Any"
+        }
+      },
+      "scope": {
+        "label": "Scope",
+        "cardStatus": "Card status",
+        "lists": "Lists",
+        "boards": "Boards"
+      },
+      "clearSelection": "Clear"
+    },
+    "comparison": {
+      "toggleLabel": "Compare with previous {period}",
+      "infoTooltip": "An ↑/↓ badge is shown on comparable metrics.",
+      "infoAriaLabel": "About comparison",
+      "summary": "Comparison on",
+      "rangeTooltip": "Previous period: {from} – {to}",
+      "deltaColumnHeader": "Δ"
+    },
+    "save": {
+      "titleLabel": "Title",
+      "titlePlaceholder": "e.g. Sprint 23 health",
+      "descriptionLabel": "Description (optional)",
+      "descriptionPlaceholder": "What does this report measure?",
+      "saving": "Saving…",
+      "successToast": "Report saved.",
+      "errorToast": "Could not save report."
+    },
+    "export": {
+      "queuedToast": "Report is being prepared; you will be notified when ready.",
+      "errorToast": "Could not start report generation."
+    }
+  },
+  "actions": {
+    "preview": "Preview",
+    "previewing": "Loading…",
+    "save": "Save",
+    "update": "Update",
+    "export": {
+      "pdf": "Download PDF",
+      "xlsx": "Download Excel",
+      "png": "Download PNG",
+      "svg": "Download SVG",
+      "image": "Download Image",
+      "preparing": "Preparing…",
+      "xlsxComingSoon": "Excel is being prepared; you will be notified when ready."
+    },
+    "schedule": {
+      "label": "Schedule",
+      "requiresSaved": "Please save the report before scheduling."
+    },
+    "cancel": "Cancel",
+    "more": "More",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "archive": "Archive",
+    "refresh": "Refresh"
+  },
+  "schedule": {
+    "dialogTitle": "Schedule Report",
+    "dialogDescription": "Will be generated and emailed on the chosen cadence.",
+    "pendingPhaseNote": "Email delivery becomes active in 13J (DEM-266).",
+    "cadenceLabel": "Cadence",
+    "cadence": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "recipient": {
+      "user": "User",
+      "email": "Email"
+    },
+    "hour": "Hour",
+    "minute": "Minute",
+    "dayOfWeek": "Day of week",
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "dayOfMonth": "Day of month",
+    "dayOfMonthHint": "A day between 1-31 or \"last\".",
+    "activeLabel": "Schedule active",
+    "isActive": "Active",
+    "runNow": "Run now",
+    "recipientsComingSoon": "Recipient selection arrives with 13J.",
+    "createCta": "Schedule",
+    "creating": "Creating…",
+    "successToast": "Schedule created.",
+    "errorToast": "Could not create schedule."
+  },
+  "panel": {
+    "loading": "Preparing report…",
+    "errorTitle": "Could not load report",
+    "emptyState": "Pick a preset to start."
+  },
+  "stale": {
+    "badge": "Data updated",
+    "message": "Data updated",
+    "lastInvalidationTooltip": "Last change: {time}",
+    "disconnected": "Connection lost — reconnecting",
+    "reconnected": "Reconnected"
+  },
+  "list": {
+    "pageTitle": "Reports",
+    "pageDescription": "Saved reports, schedules and recent renders in your workspace.",
+    "newReport": "New Report",
+    "loading": "Loading…",
+    "errorTitle": "Could not load list",
+    "archivedBadge": "Archived",
+    "duplicateTitle": "{title} (copy)",
+    "adhocRender": "Ad-hoc render",
+    "failedHint": "Render failed.",
+    "recipientCount": "{count} recipients",
+    "lastRun": "Last: {date}",
+    "nextRun": "Next: {date}",
+    "tabs": {
+      "saved": "Saved",
+      "scheduled": "Scheduled",
+      "renders": "Recent Renders"
+    },
+    "empty": {
+      "savedTitle": "No saved reports yet",
+      "savedDescription": "Click \"Save\" on a report you created from a board or card to add it here.",
+      "savedCta": "Create your first report",
+      "scheduledTitle": "No scheduled reports",
+      "scheduledDescription": "Schedule a saved report to receive it by email on a regular cadence.",
+      "rendersTitle": "No renders yet",
+      "rendersDescription": "PDF / Excel / PNG outputs are listed here."
+    },
+    "filter": {
+      "search": "Search",
+      "searchPlaceholder": "Search title or description",
+      "scope": "Scope",
+      "allScopes": "All scopes",
+      "cadence": "Cadence",
+      "allCadences": "All cadences",
+      "activeStatus": "Status",
+      "active": {
+        "all": "All",
+        "active": "Active only",
+        "inactive": "Inactive only"
+      },
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "format": "Format",
+      "allFormats": "All formats",
+      "showArchived": "Show archived",
+      "clear": "Clear"
+    },
+    "actions": {
+      "more": "More",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "schedule": "Schedule",
+      "runNow": "Run now",
+      "toggleActive": "Active/Inactive",
+      "exportJson": "Export JSON",
+      "download": "Download",
+      "openDownload": "Open",
+      "preparing": "Preparing…",
+      "downloadTooltip": "File is downloaded with a signed URL valid for 5 minutes."
+    },
+    "status": {
+      "queued": "Queued",
+      "rendering": "Rendering",
+      "completed": "Completed",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "trigger": {
+      "manual": "Manual",
+      "scheduled": "Scheduled",
+      "save": "Save"
+    },
+    "cadenceLabel": {
+      "daily": "Daily · {time}",
+      "weekly": "Weekly · {dayOfWeek} {time}",
+      "monthly": "Monthly · day {dayOfMonth} {time}",
+      "lastDay": "last"
+    },
+    "confirm": {
+      "deleteTitle": "Delete report?",
+      "delete": "The \"{title}\" report will be deleted. This cannot be undone.",
+      "scheduleDeleteTitle": "Delete schedule?",
+      "scheduleDelete": "The schedule for the \"{title}\" report will be deleted."
+    },
+    "tabsAriaLabel": "Report tabs",
+    "toast": {
+      "deleted": "Report deleted.",
+      "deleteError": "Could not delete report.",
+      "archived": "Report archived.",
+      "unarchived": "Report unarchived.",
+      "archiveError": "Archive operation failed.",
+      "duplicated": "Report duplicated.",
+      "duplicateError": "Duplicate failed.",
+      "scheduleUpdated": "Schedule updated.",
+      "scheduleUpdateError": "Could not update schedule.",
+      "scheduleDeleted": "Schedule deleted.",
+      "scheduleDeleteError": "Could not delete schedule.",
+      "scheduleRunNow": "Schedule triggered; render queued.",
+      "scheduleRunNowError": "Could not trigger schedule.",
+      "renderCompleted": "Report {id} completed.",
+      "renderFailed": "Report generation failed."
+    }
+  },
+  "detail": {
+    "back": "Back to reports",
+    "loading": "Loading report…",
+    "errorTitle": "Could not load report",
+    "jsonExportComingSoon": "JSON export arrives with 13L."
+  },
+  "entity": {
+    "board": { "openButton": "Reports" },
+    "card": { "openButton": "Card report" },
+    "list": { "menuItem": "List report" },
+    "workspace": {
+      "cardTitle": "Reports",
+      "cardDescription": "Saved and scheduled reports for the workspace.",
+      "openCta": "Open reports"
+    }
+  },
+  "filters": {
+    "range": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "last7d": "Last 7 days",
+      "last30d": "Last 30 days",
+      "last90d": "Last 90 days",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisQuarter": "This quarter",
+      "thisYear": "This year"
+    },
+    "members": {
+      "label": "Members",
+      "placeholder": "Choose member",
+      "relations": {
+        "assignee": "Assignee",
+        "actor": "Actor",
+        "watcher": "Watcher"
+      }
+    },
+    "labels": {
+      "label": "Labels",
+      "placeholder": "Choose label",
+      "mode": {
+        "and": "Includes all",
+        "or": "Includes any"
+      }
+    },
+    "scope": {
+      "cardStatus": {
+        "open": "Open",
+        "completed": "Completed",
+        "archived": "Archived"
+      },
+      "checklistStatus": {
+        "all": "All",
+        "completed": "Completed",
+        "incomplete": "Incomplete"
+      },
+      "includeArchivedLists": "Include archived lists",
+      "listIds": "Lists",
+      "boardIds": "Boards"
+    }
+  },
+  "kpi": {
+    "previousLabel": "Previous:"
+  },
+  "comparison": {
+    "toggle": "Comparison",
+    "activeBadge": "Comparison",
+    "previousPeriodLabel": "Previous period",
+    "currentPeriodLabel": "Current period",
+    "deltaColumnHeader": "Δ",
+    "rangeTooltip": "Previous period: {from} – {to}",
+    "mode": {
+      "previousPeriod": "Previous period",
+      "sameLastYear": "Same period last year"
+    }
+  },
+  "delta": {
+    "up": "increase",
+    "down": "decrease",
+    "neutral": "no change",
+    "new": "new"
+  },
+  "dataTable": {
+    "empty": "No data for this report.",
+    "more": "and {count} more rows"
+  },
+  "chart": {
+    "title": "Chart"
+  },
+  "errors": {
+    "manifestMissing": "This report component cannot be shown right now.",
+    "widgetUnavailable": "This report widget could not be loaded.",
+    "unsupported_format": "This format is not supported.",
+    "print_token_failed": "Could not obtain print authorization.",
+    "pdf_render_failed": "An error occurred while generating the PDF.",
+    "xlsx_render_failed": "An error occurred while generating Excel.",
+    "png_render_failed": "An error occurred while generating the image.",
+    "svg_render_failed": "An error occurred while generating SVG.",
+    "storage_upload_failed": "Could not upload report to storage."
+  },
+  "permission": {
+    "saveDeniedReason": "Only admins can save.",
+    "scheduleDeniedReason": "Only admins can schedule.",
+    "notWorkspaceMember": "You must be a workspace member to view this report.",
+    "notBoardMember": "You need access to this board to view the report.",
+    "workspaceMemberRequired": "Workspace member required for this report.",
+    "workspaceAdminRequired": "Workspace admin required for this action.",
+    "workspaceOwnerRequired": "Workspace owner required for this action.",
+    "boardAdminRequired": "Board admin required for this action.",
+    "boardAdminOrWorkspaceOwnerRequired": "Board admin or workspace owner required for this action.",
+    "jsonExportNotSupportedForScope": "JSON export is not supported for this scope."
+  },
+  "restricted": {
+    "banner": "{count} {kind} outside your visibility — restricted view.",
+    "explanation": "Part of this report was hidden because it includes boards you do not have access to.",
+    "kind": {
+      "board": "board",
+      "list": "list",
+      "card": "card",
+      "workspace": "workspace"
+    }
+  },
+  "scope": {
+    "workspace": "Workspace",
+    "board": "Board",
+    "list": "List",
+    "card": "Card"
+  },
+  "render": {
+    "status": {
+      "queued": "Queued",
+      "rendering": "Rendering",
+      "completed": "Completed",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "format": {
+      "pdf": "PDF",
+      "xlsx": "Excel",
+      "png": "PNG",
+      "svg": "SVG"
+    }
+  },
+  "email": {
+    "subject": "[Pusula] Your report is ready: {title}",
+    "greeting": "Hi {name},",
+    "body": "The {title} report you scheduled in the {workspace} workspace has been generated.",
+    "cta": "Open Report",
+    "footer": "If you no longer want this report, manage your schedule."
+  },
+  "print": {
+    "generatedAt": "Generated on {at}"
+  },
+  "x": {
+    "count": "{count}",
+    "desc": "",
+    "empty": "No data.",
+    "extra": "+{extra}",
+    "name": "{name}",
+    "none": "—"
+  },
+  "presets": {
+    "cardOverview": {
+      "title": "Card Overview",
+      "description": "Card info, activity, checklist, due date and recent changes."
+    },
+    "cardActivity": {
+      "title": "Card Activity",
+      "description": "Recent activity, comments and attachment changes for the card."
+    },
+    "cardChecklist": {
+      "title": "Card Checklist",
+      "description": "Progress of the checklists on the card."
+    },
+    "cardDueAndAging": {
+      "title": "Due & Aging",
+      "description": "Card due date and time spent in list."
+    },
+    "listWipAndHealth": {
+      "title": "List WIP & Health",
+      "description": "Status distribution, open card count and aging for the list."
+    },
+    "listMemberWorkload": {
+      "title": "List Member Workload",
+      "description": "Per-member assigned/open/completed card counts."
+    },
+    "listDueOverview": {
+      "title": "List Due Overview",
+      "description": "Due status and aging of cards in the list."
+    },
+    "listActivity": {
+      "title": "List Activity",
+      "description": "Recent list activity, heatmap and comment volume."
+    },
+    "boardHealth": {
+      "title": "Board Health",
+      "description": "Board health score, status, aging and due overview."
+    },
+    "boardSprintSummary": {
+      "title": "Sprint Summary",
+      "description": "Burndown, completion rate and member contributions."
+    },
+    "boardMemberPerformance": {
+      "title": "Member Performance",
+      "description": "Per-member contribution, workload and activity breakdown."
+    },
+    "boardDueAndRisk": {
+      "title": "Due & Risk",
+      "description": "Due distribution, aging, upcoming due trend and cycle time."
+    },
+    "boardFlow": {
+      "title": "Board Flow",
+      "description": "Inter-list card flow, balance and WIP indicators."
+    },
+    "boardLabelDistribution": {
+      "title": "Label Distribution",
+      "description": "Label usage, trend and co-occurrence on the board."
+    },
+    "workspaceExecutiveSummary": {
+      "title": "Executive Summary",
+      "description": "Workspace KPIs, status, completion and due trend."
+    },
+    "workspaceBoardComparison": {
+      "title": "Board Comparison",
+      "description": "Health and activity comparison across workspace boards."
+    },
+    "workspaceTeamPerformance": {
+      "title": "Team Performance",
+      "description": "Member contribution, workload, presence and activity heatmap."
+    },
+    "workspaceDueAndRisk": {
+      "title": "Workspace Due & Risk",
+      "description": "Due, aging and trend across the workspace."
+    },
+    "workspaceActivityHeatmap": {
+      "title": "Workspace Activity Heatmap",
+      "description": "Workspace activity density, type breakdown and mention graph."
+    }
+  },
+  "microReports": {
+    "activityTimeline": {
+      "title": "Activity Timeline",
+      "emptyState": "No activity in the selected range.",
+      "totalEvents": "Total events"
+    },
+    "activityHeatmap": {
+      "title": "Activity Heatmap",
+      "emptyState": "No activity in the range.",
+      "chartAriaLabel": "Activity intensity by day and hour"
+    },
+    "activityBreakdown": {
+      "title": "Activity Type Breakdown",
+      "emptyState": "No activity in the range.",
+      "other": "Other"
+    },
+    "memberContribution": {
+      "title": "Member Contributions",
+      "emptyState": "No member activity in the range.",
+      "chartAriaLabel": "Activity count by member",
+      "columns": {
+        "user": "Member",
+        "count": "Activity"
+      }
+    },
+    "memberWorkload": {
+      "title": "Member Workload",
+      "emptyState": "No assigned cards.",
+      "column": {
+        "member": "Member",
+        "open": "Open",
+        "completed": "Completed",
+        "overdue": "Overdue",
+        "total": "Total"
+      }
+    },
+    "memberPresence": {
+      "title": "Member Presence",
+      "emptyState": "No members.",
+      "never": "No activity yet"
+    },
+    "statusBreakdown": {
+      "title": "Status Breakdown",
+      "emptyState": "No cards for this report.",
+      "chartAriaLabel": "Distribution by card status"
+    },
+    "checklistProgress": {
+      "title": "Checklist Progress",
+      "emptyState": "No checklists.",
+      "ratio": "{completed} / {total} completed",
+      "celebrate": "All items completed."
+    },
+    "completionRate": {
+      "title": "Completion Rate",
+      "emptyState": "No completed cards in the range.",
+      "avgPerDay": "Average / day"
+    },
+    "burndown": {
+      "title": "Burndown",
+      "emptyState": "No open cards in the range.",
+      "remaining": "Remaining",
+      "ideal": "Ideal"
+    },
+    "descriptionCoverage": {
+      "title": "Description Coverage",
+      "emptyState": "No cards.",
+      "ratio": "{withDescription} / {total} cards have a description"
+    },
+    "dueDateOverview": {
+      "title": "Due Date Overview",
+      "emptyState": "No cards with due date.",
+      "barAriaLabel": "Card distribution by due-date group"
+    },
+    "agingReport": {
+      "title": "Aging Report",
+      "emptyState": "No open cards.",
+      "oldestLabel": "Oldest open cards",
+      "daysAgo": "{days} days ago"
+    },
+    "cycleTime": {
+      "title": "Cycle Time",
+      "emptyState": "No completed cards (yet)."
+    },
+    "timeInList": {
+      "title": "Time in List",
+      "emptyState": "No measurable list movement."
+    },
+    "dueTrend": {
+      "title": "Due Trend",
+      "emptyState": "No due cards in the next 30 days.",
+      "next30Days": "Next 30 days"
+    },
+    "labelDistribution": {
+      "title": "Label Distribution",
+      "emptyState": "No labels in this report.",
+      "chartAriaLabel": "Card distribution by label",
+      "columns": {
+        "label": "Label",
+        "count": "Card"
+      }
+    },
+    "labelTrend": {
+      "title": "Label Trend",
+      "emptyState": "No labeled card movement in the range."
+    },
+    "labelCooccurrence": {
+      "title": "Label Co-occurrence",
+      "emptyState": "No co-used label pairs."
+    },
+    "commentVolume": {
+      "title": "Comment Volume",
+      "emptyState": "No comments in the range."
+    },
+    "attachmentSummary": {
+      "title": "Attachment Summary",
+      "emptyState": "No attachments."
+    },
+    "attachmentTypeBreakdown": {
+      "title": "Attachment Type Breakdown",
+      "emptyState": "No attachments.",
+      "mime": "MIME",
+      "count": "Count",
+      "avg": "Avg size"
+    },
+    "listFlow": {
+      "title": "Card Flow (List→List)",
+      "emptyState": "No list changes in the range.",
+      "unknownSource": "Unknown list"
+    },
+    "wipCount": {
+      "title": "WIP (Per List)",
+      "emptyState": "No open cards."
+    },
+    "boardHealthScore": {
+      "title": "Board Health Score",
+      "emptyState": "No open cards.",
+      "scoreLabel": "Health score (0-100)",
+      "formulaHint": "Average age 30%, WIP intensity 30%, stability 20%, overdue 20%.",
+      "days": "days",
+      "components": {
+        "avgAge": "Average age",
+        "wipOverload": "Largest list size",
+        "stale": "Older than 30 days ratio",
+        "overdue": "Overdue ratio"
+      }
+    },
+    "entitySummary": {
+      "title": "Overview",
+      "emptyState": "No data.",
+      "noDescription": "No description added.",
+      "metaHeading": "Summary",
+      "cards": "{count} cards",
+      "lists": "{count} lists",
+      "boards": "{count} boards",
+      "members": "{count} members",
+      "labels": "{count} labels",
+      "archived": "Archived"
+    },
+    "kpiCard": {
+      "title": "KPI",
+      "emptyState": "No data."
+    },
+    "recentChanges": {
+      "title": "Recent Changes",
+      "emptyState": "No changes in the last 7 days."
+    },
+    "mentionGraph": {
+      "title": "Mention Graph",
+      "emptyState": "No mentions in comments in the range."
+    },
+    "listBalance": {
+      "title": "List Balance",
+      "emptyState": "No lists.",
+      "balanced": "Balanced",
+      "imbalanced": "Imbalanced"
+    }
+  },
+  "activity": {
+    "types": {
+      "board.created": "created the board",
+      "board.updated": "updated the board",
+      "board.renamed": "renamed the board",
+      "board.archived": "archived the board",
+      "board.member_added": "added a member to the board",
+      "board.member_removed": "removed a member from the board",
+      "board.member_role_changed": "changed a member's role",
+      "board.member_invited": "invited someone to the board",
+      "board.invitation_revoked": "revoked an invitation",
+      "board.background_changed": "changed board background",
+      "board.background_cleared": "cleared board background",
+      "board.access_requested": "requested board access",
+      "list.created": "created a list",
+      "list.updated": "updated a list",
+      "list.moved": "moved a list",
+      "list.archived": "archived a list",
+      "list.renamed": "renamed a list",
+      "list.color_changed": "changed list color",
+      "list.color_cleared": "cleared list color",
+      "list.icon_changed": "changed list icon",
+      "list.icon_cleared": "cleared list icon",
+      "card.created": "created a card",
+      "card.updated": "updated a card",
+      "card.moved": "moved a card",
+      "card.archived": "archived a card",
+      "card.completed": "completed a card",
+      "card.uncompleted": "reverted card completion",
+      "card.renamed": "renamed a card",
+      "card.description_changed": "changed the description",
+      "card.member_added": "added a member to a card",
+      "card.member_removed": "removed a member from a card",
+      "card.label_added": "added a label to a card",
+      "card.label_removed": "removed a label from a card",
+      "card.due_set": "set a due date",
+      "card.due_cleared": "cleared the due date",
+      "card.cover_changed": "changed cover color",
+      "card.cover_cleared": "cleared cover color",
+      "card.cover_image_changed": "changed cover image",
+      "card.cover_image_cleared": "cleared cover image",
+      "comment.created": "added a comment",
+      "comment.updated": "updated a comment",
+      "comment.deleted": "deleted a comment",
+      "comment.mentioned": "mentioned someone",
+      "checklist.created": "created a checklist",
+      "checklist.item_added": "added a checklist item",
+      "checklist.item_completed": "completed an item",
+      "checklist.item_checked": "checked an item",
+      "checklist.item_unchecked": "unchecked an item",
+      "checklist.item_removed": "removed an item",
+      "attachment.added": "added an attachment",
+      "attachment.removed": "removed an attachment"
+    }
+  }
+}

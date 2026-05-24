@@ -16,7 +16,11 @@
  */
 import { useEffect, useMemo } from 'react';
 import type { ReportEnvelope } from '@pusula/api/lib/report-envelope';
-import { PrintPageFrame, getMicroReportComponent } from '@pusula/ui/reports';
+import {
+  PrintPageFrame,
+  RestrictedScopeBanner,
+  getMicroReportComponent,
+} from '@pusula/ui/reports';
 
 export interface ReportPrintPayload {
   envelope: ReportEnvelope;
@@ -32,9 +36,9 @@ export interface ReportPrintClientProps {
 }
 
 /**
- * `t(key, params?)` resolver — `payload.i18n[key]` lookup + `{{name}}` /
- * `{{count}}` placeholder interpolation. Eksik key → key string'i ekrana.
- * Bu, 13Q i18n provider geldikte `next-intl` ile ikame edilir.
+ * `t(key, params?)` resolver — `payload.i18n[key]` lookup + `{name}` /
+ * `{count}` placeholder interpolation (single-brace, Faz 13Q ile JSON
+ * locale standardına geçildi). Eksik key → key string'i ekrana.
  */
 function makeTranslator(
   i18n: Record<string, string>,
@@ -42,7 +46,7 @@ function makeTranslator(
   return (key, params) => {
     const template = i18n[key] ?? key;
     if (!params) return template;
-    return template.replace(/{{\s*(\w+)\s*}}/g, (_, name) => {
+    return template.replace(/\{\s*(\w+)\s*\}/g, (_, name) => {
       const value = params[name as keyof typeof params];
       return value === undefined || value === null ? '' : String(value);
     });
@@ -76,19 +80,33 @@ export function ReportPrintClient({ payload, renderId }: ReportPrintClientProps)
     };
   }, [renderId, envelope.generatedAt]);
 
-  const title = t(`reports.presets.${envelope.presetId}.title`);
+  // Faz 13Q: TR locale preset key'leri camelCase (`cardOverview`) — raw
+  // preset id (`card.overview`) önce segment'e çevrilir.
+  const presetSegment = envelope.presetId.replace(/[.-]([a-z])/g, (_, c: string) =>
+    c.toUpperCase(),
+  );
+  const titleKey = `reports.presets.${presetSegment}.title`;
+  const title = t(titleKey);
   const subtitle = `${envelope.microReports.length} micro-report · ${formatScope(envelope.scope, t)}`;
 
   return (
     <div data-print-page-root data-render-id={renderId}>
       <PrintPageFrame
-        title={title === `reports.presets.${envelope.presetId}.title` ? envelope.presetId : title}
+        title={title === titleKey ? envelope.presetId : title}
         subtitle={subtitle}
         generatedAt={envelope.generatedAt}
         workspaceName={workspaceName}
         t={t}
         locale={locale}
       >
+        {envelope.restrictedScope && (
+          <RestrictedScopeBanner
+            restricted={envelope.restrictedScope}
+            t={t}
+            mode="print"
+            className="mb-4"
+          />
+        )}
         {envelope.microReports.map((micro) => {
           const manifest = getMicroReportComponent(micro.id);
           if (!manifest) {

@@ -4,6 +4,7 @@ import { KpiCard } from '../primitives/kpi-card';
 import { MicroReportShell } from '../primitives/micro-report-shell';
 import { ReportEmptyState } from '../primitives/empty-state';
 import { RestrictedScopeBanner } from '../primitives/restricted-scope-banner';
+import { scalarDelta } from '../lib/merge-comparison';
 import type { MicroReportProps, MicroReportUiManifest } from '../types';
 
 export interface StatusBreakdownData {
@@ -20,8 +21,16 @@ const COLORS = {
 } as const;
 
 export function StatusBreakdown(props: MicroReportProps<StatusBreakdownData>) {
-  const { data, t, mode, locale, restricted } = props;
+  const { data, comparisonData, t, mode, locale, restricted } = props;
   const title = t('reports.microReports.statusBreakdown.title');
+  // Faz 13M (DEM-269) — her durum (open/completed/archived) için scalar delta.
+  const deltaOpen = comparisonData ? scalarDelta(data.open, comparisonData.open) : undefined;
+  const deltaCompleted = comparisonData
+    ? scalarDelta(data.completed, comparisonData.completed)
+    : undefined;
+  const deltaArchived = comparisonData
+    ? scalarDelta(data.archived, comparisonData.archived)
+    : undefined;
   if (data.total === 0) {
     return (
       <MicroReportShell title={title} colSpan={2} mode={mode}>
@@ -91,14 +100,19 @@ export function StatusBreakdown(props: MicroReportProps<StatusBreakdownData>) {
           <KpiCard
             labelKey="reports.filters.scope.cardStatus.open"
             value={data.open}
+            previousValue={comparisonData?.open ?? null}
+            delta={deltaOpen}
             size="sm"
             mode={mode}
             t={t}
             locale={locale}
+            semantics="inverse"
           />
           <KpiCard
             labelKey="reports.filters.scope.cardStatus.completed"
             value={data.completed}
+            previousValue={comparisonData?.completed ?? null}
+            delta={deltaCompleted}
             size="sm"
             mode={mode}
             t={t}
@@ -107,6 +121,8 @@ export function StatusBreakdown(props: MicroReportProps<StatusBreakdownData>) {
           <KpiCard
             labelKey="reports.filters.scope.cardStatus.archived"
             value={data.archived}
+            previousValue={comparisonData?.archived ?? null}
+            delta={deltaArchived}
             size="sm"
             mode={mode}
             t={t}

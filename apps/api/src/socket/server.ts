@@ -26,7 +26,11 @@ import type { Redis } from 'ioredis';
  */
 export type AttachableHttpServer = HttpServer | Http2Server | Http2SecureServer;
 import { createSocketAuthMiddleware, type SocketSessionResolver } from './auth';
-import { attachConnectionHandler, type BoardAccessResolver } from './rooms';
+import {
+  attachConnectionHandler,
+  type BoardAccessResolver,
+  type WorkspaceAccessResolver,
+} from './rooms';
 import { createRealtimeEmit } from './emit';
 import type { RealtimeEmit } from '@pusula/api';
 
@@ -39,6 +43,12 @@ export interface CreateSocketServerOptions {
   resolveSession: SocketSessionResolver;
   /** Resolves a (boardId, userId) → effective board role (null = no access). */
   resolveBoardAccess: BoardAccessResolver;
+  /**
+   * Faz 13N (DEM-270) — resolves a (workspaceId, userId) → workspace
+   * membership role (null = no access). Required for `workspace:join`
+   * handshakes; tests may omit (handler then fail-secure rejects).
+   */
+  resolveWorkspaceAccess?: WorkspaceAccessResolver;
   /**
    * Optional Redis adapter factory: when supplied, returns `{ pub, sub }` —
    * two `ioredis` clients used by `@socket.io/redis-adapter` for cross-node
@@ -77,7 +87,10 @@ export async function createSocketServer(
   });
 
   io.use(createSocketAuthMiddleware(opts.resolveSession));
-  attachConnectionHandler(io, opts.resolveBoardAccess);
+  attachConnectionHandler(io, {
+    resolveBoardAccess: opts.resolveBoardAccess,
+    resolveWorkspaceAccess: opts.resolveWorkspaceAccess,
+  });
 
   let redisClients: { pub: Redis; sub: Redis } | undefined;
   if (opts.createRedisAdapterClients) {

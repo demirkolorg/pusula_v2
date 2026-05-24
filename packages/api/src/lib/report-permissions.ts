@@ -12,7 +12,7 @@
  * Spec: `docs/architecture/16-raporlama-mimarisi.md` §16.5 +
  * `docs/domain/09-raporlama-kurallari.md` §9.3-§9.4.
  */
-import { and, eq, isNull, type Database } from '@pusula/db';
+import { and, eq, isNull, sql, type Database } from '@pusula/db';
 import {
   boardMembers,
   boards,
@@ -42,6 +42,13 @@ export function buildReportPermissionsCtx(args: {
 }): PermissionsCtx {
   const { db, userId } = args;
   const workspaceRoleByWorkspace = args.workspaceRoleByWorkspace ?? new Map<string, WorkspaceRole>();
+
+  // Request-scope caches — aynı workspaceId/boardId birden fazla micro-report
+  // tarafından sorulur; tek tRPC call'da DB'yi N kere hit etmesin (13O).
+  const accessibleBoardsCache = new Map<string, readonly string[]>();
+  const accessibleListsCache = new Map<string, readonly string[]>();
+  const totalBoardsCache = new Map<string, number>();
+  const totalListsCache = new Map<string, number>();
 
   async function resolveWorkspaceRole(workspaceId: string): Promise<WorkspaceRole | null> {
     const cached = workspaceRoleByWorkspace.get(workspaceId);
@@ -86,51 +93,65 @@ export function buildReportPermissionsCtx(args: {
 
   return {
     async accessibleBoardsInWorkspace(workspaceId: string): Promise<readonly string[]> {
+      const cached = accessibleBoardsCache.get(workspaceId);
+      if (cached) return cached;
+
       const workspaceRole = await resolveWorkspaceRole(workspaceId);
-      if (!workspaceRole) return [];
+      if (!workspaceRole) {
+        accessibleBoardsCache.set(workspaceId, []);
+        return [];
+      }
 
       // Workspace owner / admin tüm panoları görür; member ise yalnız
       // member olduğu pano + ek pano üyeliği aldığı panoları. Guest sadece
       // explicit board membership.
+      let ids: string[];
       if (workspaceRole === 'owner' || workspaceRole === 'admin') {
         const rows = await db
           .select({ id: boards.id })
           .from(boards)
           .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.archivedAt)));
-        return rows.map((r) => r.id);
-      }
-
-      // Member: workspace içinde tüm panoları görür (Pusula board visibility:
-      // workspace member → effective board role 'member'). Ama explicit
-      // `board_members.role = 'viewer'` yoksa, workspace member zaten
-      // görür (effectiveBoardRole 'member' döner). Guest için explicit
-      // board membership şart.
-      if (workspaceRole === 'member') {
+        ids = rows.map((r) => r.id);
+      } else if (workspaceRole === 'member') {
+        // Member: workspace içinde tüm panoları görür (Pusula board visibility:
+        // workspace member → effective board role 'member'). Ama explicit
+        // `board_members.role = 'viewer'` yoksa, workspace member zaten
+        // görür (effectiveBoardRole 'member' döner). Guest için explicit
+        // board membership şart.
         const rows = await db
           .select({ id: boards.id })
           .from(boards)
           .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.archivedAt)));
-        return rows.map((r) => r.id);
+        ids = rows.map((r) => r.id);
+      } else {
+        // Guest: yalnız explicit board membership.
+        const rows = await db
+          .select({ boardId: boardMembers.boardId })
+          .from(boardMembers)
+          .innerJoin(boards, eq(boards.id, boardMembers.boardId))
+          .where(
+            and(
+              eq(boardMembers.userId, userId),
+              eq(boards.workspaceId, workspaceId),
+              isNull(boards.archivedAt),
+            ),
+          );
+        ids = rows.map((r) => r.boardId);
       }
 
-      // Guest: yalnız explicit board membership.
-      const rows = await db
-        .select({ boardId: boardMembers.boardId })
-        .from(boardMembers)
-        .innerJoin(boards, eq(boards.id, boardMembers.boardId))
-        .where(
-          and(
-            eq(boardMembers.userId, userId),
-            eq(boards.workspaceId, workspaceId),
-            isNull(boards.archivedAt),
-          ),
-        );
-      return rows.map((r) => r.boardId);
+      accessibleBoardsCache.set(workspaceId, ids);
+      return ids;
     },
 
     async accessibleListsInBoard(boardId: string): Promise<readonly string[]> {
+      const cached = accessibleListsCache.get(boardId);
+      if (cached) return cached;
+
       const role = await resolveEffectiveBoardRole(boardId);
-      if (!role) return [];
+      if (!role) {
+        accessibleListsCache.set(boardId, []);
+        return [];
+      }
       // Şu an Pusula'da list-level ACL yok — board erişimi olan tüm liste
       // id'lerini döner. Arşivli listeler ileride filtre seçeneği üstünden
       // geçilir (`scopeFilter.includeArchivedLists`); burada tüm liste
@@ -139,7 +160,9 @@ export function buildReportPermissionsCtx(args: {
         .select({ id: lists.id })
         .from(lists)
         .where(eq(lists.boardId, boardId));
-      return rows.map((r) => r.id);
+      const ids = rows.map((r) => r.id);
+      accessibleListsCache.set(boardId, ids);
+      return ids;
     },
 
     async hasBoardAccess(boardId: string, minRole: BoardRole): Promise<boolean> {
@@ -152,6 +175,37 @@ export function buildReportPermissionsCtx(args: {
       const role = await resolveWorkspaceRole(workspaceId);
       if (!role) return false;
       return workspaceRoleAtLeast(role, minRole);
+    },
+
+    async totalBoardsInWorkspace(workspaceId: string): Promise<number> {
+      const cached = totalBoardsCache.get(workspaceId);
+      if (cached !== undefined) return cached;
+
+      // Permission-bağımsız sayım — `restrictedScope.excludedCount` hesabı
+      // için. Arşivli board'lar dışlanır (rapor envelope'u arşivli olanı
+      // hesaplamıyor; UI/PDF aktif board görünümü).
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(boards)
+        .where(and(eq(boards.workspaceId, workspaceId), isNull(boards.archivedAt)));
+      const total = row?.count ?? 0;
+      totalBoardsCache.set(workspaceId, total);
+      return total;
+    },
+
+    async totalListsInBoard(boardId: string): Promise<number> {
+      const cached = totalListsCache.get(boardId);
+      if (cached !== undefined) return cached;
+
+      // Permission-bağımsız sayım. V1'de Pusula'da list-level ACL yok;
+      // V2'de gelirse `computeRestrictedScope` board scope için kullanır.
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(lists)
+        .where(eq(lists.boardId, boardId));
+      const total = row?.count ?? 0;
+      totalListsCache.set(boardId, total);
+      return total;
     },
   };
 }

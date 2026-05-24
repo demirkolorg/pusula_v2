@@ -12,3 +12,10 @@ export * from './primitives';
 export * from './micro';
 export * from './registry';
 export { PrintPageFrame, type PrintPageFrameProps } from './print/print-page-frame';
+export {
+  mergeByIdentity,
+  mergeTimeSeries,
+  scalarDelta,
+  type IdentityMergedRow,
+  type TimeAxisPoint,
+} from './lib/merge-comparison';

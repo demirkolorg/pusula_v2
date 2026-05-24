@@ -17,7 +17,8 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check-i18n-keys": "tsx scripts/check-i18n-keys.ts"
   },
   "dependencies": {
     "fractional-indexing": "^3.2.0",

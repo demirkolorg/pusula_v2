@@ -45,6 +45,10 @@ export {
 // joining a `board:{boardId}` room). The tRPC procedures use it internally.
 export { resolveBoardAccess, type BoardAccess } from './middleware/board-access';
 
+// Workspace membership resolver — Faz 13N (DEM-270). `apps/api` socket
+// `workspace:join` handler permission gate'i için.
+export { resolveWorkspaceMembership } from './middleware/workspace';
+
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from './root';
 

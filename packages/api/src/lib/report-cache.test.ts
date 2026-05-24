@@ -79,6 +79,51 @@ describe('buildReportCacheKey', () => {
     expect(a).not.toBe(b);
   });
 
+  // Faz 13M (DEM-269) — comparison enabled → ':cmp:1' suffix.
+  it('appends `:cmp:1` suffix when comparison.enabled=true', () => {
+    const key = buildReportCacheKey({
+      ...baseArgs,
+      comparison: { enabled: true, mode: 'previousPeriod' },
+    });
+    expect(key.endsWith(':cmp:1')).toBe(true);
+  });
+
+  it('omits `:cmp:1` suffix when comparison.enabled=false', () => {
+    const key = buildReportCacheKey({
+      ...baseArgs,
+      comparison: { enabled: false, mode: 'previousPeriod' },
+    });
+    expect(key.includes(':cmp:')).toBe(false);
+  });
+
+  it('omits `:cmp:1` suffix when comparison is null', () => {
+    const key = buildReportCacheKey({ ...baseArgs, comparison: null });
+    expect(key.includes(':cmp:')).toBe(false);
+  });
+
+  it('admin + comparison stack both suffixes in order :admin:cmp:1', () => {
+    const key = buildReportCacheKey({
+      ...baseArgs,
+      isAdmin: true,
+      comparison: { enabled: true, mode: 'previousPeriod' },
+    });
+    expect(key.endsWith(':admin:cmp:1')).toBe(true);
+  });
+
+  it('reportInvalidationPattern with wildcard catches both :cmp:1 and non-cmp keys', () => {
+    const pattern = reportInvalidationPattern({ scopeKind: 'board', scopeId: 'b-1' });
+    expect(pattern).toBe('report:dataset:v1:board:b-1:*');
+    // SCAN MATCH glob (`*`) hem `:admin` hem `:cmp:1` suffix'i kapsar.
+    const withCmp = buildReportCacheKey({
+      ...baseArgs,
+      comparison: { enabled: true, mode: 'previousPeriod' },
+    });
+    const withoutCmp = buildReportCacheKey(baseArgs);
+    // pattern prefix kontrolü — gerçek glob matching ioredis tarafı.
+    expect(withCmp.startsWith('report:dataset:v1:board:b-1:')).toBe(true);
+    expect(withoutCmp.startsWith('report:dataset:v1:board:b-1:')).toBe(true);
+  });
+
   it('changes hash when userId differs (permission filtering)', () => {
     const a = buildReportCacheKey(baseArgs);
     const b = buildReportCacheKey({ ...baseArgs, userId: 'u-2' });

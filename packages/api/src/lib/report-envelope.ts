@@ -22,6 +22,7 @@ import {
   type RestrictedScope,
   type ScopeAdapter,
 } from '@pusula/domain/reports';
+import { computeRestrictedScope } from './compute-restricted-scope';
 
 export interface ReportMicroResult {
   /** Micro-report id (registry key). */
@@ -42,6 +43,12 @@ export interface ReportEnvelope {
   presetId: string;
   filters: ReportFilters;
   comparison: ComparisonConfig | null;
+  /**
+   * Faz 13M (DEM-269) — comparison etkinken backend'in hesapladığı
+   * previous-period mutlak aralığı. UI `<PanelHeader>` "Önceki: …"
+   * tooltip'inde gösterir. Comparison kapalıysa `null`.
+   */
+  comparisonRange: { from: string; to: string } | null;
   /** ISO timestamp — generated_at. */
   generatedAt: string;
   microReports: ReportMicroResult[];
@@ -87,25 +94,23 @@ export async function renderReportDataset(
 
   // Comparison aktif (`enabled=true`) ise filter'ı previous-period
   // varyantına shift'le. `previousFilters` aynı filtre ama range geri
-  // kaydırılmış; diğer alanlar (members/labels/scope) aynı.
+  // kaydırılmış; diğer alanlar (members/labels/scope) aynı. Envelope'a
+  // `comparisonRange` mutlak [from, to] olarak yazılır — UI tooltip'i
+  // ("Önceki: 2026-04-22 — 2026-05-22") bunu kullanır (Faz 13M / DEM-269).
   const comparisonOn = input.comparison?.enabled === true;
-  const previousFilters: ReportFilters | null = comparisonOn
-    ? (() => {
-        const range = input.filters.range;
-        // Preset-bazlı range → `resolveRange` ile mutlak [from, to];
-        // sonra `shiftRangeBack`. Custom range zaten mutlak.
-        const absolute = resolveRange(range, ctx.now());
-        const back = shiftRangeBack(absolute);
-        return {
-          ...input.filters,
-          range: {
-            kind: 'custom',
-            from: back.from.toISOString(),
-            to: back.to.toISOString(),
-          },
-        };
-      })()
-    : null;
+  let previousFilters: ReportFilters | null = null;
+  let comparisonRange: { from: string; to: string } | null = null;
+  if (comparisonOn) {
+    const absolute = resolveRange(input.filters.range, ctx.now());
+    const back = shiftRangeBack(absolute);
+    const fromIso = back.from.toISOString();
+    const toIso = back.to.toISOString();
+    previousFilters = {
+      ...input.filters,
+      range: { kind: 'custom', from: fromIso, to: toIso },
+    };
+    comparisonRange = { from: fromIso, to: toIso };
+  }
 
   // Override map: enabled=false ise widget atla; override varsa preset
   // sırasını koru ama default'tan farklı micro-report'lar ekleme (V1 —
@@ -177,10 +182,20 @@ export async function renderReportDataset(
             input.scope,
             previousFilters,
           );
-        } catch {
+        } catch (cmpErr) {
           // Comparison fail ise main veriyi koru, comparison'u null bırak.
+          // Faz 13M code-review nit #2: silent drop görünmesin — main-query
+          // catch ile simetrik server-side log (PII-safe stack); kullanıcı
+          // ana veriyi görmeye devam eder (envelope'ta comparisonData null).
           comparisonData = null;
-          // Log gerekirse caller tarafında — burada sessiz.
+          console.warn('[report-envelope] comparison query failed', {
+            microReportId: microId,
+            scope: input.scope,
+            presetId: input.presetId,
+            error: cmpErr instanceof Error
+              ? { message: cmpErr.message, stack: cmpErr.stack }
+              : cmpErr,
+          });
         }
       }
     } catch (err) {
@@ -202,20 +217,22 @@ export async function renderReportDataset(
     microResults.push({ id: microId, data, comparisonData, error });
   }
 
+  // Faz 13O (DEM-271) — bilgi sızıntısı disipline §9.4: workspace scope'ta
+  // member/guest için `total - accessible` farkı; admin için null. Board
+  // scope V1'de list-level ACL yok → null (V2 hazır). List/Card → null.
+  // `computeRestrictedScope` `ctx.permissions` cache'ini reuse eder (aynı
+  // workspace zaten micro-report query'leri tarafından sorulmuştur).
+  const restrictedScope = await computeRestrictedScope({ ctx, scope: input.scope });
+
   return {
     scope: input.scope,
     presetId: input.presetId,
     filters: input.filters,
     comparison: input.comparison ?? null,
+    comparisonRange,
     generatedAt: ctx.now().toISOString(),
     microReports: microResults,
-    // Restricted scope: scope adapter'lar kendileri envelope'a `restricted`
-    // hint'i koyarsa burada toplanır. V1'de envelope-level top-down
-    // hesaplama: scope=board iken `accessibleListsInBoard` ile total list
-    // farkı; scope=workspace iken `accessibleBoardsInWorkspace` ile total
-    // board farkı. Bu hesaplama 13O (DEM-271) gelince genişletilir —
-    // şimdilik `null` (workspace admin veya tam erişim varsayımı).
-    restrictedScope: null,
+    restrictedScope,
   };
 }
 

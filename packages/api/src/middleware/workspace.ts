@@ -20,9 +20,33 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { and, eq } from '@pusula/db';
 import { workspaceMembers, workspaces } from '@pusula/db';
+import type { Database } from '@pusula/db';
 import { idSchema } from '@pusula/domain';
 import type { WorkspaceRole } from '@pusula/domain';
 import { protectedProcedure } from '../trpc';
+
+/**
+ * Faz 13N (DEM-270) — workspace üyelik resolver'ı socket
+ * `workspace:join` handshake'i için. Sunucu workspace_members satırını
+ * okur, üye değilse null döner. Archived workspace de aktif workspace
+ * gibi davranır — UI tarafında archived rapor da görünebilir, stale
+ * event'i de o workspace'in üyelerine ulaşır.
+ */
+export async function resolveWorkspaceMembership(
+  db: Database,
+  workspaceId: string,
+  userId: string,
+): Promise<{ role: WorkspaceRole } | null> {
+  const [membership] = await db
+    .select({ role: workspaceMembers.role })
+    .from(workspaceMembers)
+    .where(
+      and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)),
+    )
+    .limit(1);
+  if (!membership) return null;
+  return { role: membership.role as WorkspaceRole };
+}
 
 /** Minimal shape the workspace middleware needs from the procedure input. */
 const workspaceIdInput = z.object({ workspaceId: idSchema });

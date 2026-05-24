@@ -23,6 +23,10 @@ import {
   type ReportFilters,
   type ReportScope,
 } from '@pusula/domain';
+import {
+  useReportStale,
+  type WatchedReportScope,
+} from '@/lib/realtime/use-report-stale';
 
 /**
  * Default filter — domain'deki `DEFAULT_FILTERS` modul-private; UI tarafında
@@ -150,6 +154,46 @@ export function useComposerState(args: UseComposerStateArgs) {
     setFilters(mergeFiltersWithPresetDefaults(undefined, nextId));
   }, []);
 
+  // Faz 13N (DEM-270) — stale rozeti. Composer açık iken başka kullanıcı
+  // pano üzerinde mutate ederse `<StaleBadge>` görünür; kullanıcı
+  // "Yenile" basınca preview refetch.
+  const watchedScope: WatchedReportScope = useMemo(() => {
+    if (args.scope.kind === 'workspace') {
+      return { kind: 'workspace', workspaceId: args.scope.workspaceId };
+    }
+    if (args.scope.kind === 'board') {
+      return {
+        kind: 'board',
+        boardId: args.scope.boardId,
+        workspaceId: args.scope.workspaceId,
+      };
+    }
+    if (args.scope.kind === 'list') {
+      return {
+        kind: 'list',
+        listId: args.scope.listId,
+        boardId: args.scope.boardId,
+        workspaceId: args.scope.workspaceId,
+      };
+    }
+    return {
+      kind: 'card',
+      cardId: args.scope.cardId,
+      boardId: args.scope.boardId,
+      workspaceId: args.scope.workspaceId,
+    };
+  }, [args.scope]);
+
+  const stale = useReportStale({
+    workspaceId: args.scope.workspaceId,
+    watchedScope,
+  });
+
+  const refreshPreview = useCallback(() => {
+    void previewQuery.refetch();
+    stale.dismiss();
+  }, [previewQuery, stale]);
+
   return useMemo(
     () => ({
       // State
@@ -166,6 +210,9 @@ export function useComposerState(args: UseComposerStateArgs) {
       // Mutations
       saveMutation,
       exportMutation,
+      // Faz 13N — stale rozeti durumu + refresh
+      isStale: stale.isStale,
+      refreshPreview,
     }),
     [
       presetId,
@@ -176,6 +223,8 @@ export function useComposerState(args: UseComposerStateArgs) {
       previewQuery,
       saveMutation,
       exportMutation,
+      stale.isStale,
+      refreshPreview,
     ],
   );
 }

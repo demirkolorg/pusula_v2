@@ -14,7 +14,7 @@
  */
 'use client';
 
-import { use } from 'react';
+import { use, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notFound } from 'next/navigation';
 import {
@@ -26,6 +26,10 @@ import { AppSpinner } from '@/components/app-spinner';
 import { useReportI18n } from '@/components/reports/hooks/use-report-i18n';
 import { ReportPanel } from '@/components/reports/panel/report-panel';
 import { SavedReportDetailBar } from '@/components/reports/detail/saved-report-detail-bar';
+import {
+  useReportStale,
+  type WatchedReportScope,
+} from '@/lib/realtime/use-report-stale';
 import { useTRPC } from '@/trpc/client';
 
 export default function SavedReportDetailPage({
@@ -82,23 +86,17 @@ export default function SavedReportDetailPage({
     return { kind: 'workspace', workspaceId: saved.workspaceId };
   })();
 
+  // Faz 13N (DEM-270) — `onRefresh` artık `SavedReportDetailContent` içindeki
+  // `useReportStale.refresh()` üzerinden geçer (parent ek invalidate
+  // gereksiz; hook zaten `report.preview` + `report.getSaved` pathFilter
+  // ile invalidate ediyor). queryClient/trpc burada kullanılmıyor.
+  void queryClient;
+  void trpc;
   return (
     <SavedReportDetailContent
       workspaceId={workspaceId}
       saved={saved}
       scope={scope}
-      onRefresh={() =>
-        void queryClient.invalidateQueries(
-          trpc.report.preview.queryFilter({
-            scope,
-            presetId: saved.presetId,
-            filters: saved.filters as ReportFilters,
-            comparison: (saved.comparison as ComparisonConfig | null)?.enabled
-              ? (saved.comparison as ComparisonConfig)
-              : null,
-          }),
-        )
-      }
     />
   );
 }
@@ -116,14 +114,12 @@ interface SavedReportDetailContentProps {
     archivedAt: Date | string | null;
   };
   scope: ReportScope;
-  onRefresh: () => void;
 }
 
 function SavedReportDetailContent({
   workspaceId,
   saved,
   scope,
-  onRefresh,
 }: SavedReportDetailContentProps) {
   const trpc = useTRPC();
   const filters = saved.filters as ReportFilters;
@@ -141,6 +137,42 @@ function SavedReportDetailContent({
     refetchOnWindowFocus: false,
   });
 
+  // Faz 13N (DEM-270) — stale rozeti hook'u. Watched scope saved row'dan
+  // türetilir (kanonik scope `scopeFromSavedReport` server-side; UI tarafı
+  // basit ReportScope shape'i). Workspace room'a join + report.invalidated
+  // event'ini açık scope'a göre eşler.
+  const watchedScope: WatchedReportScope = useMemo(() => {
+    if (scope.kind === 'workspace') {
+      return { kind: 'workspace', workspaceId: scope.workspaceId };
+    }
+    if (scope.kind === 'board') {
+      return {
+        kind: 'board',
+        boardId: scope.boardId,
+        workspaceId: scope.workspaceId,
+      };
+    }
+    if (scope.kind === 'list') {
+      return {
+        kind: 'list',
+        listId: scope.listId,
+        boardId: scope.boardId,
+        workspaceId: scope.workspaceId,
+      };
+    }
+    return {
+      kind: 'card',
+      cardId: scope.cardId,
+      boardId: scope.boardId,
+      workspaceId: scope.workspaceId,
+    };
+  }, [scope]);
+
+  const stale = useReportStale({
+    workspaceId: saved.workspaceId,
+    watchedScope,
+  });
+
   return (
     <div className="space-y-3">
       <SavedReportDetailBar
@@ -151,13 +183,15 @@ function SavedReportDetailContent({
         filters={filters}
         isArchived={saved.archivedAt != null}
         isFetching={previewQuery.isFetching}
-        onRefresh={onRefresh}
+        onRefresh={stale.refresh}
+        isStale={stale.isStale}
       />
       <ReportPanel
         dataset={previewQuery.data ?? null}
         loading={previewQuery.isFetching}
         errorMessage={previewQuery.error?.message ?? null}
-        onRefresh={onRefresh}
+        onRefresh={stale.refresh}
+        isStale={stale.isStale}
       />
     </div>
   );

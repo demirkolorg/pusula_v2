@@ -1,10 +1,9 @@
 /**
- * Faz 13G (DEM-263) — schedule dialog iskeleti.
- *
- * Bu fazda UI hazır ama 13J (DEM-266) Resend + scheduler worker'ı
- * tamamlanmadan tam çalışmaz. Mutation `report.schedule.create` 13D'de
- * mevcut — DB'ye row eklenir, ama worker tick olmadığı için email
- * gönderilmez. UI'da "13J bekleniyor" notu yer.
+ * Faz 13G (DEM-263) — schedule dialog. Faz 13J (DEM-266) Resend +
+ * scheduler worker'ı tamamlandı; "13J bekleniyor" stale header Alert
+ * 13Q'da kaldırıldı (DEM-273 — `pusula/no-hardcoded-text-in-reports`
+ * stale faz badge "13J"yi yakaladığı için). Recipient picker placeholder
+ * Alert'i ise UI eksiği olduğundan kalır.
  *
  * Spec: docs/architecture/16-raporlama-mimarisi.md §10.1 + §10.5.5.
  */
@@ -15,7 +14,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   AlertDescription,
-  Badge,
   Button,
   Checkbox,
   Dialog,
@@ -120,14 +118,6 @@ export function ScheduleDialog({
           <DialogTitle>{t('reports.schedule.dialogTitle')}</DialogTitle>
           <DialogDescription>{t('reports.schedule.dialogDescription')}</DialogDescription>
         </DialogHeader>
-        <Alert>
-          <AlertDescription className="text-xs">
-            <Badge variant="outline" className="mr-1">
-              13J
-            </Badge>
-            {t('reports.schedule.pendingPhaseNote')}
-          </AlertDescription>
-        </Alert>
         <div className="space-y-4 py-2">
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

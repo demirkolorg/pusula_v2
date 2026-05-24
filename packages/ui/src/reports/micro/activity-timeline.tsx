@@ -1,5 +1,7 @@
+import { KpiCard } from '../primitives/kpi-card';
 import { MicroReportShell } from '../primitives/micro-report-shell';
 import { ReportEmptyState } from '../primitives/empty-state';
+import { scalarDelta } from '../lib/merge-comparison';
 import type { MicroReportProps, MicroReportUiManifest } from '../types';
 
 export interface ActivityTimelineEvent {
@@ -20,8 +22,13 @@ const MAX_PANEL_ROWS = 25;
 const MAX_PRINT_ROWS = 50;
 
 export function ActivityTimeline(props: MicroReportProps<ActivityTimelineData>) {
-  const { data, t, locale, mode } = props;
+  const { data, comparisonData, t, locale, mode } = props;
   const title = t('reports.microReports.activityTimeline.title');
+  // Faz 13M (DEM-269) — totalCount KPI'da comparison delta'sı.
+  const delta = comparisonData
+    ? scalarDelta(data.totalCount, comparisonData.totalCount)
+    : undefined;
+  const previousTotal = comparisonData?.totalCount ?? null;
   if (data.events.length === 0) {
     return (
       <MicroReportShell title={title} colSpan={4} mode={mode}>
@@ -41,6 +48,19 @@ export function ActivityTimeline(props: MicroReportProps<ActivityTimelineData>) 
   });
   return (
     <MicroReportShell title={title} colSpan={4} mode={mode} minHeight={320}>
+      {delta || previousTotal !== null ? (
+        <KpiCard
+          labelKey="reports.microReports.activityTimeline.totalEvents"
+          value={data.totalCount}
+          previousValue={previousTotal}
+          delta={delta}
+          size="sm"
+          mode={mode}
+          t={t}
+          locale={locale}
+          className="mb-2"
+        />
+      ) : null}
       <ol
         data-slot="activity-timeline-list"
         className="flex flex-col gap-2 border-l border-border ps-4"

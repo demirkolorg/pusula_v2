@@ -1,9 +1,11 @@
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartFrame } from '../primitives/chart-frame';
-import { DataTable } from '../primitives/data-table';
+import { DataTable, type DataTableColumn } from '../primitives/data-table';
+import { DeltaBadge } from '../primitives/delta-badge';
 import { MicroReportShell } from '../primitives/micro-report-shell';
 import { ReportEmptyState } from '../primitives/empty-state';
 import { labelColorVar } from '../lib/label-color-bridge';
+import { mergeByIdentity, type IdentityMergedRow } from '../lib/merge-comparison';
 import type { MicroReportProps, MicroReportUiManifest } from '../types';
 
 export interface LabelDistributionRow {
@@ -24,7 +26,7 @@ export interface LabelDistributionData {
 }
 
 export function LabelDistribution(props: MicroReportProps<LabelDistributionData>) {
-  const { data, t, mode } = props;
+  const { data, comparisonData, t, locale, mode } = props;
   const title = t('reports.microReports.labelDistribution.title');
   if (data.labels.length === 0) {
     return (
@@ -37,6 +39,51 @@ export function LabelDistribution(props: MicroReportProps<LabelDistributionData>
       </MicroReportShell>
     );
   }
+  // Faz 13M (DEM-269) — etiket bazında merge; print tablosunda Δ kolonu.
+  const hasComparison = comparisonData != null;
+  const merged: IdentityMergedRow<LabelDistributionRow>[] = mergeByIdentity(
+    data.labels,
+    comparisonData?.labels ?? null,
+    {
+      getKey: (r) => r.labelId,
+      getValue: (r) => r.count,
+    },
+  );
+  const chartData = merged
+    .filter((m) => m.row !== null)
+    .map((m) => ({
+      labelId: m.row!.labelId,
+      name: m.row!.name,
+      color: m.row!.color,
+      count: m.row!.count,
+      previous: m.previousValue ?? 0,
+    }));
+  const tableColumns: DataTableColumn<IdentityMergedRow<LabelDistributionRow>>[] = [
+    {
+      key: 'name',
+      headerKey: 'reports.microReports.labelDistribution.columns.label',
+      render: (m) => m.row?.name ?? '—',
+    },
+    {
+      key: 'count',
+      headerKey: 'reports.microReports.labelDistribution.columns.count',
+      render: (m) => (m.row ? m.row.count : 0),
+      numeric: true,
+    },
+  ];
+  if (hasComparison) {
+    tableColumns.push({
+      key: 'delta',
+      headerKey: 'reports.comparison.deltaColumnHeader',
+      render: (m) =>
+        m.delta ? (
+          <DeltaBadge delta={m.delta} t={t} locale={locale} mode={mode} />
+        ) : (
+          '—'
+        ),
+      numeric: true,
+    });
+  }
   return (
     <MicroReportShell title={title} colSpan={2} mode={mode} minHeight={280}>
       <ChartFrame
@@ -45,26 +92,31 @@ export function LabelDistribution(props: MicroReportProps<LabelDistributionData>
         ariaLabel={t('reports.microReports.labelDistribution.chartAriaLabel')}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data.labels} accessibilityLayer>
+          <BarChart data={chartData} accessibilityLayer>
             <XAxis dataKey="name" />
             <YAxis />
             {mode === 'panel' ? <Tooltip /> : null}
+            {hasComparison ? (
+              <Bar
+                dataKey="previous"
+                fill="var(--color-muted-foreground)"
+                fillOpacity={0.35}
+                isAnimationActive={mode === 'panel'}
+              />
+            ) : null}
             <Bar dataKey="count" isAnimationActive={mode === 'panel'}>
-              {data.labels.map((label) => (
+              {chartData.map((label) => (
                 <Cell key={label.labelId} fill={labelColorVar(label.color)} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </ChartFrame>
-      {mode === 'print' ? (
+      {mode === 'print' || hasComparison ? (
         <DataTable
-          columns={[
-            { key: 'name', headerKey: 'reports.microReports.labelDistribution.columns.label', render: (r) => r.name },
-            { key: 'count', headerKey: 'reports.microReports.labelDistribution.columns.count', render: (r) => r.count, numeric: true },
-          ]}
-          rows={data.labels}
-          getRowKey={(r) => r.labelId}
+          columns={tableColumns}
+          rows={merged}
+          getRowKey={(m) => m.rowKey}
           t={t}
           mode={mode}
           panelLimit={null}

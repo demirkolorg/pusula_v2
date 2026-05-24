@@ -7,20 +7,37 @@
  */
 'use client';
 
-import { Badge } from '@pusula/ui';
+import {
+  Badge,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@pusula/ui';
 import type { ComparisonConfig, ReportFilters } from '@pusula/domain';
 import { useReportI18n } from '../hooks/use-report-i18n';
 
 export interface FilterSummaryChipsProps {
   filters: ReportFilters;
   comparison?: ComparisonConfig | null;
+  /**
+   * Faz 13M (DEM-269) — comparison aktif chip'inin tooltip'i için
+   * backend'in döndüğü previous-period mutlak aralığı. Null = tooltip
+   * sadece "Karşılaştırma açık" özetini gösterir.
+   */
+  comparisonRange?: { from: string; to: string } | null;
   /** "Yenile" callback'i — chip'lerden sonra (UI'da yer ayır). */
   className?: string;
 }
 
-export function FilterSummaryChips({ filters, comparison, className }: FilterSummaryChipsProps) {
+export function FilterSummaryChips({
+  filters,
+  comparison,
+  comparisonRange = null,
+  className,
+}: FilterSummaryChipsProps) {
   const { t } = useReportI18n();
-  const items: Array<{ key: string; label: string }> = [];
+  const items: Array<{ key: string; label: string; tooltip?: string }> = [];
 
   // Range
   const rangeLabel =
@@ -68,22 +85,58 @@ export function FilterSummaryChips({ filters, comparison, className }: FilterSum
 
   // Comparison
   if (comparison?.enabled) {
-    items.push({ key: 'comparison', label: t('reports.composer.comparison.summary') });
+    const tooltip = comparisonRange
+      ? t('reports.composer.comparison.rangeTooltip', {
+          from: formatDateShort(comparisonRange.from),
+          to: formatDateShort(comparisonRange.to),
+        })
+      : undefined;
+    items.push({
+      key: 'comparison',
+      label: t('reports.composer.comparison.summary'),
+      tooltip,
+    });
   }
 
   return (
-    <div className={['flex flex-wrap items-center gap-1.5', className].filter(Boolean).join(' ')}>
-      {items.map((item, idx) => (
-        <span key={item.key} className="inline-flex items-center gap-1.5">
-          <Badge variant="secondary" className="text-[11px] font-normal">
-            {item.label}
-          </Badge>
-          {idx < items.length - 1 && (
-            <span aria-hidden className="text-muted-foreground">·</span>
-          )}
-        </span>
-      ))}
-    </div>
+    <TooltipProvider delayDuration={250}>
+      <div className={['flex flex-wrap items-center gap-1.5', className].filter(Boolean).join(' ')}>
+        {items.map((item, idx) => {
+          const badge = (
+            <Badge
+              variant="secondary"
+              className="text-[11px] font-normal"
+              data-testid={
+                item.key === 'comparison' ? 'report-comparison-badge' : undefined
+              }
+            >
+              {item.label}
+            </Badge>
+          );
+          return (
+            <span key={item.key} className="inline-flex items-center gap-1.5">
+              {item.tooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="inline-flex">
+                      {badge}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    {item.tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                badge
+              )}
+              {idx < items.length - 1 && (
+                <span aria-hidden className="text-muted-foreground">·</span>
+              )}
+            </span>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }
 

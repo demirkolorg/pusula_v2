@@ -41,6 +41,14 @@
     "lint": {
       "dependsOn": ["^build"]
     },
+    "check-i18n-keys": {
+      "inputs": [
+        "scripts/check-i18n-keys.ts",
+        "src/reports/i18n-keys.ts",
+        "$TURBO_ROOT$/apps/web/src/locales/**/*.json",
+        "$TURBO_ROOT$/packages/api/src/lib/locales/**/*.json"
+      ]
+    },
     "typecheck": {
       "dependsOn": ["^build"]
     },

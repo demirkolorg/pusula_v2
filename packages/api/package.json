@@ -9,7 +9,8 @@
     "./context": "./src/context.ts",
     "./lib/report-cache": "./src/lib/report-cache.ts",
     "./lib/report-envelope": "./src/lib/report-envelope.ts",
-    "./lib/report-invalidation": "./src/lib/report-invalidation.ts"
+    "./lib/report-invalidation": "./src/lib/report-invalidation.ts",
+    "./lib/report-retention-policy": "./src/lib/report-retention-policy.ts"
   },
   "scripts": {
     "lint": "eslint .",

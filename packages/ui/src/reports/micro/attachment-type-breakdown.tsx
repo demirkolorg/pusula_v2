@@ -32,7 +32,7 @@ export function AttachmentTypeBreakdown(props: MicroReportProps<AttachmentTypeBr
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
-            <th scope="col" className="py-1 font-medium">MIME</th>
+            <th scope="col" className="py-1 font-medium">{t('reports.microReports.attachmentTypeBreakdown.mime')}</th>
             <th scope="col" className="text-right font-medium">{t('reports.microReports.attachmentTypeBreakdown.count')}</th>
             <th scope="col" className="text-right font-medium">{t('reports.microReports.attachmentTypeBreakdown.avg')}</th>
           </tr>

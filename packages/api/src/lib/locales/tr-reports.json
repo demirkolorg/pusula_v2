@@ -1,0 +1,744 @@
+{
+  "composer": {
+    "title": {
+      "create": "Yeni Rapor Oluştur",
+      "edit": "Raporu Düzenle"
+    },
+    "scopeLabel": {
+      "card": "Kart raporu",
+      "list": "Liste raporu",
+      "board": "Pano raporu",
+      "workspace": "Çalışma alanı raporu"
+    },
+    "preset": {
+      "label": "Şablon Seç",
+      "includesCount": "{count} micro-report"
+    },
+    "range": {
+      "preset": {
+        "today": "Bugün",
+        "yesterday": "Dün",
+        "last7d": "Son 7 gün",
+        "last30d": "Son 30 gün",
+        "last90d": "Son 90 gün",
+        "thisMonth": "Bu ay",
+        "lastMonth": "Geçen ay",
+        "thisQuarter": "Bu çeyrek",
+        "thisYear": "Bu yıl"
+      },
+      "custom": "Özel aralık",
+      "customSummary": "{from} → {to}"
+    },
+    "filter": {
+      "helperHint": "Server bu filtreleri Zod ile doğrular; eksik alan yoksayılır.",
+      "range": {
+        "label": "Tarih Aralığı",
+        "selectPlaceholder": "Hazır aralık seç",
+        "fromLabel": "Başlangıç tarihi",
+        "toLabel": "Bitiş tarihi"
+      },
+      "members": {
+        "label": "Üyeler",
+        "allMembers": "Tüm üyeler",
+        "selectedCount": "{count} üye",
+        "empty": "Bu kapsamda üye yok.",
+        "summary": "{count} üye",
+        "relations": {
+          "assignee": "Atanan",
+          "actor": "Aktör",
+          "watcher": "İzleyici"
+        }
+      },
+      "labels": {
+        "label": "Etiketler",
+        "allLabels": "Tüm etiketler",
+        "selectedCount": "{count} etiket",
+        "empty": "Bu kapsamda etiket yok.",
+        "summary": "{count} etiket ({mode})",
+        "mode": {
+          "and": "Tümü",
+          "or": "Herhangi"
+        }
+      },
+      "scope": {
+        "label": "Kapsam",
+        "cardStatus": "Kart durumu",
+        "lists": "Listeler",
+        "boards": "Panolar"
+      },
+      "clearSelection": "Temizle"
+    },
+    "comparison": {
+      "toggleLabel": "Önceki {period} ile karşılaştır",
+      "infoTooltip": "Karşılaştırılabilir metriklerde ↑/↓ rozeti gösterilir.",
+      "infoAriaLabel": "Karşılaştırma hakkında bilgi",
+      "summary": "Karşılaştırma açık",
+      "rangeTooltip": "Önceki dönem: {from} – {to}",
+      "deltaColumnHeader": "Δ"
+    },
+    "save": {
+      "titleLabel": "Başlık",
+      "titlePlaceholder": "Örn. Sprint 23 sağlık",
+      "descriptionLabel": "Açıklama (opsiyonel)",
+      "descriptionPlaceholder": "Bu rapor neyi ölçer?",
+      "saving": "Kaydediliyor…",
+      "successToast": "Rapor kaydedildi.",
+      "errorToast": "Rapor kaydedilemedi."
+    },
+    "export": {
+      "queuedToast": "Rapor hazırlanıyor; bittiğinde bildirilecek.",
+      "errorToast": "Rapor üretimi başlatılamadı."
+    }
+  },
+  "actions": {
+    "preview": "Önizle",
+    "previewing": "Yükleniyor…",
+    "save": "Kaydet",
+    "update": "Güncelle",
+    "export": {
+      "pdf": "PDF İndir",
+      "xlsx": "Excel İndir",
+      "png": "PNG İndir",
+      "svg": "SVG İndir",
+      "image": "Görsel İndir",
+      "preparing": "Hazırlanıyor…",
+      "xlsxComingSoon": "Excel hazırlanıyor; bittiğinde bildirilecek."
+    },
+    "schedule": {
+      "label": "Zamanla",
+      "requiresSaved": "Zamanlama için önce raporu kaydedin."
+    },
+    "cancel": "Vazgeç",
+    "more": "Daha fazla",
+    "duplicate": "Çoğalt",
+    "delete": "Sil",
+    "archive": "Arşivle",
+    "refresh": "Yenile"
+  },
+  "schedule": {
+    "dialogTitle": "Raporu Zamanla",
+    "dialogDescription": "Belirlenen sıklıkta otomatik üretilip alıcılarına gönderilir.",
+    "pendingPhaseNote": "Email teslimi 13J (DEM-266) ile aktif olur.",
+    "cadenceLabel": "Sıklık",
+    "cadence": {
+      "daily": "Günlük",
+      "weekly": "Haftalık",
+      "monthly": "Aylık"
+    },
+    "recipient": {
+      "user": "Kullanıcı",
+      "email": "E-posta"
+    },
+    "hour": "Saat",
+    "minute": "Dakika",
+    "dayOfWeek": "Haftanın günü",
+    "weekday": {
+      "0": "Pazar",
+      "1": "Pazartesi",
+      "2": "Salı",
+      "3": "Çarşamba",
+      "4": "Perşembe",
+      "5": "Cuma",
+      "6": "Cumartesi"
+    },
+    "dayOfMonth": "Ayın günü",
+    "dayOfMonthHint": "1-31 arası bir gün veya \"last\".",
+    "activeLabel": "Schedule aktif",
+    "isActive": "Aktif",
+    "runNow": "Hemen çalıştır",
+    "recipientsComingSoon": "Alıcı seçimi 13J ile gelir.",
+    "createCta": "Zamanla",
+    "creating": "Oluşturuluyor…",
+    "successToast": "Zamanlama oluşturuldu.",
+    "errorToast": "Zamanlama oluşturulamadı."
+  },
+  "panel": {
+    "loading": "Rapor hazırlanıyor…",
+    "errorTitle": "Rapor yüklenemedi",
+    "emptyState": "Bir şablon seçerek başlayın."
+  },
+  "stale": {
+    "badge": "Veri güncellendi",
+    "message": "Veriler güncellendi",
+    "lastInvalidationTooltip": "Son değişiklik: {time}",
+    "disconnected": "Bağlantı kesik — yeniden bağlanılıyor",
+    "reconnected": "Yeniden bağlanıldı"
+  },
+  "list": {
+    "pageTitle": "Raporlar",
+    "pageDescription": "Çalışma alanınızdaki kaydedilmiş raporlar, zamanlamalar ve son üretilen çıktılar.",
+    "newReport": "Yeni Rapor",
+    "loading": "Yükleniyor…",
+    "errorTitle": "Liste yüklenemedi",
+    "archivedBadge": "Arşivli",
+    "duplicateTitle": "{title} (kopya)",
+    "adhocRender": "Ad-hoc render",
+    "failedHint": "Render başarısız oldu.",
+    "recipientCount": "{count} alıcı",
+    "lastRun": "Son: {date}",
+    "nextRun": "Sonraki: {date}",
+    "tabs": {
+      "saved": "Kaydedilmiş",
+      "scheduled": "Zamanlanmış",
+      "renders": "Son Render'lar"
+    },
+    "empty": {
+      "savedTitle": "Henüz kayıtlı raporunuz yok",
+      "savedDescription": "Pano veya kart üzerinden oluşturduğunuz raporu \"Kaydet\" diyerek buraya ekleyebilirsiniz.",
+      "savedCta": "İlk raporunu oluştur",
+      "scheduledTitle": "Hiç zamanlanmış rapor yok",
+      "scheduledDescription": "Kaydedilmiş bir raporu zamanlayarak e-posta ile düzenli alabilirsiniz.",
+      "rendersTitle": "Henüz rapor üretilmedi",
+      "rendersDescription": "PDF / Excel / PNG çıktıları burada listelenir."
+    },
+    "filter": {
+      "search": "Ara",
+      "searchPlaceholder": "Başlık veya açıklama ara",
+      "scope": "Kapsam",
+      "allScopes": "Tüm kapsamlar",
+      "cadence": "Sıklık",
+      "allCadences": "Tüm sıklıklar",
+      "activeStatus": "Durum",
+      "active": {
+        "all": "Tümü",
+        "active": "Yalnız aktifler",
+        "inactive": "Yalnız pasifler"
+      },
+      "status": "Durum",
+      "allStatuses": "Tüm durumlar",
+      "format": "Format",
+      "allFormats": "Tüm formatlar",
+      "showArchived": "Arşivlileri göster",
+      "clear": "Temizle"
+    },
+    "actions": {
+      "more": "Daha fazla",
+      "edit": "Düzenle",
+      "duplicate": "Çoğalt",
+      "delete": "Sil",
+      "archive": "Arşivle",
+      "unarchive": "Arşivden çıkar",
+      "schedule": "Zamanla",
+      "runNow": "Hemen çalıştır",
+      "toggleActive": "Aktif/Pasif",
+      "exportJson": "JSON dışa aktar",
+      "download": "İndir",
+      "openDownload": "Aç",
+      "preparing": "Hazırlanıyor…",
+      "downloadTooltip": "Dosya 5 dakika geçerli imzalı URL ile indirilir."
+    },
+    "status": {
+      "queued": "Kuyrukta",
+      "rendering": "Render ediliyor",
+      "completed": "Tamamlandı",
+      "failed": "Başarısız",
+      "expired": "Süresi doldu"
+    },
+    "trigger": {
+      "manual": "Manuel",
+      "scheduled": "Zamanlanmış",
+      "save": "Kaydet"
+    },
+    "cadenceLabel": {
+      "daily": "Günlük · {time}",
+      "weekly": "Haftalık · {dayOfWeek} {time}",
+      "monthly": "Aylık · {dayOfMonth}. gün {time}",
+      "lastDay": "son"
+    },
+    "confirm": {
+      "deleteTitle": "Raporu silmek üzeresiniz",
+      "delete": "\"{title}\" raporu silinecek. Bu işlem geri alınamaz.",
+      "scheduleDeleteTitle": "Zamanlamayı silmek üzeresiniz",
+      "scheduleDelete": "\"{title}\" raporunun zamanlaması silinecek."
+    },
+    "tabsAriaLabel": "Rapor sekmeleri",
+    "toast": {
+      "deleted": "Rapor silindi.",
+      "deleteError": "Rapor silinemedi.",
+      "archived": "Rapor arşivlendi.",
+      "unarchived": "Rapor arşivden çıkarıldı.",
+      "archiveError": "Arşivleme başarısız.",
+      "duplicated": "Rapor çoğaltıldı.",
+      "duplicateError": "Çoğaltma başarısız.",
+      "scheduleUpdated": "Zamanlama güncellendi.",
+      "scheduleUpdateError": "Zamanlama güncellenemedi.",
+      "scheduleDeleted": "Zamanlama silindi.",
+      "scheduleDeleteError": "Zamanlama silinemedi.",
+      "scheduleRunNow": "Schedule tetiklendi; render kuyruğa eklendi.",
+      "scheduleRunNowError": "Schedule tetiklenemedi.",
+      "renderCompleted": "Rapor {id} tamamlandı.",
+      "renderFailed": "Rapor üretimi başarısız oldu."
+    }
+  },
+  "detail": {
+    "back": "Raporlara dön",
+    "loading": "Rapor yükleniyor…",
+    "errorTitle": "Rapor yüklenemedi",
+    "jsonExportComingSoon": "JSON dışa aktarma 13L ile gelir."
+  },
+  "entity": {
+    "board": { "openButton": "Raporlar" },
+    "card": { "openButton": "Kart raporu" },
+    "list": { "menuItem": "Liste raporu" },
+    "workspace": {
+      "cardTitle": "Raporlar",
+      "cardDescription": "Çalışma alanı için kaydedilmiş ve zamanlanmış raporlar.",
+      "openCta": "Raporları aç"
+    }
+  },
+  "filters": {
+    "range": {
+      "today": "Bugün",
+      "yesterday": "Dün",
+      "last7d": "Son 7 gün",
+      "last30d": "Son 30 gün",
+      "last90d": "Son 90 gün",
+      "thisMonth": "Bu ay",
+      "lastMonth": "Geçen ay",
+      "thisQuarter": "Bu çeyrek",
+      "thisYear": "Bu yıl"
+    },
+    "members": {
+      "label": "Üyeler",
+      "placeholder": "Üye seç",
+      "relations": {
+        "assignee": "Atanan",
+        "actor": "Aktör",
+        "watcher": "İzleyici"
+      }
+    },
+    "labels": {
+      "label": "Etiketler",
+      "placeholder": "Etiket seç",
+      "mode": {
+        "and": "Tümünü içeren",
+        "or": "Herhangi birini içeren"
+      }
+    },
+    "scope": {
+      "cardStatus": {
+        "open": "Açık",
+        "completed": "Tamamlanan",
+        "archived": "Arşivli"
+      },
+      "checklistStatus": {
+        "all": "Tümü",
+        "completed": "Tamamlanan",
+        "incomplete": "Eksik"
+      },
+      "includeArchivedLists": "Arşivli listeleri dahil et",
+      "listIds": "Listeler",
+      "boardIds": "Panolar"
+    }
+  },
+  "kpi": {
+    "previousLabel": "Önceki:"
+  },
+  "comparison": {
+    "toggle": "Karşılaştırma",
+    "activeBadge": "Karşılaştırmalı",
+    "previousPeriodLabel": "Önceki dönem",
+    "currentPeriodLabel": "Mevcut dönem",
+    "deltaColumnHeader": "Δ",
+    "rangeTooltip": "Önceki dönem: {from} – {to}",
+    "mode": {
+      "previousPeriod": "Önceki dönem",
+      "sameLastYear": "Geçen yılın aynı dönemi"
+    }
+  },
+  "delta": {
+    "up": "artış",
+    "down": "azalış",
+    "neutral": "değişim yok",
+    "new": "yeni"
+  },
+  "dataTable": {
+    "empty": "Bu rapor için veri yok.",
+    "more": "ve {count} satır daha"
+  },
+  "chart": {
+    "title": "Grafik"
+  },
+  "errors": {
+    "manifestMissing": "Bu rapor bileşeni şu anda gösterilemiyor.",
+    "widgetUnavailable": "Bu rapor parçası şu anda yüklenemedi.",
+    "unsupported_format": "Bu format desteklenmiyor.",
+    "print_token_failed": "Yazdırma için yetkilendirme alınamadı.",
+    "pdf_render_failed": "PDF oluşturulurken bir hata oluştu.",
+    "xlsx_render_failed": "Excel oluşturulurken bir hata oluştu.",
+    "png_render_failed": "Görsel oluşturulurken bir hata oluştu.",
+    "svg_render_failed": "SVG oluşturulurken bir hata oluştu.",
+    "storage_upload_failed": "Rapor depolamaya yüklenemedi."
+  },
+  "permission": {
+    "saveDeniedReason": "Sadece yöneticiler kaydedebilir.",
+    "scheduleDeniedReason": "Sadece yöneticiler zamanlayabilir.",
+    "notWorkspaceMember": "Bu raporu görüntülemek için workspace üyesi olmalısınız.",
+    "notBoardMember": "Bu raporu görüntülemek için bu panoya erişiminiz olmalı.",
+    "workspaceMemberRequired": "Bu rapor için workspace üyesi olmalısınız.",
+    "workspaceAdminRequired": "Bu işlem için workspace yöneticisi olmalısınız.",
+    "workspaceOwnerRequired": "Bu işlem için workspace sahibi olmalısınız.",
+    "boardAdminRequired": "Bu işlem için pano yöneticisi olmalısınız.",
+    "boardAdminOrWorkspaceOwnerRequired": "Bu işlem için pano yöneticisi veya workspace sahibi olmalısınız.",
+    "jsonExportNotSupportedForScope": "JSON dışa aktarma bu kapsam için desteklenmiyor."
+  },
+  "restricted": {
+    "banner": "{count} {kind} görünürlüğünüz dışında — kısıtlı görünüm.",
+    "explanation": "Bu raporun bir kısmı erişiminiz olmayan panolardan oluştuğu için gösterilmedi.",
+    "kind": {
+      "board": "pano",
+      "list": "liste",
+      "card": "kart",
+      "workspace": "çalışma alanı"
+    }
+  },
+  "scope": {
+    "workspace": "Çalışma Alanı",
+    "board": "Pano",
+    "list": "Liste",
+    "card": "Kart"
+  },
+  "render": {
+    "status": {
+      "queued": "Kuyrukta",
+      "rendering": "Render ediliyor",
+      "completed": "Tamamlandı",
+      "failed": "Başarısız",
+      "expired": "Süresi doldu"
+    },
+    "format": {
+      "pdf": "PDF",
+      "xlsx": "Excel",
+      "png": "PNG",
+      "svg": "SVG"
+    }
+  },
+  "email": {
+    "subject": "[Pusula] Raporunuz hazır: {title}",
+    "greeting": "Merhaba {name},",
+    "body": "{workspace} workspace'inde planladığınız {title} raporu üretildi.",
+    "cta": "Raporu Aç",
+    "footer": "Bu raporu artık almak istemiyorsanız zamanlamayı düzenleyin."
+  },
+  "print": {
+    "generatedAt": "{at} tarihinde üretildi"
+  },
+  "x": {
+    "count": "{count}",
+    "desc": "",
+    "empty": "Veri yok.",
+    "extra": "+{extra}",
+    "name": "{name}",
+    "none": "—"
+  },
+  "presets": {
+    "cardOverview": {
+      "title": "Kart Genel Bakış",
+      "description": "Kart bilgisi, aktivite, checklist, vade ve son değişiklikler."
+    },
+    "cardActivity": {
+      "title": "Kart Etkinlikleri",
+      "description": "Karta ait son aktivite, yorum ve ek hareketleri."
+    },
+    "cardChecklist": {
+      "title": "Kontrol Listesi",
+      "description": "Kart üzerindeki kontrol listelerinin ilerlemesi."
+    },
+    "cardDueAndAging": {
+      "title": "Vade & Yaşlanma",
+      "description": "Kart vadesi ve listede geçirilen süre."
+    },
+    "listWipAndHealth": {
+      "title": "Liste WIP & Sağlık",
+      "description": "Listenin durum dağılımı, açık kart sayısı ve yaşlanma."
+    },
+    "listMemberWorkload": {
+      "title": "Liste Üye İş Yükü",
+      "description": "Üye bazında atanan/açık/tamamlanan kart sayıları."
+    },
+    "listDueOverview": {
+      "title": "Liste Vade Özeti",
+      "description": "Listedeki kartların vade durumu ve yaşlanma."
+    },
+    "listActivity": {
+      "title": "Liste Etkinlikleri",
+      "description": "Listenin son etkinliği, etkinlik ısı haritası ve yorum hacmi."
+    },
+    "boardHealth": {
+      "title": "Pano Sağlık",
+      "description": "Pano sağlık skoru, durum, yaşlanma ve vade özeti."
+    },
+    "boardSprintSummary": {
+      "title": "Sprint Özeti",
+      "description": "Burndown, tamamlanma oranı ve üye katkıları."
+    },
+    "boardMemberPerformance": {
+      "title": "Üye Performansı",
+      "description": "Üye bazında katkı, iş yükü ve etkinlik dağılımı."
+    },
+    "boardDueAndRisk": {
+      "title": "Vade & Risk",
+      "description": "Vade dağılımı, yaşlanma, gelecek vade trendi ve cycle time."
+    },
+    "boardFlow": {
+      "title": "Pano Akışı",
+      "description": "Liste arası kart akışı, denge ve WIP göstergeleri."
+    },
+    "boardLabelDistribution": {
+      "title": "Etiket Dağılımı",
+      "description": "Pano üzerindeki etiket kullanımı, trend ve birliktelik."
+    },
+    "workspaceExecutiveSummary": {
+      "title": "Yönetici Özeti",
+      "description": "Workspace genel KPI'ları, durum, tamamlanma ve vade trendi."
+    },
+    "workspaceBoardComparison": {
+      "title": "Pano Karşılaştırma",
+      "description": "Workspace panolarının sağlık ve aktivite kıyaslaması."
+    },
+    "workspaceTeamPerformance": {
+      "title": "Takım Performansı",
+      "description": "Üye katkı, iş yükü, mevcudiyet ve etkinlik ısı haritası."
+    },
+    "workspaceDueAndRisk": {
+      "title": "Çalışma Alanı Vade & Risk",
+      "description": "Workspace genelinde vade, yaşlanma ve trend."
+    },
+    "workspaceActivityHeatmap": {
+      "title": "Çalışma Alanı Etkinlik Isı Haritası",
+      "description": "Workspace etkinlik yoğunluğu, tür dağılımı ve mention ağı."
+    }
+  },
+  "microReports": {
+    "activityTimeline": {
+      "title": "Etkinlik Zaman Çizelgesi",
+      "emptyState": "Seçilen aralıkta etkinlik yok.",
+      "totalEvents": "Toplam etkinlik"
+    },
+    "activityHeatmap": {
+      "title": "Etkinlik Isı Haritası",
+      "emptyState": "Aralıkta etkinlik yok.",
+      "chartAriaLabel": "Gün ve saate göre etkinlik yoğunluğu"
+    },
+    "activityBreakdown": {
+      "title": "Etkinlik Türü Dağılımı",
+      "emptyState": "Aralıkta etkinlik yok.",
+      "other": "Diğer"
+    },
+    "memberContribution": {
+      "title": "Üye Katkıları",
+      "emptyState": "Aralıkta üye etkinliği yok.",
+      "chartAriaLabel": "Üyelere göre etkinlik sayısı",
+      "columns": {
+        "user": "Üye",
+        "count": "Etkinlik"
+      }
+    },
+    "memberWorkload": {
+      "title": "Üye İş Yükü",
+      "emptyState": "Atanmış kart yok.",
+      "column": {
+        "member": "Üye",
+        "open": "Açık",
+        "completed": "Tamamlanan",
+        "overdue": "Gecikmiş",
+        "total": "Toplam"
+      }
+    },
+    "memberPresence": {
+      "title": "Üye Mevcudiyeti",
+      "emptyState": "Üye yok.",
+      "never": "Hiç etkinlik yok"
+    },
+    "statusBreakdown": {
+      "title": "Durum Dağılımı",
+      "emptyState": "Bu rapor için kart yok.",
+      "chartAriaLabel": "Kart durumlarına göre dağılım"
+    },
+    "checklistProgress": {
+      "title": "Kontrol Listesi İlerlemesi",
+      "emptyState": "Kontrol listesi yok.",
+      "ratio": "{completed} / {total} tamamlandı",
+      "celebrate": "Tüm öğeler tamamlandı."
+    },
+    "completionRate": {
+      "title": "Tamamlanma Oranı",
+      "emptyState": "Aralıkta tamamlanan kart yok.",
+      "avgPerDay": "Ortalama / gün"
+    },
+    "burndown": {
+      "title": "Burndown",
+      "emptyState": "Aralıkta açık kart yok.",
+      "remaining": "Kalan",
+      "ideal": "İdeal"
+    },
+    "descriptionCoverage": {
+      "title": "Açıklama Kapsamı",
+      "emptyState": "Kart yok.",
+      "ratio": "{withDescription} / {total} kartta açıklama var"
+    },
+    "dueDateOverview": {
+      "title": "Vade Durumu",
+      "emptyState": "Vadeli kart yok.",
+      "barAriaLabel": "Vade gruplarına göre kart dağılımı"
+    },
+    "agingReport": {
+      "title": "Yaşlanma Raporu",
+      "emptyState": "Açık kart yok.",
+      "oldestLabel": "En eski açık kartlar",
+      "daysAgo": "{days} gün önce"
+    },
+    "cycleTime": {
+      "title": "Cycle Time",
+      "emptyState": "Tamamlanmış kart yok (henüz)."
+    },
+    "timeInList": {
+      "title": "Listede Geçen Süre",
+      "emptyState": "Listede ölçülecek hareket yok."
+    },
+    "dueTrend": {
+      "title": "Vade Eğilimi",
+      "emptyState": "Önümüzdeki 30 günde vadeli kart yok.",
+      "next30Days": "Önümüzdeki 30 gün"
+    },
+    "labelDistribution": {
+      "title": "Etiket Dağılımı",
+      "emptyState": "Bu raporda etiket yok.",
+      "chartAriaLabel": "Etiketlere göre kart dağılımı",
+      "columns": {
+        "label": "Etiket",
+        "count": "Kart"
+      }
+    },
+    "labelTrend": {
+      "title": "Etiket Eğilimi",
+      "emptyState": "Aralıkta etiketli kart hareketi yok."
+    },
+    "labelCooccurrence": {
+      "title": "Etiket Birlikteliği",
+      "emptyState": "Birlikte kullanılan etiket çifti yok."
+    },
+    "commentVolume": {
+      "title": "Yorum Hacmi",
+      "emptyState": "Aralıkta yorum yok."
+    },
+    "attachmentSummary": {
+      "title": "Ek Özeti",
+      "emptyState": "Ek yok."
+    },
+    "attachmentTypeBreakdown": {
+      "title": "Ek Tür Dağılımı",
+      "emptyState": "Ek yok.",
+      "mime": "MIME",
+      "count": "Adet",
+      "avg": "Ort. boyut"
+    },
+    "listFlow": {
+      "title": "Kart Akışı (Liste→Liste)",
+      "emptyState": "Aralıkta liste değişimi yok.",
+      "unknownSource": "Bilinmeyen liste"
+    },
+    "wipCount": {
+      "title": "WIP (Liste Bazında)",
+      "emptyState": "Açık kart yok."
+    },
+    "boardHealthScore": {
+      "title": "Pano Sağlık Skoru",
+      "emptyState": "Açık kart yok.",
+      "scoreLabel": "Sağlık skoru (0-100)",
+      "formulaHint": "Ortalama yaş %30, WIP yoğunluğu %30, kararlılık %20, gecikme %20.",
+      "days": "gün",
+      "components": {
+        "avgAge": "Ortalama yaş",
+        "wipOverload": "En yoğun liste kart sayısı",
+        "stale": "30 günden eski oranı",
+        "overdue": "Gecikme oranı"
+      }
+    },
+    "entitySummary": {
+      "title": "Genel Bakış",
+      "emptyState": "Veri yok.",
+      "noDescription": "Açıklama eklenmemiş.",
+      "metaHeading": "Özet",
+      "cards": "{count} kart",
+      "lists": "{count} liste",
+      "boards": "{count} pano",
+      "members": "{count} üye",
+      "labels": "{count} etiket",
+      "archived": "Arşivli"
+    },
+    "kpiCard": {
+      "title": "KPI",
+      "emptyState": "Veri yok."
+    },
+    "recentChanges": {
+      "title": "Son Değişiklikler",
+      "emptyState": "Son 7 günde değişiklik yok."
+    },
+    "mentionGraph": {
+      "title": "Mention Ağı",
+      "emptyState": "Aralıkta mention içeren yorum yok."
+    },
+    "listBalance": {
+      "title": "Liste Dengesi",
+      "emptyState": "Liste yok.",
+      "balanced": "Dengeli",
+      "imbalanced": "Dengesiz"
+    }
+  },
+  "activity": {
+    "types": {
+      "board.created": "pano oluşturdu",
+      "board.updated": "panoyu güncelledi",
+      "board.renamed": "panoyu yeniden adlandırdı",
+      "board.archived": "panoyu arşivledi",
+      "board.member_added": "panoya üye ekledi",
+      "board.member_removed": "panodan üye çıkardı",
+      "board.member_role_changed": "üye rolünü değiştirdi",
+      "board.member_invited": "panoya davet gönderdi",
+      "board.invitation_revoked": "daveti iptal etti",
+      "board.background_changed": "pano arka planını değiştirdi",
+      "board.background_cleared": "pano arka planını temizledi",
+      "board.access_requested": "panoya erişim istedi",
+      "list.created": "liste oluşturdu",
+      "list.updated": "listeyi güncelledi",
+      "list.moved": "listeyi taşıdı",
+      "list.archived": "listeyi arşivledi",
+      "list.renamed": "listeyi yeniden adlandırdı",
+      "list.color_changed": "liste rengini değiştirdi",
+      "list.color_cleared": "liste rengini temizledi",
+      "list.icon_changed": "liste simgesini değiştirdi",
+      "list.icon_cleared": "liste simgesini temizledi",
+      "card.created": "kart oluşturdu",
+      "card.updated": "kartı güncelledi",
+      "card.moved": "kartı taşıdı",
+      "card.archived": "kartı arşivledi",
+      "card.completed": "kartı tamamladı",
+      "card.uncompleted": "tamamlanmayı geri aldı",
+      "card.renamed": "kartı yeniden adlandırdı",
+      "card.description_changed": "açıklamayı değiştirdi",
+      "card.member_added": "karta üye ekledi",
+      "card.member_removed": "karttan üye çıkardı",
+      "card.label_added": "karta etiket ekledi",
+      "card.label_removed": "karttan etiket çıkardı",
+      "card.due_set": "vade tarihi ayarladı",
+      "card.due_cleared": "vade tarihini temizledi",
+      "card.cover_changed": "kapak rengini değiştirdi",
+      "card.cover_cleared": "kapak rengini temizledi",
+      "card.cover_image_changed": "kapak görselini değiştirdi",
+      "card.cover_image_cleared": "kapak görselini temizledi",
+      "comment.created": "yorum ekledi",
+      "comment.updated": "yorumu güncelledi",
+      "comment.deleted": "yorumu sildi",
+      "comment.mentioned": "birinden bahsetti",
+      "checklist.created": "kontrol listesi oluşturdu",
+      "checklist.item_added": "kontrol listesi öğesi ekledi",
+      "checklist.item_completed": "öğeyi tamamladı",
+      "checklist.item_checked": "öğeyi işaretledi",
+      "checklist.item_unchecked": "işareti kaldırdı",
+      "checklist.item_removed": "öğeyi sildi",
+      "attachment.added": "ek ekledi",
+      "attachment.removed": "eki sildi"
+    }
+  }
+}

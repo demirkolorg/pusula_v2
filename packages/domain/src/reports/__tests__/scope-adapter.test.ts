@@ -16,6 +16,8 @@ function buildCtx(now: Date = new Date('2026-05-15T12:00:00Z')): QueryCtx {
       accessibleListsInBoard: vi.fn(async () => []),
       hasBoardAccess: vi.fn(async () => true),
       hasWorkspaceAccess: vi.fn(async () => true),
+      totalBoardsInWorkspace: vi.fn(async () => 0),
+      totalListsInBoard: vi.fn(async () => 0),
     },
     userId: 'u1',
     now: () => now,

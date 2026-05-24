@@ -86,7 +86,7 @@ function assertSafeKeySegment(label: string, value: string): void {
 
 /**
  * §16.7 key formatı:
- *   `report:dataset:v1:{scopeKind}:{scopeId}:{presetId}:{hash}[:admin]`
+ *   `report:dataset:v1:{scopeKind}:{scopeId}:{presetId}:{hash}[:admin][:cmp:1]`
  *
  * Permission filtreleme cache key'inde: `userId` hash'in girdisindedir
  * (her kullanıcının gördüğü dataset farklı olabilir). Workspace admin
@@ -95,6 +95,12 @@ function assertSafeKeySegment(label: string, value: string): void {
  *
  * Bilgi sızıntısı engeli (§9.4): `userId` hash'te → restricted-scope
  * filtreleme uygulanmış dataset'ler asla başka user'a servis edilmez.
+ *
+ * Comparison suffix (`:cmp:1` — Faz 13M / DEM-269): comparison etkinken
+ * dual-query envelope'u explicit ayrı cache row'a yazılır. Pattern
+ * invalidation (`report:dataset:v1:board:<id>:*`) zaten her ikisini de
+ * kapsar; suffix V2'de `:cmp:2` (`sameLastYear` mod) için ekstra
+ * boyut. Sürüm `1` = `previousPeriod`.
  */
 export function buildReportCacheKey(args: {
   scope: ReportScope;
@@ -110,13 +116,14 @@ export function buildReportCacheKey(args: {
   // setine kısıtla. Concat üzerinden `:`/`*` injection olamasın.
   assertSafeKeySegment('scopeId', scopeId);
   assertSafeKeySegment('presetId', args.presetId);
-  const suffix = args.isAdmin ? ':admin' : '';
+  const adminSuffix = args.isAdmin ? ':admin' : '';
+  const cmpSuffix = args.comparison?.enabled ? ':cmp:1' : '';
   const hash = stableHash({
     filters: args.filters,
     comparison: args.comparison,
     userId: args.isAdmin ? undefined : args.userId,
   });
-  return `${KEY_PREFIX}:${KEY_VERSION}:${args.scope.kind}:${scopeId}:${args.presetId}:${hash}${suffix}`;
+  return `${KEY_PREFIX}:${KEY_VERSION}:${args.scope.kind}:${scopeId}:${args.presetId}:${hash}${adminSuffix}${cmpSuffix}`;
 }
 
 /**

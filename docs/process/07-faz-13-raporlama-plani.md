@@ -17,7 +17,7 @@ related:
   - '[[docs/domain/09-raporlama-kurallari|Raporlama Kuralları (domain)]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
   - '[[docs/process/05-is-kayit-defteri|İş Kayıt Defteri]]'
-updated: 2026-05-23
+updated: 2026-05-24
 ---
 
 # 07 — Faz 13 Raporlama Planı
@@ -107,8 +107,8 @@ updated: 2026-05-23
 | 13M | [DEM-269](https://linear.app/demirkol/issue/DEM-269) | Comparison (period-over-period) delta entegrasyonu | Todo | 1.5 | 13D + 13F + 13K |
 | 13N | [DEM-270](https://linear.app/demirkol/issue/DEM-270) | Stale rozeti + realtime invalidation socket event | Todo | 1 | 13E + 13H |
 | 13O | [DEM-271](https://linear.app/demirkol/issue/DEM-271) | Restricted scope rozeti + auto-aggregation permission filtresi | Todo | 1 | 13D + 13F |
-| 13P | [DEM-272](https://linear.app/demirkol/issue/DEM-272) | Retention worker: 90g rotation + son 5 sürüm | Todo | 1 | 13I |
-| 13Q | [DEM-273](https://linear.app/demirkol/issue/DEM-273) | i18n key tarama + TR locale tamamla + EN boş şablon | Todo | 1.5 | 13F + 13G + 13H + 13J + 13K |
+| 13P | [DEM-272](https://linear.app/demirkol/issue/DEM-272) | Retention worker: 90g rotation + son 5 sürüm | Review | 1 | 13I |
+| 13Q | [DEM-273](https://linear.app/demirkol/issue/DEM-273) | i18n key tarama + TR/EN locale + ESLint hardcode kuralı + CI sync check | Done | 1.5 | 13F + 13G + 13H + 13J + 13K |
 | 13R | [DEM-274](https://linear.app/demirkol/issue/DEM-274) | E2E Playwright suite (8+ senaryo) | Todo | 2 | 13G + 13H + 13J + 13M + 13N + 13O |
 | 13S | [DEM-275](https://linear.app/demirkol/issue/DEM-275) | Mobil entegrasyon (apps/mobile): saved + scheduled liste + WebView panel + PDF share | Todo | 2 | 13H + 13J |
 | 13T | [DEM-276](https://linear.app/demirkol/issue/DEM-276) | Production deploy + smoke test | Todo | 1.5 | 13R |

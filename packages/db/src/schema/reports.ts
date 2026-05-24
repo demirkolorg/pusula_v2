@@ -231,6 +231,20 @@ export const reportRenders = pgTable(
   (t) => [
     index('report_renders_workspace_idx').on(t.workspaceId, t.createdAt),
     index('report_renders_saved_idx').on(t.savedReportId, t.version),
+    /**
+     * Faz 13P (DEM-272) — retention worker partial index'leri. Daily tick
+     * `WHERE saved_report_id IS NOT NULL AND created_at < cutoff` ve
+     * `WHERE saved_report_id IS NULL AND created_at < cutoff` filtrelerini
+     * seq scan'siz koşturmak için. `(workspaceId, createdAt)` indexi
+     * workspace-agnostic filtrede leading column'a uyum sağlamadığından
+     * büyük workspace'te yetmezdi (DB review 2026-05-24).
+     */
+    index('report_renders_retention_saved_idx')
+      .on(t.savedReportId, t.createdAt)
+      .where(sql`${t.savedReportId} IS NOT NULL`),
+    index('report_renders_retention_adhoc_idx')
+      .on(t.createdAt)
+      .where(sql`${t.savedReportId} IS NULL`),
     check(
       'report_renders_trigger_kind_check',
       sql`${t.triggerKind} IN ('manual', 'scheduled', 'save')`,
@@ -243,21 +257,33 @@ export const reportRenders = pgTable(
  * Retention worker (13P / DEM-272) `expires_at`'i kullanarak 90g + son 5
  * sürüm policy'sini uygular.
  */
-export const reportRenderAssets = pgTable('report_render_assets', {
-  id: primaryId(),
-  renderId: text()
-    .notNull()
-    .references(() => reportRenders.id, { onDelete: 'cascade' }),
+export const reportRenderAssets = pgTable(
+  'report_render_assets',
+  {
+    id: primaryId(),
+    renderId: text()
+      .notNull()
+      .references(() => reportRenders.id, { onDelete: 'cascade' }),
 
-  format: reportRenderFormatEnum().notNull(),
-  s3Bucket: text().notNull(),
-  s3Key: text().notNull(),
-  byteSize: bigint({ mode: 'number' }).notNull(),
-  checksum: text(),
+    format: reportRenderFormatEnum().notNull(),
+    s3Bucket: text().notNull(),
+    s3Key: text().notNull(),
+    byteSize: bigint({ mode: 'number' }).notNull(),
+    checksum: text(),
 
-  expiresAt: timestamp({ withTimezone: true }),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-});
+    expiresAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    /**
+     * Faz 13P (DEM-272) — retention worker `renderId` ile asset listesi
+     * çeker + cascade DELETE renderId üzerinden çalışır. Postgres FK
+     * referans kolonunu otomatik index'lemez; bu index olmadan asset
+     * fetch + cascade silimi seq scan riski taşır (DB review 2026-05-24).
+     */
+    index('report_render_assets_render_idx').on(t.renderId),
+  ],
+);
 
 // ─── Inferred types ─────────────────────────────────────────────────────────
 

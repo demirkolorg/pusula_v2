@@ -36,6 +36,20 @@ export interface PermissionsCtx {
   /** Direkt rol kontrolü (≥ minimum). */
   hasBoardAccess(boardId: string, minRole: BoardRole): Promise<boolean>;
   hasWorkspaceAccess(workspaceId: string, minRole: WorkspaceRole): Promise<boolean>;
+  /**
+   * Workspace'te toplam aktif board sayısı (permission bağımsız). 13O
+   * `restrictedScope` hesabı için: `excludedCount = total - accessible.length`.
+   *
+   * "Aktif" = `archived_at IS NULL` (rapor envelope'u arşivli board'lara
+   * dahil olmasın — UI ve permission helper'ları arşivli olanları filtreliyor).
+   */
+  totalBoardsInWorkspace(workspaceId: string): Promise<number>;
+  /**
+   * Board'da toplam list sayısı (permission bağımsız). 13O list-level
+   * permission V2'de gelirse `restrictedScope` board scope için bunu
+   * kullanır. V1'de Pusula'da list-level ACL yok — yalnız V2 hazır.
+   */
+  totalListsInBoard(boardId: string): Promise<number>;
 }
 
 /**

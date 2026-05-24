@@ -19,7 +19,7 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/06-bildirim-altyapisi|Bildirim Altyapısı]]'
-updated: 2026-05-24T01:00
+updated: 2026-05-24T22:00
 ---
 
 # 16 — Raporlama Mimarisi
@@ -123,10 +123,10 @@ Karar kaydı: [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) 2026-05-2
 | `apps/web/src/app/(internal)/reports/print/[id]/page.tsx` | Puppeteer'ın açtığı print sayfası (signed token ile) — print stylesheet'i, sayfa break'leri, no-chrome |
 | `apps/web/src/components/reports/composer/*` | Preset seçim + filtre formu (shadcn Form + Zod) |
 | `apps/web/src/components/reports/entity-tab/*` | Card/Board/List panel tab içeriği (kapsam-aware) |
-| `apps/worker/src/queues/report-render.ts` | Puppeteer headless render + MinIO upload + render kaydı |
-| `apps/worker/src/queues/report-schedule.ts` | BullMQ cron job (every minute tick) → due schedules enqueue |
-| `apps/worker/src/queues/report-cache-invalidator.ts` | Notification outbox / realtime event consumer → ilgili cache key purge |
-| `apps/worker/src/queues/report-retention.ts` | Daily cron → 90g'den eski render versiyon silimi |
+| `apps/worker/src/jobs/report-render.ts` | Puppeteer headless render + MinIO upload + render kaydı |
+| `apps/worker/src/jobs/report-schedule-tick.ts` | BullMQ cron job (every minute tick) → due schedules enqueue |
+| `apps/worker/src/jobs/report-cache-invalidator.ts` | Notification outbox / realtime event consumer → ilgili cache key purge |
+| `apps/worker/src/jobs/report-retention.ts` + `@pusula/api/lib/report-retention-policy.ts` | Daily cron (03:00 UTC) → saved son 5 sürüm hep tut + diğerleri (saved + ad-hoc) 90g sonrası MinIO + DB sil. Dry-run modu var. |
 | `apps/mobile/app/workspace/[slug]/reports/*` | Saved + scheduled liste + WebView panel + PDF share (Faz 13S) |
 
 ## 16.3 Veritabanı Şeması (Drizzle, `casing: 'snake_case'`)
@@ -548,11 +548,38 @@ Worker `apps/worker/src/queues/report-cache-invalidator.ts`:
 - **SCAN+DEL atomic değil:** iteration sırasında yeni `SET` gelirse o key invalidation'dan kaçar; TTL backstop (60-300s) eninde sonunda temizler. "Stale + fresh karışık" pencere kabul edildi (DEM-261 security LOW-1).
 - **Workspace role değişiklikleri (kabul edilen TTL pencere):** Admin → member demote sonrası `:admin` suffix'li cache key max `workspace=300s` / `pdf=600s` boyunca eski admin-view'u servis edebilir. Bu trade-off bilgi sızıntısı disiplini (§9.4) içinde kabul edilebilir kayıp olarak işaretli; ileride `workspace_members` mutation'ından invalidator hook eklenebilir (DEM-261 security MED-1, follow-up).
 
-**"Stale" rozeti:**
+**"Stale" rozeti (Faz 13N — DEM-270):**
 
-- Panel açıkken socket: `report.invalidated` event'i (scope tabanlı) `workspace:{workspaceId}` room'una publish.
-- UI bu event'i dinler, açık raporun scope'una düşerse `<StaleBadge/>` gösterir.
-- Kullanıcı "Yenile" basınca tRPC `preview` tekrar çağrılır (cache miss → fresh).
+- Panel açıkken socket: `report.invalidated` event'i (scope tabanlı) `workspace:{workspaceId}` room'una publish edilir.
+- **Workspace room üyeliği:** Faz 5A `board:join` ile simetrik bir `workspace:join` handshake'i (`apps/api/src/socket/rooms.ts`, DEM-270) ile sağlanır. Server `resolveWorkspaceMembership` ile `workspace_members` satırını okur, üye değilse `Forbidden`. Board-only kullanıcı (workspace üyesi olmayan ama board:explicit-viewer) workspace room'a giremez — workspace scope rapor da göremediği için event akışı tutarlı.
+- UI bu event'i dinler: `useReportStale` hook (`apps/web/src/lib/realtime/use-report-stale.ts`) `workspace:{id}` room'una `workspace:join` emit eder, `report.invalidated` payload'unu `affectsWatchedScope` saf fonksiyonuyla açık raporun scope'una göre eşler.
+- Eşleşirse `<StaleBadge>` görünür; **otomatik refresh YOK** (§9.12 — chart zıplaması engellensin). Kullanıcı "Yenile" basana kadar mevcut görünüm korunur.
+- "Yenile" → TanStack `report.preview` query invalidate → cache miss → fresh dataset → rozet kaybolur.
+- Disconnect sırasında rozet sıfırlanmaz; reconnect sonrası `connect` event'inde room'a yeniden join + opsiyonel "biriken değişiklikler" hatırlatması.
+- Burst event flood için hook-level guard: `isStale` zaten `true` ise tekrar setState yapılmaz (re-render maliyeti sıfır).
+
+**Event payload sözleşmesi** (`ReportInvalidatedSocketEvent` — `@pusula/api/lib/report-invalidation`):
+
+```ts
+{
+  at: string;                            // ISO yayın anı
+  scopeKinds: Array<'card'|'list'|'board'|'workspace'>;
+  workspaceId: string;                   // root match
+  boardId?: string;
+  listId?: string;
+  cardId?: string;
+  eventType: string;                     // 'card.moved' vb. (audit)
+}
+```
+
+**`affectsWatchedScope` semantiği (V1):**
+
+| Açık rapor scope'u | Eşleştiği event'ler |
+|--------------------|---------------------|
+| `workspace` | Aynı `workspaceId` payload'unun **tüm** event'leri (workspace raporları her şeyi aggregate eder) |
+| `board` | Aynı `boardId` payload'u (board-level + altındaki list/card event'leri payload'a `boardId` taşır) |
+| `list` | Aynı `listId` payload'u — V1: card.* event'leri listId taşımıyorsa list-scope stale **tetiklenmez** (cache invalidator listId pattern'i kapsar ama scope adapter pattern'i daha gevşek). V2: 13E payload'una `listId` her zaman ekle. |
+| `card` | Aynı `cardId` payload'u |
 
 ## 16.8 PDF Render Pipeline
 
@@ -724,24 +751,85 @@ Permission helper kanonik konum: `@pusula/domain/reports/permission.ts`. tRPC pr
 
 ## 16.12 i18n Stratejisi
 
+Faz 13Q (DEM-273) ile tek-kaynak JSON locale + ESLint hardcode yasağı +
+CI sync check kuruldu.
+
 ```
-packages/domain/src/reports/i18n-keys.ts  (sabitler — drift'i önler)
-apps/web/src/locales/tr/reports.json       (TR çeviri — şimdi dolu)
-apps/web/src/locales/en/reports.json       (EN — boş şablon, sonra)
+packages/domain/src/reports/i18n-keys.ts        (REPORT_I18N_KEYS — canonical key map)
+apps/web/src/locales/tr/reports.json            (TR çeviri — canonical, tam dolu)
+apps/web/src/locales/en/reports.json            (EN çeviri — V1 quick translation)
+packages/api/src/lib/locales/tr-reports.json    (server-side mirror, byte-identical)
+packages/api/src/lib/locales/en-reports.json    (server-side mirror, byte-identical)
+packages/api/src/lib/report-i18n-tr.ts          (flat map — `flattenLocaleTree` JSON'dan üretir)
+apps/web/src/components/reports/hooks/use-report-i18n.ts (client-side resolver — JSON'dan)
 ```
 
-**Key kuralı:**
+**Akış:**
 
-- `reports.presets.<presetId>.title` / `.description`
-- `reports.microReports.<microReportId>.title` / `.emptyState`
-- `reports.filters.range.<presetId>`
-- `reports.actions.export.pdf` vb.
+```
+UI bileşeni: t('reports.composer.title.create')
+  ↓
+useReportI18n hook → apps/web/src/locales/tr/reports.json (static JSON import)
+  ↓  resolveKey('reports.composer.title.create') = composer.title.create lookup
+  ↓  interpolate(template, params) — single-brace `{name}` regex
+  ↓
+"Yeni Rapor Oluştur"  (eksikse key string'i ekrana — debug fallback)
+```
+
+**Print pipeline (server-side):**
+
+```
+report.print procedure
+  ↓ envelope payload'a `i18n: REPORT_PRINT_I18N_TR` ekle
+  ↓ REPORT_PRINT_I18N_TR = flattenLocaleTree(tr-reports.json) (Object.freeze)
+  ↓
+print sayfası (apps/web/.../report-print-client.tsx)
+  ↓ makeTranslator(payload.i18n) — aynı `{name}` single-brace
+```
+
+**Key kuralı (REPORT_I18N_KEYS canonical map):**
+
+- `reports.presets.<presetIdCamel>.title` / `.description` (19 preset — `card.overview` → `cardOverview`)
+- `reports.microReports.<microIdCamel>.title` / `.emptyState` (30 micro-report — `activity-timeline` → `activityTimeline`)
+- `reports.filters.range.<presetId>` (9 range preset)
+- `reports.filters.members.relations.<assignee|actor|watcher>`
+- `reports.filters.labels.mode.<and|or>`
+- `reports.filters.scope.cardStatus.<open|completed|archived>`
+- `reports.actions.<preview|save|update|delete|duplicate|refresh|schedule|...>`
+- `reports.actions.export.<pdf|xlsx|png|svg|image>`
 - `reports.delta.<up|down|neutral|new>`
-- `reports.restricted.banner`
-- `reports.stale.message`
-- `reports.email.subject` / `.greeting` / `.cta`
+- `reports.restricted.banner` / `.explanation`
+- `reports.stale.badge` / `.message`
+- `reports.render.status.<queued|...>` / `.format.<pdf|xlsx|...>`
+- `reports.schedule.cadence.<daily|weekly|monthly>` / `.recipient.<user|email>`
+- `reports.comparison.toggle` / `.mode.<previousPeriod|sameLastYear>`
+- `reports.email.subject` / `.greeting` / `.body` / `.cta` / `.footer`
+- `reports.permission.<...>` — `canPerformReportAction` reason key'leri
 
-**Eksiklikte fallback:** key bulunamazsa key string'i basılır (dev'de büyük "MISSING" prefix, prod'da sessiz). CI'da `i18n-lint` adımı eksik key'leri fail eder.
+**Eksiklikte fallback:** key bulunamazsa key string'i basılır (dev'de debug
+için görünür). CI'da `pnpm check-i18n-keys` + sync test eksik key'leri fail
+eder.
+
+**Sync invariant'lar (CI enforced):**
+
+1. `REPORT_I18N_KEYS` map'inin tüm leaf'leri TR locale JSON'da var.
+2. `apps/web/src/locales/tr/reports.json` ↔ `packages/api/src/lib/locales/tr-reports.json` byte-identical.
+3. EN locale TR ile aynı key ağacını taşır (placeholder + shape parity).
+4. Print stub flat map'i REPORT_I18N_KEYS'in tüm leaf'lerini içerir.
+
+Doğrulayan: `packages/domain/scripts/check-i18n-keys.ts` (script) +
+`packages/domain/src/reports/__tests__/i18n-locale-sync.test.ts` (vitest) +
+`packages/api/src/lib/report-i18n-tr.test.ts` (flatten + flat map test).
+
+**Hardcode metin yasağı:** `eslint-plugin-pusula/no-hardcoded-text-in-reports`
+(`packages/config/eslint-plugin-pusula.mjs`) kuralı `apps/web/src/components/reports/**`
+ve `packages/ui/src/reports/**` altındaki non-test dosyalarda JSX text
+literal + `title`/`aria-label`/`alt`/`placeholder` attribute hardcode metni
+yasaklar. `pnpm lint` CI adımı ile koşar.
+
+**Placeholder formatı:** single-brace `{name}` standart. Hem `useReportI18n`
+hem print client `makeTranslator` regex'i `/\{\s*(\w+)\s*\}/g` kullanır.
+Double-brace `{{name}}` (mustache) 13Q öncesi geçici çözümdü, kaldırıldı.
 
 **Tarih/sayı formatları:** `Intl.DateTimeFormat` / `Intl.NumberFormat` workspace locale'ından (default `tr-TR`).
 
@@ -813,3 +901,87 @@ apps/web/src/locales/en/reports.json       (EN — boş şablon, sonra)
 | MinIO retention yanlış silme | Veri kaybı | Retention worker dry-run önce log (`REPORT_RETENTION_DRY_RUN=true` ilk hafta), sonra aktif; `archivedAt` kayıtları silmez |
 | i18n TR-only literal sızıntısı | Çeviri kalitesi | ESLint kuralı: `apps/web/src/components/reports/**` içinde JSX text literal yasak (custom rule, 13Q) |
 | Print sayfası `window.__reportReady` flag chart render bitmeden true olur | PDF'te boş chart | Recharts `onAnimationEnd` callback (animasyon kapalı olsa bile) + `requestIdleCallback` + 500ms safety delay |
+
+## 16.17 Retention Pipeline (Faz 13P — DEM-272)
+
+**Politika kaynağı:** `@pusula/api/lib/report-retention-policy.ts` (saf TS,
+framework-bağımsız). I/O katmanı: `apps/worker/src/jobs/report-retention.ts`
+(BullMQ daily cron + S3 delete + DB tx).
+
+```txt
+Daily 03:00 UTC tick
+  ├─ Adım 1: Saved-attached render adayları
+  │    SELECT DISTINCT saved_report_id WHERE saved_report_id IS NOT NULL
+  │      AND created_at < NOW() - maxAgeDays
+  │      GROUP BY saved_report_id
+  │      LIMIT MAX_SAVED_PER_TICK (200)
+  │
+  │  Her aday için:
+  │    ▶ Tüm sürümleri çek (id, version, createdAt)
+  │    ▶ `decideSavedReportRenderRetention` çağır
+  │       - En yeni `keepVersions=5` sürüm → keep (kept_recent_version)
+  │       - Korumalı set dışında, yaş ≤ maxAgeDays → keep (kept_under_age)
+  │       - Yaş > maxAgeDays → delete (superseded_by_newer_versions)
+  │    ▶ Her delete kararı için `tryDeleteRender`:
+  │       1. SELECT report_render_assets WHERE renderId = X
+  │       2. MinIO DeleteObject (her asset) — 404 idempotent (tolere)
+  │       3. DB tx: DELETE report_render_assets + DELETE report_renders
+  │
+  └─ Adım 2: Ad-hoc render adayları
+       SELECT id, created_at WHERE saved_report_id IS NULL
+         AND created_at < NOW() - maxAgeDays
+         ORDER BY created_at ASC
+         LIMIT MAX_AD_HOC_PER_TICK (500)
+
+     Her aday için:
+       ▶ `decideAdHocRenderRetention` çağır (keep/delete + sebep)
+       ▶ Her delete kararı için aynı `tryDeleteRender` akışı
+```
+
+**Disiplin:**
+
+- **Storage-first, DB-second:** `attachment-cleanup-sweeper` ile aynı disiplin.
+  MinIO objesi silinmeden DB satırı silinmez → tutarsızlık (orphan storage)
+  yerine "yeniden dene" pencere kalır. DB satırı silinmesi tx içinde atomik
+  (`delete asset → delete render`). Idempotent: aynı tick iki kez koşunca
+  ikincide hiçbir şey silmez.
+- **404 idempotent:** `isObjectMissingError` `NoSuchKey`/`NotFound`/404'ü
+  tolere eder; gerçek 5xx hata `failed` sayar ve Sentry'ye gider.
+- **Fail isolation:** Tek render silimi fail ederse diğer kararlar
+  devam eder (sweeper pattern'i).
+- **Sentry breadcrumb:** `captureException(error, { renderId, savedReportId,
+  reason, stage })` her hatada — telemetry sızıntısız (PII içermez).
+
+**Dry-run mode (`REPORT_RETENTION_DRY_RUN=true`):**
+
+- Default `true` (güvenli — production'ın ilk haftası bu mod kalır).
+- Hiçbir DB satırı veya MinIO objesi silinmez.
+- `console.warn('[DRY-RUN] would delete ...')` her aday için log.
+- `result.deleted` sayım dry-run'da da artar (sembolik — "silinecekti").
+- Operator log incelemesi sonrası `false` set eder (manual karar). 13T deploy
+  fazında bu geçiş kullanıcı onayıyla yapılır.
+
+**Konfigürasyon (`apps/worker/src/env.ts`):**
+
+| Env | Default | Anlam |
+|-----|---------|-------|
+| `REPORT_RETENTION_DRY_RUN` | `true` | Dry-run modu açık/kapalı |
+| `REPORT_RETENTION_KEEP_VERSIONS` | `5` | Saved son N hep tutulur |
+| `REPORT_RETENTION_MAX_AGE_DAYS` | `90` | Yaş eşiği (gün) |
+| `MAX_SAVED_PER_TICK` (kod sabit) | `200` | Bir tick'te distinct saved aday |
+| `MAX_AD_HOC_PER_TICK` (kod sabit) | `500` | Bir tick'te ad-hoc aday |
+
+**Format-agnostic:** Retention `report_render_assets.format` (pdf/xlsx/png/svg)
+ayırt etmez — format ne olursa olsun aynı politika uygulanır. 13L (Excel + PNG)
+asset'leri de aynı tick'te temizlenir; kod değişikliği gerekmez.
+
+**Permission-agnostic:** Sistem cron — `restrictedScope` veya
+`workspace_members` ile etkileşmez. Silme operasyonu admin işi olarak kabul
+edilir; UI tetik yok.
+
+**V1 dışı (V2 backlog):**
+
+- Workspace başına farklı retention süresi (enterprise plan).
+- Kullanıcı tetikli "Şimdi temizle" admin butonu.
+- Soft delete + restore window (7g arşiv).
+- DLQ inspect UI (manual redrive).

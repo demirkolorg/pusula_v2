@@ -113,7 +113,12 @@ export const REPORT_I18N_KEYS = Object.freeze({
     delete: 'reports.actions.delete',
     duplicate: 'reports.actions.duplicate',
     refresh: 'reports.actions.refresh',
-    schedule: 'reports.actions.schedule',
+    // Faz 13Q: `schedule` nested objedir (label + requiresSaved) — `<ActionBar>`
+    // hem `t('reports.actions.schedule.label')` hem `.requiresSaved` çağırır.
+    schedule: Object.freeze({
+      label: 'reports.actions.schedule.label',
+      requiresSaved: 'reports.actions.schedule.requiresSaved',
+    }),
     export: Object.freeze({
       pdf: 'reports.actions.export.pdf',
       xlsx: 'reports.actions.export.xlsx',

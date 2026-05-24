@@ -155,8 +155,23 @@ describe('reports schema shape', () => {
     const renderConfig = getTableConfig(reportRenders);
     const renderIndexNames = renderConfig.indexes.map((b) => b.config.name);
     expect(renderIndexNames).toEqual(
-      expect.arrayContaining(['report_renders_workspace_idx', 'report_renders_saved_idx']),
+      expect.arrayContaining([
+        'report_renders_workspace_idx',
+        'report_renders_saved_idx',
+        // Faz 13P (DEM-272) — retention partial indexes
+        'report_renders_retention_saved_idx',
+        'report_renders_retention_adhoc_idx',
+      ]),
     );
+    // Both retention indexes are partial — `where` clause set.
+    const retentionSavedIdx = renderConfig.indexes
+      .map((b) => b.config)
+      .find((c) => c.name === 'report_renders_retention_saved_idx');
+    expect(retentionSavedIdx?.where).toBeDefined();
+    const retentionAdHocIdx = renderConfig.indexes
+      .map((b) => b.config)
+      .find((c) => c.name === 'report_renders_retention_adhoc_idx');
+    expect(retentionAdHocIdx?.where).toBeDefined();
   });
 });
 

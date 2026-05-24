@@ -77,6 +77,27 @@ const envSchema = z.object({
    * job'u launch edemez ve `failed` döner; testler puppeteer-core mock'lar.
    */
   PUPPETEER_EXECUTABLE_PATH: z.string().min(1).optional(),
+  /**
+   * Faz 13P (DEM-272) — rapor render retention worker'ı dry-run modunda
+   * çalışır mı? Default `true` (güvenli). Production'da ilk hafta dry-run
+   * aktif kalır; manual log incelemesi sonrası `false` set edilir. Spec:
+   * `docs/architecture/16-raporlama-mimarisi.md` §16 risk tablosu.
+   */
+  REPORT_RETENTION_DRY_RUN: z
+    .enum(['0', '1', 'false', 'true'])
+    .default('true')
+    .transform((value) => value === '1' || value === 'true'),
+  /**
+   * Faz 13P (DEM-272) — saved report'un her zaman korunan en yeni sürüm
+   * sayısı. Default 5 (spec §9.10). Yalnız operator override için.
+   */
+  REPORT_RETENTION_KEEP_VERSIONS: z.coerce.number().int().min(1).max(50).default(5),
+  /**
+   * Faz 13P (DEM-272) — retention yaş eşiği (gün). Default 90. 13T deploy
+   * öncesi enterprise/billing tier eşiklerini özelleştirmek için. Limit:
+   * 10 yıl (3650g).
+   */
+  REPORT_RETENTION_MAX_AGE_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
 });
 
 // Üretim sertleştirme guard'ı (apps/api ile aynı disiplin): prod'da kritik env

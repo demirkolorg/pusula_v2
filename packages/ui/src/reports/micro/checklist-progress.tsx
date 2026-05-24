@@ -1,7 +1,9 @@
 import { CheckCircle2 } from 'lucide-react';
 import { Progress } from '../../components/progress';
+import { DeltaBadge } from '../primitives/delta-badge';
 import { MicroReportShell } from '../primitives/micro-report-shell';
 import { ReportEmptyState } from '../primitives/empty-state';
+import { scalarDelta } from '../lib/merge-comparison';
 import type { MicroReportProps, MicroReportUiManifest } from '../types';
 
 export interface ChecklistProgressData {
@@ -11,8 +13,14 @@ export interface ChecklistProgressData {
 }
 
 export function ChecklistProgress(props: MicroReportProps<ChecklistProgressData>) {
-  const { data, t, locale, mode } = props;
+  const { data, comparisonData, t, locale, mode } = props;
   const title = t('reports.microReports.checklistProgress.title');
+  // Faz 13M (DEM-269) — yüzde delta (percentage scalar). Eşik ≤1%
+  // computeDelta tarafında nötr işlenir.
+  const deltaPercentage =
+    comparisonData && data.percentage !== null
+      ? scalarDelta(data.percentage, comparisonData.percentage)
+      : undefined;
   if (data.total === 0) {
     return (
       <MicroReportShell title={title} colSpan={2} mode={mode}>
@@ -40,6 +48,20 @@ export function ChecklistProgress(props: MicroReportProps<ChecklistProgressData>
             })}
           </span>
         </div>
+        {deltaPercentage ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <DeltaBadge delta={deltaPercentage} t={t} locale={locale} mode={mode} />
+            {comparisonData?.percentage !== null && comparisonData?.percentage !== undefined ? (
+              <span className="tabular-nums">
+                {t('reports.kpi.previousLabel')}{' '}
+                {new Intl.NumberFormat(locale, {
+                  style: 'percent',
+                  maximumFractionDigits: 1,
+                }).format(comparisonData.percentage / 100)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <Progress value={data.percentage ?? 0} />
         {isComplete ? (
           <div

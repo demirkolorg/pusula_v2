@@ -10,7 +10,7 @@
  */
 import { Redis } from 'ioredis';
 import * as Sentry from '@sentry/node';
-import { resolveBoardAccess } from '@pusula/api';
+import { resolveBoardAccess, resolveWorkspaceMembership } from '@pusula/api';
 import { getDb } from '@pusula/db';
 import { auth } from '../auth';
 import { env } from '../env';
@@ -67,6 +67,17 @@ export async function setupSocketServer(httpServer: AttachableHttpServer): Promi
       } catch {
         // `resolveBoardAccess` throws `TRPCError` on NOT_FOUND/FORBIDDEN —
         // for the socket join we just need null/non-null.
+        return null;
+      }
+    },
+    // Faz 13N (DEM-270) — workspace:join permission resolver. Üye değilse
+    // null → handler 'Forbidden' acks. Archived workspace de aktif gibi
+    // davranır (üye stale event'i alabilir; tRPC tarafında archived üye
+    // ek aksiyonda kısıtlı).
+    resolveWorkspaceAccess: async (workspaceId, userId) => {
+      try {
+        return await resolveWorkspaceMembership(getDb(), workspaceId, userId);
+      } catch {
         return null;
       }
     },
