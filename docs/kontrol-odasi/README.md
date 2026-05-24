@@ -18,7 +18,7 @@ related:
   - '[[docs/process/05-is-kayit-defteri|İş Kayıt Defteri]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
   - '[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]'
-updated: 2026-05-21
+updated: 2026-05-24
 ---
 
 # Kontrol Odası — Süreç Hakemliği Tab'ı
@@ -109,17 +109,22 @@ Bu tab'da kullanabileceğin adlandırılmış işlemler. Adını yazınca bu tab
 
 **`celiski <istek>`** — Gelen yeni istek/karar mevcut `docs/` (architecture / domain / process + kök `CLAUDE.md` + `.claude/skills/kontrol/SKILL.md`) ile çakışıyor mu kontrol eder. Çakışıyorsa işe başlamadan "belgeyi mi güncelleyelim, koda mı sadık kalalım?" diye netleştirir, alınan kararı kaydeder. (Kök `CLAUDE.md` §5 "Çelişki" kuralının aracı.)
 
-## 5. Paralel tab haritası (anlık — 2026-05-21, panorama sonrası)
+## 5. Paralel tab haritası (anlık — 2026-05-24, `faz-baslat 8` sonrası)
 
 | Tab | İş | Durum / Linear | Dokunduğu yerler |
 | --- | --- | --- | --- |
-| Faz 7 — Mobil | Expo mobil uygulama (epic DEM-30) | `In Progress` — ~%94; 7A–7N + 7P `Done`, tek kalan **7O (DEM-191)** `In Progress` (EAS production build + App Store submit, Apple Developer Program incelemesi bekleniyor) | `apps/mobile/**`, EAS/App Store yapılandırması |
+| Faz 7 — Mobil | Expo mobil uygulama (epic DEM-30) | `In Progress` — ~%94; 7A–7N + 7P `Done`, tek kalan **7O (DEM-191)** `In Progress` (App Store SUBMIT 2026-05-21; Apple incelemesi bekleniyor) | `apps/mobile/**`, EAS/App Store yapılandırması |
 | Faz 7 sonrası refinement | Web/mobil cilalama işleri | `Done` (2026-05-21) — bu turda kalan `Review` işleri kapandı: DEM-248 web tablet dokunmatik uyumluluk, DEM-249 kart tamamlama animasyonu, DEM-250 etiket paneli ayrımı, DEM-251 APP_URL prod bug, DEM-252 mobil spinner, DEM-253 404 sayfası | `apps/web/**`, `apps/mobile/**`, `packages/ui/**` |
 | Faz 8.X — board görsel arka plan | DEM-202 split (8.X.A/B/C/D) | Önce-belge `Done`; implementasyon **`Todo`** — DEM-243/244/245/246 henüz başlamadı | `apps/web`, `apps/mobile`, `packages/api`, `packages/db`, `packages/domain` |
+| **Faz 8 (kontrol odası — 8.0 önce-belge)** | DEM-277 (8.0 E2E + load + audit + permission önce-belge) | `In Progress` — `faz-baslat 8` 2026-05-24; 7 karar noktası `AskUserQuestion` ile netleşecek, ardından 5 docs dosyası güncelleme. **Bu tab'ta yapılır.** | `docs/architecture/{02,03,10,12,17}.md` (yeni 17), `docs/domain/02-yetkilendirme-kurallari.md`, `docs/process/{02,05}.md` |
+| Faz 8B — Realtime fix (kod tab'ı) | DEM-278 (`setupSocketServer` await + `waitForSocketJoin` kaldır) | `Todo` — kod tab'ı açılmayı bekliyor; 8.0 ile paralel başlayabilir | `apps/api/src/index.ts`, `apps/api/src/socket/`, `e2e/realtime-board-sync.spec.ts`, `e2e/fixtures/realtime.fixture.ts` |
+| Faz 8G — Deploy sertleştirme | DEM-279 (auto-deploy webhook + off-site yedek + restore tatbikatı) | `Todo` — operasyonel iş; 8.0 ile paralel; karma tab (docs + GitHub Action + Dokploy UI) | `.github/workflows/deploy.yml`, `docs/architecture/{10,12}.md`, Dokploy webhook config, rclone config |
+| Faz 8A/8C/8D/8E/8F (gelecek kod tab'ları) | DEM-284 (8A E2E) / DEM-280 (8C load) / DEM-281 (8D observability) / DEM-282 (8E audit log) / DEM-283 (8F permission edge case) | `Todo` — 8.0 (+ 8B for 8A) `Done` sonrası kod tab'larında açılır | `apps/api`, `apps/worker`, `packages/db`, `e2e/`, `tests/load/`, `apps/web` (kapsama göre) |
 | DEM-234 — Sentry mobil | Sentry tam kurulum (mobil) | `Todo` — Faz 7O production build öncesi yapılmalı | `apps/mobile`, EAS yapılandırması |
 | DEM-232 — iOS Share Extension | Mobilden paylaşım entegrasyonu | `Backlog` — önce-belge hazır | `apps/mobile` |
 | Faz 12 — Google Takvim | DEM-159 takvim entegrasyonu | `Backlog` — beklemede | (ileri faz) |
-| Bu tab (kontrol odası) | Süreç projeksiyonu + `docs/` + Linear senkronu | Sürekli açık; bu oturumda `doc-denetim` + `linear-senkron` + `panorama` çalıştırıldı — Linear ↔ defter ↔ faz planı senkron | `docs/**`, `docs/process/05-is-kayit-defteri.md`, Linear |
+| Faz 13 — Raporlama (kod tab'ı) | DEM-256 epic — 12/20 alt iş Done; 13R/13S/13T `Todo` | `In Progress` (~%60) — son commit 13M-13Q için bekleniyor; uncommitted `e2e/fixtures/{e2e-data,seed,reports.fixture}.ts` + `e2e/reports.spec.ts` + `playwright.config.ts` | `apps/**`, `packages/**`, `e2e/reports.spec.ts` |
+| Bu tab (kontrol odası) | Süreç projeksiyonu + `docs/` + Linear senkronu + 8.0 önce-belge | Sürekli açık; bu oturumda `panorama` + DEM-207/208 senkron + `faz-bol 8` + `faz-baslat 8` çalıştırıldı — sıradaki: 8.0 önce-belge yazımı | `docs/**`, `docs/process/05-is-kayit-defteri.md`, Linear |
 
 > Bu tablo "anlık" bir snapshot'tır; durum değiştikçe güncellenir. Faz/iş gerçekleri için kanonik kaynak [`../process/02-mvp-faz-plani.md`](../process/02-mvp-faz-plani.md) ve [`../process/05-is-kayit-defteri.md`](../process/05-is-kayit-defteri.md).
 
