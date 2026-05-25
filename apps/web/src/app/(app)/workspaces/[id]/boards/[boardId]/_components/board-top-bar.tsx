@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   FileDownIcon,
   FilterIcon,
-  InboxIcon,
   Loader2Icon,
   Share2Icon,
   UserCheckIcon,
@@ -58,11 +57,6 @@ type BoardTopBarProps = {
    * label/due-date filter menu. Omitted when the viewer's identity is unknown.
    */
   assignedToMe?: { active: boolean; onToggle: () => void };
-  /**
-   * "Hızlı Notlar" panel toggle (DEM-205): opens/closes the personal quick-note
-   * capture panel on the left of the board. `open` drives the pressed state.
-   */
-  quickNotes?: { open: boolean; onToggle: () => void };
   archive?: {
     lists: BoardArchiveList[];
     canEdit: boolean;
@@ -190,34 +184,6 @@ function AssignedToMeToggle({ active, onToggle }: { active: boolean; onToggle: (
 }
 
 /**
- * "Hızlı Notlar" panel toggle — a single chrome icon button (no dropdown).
- * `aria-pressed` exposes the panel's open/closed state; when open the button
- * keeps the highlight so the panel is visibly engaged.
- */
-function QuickNotesToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  const label = strings.board.quickNotes.toggle;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-pressed={open}
-          aria-label={label}
-          onClick={onToggle}
-          className={cn('size-8', boardChromeButtonClass, open && 'bg-white/15')}
-        >
-          <InboxIcon className="size-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-/**
  * Faz 14F (DEM-296) — Klasik pano PDF tek-tık indirme butonu. Üst bar chrome
  * ikon serisinde (Filtre/Arşiv yanı); dropdown derinliği yerine eski Pusula
  * refleksi tek tık. `useDownloadBoardReport` hook'u indirme state'ini yönetir
@@ -271,7 +237,6 @@ export function BoardTopBar({
   onBoardSearchOpenChange,
   filter,
   assignedToMe,
-  quickNotes,
   archive,
 }: BoardTopBarProps) {
   const copy = strings.board.topBar;
@@ -328,9 +293,6 @@ export function BoardTopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        {quickNotes && (
-          <QuickNotesToggle open={quickNotes.open} onToggle={quickNotes.onToggle} />
-        )}
         {assignedToMe && (
           <AssignedToMeToggle active={assignedToMe.active} onToggle={assignedToMe.onToggle} />
         )}

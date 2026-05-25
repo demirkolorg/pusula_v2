@@ -126,7 +126,7 @@ export function CardDetailCoverColor({
                   aria-pressed={on}
                   disabled={!canEdit || pending}
                   className={cn(
-                    'size-5 rounded-full outline-none ring-offset-1 disabled:opacity-50',
+                    'size-5 cursor-pointer rounded-full outline-none ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50',
                     'focus-visible:ring-2 focus-visible:ring-ring/60',
                     SWATCH_BG[name],
                     on && 'ring-2 ring-foreground',
@@ -140,7 +140,7 @@ export function CardDetailCoverColor({
               type="button"
               onClick={() => onSelect(null)}
               disabled={pending}
-              className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {copy.coverColorClear}
             </button>
@@ -182,8 +182,8 @@ export function CardDetailCoverColor({
                   aria-label={`${attachmentCopy.cover.selectAria} ${image.fileName}`}
                   aria-pressed={image.isCover}
                   className={cn(
-                    'flex min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-none transition-colors',
-                    'hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
+                    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-none transition-colors',
+                    'hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50',
                     image.isCover && 'border-primary',
                   )}
                 >

@@ -150,7 +150,7 @@ export function CardDetailDescription({
         <button
           type="button"
           onClick={start}
-          className="block w-full rounded-md bg-muted/40 p-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+          className="block w-full cursor-pointer rounded-md bg-muted/40 p-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
         >
           {copy.descriptionEmptyPrompt}
         </button>
