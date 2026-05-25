@@ -46,19 +46,35 @@ export interface UseReportI18nResult {
 
 /**
  * Dot-notation key (`reports.foo.bar`) JSON locale ağacında lookup.
- * `reports.` prefix'i strip edilir — JSON kökü doğrudan `composer`,
- * `list`, ... taşır. Eksik path → undefined.
+ * `reports.` prefix'i strip edilir. Locale JSON'da bazı leaf key'ler
+ * (özellikle `activity.types.card.due_set`, `comment.deleted` gibi
+ * domain event kodları) tek string key'inde nokta taşır — onları
+ * hiyerarşi olarak parse etmek hatalı. Bu yüzden her node'da önce
+ * "kalan path tam key olarak var mı?" sorulur; yoksa ilk noktaya kadar
+ * olan baş segmente düş ve alt traverse'i sürdür. Hem klasik nested
+ * key'leri (`composer.title.create`) hem nokta-içeren leaf key'leri
+ * (`activity.types.card.due_set`) tek geçişle çözer.
  */
 function resolveKey(key: string): string | undefined {
   if (!key.startsWith('reports.')) return undefined;
-  const parts = key.slice('reports.'.length).split('.');
-  let cursor: unknown = LOCALE_TREE;
-  for (const part of parts) {
-    if (cursor === undefined || cursor === null) return undefined;
-    if (typeof cursor !== 'object') return undefined;
-    cursor = (cursor as Record<string, unknown>)[part];
+  return walkPath(LOCALE_TREE, key.slice('reports.'.length));
+}
+
+function walkPath(node: unknown, path: string): string | undefined {
+  if (node === null || node === undefined) return undefined;
+  if (typeof node !== 'object') return undefined;
+  const obj = node as Record<string, unknown>;
+  // 1) Tam path leaf key olarak var mı?
+  const direct = obj[path];
+  if (typeof direct === 'string') return direct;
+  // 2) Yoksa baş segmenti node key olarak alıp alt traverse et.
+  const dot = path.indexOf('.');
+  if (dot === -1) {
+    return undefined;
   }
-  return typeof cursor === 'string' ? cursor : undefined;
+  const head = path.slice(0, dot);
+  const rest = path.slice(dot + 1);
+  return walkPath(obj[head], rest);
 }
 
 function interpolate(template: string, params?: Record<string, unknown>): string {

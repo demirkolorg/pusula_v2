@@ -71,6 +71,15 @@ export function KpiCard({
 
   const valueClass =
     size === 'lg' ? 'text-4xl' : size === 'sm' ? 'text-xl' : 'text-2xl md:text-3xl';
+  // Sm KPI rozetlerinde label'lar dar kutuda yan yana sıralanıyor (örn.
+  // status-breakdown, due-date-overview). Uppercase + `tracking-wide`
+  // birlikte uzun TR kelimelerini ("TAMAMLANMIŞ", "ARŞİVLENMİŞ") taşırıp
+  // sonunu kırpıyordu — sm'de tracking'i sıkı, larger size'larda klasik
+  // wide.
+  const labelClass =
+    size === 'sm'
+      ? 'truncate text-[11px] font-semibold uppercase tracking-normal text-muted-foreground'
+      : 'text-xs font-medium uppercase tracking-wide text-muted-foreground';
 
   return (
     <div
@@ -83,7 +92,7 @@ export function KpiCard({
         className,
       )}
     >
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <p className={labelClass}>
         {t(labelKey)}
       </p>
       {/*

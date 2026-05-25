@@ -86,7 +86,7 @@ export function ReportComposerDialog(props: ReportComposerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[90vh] max-w-5xl overflow-hidden p-0"
+        className="flex h-[96vh] max-h-[96vh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[98vw]"
         data-testid="report-composer-dialog"
       >
         <DialogHeader className="border-b px-6 py-4">
@@ -136,43 +136,50 @@ function ComposerBody({
     : null;
 
   return (
-    <div className="flex max-h-[78vh] flex-col">
-      <div className="grid flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <div className="space-y-5">
-          <PresetPicker
-            scopeKind={scope.kind}
-            value={state.presetId}
-            onChange={state.setPresetId}
-          />
-          {state.presetId && (
-            <FilterForm
-              scope={scope}
-              value={state.filters}
-              onChange={state.setFilters}
-              availableMembers={memberOptions}
-              availableLabels={labelOptions}
-              availableLists={listOptions}
-              availableBoards={boardOptions}
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
+        {/* Sol panel: şablon + filtreler + karşılaştırma (ayrı scroll) */}
+        <aside className="flex min-h-0 flex-col overflow-hidden border-b bg-muted/20 lg:border-b-0 lg:border-r">
+          <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+            <PresetPicker
+              scopeKind={scope.kind}
+              value={state.presetId}
+              onChange={state.setPresetId}
+              compact
             />
-          )}
-          {state.presetId && (
-            <ComparisonToggle
-              value={state.comparison}
-              onChange={state.setComparison}
-              range={state.filters.range}
+            {state.presetId && (
+              <FilterForm
+                scope={scope}
+                value={state.filters}
+                onChange={state.setFilters}
+                availableMembers={memberOptions}
+                availableLabels={labelOptions}
+                availableLists={listOptions}
+                availableBoards={boardOptions}
+              />
+            )}
+            {state.presetId && (
+              <ComparisonToggle
+                value={state.comparison}
+                onChange={state.setComparison}
+                range={state.filters.range}
+              />
+            )}
+          </div>
+        </aside>
+        {/* Sağ panel: önizleme (ayrı scroll) */}
+        <main className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-5">
+            <ReportPanel
+              dataset={dataset}
+              loading={state.previewQuery.isFetching}
+              errorMessage={previewError}
+              onRefresh={state.refreshPreview}
+              isStale={state.isStale}
+              compact
             />
-          )}
-        </div>
-        <div className="min-h-0 space-y-3">
-          <ReportPanel
-            dataset={dataset}
-            loading={state.previewQuery.isFetching}
-            errorMessage={previewError}
-            onRefresh={state.refreshPreview}
-            isStale={state.isStale}
-            compact
-          />
-        </div>
+          </div>
+        </main>
       </div>
       <ActionBar
         scope={scope}

@@ -101,6 +101,7 @@ export function ReportPanel({
           dataset={dataset}
           onExportPng={onExportPng}
           exportPending={exportPending}
+          compact={compact}
         />
       </div>
     </div>

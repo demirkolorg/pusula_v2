@@ -41,12 +41,19 @@ export interface MicroReportGridProps {
   onExportPng?: (input: { microReportId: string; format: 'png' | 'svg' }) => void;
   /** Export mutation pending — buton disable için (UX). */
   exportPending?: boolean;
+  /**
+   * Compact mode (composer önizleme gömülü) → max 2 kolon; standalone
+   * panelde (saved report detay) 4 kolon. Compact'te 4 widget'ı 580px
+   * civarı sağ kolona basmaya çalışınca shell başlıkları taşıyordu.
+   */
+  compact?: boolean;
 }
 
 export function MicroReportGrid({
   dataset,
   onExportPng,
   exportPending,
+  compact,
 }: MicroReportGridProps) {
   const { t, locale } = useReportI18n();
 
@@ -56,7 +63,14 @@ export function MicroReportGrid({
         <RestrictedScopeBanner restricted={dataset.restrictedScope} t={t} />
       )}
       <div
-        className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
+        className={
+          compact
+            ? // Widget'ların çoğu `col-span-2` taşır (donut + KPI panel,
+              // chart frame'ler). 4 kolon grid'de 2'şerli yan yana hizalanır;
+              // 3 kolonda son satır boşluk bırakırdı.
+              'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'
+            : 'grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4'
+        }
         data-testid="report-micro-grid"
       >
         {dataset.microReports.map((mr) => {

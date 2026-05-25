@@ -96,7 +96,7 @@ export function StatusBreakdown(props: MicroReportProps<StatusBreakdownData>) {
             </PieChart>
           </ResponsiveContainer>
         </ChartFrame>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <KpiCard
             labelKey="reports.filters.scope.cardStatus.open"
             value={data.open}
