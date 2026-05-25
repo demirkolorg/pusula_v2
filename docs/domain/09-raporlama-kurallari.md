@@ -17,15 +17,17 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/domain/02-yetkilendirme-kurallari|Yetkilendirme Kuralları]]'
   - '[[docs/domain/05-aktivite-kurallari|Aktivite Kuralları]]'
-updated: 2026-05-23T12:00
+updated: 2026-05-25
 ---
 
 # 09 — Raporlama Kuralları
 
 > Eksen: **iş / domain**. Faz 13 raporlama sisteminin **ürün/domain** kuralları:
 > kim ne raporu görür, hangi micro-report hangi seviyede çalışır, comparison delta semantiği,
-> auto-aggregation izin kuralları. Teknik mimari → [`../architecture/16-raporlama-mimarisi.md`](../architecture/16-raporlama-mimarisi.md).
-> Faz/iş listesi → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md).
+> auto-aggregation izin kuralları. Faz 14 (klasik pano PDF) — §9.15.
+> Teknik mimari → [`../architecture/16-raporlama-mimarisi.md`](../architecture/16-raporlama-mimarisi.md).
+> Faz/iş listesi → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md) (Faz 13) ·
+> [`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md) (Faz 14).
 
 ## 9.1 Çekirdek Kavramlar
 
@@ -250,4 +252,96 @@ Custom cron expression desteği V1'de yok.
 - Cache'i kullanıcı arası paylaşmak (key'de `userId` zorunlu, çünkü permission filtreleme her kullanıcıda farklı).
 - Saved report'a ayrı bir ACL eklemek — entity yetkisi (scope sahipliği) tek kaynak.
 - Custom cron expression eklemek (V1: preset cadence yeterli).
-- Rapor üretimini request handler'da senkron yapmak (her PDF render asenkron worker job).
+- Rapor üretimini request handler'da senkron yapmak (**bu kural Faz 13 için** — Faz 14 klasik PDF deliberate olarak senkron; §9.15'e bak).
+
+## 9.15 Klasik Rapor (Faz 14) — Pano PDF Kuralları
+
+Faz 13'ün kapsamlı raporlama sistemine **paralel ve bağımsız** ikinci PDF
+subsystem'i. Eski Pusula'nın `@react-pdf/renderer` tek-tık senkron PDF
+özelliğinin v2'ye birebir uyarlaması. Pano başlık dropdown'unda "Rapor İndir"
+→ bekle → PDF in.
+
+Faz 14 plan + 12 karar kaydı + domain mapping →
+[`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md).
+Teknik mimari → [`../architecture/16-raporlama-mimarisi.md`](../architecture/16-raporlama-mimarisi.md) §16.18.
+
+### 9.15.1 Scope ve Parametreler
+
+- **Scope sabit:** 1 PDF = 1 pano. Card / List / Workspace klasik rapor V1'de yok.
+- **Parametre yok:** Kullanıcı filtre/preset seçmez; PDF her zaman pano'nun
+  tam o anki snapshot'ını üretir.
+- **Yetki:** Faz 13'ün `canPerformReportAction('render', boardScope, ctx)`
+  policy'si birebir kullanılır (karar 6). viewer/member/admin matrisi hazır;
+  yeni permission yok.
+- **Boş pano (karar 12):** PDF her durumda üretilir. 0 liste veya tüm
+  listelerde 0 kart ise Sayfa 2'den sonra "Veri yok" bilgi sayfası
+  (`reports.classic.empty.title` + `reports.classic.empty.description`)
+  eklenir. 422 ile reddetme yok.
+
+### 9.15.2 "Tamamlanan Kart" Tanımı (karar 1)
+
+- `cards.completed = true` (boolean; DEM-66/67 Faz 2.7 ile eklendi).
+- `completed_at` (timestamptz) ve `completed_by` (user FK) PDF içeriğinde
+  gösterilmez — yalnız sayım/işaretleme için kullanılır.
+- "Son liste = Done konvansiyonu" / "tüm checklist tamam" / "Tamamlandı label"
+  alternatifleri reddedildi.
+- Kapak metriği: `tamamlananKart = cards.filter(c => c.completed).length`.
+- Liste sayfası sembol: tamamlandı `✓`, açık `○` (component sabiti).
+
+### 9.15.3 "Acil/İvedi" Göstergesi (karar 2)
+
+- **Tamamen kaldırıldı.** Eski Pusula `Görev.ivedi` alanının v2 karşılığı yok
+  (DEM-71 arşivli kart, DEM-100 background, vb. açıldı ama acil/öncelik
+  bayrağı kurulmadı). PDF V1 sade kalır: kapakta acil kutusu yok, liste
+  sayfalarında acil işareti yok.
+- V2 backlog: "Acil" label konvansiyonu + opsiyonel render.
+
+### 9.15.4 Yorum Clamp (karar 7)
+
+- Liste sayfasında her kart altında **son 5 yorum** indented gösterilir
+  (`└─ <yazar> · <zaman>: <body_plaintext, max 200 char>`).
+- Yorum sayısı > 5 ise footer: `… ve {count - 5} yorum daha`.
+- Yorum sayısı 0 ise satır hiç eklenmez (boş "yorum yok" yazısı yok).
+- `body_plaintext` Faz 11 deseninden hazır (Tiptap JSON → plaintext
+  denormalize); PDF render yeniden parse etmez.
+
+### 9.15.5 Checklist Yerleşimi (karar 8)
+
+- Kart satırının altında indented (`└─ [✓] item başlığı`) — ayrı checklist
+  sayfası yok (karar 8'de reddedildi).
+- Tamamlanmış item: `[✓]` + `text-decoration: line-through` + soluk renk.
+- Açık item: `[ ]` + normal stil.
+- Sol border `#e5e7eb` 2px ile görsel olarak kart bağlamına bağlanır.
+- Checklist sayısı 0 ise satır eklenmez.
+
+### 9.15.6 Arşivli Davranış
+
+- **Arşivli kart**: `cards.archived_at IS NOT NULL` olan kartlar PDF'e
+  **dahil edilmez** (kapak metrikleri ve liste sayfaları hesaplamasında
+  yok sayılır). "Kullanıcı arşivde görmüyor" → rapora da girmiyor.
+- **Arşivli liste**: `lists.archived_at IS NOT NULL` olan listeler ayrı sayfa
+  olarak render edilmez. Liste sayısı ve kart sayımına dahil değil.
+- **Arşivli kullanıcı (board member)**: Rol/üye sayfasında listelenmez
+  (workspace üyesi inactive olursa); ama atanmış oldukları geçmiş kartların
+  metadata'sında ad görünür (immutable).
+
+### 9.15.7 Domain Mapping (Kanonik)
+
+Eski Pusula domain → v2 mapping kanonik tablosu
+[`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md) §8.2'de.
+v2'de karşılığı olmayan eski Pusula alanları (`Görev.ivedi`, `ProjeDetay`
+custom field, `Kategori`) PDF'ten **çıkarıldı** — alternatif önerilmedi.
+
+### 9.15.8 Kaçınılması Gerekenler (klasik rapor domain)
+
+- "Tamamlanan kart" için ikinci tanım eklemek (sadece `cards.completed`;
+  checklist% / "Done" listesi / label alternatifleri reddedildi).
+- Acil/öncelik göstergesi eklemek (V1 dışı; V2 backlog).
+- Arşivli kart/listeyi PDF'e dahil etmek.
+- Kullanıcıya parametre / filtre / preset göstermek (parametresiz; klasik
+  PDF tek-tık).
+- Faz 13'ün `report.*` router'ını veya `report_renders` tablosunu reuse
+  etmek (klasik PDF buffer doğrudan response, persistence yok).
+- Permission'ı yeniden tanımlamak (`canPerformReportAction` Faz 13F policy
+  reuse).
+- Boş pano için 422 reddi (karar 12 — "Veri yok" sayfası).

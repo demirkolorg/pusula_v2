@@ -30,7 +30,7 @@
       "customSummary": "{from} → {to}"
     },
     "filter": {
-      "helperHint": "Server bu filtreleri Zod ile doğrular; eksik alan yoksayılır.",
+      "helperHint": "Boş bıraktığın alanlar filtre olarak uygulanmaz.",
       "range": {
         "label": "Tarih Aralığı",
         "selectPlaceholder": "Hazır aralık seç",
@@ -431,6 +431,15 @@
     "name": "{name}",
     "none": "—"
   },
+  "metrics": {
+    "activityCount": "Toplam etkinlik",
+    "cardCount": "Toplam kart",
+    "openCardCount": "Açık kart",
+    "completedCardCount": "Tamamlanan kart",
+    "overdueCardCount": "Gecikmiş kart",
+    "commentCount": "Yorum",
+    "memberCount": "Üye"
+  },
   "presets": {
     "cardOverview": {
       "title": "Kart Genel Bakış",
@@ -580,7 +589,14 @@
     "dueDateOverview": {
       "title": "Vade Durumu",
       "emptyState": "Vadeli kart yok.",
-      "barAriaLabel": "Vade gruplarına göre kart dağılımı"
+      "barAriaLabel": "Vade gruplarına göre kart dağılımı",
+      "segments": {
+        "overdue": "Gecikmiş",
+        "dueSoon": "Yaklaşan",
+        "upcoming": "İleride",
+        "noDueDate": "Vadesiz",
+        "completed": "Tamamlanmış"
+      }
     },
     "agingReport": {
       "title": "Yaşlanma Raporu",
@@ -739,6 +755,60 @@
       "checklist.item_removed": "öğeyi sildi",
       "attachment.added": "ek ekledi",
       "attachment.removed": "eki sildi"
+    }
+  },
+  "classic": {
+    "cover": {
+      "title": "PANO RAPORU",
+      "boardInfoHeading": "Pano Bilgileri",
+      "boardNameLabel": "Pano Adı:",
+      "workspaceLabel": "Çalışma Alanı:",
+      "memberCountLabel": "Üye Sayısı:",
+      "createdAtLabel": "Oluşturma:",
+      "archivedAtLabel": "Arşivlendi:",
+      "statsHeading": "Pano İstatistikleri",
+      "metricTotal": "Toplam Kart",
+      "metricCompleted": "Tamamlanan",
+      "metricOpen": "Açık",
+      "overallProgress": "Genel İlerleme: %",
+      "footerAuto": "Bu rapor {date} tarihinde Pusula tarafından otomatik olarak oluşturulmuştur."
+    },
+    "members": {
+      "title": "PANO ÜYELERİ",
+      "noMembers": "Bu panoda henüz üye yok.",
+      "metricTotal": "Toplam Üye",
+      "metricPerMember": "Üye Başı Kart",
+      "metricUnassigned": "Atanmamış Açık Kart",
+      "cardsHeading": "Üye Kartları",
+      "activeCards": "aktif kart",
+      "footer": "Sayfa 2 — Pano Üyeleri"
+    },
+    "empty": {
+      "title": "GÖREVLER",
+      "heading": "Bu panoda henüz kart yok",
+      "description": "Kart eklendikten sonra rapor liste ve yorum sayfalarıyla zenginleşir.",
+      "footer": "Sayfa 3 — Veri yok"
+    },
+    "list": {
+      "title": "GÖREV DETAYLARI",
+      "sectionSummarySuffix": "— Bölüm Özeti",
+      "noCards": "Bu listede henüz kart bulunmuyor.",
+      "metricTotal": "Toplam Kart",
+      "metricCompleted": "Tamamlanan",
+      "cardsHeading": "Kartlar",
+      "tableStatus": "Durum",
+      "tableCardName": "Kart Adı",
+      "tableAssigneeDue": "Atanan / Bitiş",
+      "unassigned": "Atanmamış",
+      "footer": "Sayfa {page} — {listName}"
+    },
+    "card": {
+      "recentCommentsHeading": "Son Yorumlar",
+      "moreCommentsFooter": "… ve {count} yorum daha"
+    },
+    "author": {
+      "guest": "Misafir",
+      "deleted": "Silinmiş kullanıcı"
     }
   }
 }

@@ -49,6 +49,22 @@ export { resolveBoardAccess, type BoardAccess } from './middleware/board-access'
 // `workspace:join` handler permission gate'i için.
 export { resolveWorkspaceMembership } from './middleware/workspace';
 
+// Faz 14D — Klasik pano PDF raporu veri toplayıcı service (DEM-293).
+// `apps/web` route handler (14E — DEM-295) ve `<BoardReportDocument>`
+// component (14C — DEM-294) buradan tüketir.
+export {
+  CLASSIC_REPORT_COMMENTS_PER_CARD,
+  loadBoardForClassicReport,
+  type BoardReportData,
+  type ClassicReportCard,
+  type ClassicReportChecklist,
+  type ClassicReportChecklistItem,
+  type ClassicReportComment,
+  type ClassicReportList,
+  type ClassicReportMember,
+  type ClassicReportStats,
+} from './services/board-report-data';
+
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from './root';
 

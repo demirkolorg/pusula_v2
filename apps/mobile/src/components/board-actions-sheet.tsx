@@ -14,6 +14,14 @@ type BoardActionsSheetProps = {
   onRename: (title: string) => void;
   /** Board'u arşivler — çağıran onayı (`Alert`) + navigasyonu üstlenir. */
   onArchive: () => void;
+  /**
+   * Faz 14F (DEM-296) — pano raporu (klasik PDF) indir/paylaş akışı. Çağıran
+   * `useDownloadBoardReport` hook'unu tüketir ve `download` callback'ini buraya
+   * geçirir. Verilmediğinde aksiyon satırı gizlenir (test/silent kullanım).
+   */
+  onDownloadReport?: () => void;
+  /** İndirme akışı sırasında `true` — aksiyon satırı `İndiriliyor…` gösterir. */
+  downloadReportPending?: boolean;
   onClose: () => void;
 };
 
@@ -21,17 +29,22 @@ type ActionRowProps = {
   icon: IconName;
   label: string;
   destructive?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 };
 
-function ActionRow({ icon, label, destructive = false, onPress }: ActionRowProps) {
+function ActionRow({ icon, label, destructive = false, disabled = false, onPress }: ActionRowProps) {
   const theme = themeFor(useColorScheme());
   const color = destructive ? theme.destructive : theme.foreground;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={disabled ? { disabled: true } : undefined}
       onPress={onPress}
-      className="flex-row items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 active:opacity-70"
+      disabled={disabled}
+      className={`flex-row items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 ${
+        disabled ? 'opacity-50' : 'active:opacity-70'
+      }`}
     >
       <Icon name={icon} size={18} color={color} />
       <Text className={`text-sm ${destructive ? 'text-destructive' : 'text-foreground'}`}>
@@ -52,6 +65,8 @@ export function BoardActionsSheet({
   boardTitle,
   onRename,
   onArchive,
+  onDownloadReport,
+  downloadReportPending = false,
   onClose,
 }: BoardActionsSheetProps) {
   const [mode, setMode] = useState<'menu' | 'rename'>('menu');
@@ -70,6 +85,18 @@ export function BoardActionsSheet({
             label={strings.board.renameBoard}
             onPress={() => setMode('rename')}
           />
+          {onDownloadReport && (
+            <ActionRow
+              icon="download"
+              label={
+                downloadReportPending
+                  ? strings.board.downloadReportBusy
+                  : strings.board.downloadReport
+              }
+              disabled={downloadReportPending}
+              onPress={onDownloadReport}
+            />
+          )}
           <ActionRow
             icon="archive"
             label={strings.board.archiveBoard}

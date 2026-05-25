@@ -35,6 +35,11 @@ import { BoardIconPicker } from './board-icon-picker';
  * `accessRequests`) ayrı `BoardMembersDropdown`'a taşındı. Etiket paleti de
  * kendi ikon-butonuna (`BoardLabelsDropdown`) ayrıldı. Bu dropdown yalnız
  * "ayar" işini taşır: arka plan / pano işlemleri.
+ *
+ * Faz 14F (DEM-296) sonrası "Rapor İndir" item dropdown'dan kaldırıldı ve
+ * `BoardTopBar`'daki chrome ikon serisine taşındı (`DownloadReportButton`) —
+ * dropdown derinliği yerine tek-tık eski Pusula refleksi (kullanıcı geri
+ * bildirimi 2026-05-25).
  */
 export type BoardSettingsTab = 'background' | 'actions';
 

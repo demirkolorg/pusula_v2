@@ -23,6 +23,7 @@ import { canEditBoard, canManageBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
 import { useBoardMutations } from '@/lib/use-board-mutations';
 import { useBoardViewMode } from '@/lib/use-board-view-mode';
+import { useDownloadBoardReport } from '@/lib/use-download-board-report';
 import { themeFor } from '@/theme/tokens';
 
 /**
@@ -55,6 +56,9 @@ export default function BoardScreen() {
   const mutations = useBoardMutations(boardId);
   // Görünüm modu (DEM-233) — kanban kolon / dikey liste. Global + kalıcı tercih.
   const { mode: viewMode, setMode: setViewMode } = useBoardViewMode();
+  // Faz 14F (DEM-296) — klasik pano PDF indir/paylaş; board ⋮ menüsünden tetiklenir.
+  const { download: downloadReport, isDownloading: isDownloadingReport } =
+    useDownloadBoardReport(boardId, query.data?.board.title);
   // `useBoardMutations` her render'da yeni nesne döndürür — kolonlara geçen
   // handler'ları stabil tutmak için ref üzerinden okuruz (DEM-226 #2/#3).
   const mutationsRef = useRef(mutations);
@@ -378,6 +382,10 @@ export default function BoardScreen() {
           setBoardActionsOpen(false);
         }}
         onArchive={handleArchiveBoard}
+        onDownloadReport={() => {
+          void downloadReport();
+        }}
+        downloadReportPending={isDownloadingReport}
         onClose={() => setBoardActionsOpen(false)}
       />
     </>

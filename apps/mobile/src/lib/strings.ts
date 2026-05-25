@@ -207,6 +207,12 @@ export const strings = {
       'Bu pano arşivlenecek ve salt-okunur olacak. Arşivden geri yükleyebilirsin.',
     archiveBoardConfirmAction: 'Arşivle',
     archiveBoardError: 'Pano arşivlenemedi. Lütfen tekrar dene.',
+    // Klasik PDF rapor indirme (Faz 14F — DEM-296). Web ile paralel akış;
+    // Faz 13S `FileSystem.downloadAsync` + `Sharing.shareAsync` deseni reuse.
+    downloadReport: 'Rapor indir',
+    downloadReportBusy: 'İndiriliyor…',
+    downloadReportErrorTitle: 'Rapor indirilemedi',
+    downloadReportErrorBody: 'Lütfen birkaç saniye sonra tekrar dene.',
     // Görünüm modu geçişi (DEM-233 — kanban kolon / dikey liste görünümü).
     // Header'a sığan ikon-only segmented control; metinler yalnız erişilebilirlik
     // etiketi olarak kullanılır.

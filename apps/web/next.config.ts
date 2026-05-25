@@ -6,6 +6,11 @@ const config: NextConfig = {
   reactStrictMode: true,
   // Internal workspace packages ship TypeScript source; let Next compile them.
   transpilePackages: ['@pusula/ui', '@pusula/domain', '@pusula/api'],
+  // Faz 14B: `@react-pdf/renderer` server-side native module (fontkit/brotli)
+  // taşır; webpack tracer bunları bundle'a yutmaya çalışırsa derleme şişer ve
+  // standalone tracer hata verir. `serverExternalPackages` ile Node modüllerini
+  // `require()` üzerinden runtime'da çöz.
+  serverExternalPackages: ['@react-pdf/renderer'],
   // Production Docker image (DEM-60): emit a self-contained `server.js` so the
   // runtime stage only ships the standalone bundle (no full node_modules).
   output: 'standalone',

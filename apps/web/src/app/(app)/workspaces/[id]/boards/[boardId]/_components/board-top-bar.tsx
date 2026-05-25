@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { FilterIcon, InboxIcon, Share2Icon, UserCheckIcon } from 'lucide-react';
+import {
+  FileDownIcon,
+  FilterIcon,
+  InboxIcon,
+  Loader2Icon,
+  Share2Icon,
+  UserCheckIcon,
+} from 'lucide-react';
 import { DEFAULT_BOARD_ICON, ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import {
   Badge,
@@ -17,6 +24,7 @@ import {
   toast,
 } from '@pusula/ui';
 import { EntityIconGlyph } from '@/components/entity-icon';
+import { useDownloadBoardReport } from '@/lib/pdf/use-download-board-report';
 import { strings } from '@/lib/strings';
 import { ArchiveBoardDialog, useRestoreBoard } from './archive-board-dialog';
 import { BoardActivityDropdown } from './board-activity-dropdown';
@@ -209,6 +217,48 @@ function QuickNotesToggle({ open, onToggle }: { open: boolean; onToggle: () => v
   );
 }
 
+/**
+ * Faz 14F (DEM-296) — Klasik pano PDF tek-tık indirme butonu. Üst bar chrome
+ * ikon serisinde (Filtre/Arşiv yanı); dropdown derinliği yerine eski Pusula
+ * refleksi tek tık. `useDownloadBoardReport` hook'u indirme state'ini yönetir
+ * (paralel ikinci tıklama disable; toast içerir).
+ */
+function DownloadReportButton({
+  boardId,
+  boardTitle,
+}: {
+  boardId: string;
+  boardTitle: string;
+}) {
+  const copy = strings.board.topBar;
+  const { download, isDownloading } = useDownloadBoardReport({ boardId, boardTitle });
+  const label = isDownloading ? copy.menuDownloadReportBusy : copy.menuDownloadReport;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          aria-busy={isDownloading}
+          disabled={isDownloading}
+          onClick={() => void download()}
+          className={cn('size-8', boardChromeButtonClass)}
+        >
+          {isDownloading ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <FileDownIcon className="size-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function BoardTopBar({
   boardId,
   workspaceId,
@@ -285,6 +335,7 @@ export function BoardTopBar({
           <AssignedToMeToggle active={assignedToMe.active} onToggle={assignedToMe.onToggle} />
         )}
         {filter && <BoardFilterMenu filter={filter} />}
+        <DownloadReportButton boardId={boardId} boardTitle={title} />
         {archive && <ArchivedItemsDropdown boardId={boardId} {...archive} />}
         <SearchDialog
           variant="board"

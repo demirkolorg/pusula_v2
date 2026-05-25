@@ -19,14 +19,17 @@ related:
   - '[[docs/process/07-faz-13-raporlama-plani|Faz 13 Raporlama Planı (süreç)]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/06-bildirim-altyapisi|Bildirim Altyapısı]]'
-updated: 2026-05-24T23:00
+updated: 2026-05-25
 ---
 
 # 16 — Raporlama Mimarisi
 
-> Eksen: **tasarım / teknik**. Faz 13 (post-MVP epic, [DEM-256](https://linear.app/demirkol/issue/DEM-256)).
+> Eksen: **tasarım / teknik**. Faz 13 (post-MVP epic, [DEM-256](https://linear.app/demirkol/issue/DEM-256))
+> ana raporlama sistemi; Faz 14 (post-MVP epic, [DEM-290](https://linear.app/demirkol/issue/DEM-290))
+> bağımsız ikinci PDF subsystem'i — §16.18.
 > Domain kuralları → [`../domain/09-raporlama-kurallari.md`](../domain/09-raporlama-kurallari.md).
-> Faz planı → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md).
+> Faz planı → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md) (Faz 13) ·
+> [`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md) (Faz 14).
 
 ## 16.0 Karar Özeti (20 nokta)
 
@@ -1025,3 +1028,180 @@ edilir; UI tetik yok.
 - Kullanıcı tetikli "Şimdi temizle" admin butonu.
 - Soft delete + restore window (7g arşiv).
 - DLQ inspect UI (manual redrive).
+
+## 16.18 Klasik Pano PDF (Faz 14 — DEM-290)
+
+Faz 13'ün kapsamlı raporlama sistemine **paralel ve bağımsız** ikinci PDF
+subsystem'i. Eski Pusula (`D:\projects\pusulav0`, v2.2) `@react-pdf/renderer`
+tek-tık senkron PDF özelliğinin v2'ye birebir uyarlaması. Pano başlık
+dropdown'unda "Rapor İndir" → bekle → PDF in.
+
+Faz 14 plan + 12 karar kaydı + domain mapping kanonik tablosu →
+[`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md).
+Domain kuralları → [`../domain/09-raporlama-kurallari.md`](../domain/09-raporlama-kurallari.md) §9.15.
+
+### 16.18.1 Faz 13 vs Faz 14 Ayrım Tablosu
+
+| Boyut                        | Faz 13 (kapsamlı raporlama)                                | Faz 14 (klasik pano PDF)                                  |
+| ---------------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
+| Tetikleyici                  | Composer modal (preset + filtre + scope seçimi)            | Pano dropdown "Rapor İndir" — parametresiz                |
+| Scope                        | Card / List / Board / Workspace (universal micro-report)   | Board sabit (1 PDF = 1 pano)                              |
+| Renderer                     | Puppeteer + `apps/web/src/app/(internal)/reports/print/[id]` | `@react-pdf/renderer` server-side JSX → buffer           |
+| Pipeline                     | BullMQ `report-render` queue + worker + MinIO + Resend     | Senkron request handler (`route.ts`) → `pdf().toBuffer()` |
+| Persistence                  | `report_renders` + `report_render_assets` + retention 90g  | Hiçbiri — buffer doğrudan response body                   |
+| Cache                        | Redis kısa-TTL (60-600s) + outbox-driven invalidation       | Yok — her istek deep-fetch yeniden                        |
+| Permission                   | `canPerformReportAction(action, scope, ctx)` policy        | **Aynı policy reuse** (`render`, `boardScope`, `ctx`)     |
+| i18n namespace               | `reports.*` (Faz 13Q)                                      | `reports.classic.*` (alt scope, aynı dosya)               |
+| Mobil                        | `apps/mobile` WebView panel + `FileSystem.downloadAsync`   | Aynı `FileSystem.downloadAsync` + `Sharing.shareAsync`    |
+| Worker queue                 | `report-render`, `report-schedule`, vd.                    | **Hiç worker queue yok**                                  |
+| Storage                      | MinIO `pusula-reports` bucket                              | **Hiç MinIO yok**                                         |
+
+### 16.18.2 Paket / Katman Yerleşimi
+
+```txt
+apps/web/
+  src/
+    app/
+      api/boards/[boardId]/report/route.ts  ◀ 14E (yeni)
+    components/reports/classic-pdf/
+      board-report-document.tsx              ◀ 14C (yeni — eski 915 satır port)
+      use-download-board-report.ts           ◀ 14F (yeni — fetch + blob + download)
+    lib/pdf/
+      fonts.ts                               ◀ 14B (yeni — Roboto CDN register)
+  package.json                                ◀ 14B (@react-pdf/renderer ^4.3.0)
+
+packages/api/
+  src/services/
+    board-report-data.ts                     ◀ 14D (yeni — deep-fetch service)
+```
+
+### 16.18.3 Endpoint + Permission
+
+```txt
+GET /api/boards/[boardId]/report
+  │
+  ├─ Better Auth session → 401 yoksa
+  ├─ Board lookup (Drizzle) → 404 yoksa
+  ├─ canPerformReportAction('render', { type: 'board', id: boardId }, ctx)
+  │    └─ FORBIDDEN → 403
+  ├─ loadBoardForClassicReport(db, boardId, userId)
+  │    └─ deep-fetch tek query'de:
+  │       board + workspace + boardMembers + lists + cards(non-archived)
+  │       + checklists + checklistItems + comments (top 5 per card)
+  │       + cardMembers + labels + attachments (varlık sayımı)
+  ├─ pdf(<BoardReportDocument data={...}/>).toBuffer()
+  │    └─ Roboto CDN register (fonts.ts) — Font.register({ family: 'Roboto', src: ... })
+  ├─ filename = `{slugify(board.title)}-raporu-{format(now, 'yyyy-MM-dd')}.pdf`
+  │    └─ ASCII-clean Turkish-friendly (turkishSlugify helper)
+  └─ NextResponse(buffer, {
+       headers: {
+         'Content-Type': 'application/pdf',
+         'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+       }
+     })
+```
+
+**Permission stratejisi (karar 6):** Faz 13F'te yazılan
+`canPerformReportAction('render', boardScope, ctx)` policy birebir reuse
+edilir. Yeni permission kodu yok; viewer/member/admin matrisi hazır.
+
+**Hata yolu:** 401 (no session) · 403 (permission) · 404 (board not found) ·
+500 (deep-fetch fail veya `pdf().toBuffer()` fail). Sentry breadcrumb her
+hatada (`boardId`, `userId`, stage).
+
+### 16.18.4 React-PDF Document — 4 Sayfa Kategorisi
+
+`<BoardReportDocument data={...}/>` tek dosya inline (eski Pusula `ProjectReportDocument.tsx`
+915 satır deseni). Sayfa kategorileri:
+
+```jsx
+<Document>
+  <Page size="A4" style={styles.coverPage}>{/* Sayfa 1 — Kapak */}</Page>
+  <Page size="A4" style={styles.membersPage}>{/* Sayfa 2 — Üyeler */}</Page>
+  {data.lists.map((list) => (
+    <Page key={list.id} size="A4" style={styles.listPage}>
+      {/* Sayfa 3.N — Liste sayfası (her liste ayrı) */}
+      {/* Kart tablosu + altında indented checklist + son 5 yorum */}
+    </Page>
+  ))}
+  {data.totalCommentCount > 0 && (
+    <Page size="A4" style={styles.commentsPage}>{/* Sayfa 4 — Yorumlar özeti */}</Page>
+  )}
+</Document>
+```
+
+İçerik kanonik tablosu → [`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md) §8.3.
+Boş pano (karar 12) durumunda Sayfa 3 ve 4 hiç render edilmez — yerine
+Sayfa 2'den sonra "Veri yok" bilgi sayfası eklenir.
+
+### 16.18.5 Font Stratejisi (karar 4)
+
+```ts
+// apps/web/src/lib/pdf/fonts.ts
+import { Font } from '@react-pdf/renderer';
+
+export function registerReportFonts() {
+  Font.register({
+    family: 'Roboto',
+    fonts: [
+      { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5Q.ttf', fontWeight: 400 },
+      { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmEU9fBBc4.ttf', fontWeight: 500 },
+      { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.ttf', fontWeight: 700 },
+    ],
+  });
+}
+```
+
+CDN ilk istekte cache'lenir (~50KB). Local `apps/web/public/fonts/`
+reddedildi (binary repo yükü). TR karakter render (ş/ğ/ü/ç/ö/ı) doğrulaması
+14C kabul kriteri.
+
+### 16.18.6 Mobil Entegrasyonu (karar 10 — Faz 13S reuse)
+
+`apps/mobile` board ayarları header dropdown'unda "Pano raporu indir":
+
+```ts
+// apps/mobile/app/(app)/workspaces/[id]/boards/[boardId].tsx
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
+async function downloadBoardReport(boardId: string, boardTitle: string) {
+  const url = `${apiUrl}/api/boards/${boardId}/report`;
+  const filename = `${slugify(boardTitle)}-raporu-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+  const dest = `${FileSystem.cacheDirectory}${filename}`;
+  const { uri } = await FileSystem.downloadAsync(url, dest, {
+    headers: { Cookie: betterAuthSessionCookie },
+  });
+  await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+}
+```
+
+Faz 13S'in (DEM-275) kazandırdığı altyapı birebir reuse. Yeni native paket
+eklenmez (`expo-file-system` + `expo-sharing` zaten projede).
+
+### 16.18.7 Senkron Pipeline'ın Sınırları
+
+Senkron request handler'ın bilinen sınırları + kabul:
+
+| Risk                                                   | Etki                              | Önlem                                                                                              |
+| ------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Büyük pano (500+ kart) PDF render 30s+ alabilir        | Request timeout (Vercel 60s)      | V1 kabul — küçük/orta panolar hedef; büyük pano kullanıcısı Faz 13'ün asenkron pipeline'ına yönlendirilir |
+| Concurrent indirme N-isteğe doğru Node CPU bound       | Server load spike                 | Next.js route handler default concurrency; production'da rate limit (Faz 8C k6 senaryo)            |
+| `@react-pdf/renderer` server bundle ~2MB              | Cold start +200ms                 | Kabul — tek route handler, lazy import yeterli                                                     |
+| Roboto CDN unreachable                                 | PDF fontless render (fallback)   | `@react-pdf/renderer` system font fallback'i (Helvetica) — TR karakter eksik kalır → 14C kabul: CDN gerekli, offline build edilirse local'e geç |
+
+**Karşılaştırma:** Faz 13'ün Puppeteer pipeline'ı bu sınırları aşar
+(asenkron queue + worker + retention), ama Faz 14 deliberate olarak basit
+tutulur — "tek tık → PDF" UX'i için worker overhead'i aşırı.
+
+### 16.18.8 Kaçınılması Gerekenler (klasik PDF)
+
+- Puppeteer kullanmak (Faz 13'ün araçları; klasik için aşırı).
+- Composer UI açmak (parametresiz; kullanıcı seçenek görmez).
+- Worker queue eklemek (senkron request handler yeterli).
+- MinIO'ya kaydetmek (buffer doğrudan response).
+- Faz 13 print sayfasını (`/reports/print/[id]`) reuse etmek (farklı pipeline; karışıklık riski).
+- Arşivli kart/listeyi PDF'e dahil etmek (`cards.archived_at IS NULL` zorunlu filtre).
+- Permission'ı yeniden yazmak (karar 6 — Faz 13 policy reuse).
+- i18n'i hardcode TR ile geçmek (karar 11 — `reports.classic.*` namespace).
+- 422 ile boş pano'yu reddetmek (karar 12 — "Veri yok" sayfası).
