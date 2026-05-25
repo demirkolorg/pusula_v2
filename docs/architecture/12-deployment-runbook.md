@@ -385,6 +385,7 @@ DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olar
    ya da `mc` ile:
    `mc alias set local http://<vds>:... <key> <secret> && mc mb local/pusula && mc anonymous set download local/pusula/avatars`.
    Son komut `avatars/` prefix'ini anonim okumaya açar (DEM-160 — yüklenen avatarlar kalıcı public URL olarak çözülür); bucket'ın geri kalanı (kart ekleri) private kalır. (İleride init container'a alınabilir.)
+   - **Opsiyonel — bucket CORS (`Access-Control-Allow-Origin`):** Web `app.${ROOT_DOMAIN}` origin'inden kart kapağı görselinin baskın rengini canvas örneklemesiyle çıkarıp modal banner arkaplanına uygulamak için (`apps/web` `card-cover-image.tsx` → `onDominantColor`), MinIO bucket'ına `https://app.${ROOT_DOMAIN}` origin'i için CORS izni eklenmelidir. CORS yoksa modal kapak banner'ı sessizce `bg-muted` fallback'inde kalır — kapak görseli yine yüklenir, sadece dominant renk uygulanmaz. `mc` ile: bucket için bir CORS JSON (`AllowedOrigins: ["https://app.${ROOT_DOMAIN}"]`, `AllowedMethods: ["GET"]`, `AllowedHeaders: ["*"]`) hazırlanıp `mc anonymous set-json` benzeri politika veya MinIO konsolundan **Buckets → pusula → Configure → CORS** üzerinden tanımlanır.
 4. **Doğrulama:** `docker ps` — `pusula-api`, `pusula-worker`, `pusula-web`, `pusula-postgres`, `pusula-redis`, `pusula-minio` ayakta, healthcheck'ler `healthy`; `migrate` `Exited (0)`.
 
 ---
