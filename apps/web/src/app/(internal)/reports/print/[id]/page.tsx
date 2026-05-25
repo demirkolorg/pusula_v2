@@ -58,12 +58,35 @@ const TOKEN_REGEX = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
  */
 const RENDER_ID_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
 
+// Faz 13T (DEM-276) — sessiz `notFound()` Puppeteer'a 404 dönmesine yol
+// açıyordu; worker `waitForFunction('window.__reportReady')` 30s timeout +
+// `pdf_render_failed` stamp. Server-side structured warn → Dokploy container
+// log'larında görünür hale getir; PII-safe (token loglanmaz, sadece renderId
+// + sebep). Sentry init bu route'ta yok (public print sayfası); konsol log
+// container log'a yansır + Pusula log toplama disiplini buradan tarar.
+function warnFetchFailure(
+  renderId: string,
+  reason: 'invalid_render_id' | 'invalid_token' | 'network_error' | 'http_error' | 'empty_payload',
+  detail?: { status?: number; statusText?: string; message?: string },
+): void {
+  console.warn(
+    '[reports/print] verifyToken fetch fail',
+    JSON.stringify({ renderId, reason, ...(detail ?? {}) }),
+  );
+}
+
 async function fetchReportPayload(
   renderId: string,
   token: string,
 ): Promise<ReportPrintPayload | null> {
-  if (!RENDER_ID_REGEX.test(renderId)) return null;
-  if (!TOKEN_REGEX.test(token)) return null;
+  if (!RENDER_ID_REGEX.test(renderId)) {
+    warnFetchFailure(renderId, 'invalid_render_id');
+    return null;
+  }
+  if (!TOKEN_REGEX.test(token)) {
+    warnFetchFailure(renderId, 'invalid_token');
+    return null;
+  }
 
   const url = new URL(
     `${env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/trpc/report.print.verifyToken`,
@@ -76,11 +99,20 @@ async function fetchReportPayload(
       cache: 'no-store',
       headers: { accept: 'application/json' },
     });
-  } catch {
+  } catch (error) {
+    warnFetchFailure(renderId, 'network_error', {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    warnFetchFailure(renderId, 'http_error', {
+      status: res.status,
+      statusText: res.statusText,
+    });
+    return null;
+  }
   const body = (await res.json().catch(() => null)) as {
     result?: {
       data?: {
@@ -94,7 +126,10 @@ async function fetchReportPayload(
     };
   } | null;
   const payload = body?.result?.data?.json;
-  if (!payload) return null;
+  if (!payload) {
+    warnFetchFailure(renderId, 'empty_payload');
+    return null;
+  }
   return payload;
 }
 

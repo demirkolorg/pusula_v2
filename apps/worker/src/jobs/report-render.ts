@@ -602,6 +602,44 @@ async function renderPdfWithBrowser(args: {
 }): Promise<PdfRenderResult> {
   const browser = await getOrLaunchBrowser(args.launcher, args.executablePath);
   const page = await browser.newPage();
+  // Faz 13T (DEM-276) — `waitForFunction` 30s timeout'a düşüyorsa
+  // (`pdf_render_failed`), sebep print sayfası tarafında: server fetch
+  // fail (404), client JS error, recharts crash, network unreachable.
+  // Bu listener'lar PII-safe diagnostic'i Dokploy container log'una düşürür;
+  // token query string'i URL'de görünür — log toplamada token redaction
+  // önlemi alınmalı (Sentry beforeBreadcrumb / Loki regex). renderId
+  // korelasyonu için her log'a prefix.
+  page.on('pageerror', (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      '[report-render] page JS error',
+      JSON.stringify({
+        renderId: args.renderId,
+        message,
+      }),
+    );
+  });
+  page.on('requestfailed', (request) => {
+    console.warn(
+      '[report-render] page request failed',
+      JSON.stringify({
+        renderId: args.renderId,
+        url: request.url(),
+        failure: request.failure()?.errorText,
+      }),
+    );
+  });
+  page.on('response', (response) => {
+    if (response.ok()) return;
+    console.warn(
+      '[report-render] page non-OK response',
+      JSON.stringify({
+        renderId: args.renderId,
+        url: response.url(),
+        status: response.status(),
+      }),
+    );
+  });
   try {
     // Token query string'de — print sayfası bunu okur (cookie/header yok,
     // public route). HTTPS production'da TLS encrypts; HTTP dev için

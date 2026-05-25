@@ -685,6 +685,115 @@ module.exports = withSentryConfig(
 
 ---
 
+## 12.16 Faz 13 — Raporlama sistemi yayını ([DEM-276](https://linear.app/demirkol/issue/DEM-276))
+
+Faz 13'ün (DEM-256..276) production yayını additive: yeni `report_*` tabloları + yeni queue'lar; mevcut endpoint'ler / kuyruklar dokunulmaz. Rolling update zero-downtime. Bu bölüm 13T'nin (DEM-276) deploy adımlarını + smoke + dry-run geçişi + rollback'i toplar.
+
+### 12.16.1 Önkoşullar
+
+- Bağımlı işlerin Linear durumu `Done`: 13A-13Q + 13R (E2E) + 13S (mobil) ya da skip kararı.
+- `WORKER_SHARED_SECRET` üretildi (`openssl rand -base64 48`, min 32 char) — api + worker AYNI değer.
+- `S3_REPORTS_BUCKET=pusula-reports` MinIO konsoluyla **manuel oluşturulmuş**, private, lifecycle policy 90g (worker yedeği).
+- Resend production paid plan + `EMAIL_FROM` domain Resend dashboard'unda **verified**.
+- Sentry projeleri (`pusula-api`, `pusula-worker`) DSN'leri Dokploy env'ine girilmiş.
+
+### 12.16.2 Dokploy env (yeni anahtarlar)
+
+| Anahtar | Üretim değeri | Notlar |
+| --- | --- | --- |
+| `WORKER_SHARED_SECRET` | `openssl rand -base64 48` çıktısı | api + worker AYNI; her ikisinin de production hardening guard'ı boş bırakılırsa boot'u durdurur |
+| `S3_REPORTS_BUCKET` | `pusula-reports` | MinIO konsolundan **manuel oluştur** (private + lifecycle 90g) |
+| `INTERNAL_API_URL` | compose'da `http://api:3001` hard-coded | env'de geçersiz kılabilirsin (özel iç DNS gerekirse) |
+| `REPORT_RETENTION_DRY_RUN` | İLK HAFTA `true` | 7g log incelemesi sonrası kullanıcı onayıyla `false` + worker restart |
+| `REPORT_RETENTION_KEEP_VERSIONS` | `5` (default) | Override istenirse Dokploy env panelinden |
+| `REPORT_RETENTION_MAX_AGE_DAYS` | `90` (default) | Override istenirse Dokploy env panelinden |
+
+### 12.16.3 MinIO bucket oluşturma (manuel)
+
+```bash
+mc alias set prod https://s3.${ROOT_DOMAIN} <root-key> <root-secret>
+mc mb prod/pusula-reports
+mc anonymous set none prod/pusula-reports
+# Lifecycle policy: 90g sonra otomatik silme (worker retention'ın yedeği)
+mc ilm rule add --id "expire-90d" --expire-days 90 prod/pusula-reports
+```
+
+Private kalmalı; rapor PDF/Excel asset'lerine yalnızca signed URL ile erişilir (1sa render butonu, 24sa email link). Public access YASAK.
+
+### 12.16.4 Deploy
+
+1. Dokploy panelinden yeni env'leri kaydet → "Apply & Restart" worker + api'yı yeniden başlatır.
+2. `git push origin main` → Dokploy webhook tetikler → build (worker image Chromium katmanı ile ~+150MB, ilk build ~5-10dk yavaşlar) → rolling apply.
+3. `migrate` servisi otomatik koşar — yeni `report_*` tabloları + 4 enum (~5-10sn).
+4. Health: `docker ps` worker `Up (healthy)`; worker stdout'unda `[reportRetentionWorker] cron registered` log'u görünmeli; `getOrLaunchBrowser` ilk PDF tetikleneşe kadar lazy.
+
+### 12.16.5 8 smoke senaryo
+
+Production workspace'inde sırayla (her senaryo tamam olmadan diğerine geçme):
+
+1. **Ad-hoc PDF render**: pano → Raporlar butonu → `board.health` preset → PDF İndir → ≤30sn'de toast + MinIO `workspace/<wsId>/<renderId>.pdf` görünür.
+2. **Saved report**: composer'dan Kaydet → workspace `/reports` listesinde başlık görünür → aç → panel render eder + micro-report'lar.
+3. **Scheduled rapor**: saved report'a daily 09:00 schedule + recipient (test email) → `runNow` → ≤60sn'de Resend gönderir → email içeriğindeki signed URL açılıyor + PDF iniyor.
+4. **Stale rozeti**: iki sekme (admin /reports/<id> açık + member aynı board'da kart taşıyor) → admin'de 1-2sn içinde "Veriler güncellendi" rozeti.
+5. **Excel export**: saved report → Excel İndir → ≤10sn'de `.xlsx` → metadata sheet + micro-report sheet'leri.
+6. **PNG export**: saved report → bir widget → ⋮ → "Resim olarak indir" → PNG açılır + chart 2x retina net.
+7. **Restricted scope**: workspace member (kısıtlı) hesabıyla workspace raporu aç → "Kısıtlı görünüm" rozeti görünür; admin hesabıyla rozet YOK.
+8. **Comparison delta**: composer → comparison toggle on → KPI'da ↑/↓ rozeti + chart'ta noktalı önceki seri.
+
+**Mobile smoke (13S Done ise):** TestFlight/Android internal build → Workspace → Raporlar → liste → detay (WebView) → PDF indir → share sheet.
+
+**Diagnostic — render fail olursa:** Worker stdout'unda `[report-render] page JS error` / `[report-render] page non-OK response` / `[reports/print] verifyToken fetch fail` prefix'li satırlar görünür (Faz 13T, DEM-276 sessiz 404 izleme). Token query string PII; log toplama (Loki/Sentry) regex maske ile temizlemeli.
+
+### 12.16.6 Sentry alert kuralları (panel — 4 kural)
+
+| Kural | Koşul | Aksiyon |
+| --- | --- | --- |
+| PDF render fail rate | `apps/worker` `report-render` `job_failed` > 5 / 15dk | Email + on-call |
+| Puppeteer timeout | `PUPPETEER_TIMEOUT` / `pdf_render_failed` > 3 / 1sa | Alert (Chromium memory leak şüphesi) |
+| MinIO upload fail | `S3PutObjectFailed` `report-render` > 1 / 15dk | Alert (MinIO down veya disk full) |
+| Schedule worker idle | `report-schedule-tick` no success > 5dk | Alert (cron tetiklenmiyor) |
+
+Bonus (V2): `report.cache.hit` / `report.cache.miss` custom metric Grafana dashboard (13E telemetri).
+
+### 12.16.7 Dry-run → live geçişi (ilk hafta sonu)
+
+7 gün boyunca worker stdout'unda `[DRY-RUN] would delete X` sayımları izlenir. Aşırı silme adayı yoksa + worker fail rate sıfıra yakınsa:
+
+1. Kullanıcı onayı al.
+2. Dokploy env `REPORT_RETENTION_DRY_RUN=false`.
+3. Worker restart (Dokploy panel "Restart container").
+4. İlk live tick log'unu izle — `[reportRetentionWorker] deleted N renders` görünmeli.
+
+### 12.16.8 Rollback
+
+**Hızlı (1-2 dk) — feature kapatma:**
+- Dokploy "Deployments" geçmişinden önceki başarılı deployment'a "Redeploy".
+- Worker mevcut iş kuyruklarını bitirir + yeni iş almaz; api/web raporlama UI'ı kalır ama backend 404.
+
+**Orta (5-10 dk) — şema geri al:**
+- Kullanıcı onayıyla manuel SQL (tablolar additive, mevcut veri etkilenmez):
+  ```sql
+  DROP TABLE report_render_assets;
+  DROP TABLE report_renders;
+  DROP TABLE report_schedules;
+  DROP TABLE saved_reports;
+  DROP TYPE report_render_format;
+  DROP TYPE report_render_status;
+  DROP TYPE report_schedule_cadence;
+  DROP TYPE report_scope_kind;
+  ```
+
+**Worker partial rollback — sadece render queue:**
+- Sorunlu kuyruğu Redis CLI ile manuel pause:
+  ```bash
+  docker exec pusula-redis redis-cli -a $REDIS_PASSWORD SET "bull:pusula-report-render:meta-paused" 1
+  ```
+- Render request'leri kuyrukta birikir; UI "hazırlanıyor" toast'unda kalır. Sorun çözülünce resume.
+
+**Backup:** Faz 13 deploy öncesi günlük `pg_dump` zaten alınıyor (§12.12) — felaket durumunda son `pg_dump`'tan dön.
+
+---
+
 ## İlgili belgeler
 
 - Deployment kararı + mimari özet: [`10-platform.md`](10-platform.md) §10.3, [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) (ADR-lite 2026-05-12).

@@ -46,6 +46,11 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
       SENTRY_DSN_API: ${SENTRY_DSN_API}
+      # Faz 13I/13T (DEM-265/276) — `report.print.requestToken` /
+      # `verifyToken` HMAC-SHA256 imza secret'i. Worker print akışı tek nokta
+      # güven; min 32 char. api ve worker AYNI değeri taşımalı. Boş bırakılırsa
+      # `apps/api/src/env.ts` production hardening boot'u durdurur.
+      WORKER_SHARED_SECRET: ${WORKER_SHARED_SECRET}
     depends_on:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
@@ -84,6 +89,16 @@ services:
     image: pusula-api:latest # same image as `api`, different command
     command: ['node', 'apps/worker/dist/index.js']
     restart: unless-stopped
+    # Faz 13T (DEM-276) — Puppeteer Chromium + recharts render için worker'a
+    # memory + cpu sınırı. Spec §16.8: render concurrency=2, page başına
+    # ~200MB; browser singleton + 2 page + node heap → ~1GB tavan yeterli.
+    # OOM aşılırsa Docker SIGKILL → unless-stopped restart → kuyruktan
+    # yeniden alır. cpus=2 paralel render'ı yavaşlatmasın diye.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '2'
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -91,6 +106,7 @@ services:
       # Bildirim/auth e-postalarındaki derin bağlantıların (davet, kart, parola
       # sıfırlama) tabanı. Worker e-posta/push şablonlarını bu değerden üretir;
       # eksikse Zod default'u localhost'a düşer ve maillerdeki linkler bozulur.
+      # Faz 13I — Puppeteer print sayfası da bu URL üzerinden açılır.
       APP_URL: ${APP_URL}
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_REGION: ${S3_REGION}
@@ -100,6 +116,24 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
       SENTRY_DSN_WORKER: ${SENTRY_DSN_WORKER}
+      # Faz 13I/13T (DEM-265/276) — print akışı paylaşılan secret. api ile
+      # AYNI değer. apps/worker/src/env.ts production hardening guard'ı boş
+      # bırakılırsa boot'u durdurur.
+      WORKER_SHARED_SECRET: ${WORKER_SHARED_SECRET}
+      # Faz 13I (DEM-265) — Puppeteer worker `report.print.requestToken`
+      # çağrısı için iç ağ üzerinden api hostname. compose servis adı +
+      # API_PORT (default 3001). Public API_URL kullanılsa Traefik üzerinden
+      # tekrar dışa çıkıp gelir (gereksiz hop + TLS handshake).
+      INTERNAL_API_URL: http://api:3001
+      # Faz 13I (DEM-265) — rapor render asset'leri için ayrı bucket; lifecycle
+      # ve ACL politikası attachment bucket'ından (S3_BUCKET=pusula) izole.
+      # MinIO konsoluyla ilk deploy öncesi MANUEL oluşturulmalı (runbook §12.7).
+      S3_REPORTS_BUCKET: ${S3_REPORTS_BUCKET:-pusula-reports}
+      # Faz 13P (DEM-272) — retention worker. İLK HAFTA 'true' kalır (dry-run);
+      # operator log incelemesi sonrası kullanıcı onayıyla 'false' set edilir
+      # (Dokploy env panel + worker restart). docs/architecture/16-raporlama
+      # -mimarisi.md §16.17 + risk tablosu.
+      REPORT_RETENTION_DRY_RUN: ${REPORT_RETENTION_DRY_RUN:-true}
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
