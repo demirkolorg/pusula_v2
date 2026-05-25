@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   LinkIcon,
   ListIcon,
@@ -56,6 +56,12 @@ type CardModalHeaderProps = {
   /** Sağ panel (yorum/aktivite/ekler) açık mı — toggle butonunun durumunu sürer. */
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  /**
+   * Üye / vade / etiket / kapak / ek meta chip'leri. Başlığın tüm satırı
+   * kullanabilmesi için chip satırı header'a, aksiyon butonlarının soluna
+   * yerleştirilir (2026-05-25).
+   */
+  metaChips?: ReactNode;
 };
 
 /**
@@ -77,6 +83,7 @@ export function CardModalHeader({
   archived,
   sidebarOpen,
   onToggleSidebar,
+  metaChips,
 }: CardModalHeaderProps) {
   const copy = strings.card.detail.modal;
   const [copied, setCopied] = useState(false);
@@ -160,6 +167,18 @@ export function CardModalHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {metaChips && (
+            <>
+              <div className="flex shrink-0 items-center">{metaChips}</div>
+              <div
+                aria-hidden
+                className={cn(
+                  'mx-1 h-5 w-px',
+                  onColored ? 'bg-current/25' : 'bg-border',
+                )}
+              />
+            </>
+          )}
           {/* Faz 13G (DEM-263) — kart raporu composer'ını açan ikon buton. */}
           <CardReportsButton
             cardId={cardId}

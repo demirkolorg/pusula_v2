@@ -272,6 +272,12 @@ const workspaceMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Üye davet etme yetkiniz yok.' });
     }
     const email = input.email.toLowerCase();
+    // DEM-298 — caller cannot invite themselves (UI prevents it too; this is
+    // the server-side defense-in-depth). Match against the session e-mail in
+    // its normalized form so case differences don't slip through.
+    if (ctx.session.user.email.trim().toLowerCase() === email) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+    }
 
     return ctx.db.transaction(async (tx) => {
       const [workspace] = await tx

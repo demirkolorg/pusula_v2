@@ -383,6 +383,9 @@ export const strings = {
     accountSettings: 'Hesap ayarları',
     themeToggleToLight: 'Açık temaya geç',
     themeToggleToDark: 'Koyu temaya geç',
+    fontToggle: {
+      trigger: 'Yazı tipi ve boyutu',
+    },
     fontSize: {
       trigger: 'Yazı boyutu',
       label: 'Yazı boyutu',
@@ -1225,6 +1228,8 @@ export const strings = {
       open: 'Gezgin panelini aç',
       close: 'Gezgin panelini kapat',
       filterTitle: 'Göster',
+      filterSelectAll: 'Tümünü seç',
+      filterClearAll: 'Tümünü kaldır',
       filterWorkspaces: 'Çalışma alanları',
       filterBoards: 'Panolar',
       filterLists: 'Listeler',
@@ -1533,6 +1538,10 @@ export const strings = {
     inviteEmailPlaceholder: 'ornek@eposta.com',
     inviteSubmit: 'Davet gönder',
     inviteSubmitting: 'Gönderiliyor…',
+    // DEM-298 — inline UI hatası; kullanıcı kendi e-postasını girerse hem
+    // workspace davet hem board üye ekleme formları bu mesajı gösterir.
+    // Server da `BAD_REQUEST` ile aynı kuralı uygular (defense-in-depth).
+    cannotInviteSelf: 'Kendinizi davet edemezsiniz.',
     pendingTitle: 'Bekleyen davetler',
     workspaceGroupTitle: 'Workspace davetleri',
     boardGroupTitle: 'Pano davetleri',

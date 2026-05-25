@@ -64,4 +64,16 @@ describe('<AddBoardMemberForm>', () => {
       screen.getByText('aria@example.com e-posta adresine davet gönderildi.'),
     ).toBeInTheDocument();
   });
+
+  it('rejects self-invite inline when the typed e-mail matches currentUserEmail (DEM-298)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<AddBoardMemberForm onSubmit={onSubmit} currentUserEmail="me@example.com" />);
+
+    await user.type(screen.getByLabelText(copy.addEmailLabel), '  Me@Example.COM ');
+    await user.click(screen.getByRole('button', { name: copy.addSubmit }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText('Kendinizi davet edemezsiniz.')).toBeInTheDocument();
+  });
 });

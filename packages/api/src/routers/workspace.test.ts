@@ -366,6 +366,26 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     expect((inAppRow?.payload as { inviteToken?: string }).inviteToken).toBeUndefined();
   });
 
+  it('members.invite: caller cannot invite themselves by e-mail — DEM-298 (BAD_REQUEST)', async () => {
+    // invOwnerId already has admin+ on the workspace so the permission gate
+    // passes; the self-invite guard must trip on the e-mail match (and survive
+    // case normalization).
+    await expect(
+      callerFor(invOwnerId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(invOwnerId),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+    await expect(
+      callerFor(invOwnerId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(invOwnerId).toUpperCase(),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+  });
+
   it('members.invite: a second pending invitation for the same email is CONFLICT', async () => {
     await expect(
       callerFor(invOwnerId).workspace.members.invite({

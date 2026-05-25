@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pusula/ui';
+import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { InviteMemberForm } from './invite-member-form';
@@ -42,6 +43,9 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const trpc = useTRPC();
   const copy = strings.invitations;
+  // DEM-298 — block self-invite at the UI seam (server also rejects).
+  const { data: session } = authClient.useSession();
+  const currentUserEmail = session?.user.email;
 
   const [open, setOpen] = useState(false);
 
@@ -83,6 +87,7 @@ export function InviteMemberDialog({
           onSubmit={(email) =>
             inviteMember.mutate({ workspaceId, email, clientMutationId: crypto.randomUUID() })
           }
+          currentUserEmail={currentUserEmail}
         />
       </DialogContent>
     </Dialog>

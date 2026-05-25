@@ -43,7 +43,7 @@ describe('<CardDetailMembers>', () => {
     expect(screen.getByText(cardRoleLabels.assignee)).toBeInTheDocument();
   });
 
-  it('viewer (canEdit=false): only a "watch this card" toggle for self, no add form', () => {
+  it('viewer (canEdit=false): no add form and no self-watch toggle (DEM-298)', () => {
     render(
       <CardDetailMembers
         members={[]}
@@ -54,11 +54,10 @@ describe('<CardDetailMembers>', () => {
         onRemove={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: copy.watchSelf })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: copy.addAction })).not.toBeInTheDocument();
   });
 
-  it('viewer already watching: the toggle reads "unwatch" and removes the watcher row', async () => {
+  it('viewer already watching: row-level "Çıkar" still removes own watcher row (self-leave is allowed — DEM-298)', async () => {
     const user = userEvent.setup();
     const onRemove = vi.fn();
     render(
@@ -71,8 +70,28 @@ describe('<CardDetailMembers>', () => {
         onRemove={onRemove}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.unwatchSelf }));
+    await user.click(screen.getByRole('button', { name: copy.remove }));
     expect(onRemove).toHaveBeenCalledWith({ userId: 'u1', role: 'watcher' });
+  });
+
+  it('add form filters the caller out of the board-member picker (DEM-298)', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    render(
+      <CardDetailMembers
+        members={[]}
+        // u1 = caller, u2 = someone else; the picker must hide u1.
+        boardMembers={boardMembers}
+        viewerUserId="u1"
+        canEdit
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: copy.addAction }));
+    await user.click(screen.getByRole('combobox', { name: copy.memberLabel }));
+    expect(screen.queryByRole('option', { name: /Ada/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Bora/ })).toBeInTheDocument();
   });
 
   it('member: remove on a row calls onRemove with that (userId, role)', async () => {

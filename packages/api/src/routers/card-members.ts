@@ -4,9 +4,12 @@
  * visibility already enforced) — the procedure body adds the finer role check
  * with `@pusula/domain/permissions`:
  * - `list`   — board `viewer+` (the procedure already guarantees it).
- * - `add`    — board `member+` (`canEditBoardContent`) **unless** the caller is
- *              adding *themselves* as a `watcher`, in which case board `viewer+`
- *              suffices (a watcher follows a card; a viewer may follow).
+ * - `add`    — board `member+` (`canEditBoardContent`). **Caller cannot add
+ *              themselves at all** (DEM-298): an `input.userId === caller`
+ *              request is rejected with `FORBIDDEN` — card membership is a
+ *              relationship somebody else marks; self-add carries no information
+ *              and the old "self-watch as a viewer" affordance was retired in
+ *              favour of this stricter rule (`docs/domain/02-yetkilendirme-kurallari.md`).
  * - `remove` — board `member+` **unless** the caller is removing *themselves*
  *              (any role), in which case board `viewer+` suffices.
  *
@@ -84,18 +87,22 @@ export const cardMembersRouter = router({
   }),
 
   /**
-   * Add a card member (`assignee` / `watcher`). Board `member+` only, except a
-   * board `viewer` may add *themselves* as a `watcher`. The candidate must be
-   * able to reach the card's board (workspace member + non-null effective board
-   * role). An archived board is read-only. Idempotent: re-adding an existing
-   * `(cardId, userId, role)` triple returns `{ ..., changed: false }` without
-   * writing activity or bumping `version`; otherwise writes a `card.member_added`
-   * activity event and bumps `boards.version`.
+   * Add a card member (`assignee` / `watcher`). Board `member+` only. **Self-add
+   * is rejected outright** (DEM-298): if `input.userId === caller`, throw
+   * `FORBIDDEN` regardless of role — kart üyeliği başkası tarafından kurulur
+   * (mevcut `watcher`/`assignee` satırını kullanıcı bırakabilir; bkz. `remove`).
+   * The candidate must be able to reach the card's board (workspace member +
+   * non-null effective board role). An archived board is read-only. Idempotent:
+   * re-adding an existing `(cardId, userId, role)` triple returns
+   * `{ ..., changed: false }` without writing activity or bumping `version`;
+   * otherwise writes a `card.member_added` activity event and bumps
+   * `boards.version`.
    */
   add: cardProcedure.input(addCardMemberInput).mutation(async ({ ctx, input }) => {
-    const selfWatch = input.userId === ctx.session.user.id && input.role === 'watcher';
-    const access = accessFromBoardRole(ctx.card.boardRole);
-    if (!(selfWatch ? canViewBoard(access) : canEditBoardContent(access))) {
+    if (input.userId === ctx.session.user.id) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kendinizi karta ekleyemezsiniz.' });
+    }
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Karta üye ekleme yetkiniz yok.' });
     }
 

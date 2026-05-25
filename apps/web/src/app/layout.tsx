@@ -18,7 +18,7 @@ import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
 
 // Poppins is the brand/default typeface. Additional families below are
-// opt-in personalization options exposed via the header `FontFamilyToggle`
+// opt-in personalization options exposed via the header `FontToggle`
 // — only the active family's font file is actually requested by the
 // browser; the others stay as preloaded CSS variables that can be swapped
 // at runtime without an extra fetch. `latin-ext` covers Turkish glyphs

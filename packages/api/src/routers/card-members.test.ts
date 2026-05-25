@@ -150,21 +150,18 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v1);
   });
 
-  it('add: a board viewer may add *themselves* as a watcher; but cannot add someone else (FORBIDDEN)', async () => {
-    const selfWatch = await callerFor(guestViewerId).card.members.add({
-      cardId,
-      userId: guestViewerId,
-      role: 'watcher',
-      clientMutationId: crypto.randomUUID(),
-    });
-    expect(selfWatch).toMatchObject({
-      cardId,
-      userId: guestViewerId,
-      role: 'watcher',
-      changed: true,
-    });
+  it('add: self-add is rejected for any role (DEM-298) — viewer, member, owner all FORBIDDEN', async () => {
+    // a viewer cannot make themselves a watcher (old self-watch loophole closed).
+    await expect(
+      callerFor(guestViewerId).card.members.add({
+        cardId,
+        userId: guestViewerId,
+        role: 'watcher',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
-    // a viewer cannot make themselves an assignee (only watcher self-add is allowed)
+    // a viewer cannot make themselves an assignee either.
     await expect(
       callerFor(guestViewerId).card.members.add({
         cardId,
@@ -174,7 +171,25 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
-    // a viewer cannot add anyone else
+    // a board member/owner cannot add themselves either.
+    await expect(
+      callerFor(memberId).card.members.add({
+        cardId,
+        userId: memberId,
+        role: 'assignee',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      callerFor(ownerId).card.members.add({
+        cardId,
+        userId: ownerId,
+        role: 'watcher',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // a viewer also cannot add anyone else (permission rule still applies).
     await expect(
       callerFor(guestViewerId).card.members.add({
         cardId,
@@ -252,7 +267,9 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
   // ---------------------------------------------------------------- remove
 
   it('remove: a member removes another member (card.member_removed, version+1); idempotent re-remove is changed:false', async () => {
-    await callerFor(memberId).card.members.add({
+    // The viewer/member who'll be removed can't self-add (DEM-298), so the
+    // owner sets up the row instead.
+    await callerFor(ownerId).card.members.add({
       cardId,
       userId: memberId,
       role: 'assignee',
@@ -290,8 +307,17 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     ).toHaveLength(1);
   });
 
-  it('remove: a board viewer may remove *themselves* (a watcher they added)', async () => {
-    // guestViewerId added themselves as a watcher in an earlier test; remove it.
+  it('remove: a board viewer may remove *themselves* (a watcher someone else added) — self-leave still allowed (DEM-298)', async () => {
+    // A board member adds the viewer as a watcher (viewer cannot self-add
+    // since DEM-298 — but someone else can add them, and self-leave must still
+    // work so the viewer can opt out of notifications).
+    await callerFor(memberId).card.members.add({
+      cardId,
+      userId: guestViewerId,
+      role: 'watcher',
+      clientMutationId: crypto.randomUUID(),
+    });
+
     const removed = await callerFor(guestViewerId).card.members.remove({
       cardId,
       userId: guestViewerId,

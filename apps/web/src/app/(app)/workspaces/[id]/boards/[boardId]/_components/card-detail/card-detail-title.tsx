@@ -40,12 +40,10 @@ export function CardDetailTitle({
   const [valueError, setValueError] = useState<string | null>(null);
 
   useEffect(() => setValue(title), [title]);
-  useEffect(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
+  // Yükseklik için yalnızca CSS `field-sizing: content` kullanılır — JS ile
+  // `style.height` set etmek genişlik değiştiğinde (örn. sidebar açılınca veya
+  // sağdaki meta chip'ler title kolonunu daraltınca) eski yüksekliği kilitliyor
+  // ve content kırpılıyordu (2026-05-25).
   useEffect(() => {
     if (!canEdit || focusEditToken <= 0) return;
     taRef.current?.focus();
@@ -104,7 +102,7 @@ export function CardDetailTitle({
         aria-invalid={valueError ? true : undefined}
         aria-describedby={valueError ? `${inputId}-error` : undefined}
         className={cn(
-          'w-full resize-none rounded-md border-0 bg-transparent px-1 py-0.5 text-[20px] leading-tight font-semibold outline-none transition-colors field-sizing-content sm:text-[22px]',
+          'w-full resize-none overflow-hidden rounded-md border-0 bg-transparent px-1 py-0.5 text-[20px] leading-tight font-semibold outline-none transition-colors field-sizing-content sm:text-[22px]',
           'hover:bg-muted/50 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/40',
           completed && 'text-muted-foreground line-through',
           valueError && 'ring-2 ring-destructive/40',

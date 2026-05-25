@@ -36,9 +36,9 @@ type CardDetailMembersProps = {
   members: CardMember[];
   /** Board members available to add (the picker source). */
   boardMembers: BoardMemberOption[];
-  /** The viewer's own user id (for the self-watch affordance + "you" badge). */
+  /** The viewer's own user id (used for the "you" badge + self-add filter). */
   viewerUserId: string;
-  /** Board `member+` and board/list/card active — may add/remove anyone. */
+  /** Board `member+` and board/list/card active — may add/remove anyone except themselves. */
   canEdit: boolean;
   /** Add `(userId, role)` as a card member. */
   onAdd: (input: { userId: string; role: CardRole }) => void;
@@ -51,9 +51,10 @@ type CardDetailMembersProps = {
 /**
  * Card members: lists `assignee` / `watcher` rows (name + role badge). Board
  * `member+` gets an "add member" mini-form (board member + role) and a "remove"
- * per row; a board `viewer` only gets a "watch this card" / "unwatch" toggle for
- * themselves (their own `watcher` row). Presentational — the dialog wires the
- * mutations.
+ * per row. **Self-add is disallowed** (DEM-298) — the picker filters out the
+ * caller, and any pre-existing `assignee`/`watcher` row the caller carries
+ * still gets the row-level "Çıkar" affordance so they can leave on their own.
+ * Presentational — the dialog wires the mutations.
  */
 export function CardDetailMembers({
   members,
@@ -73,12 +74,9 @@ export function CardDetailMembers({
   const [pickUserId, setPickUserId] = useState('');
   const [pickRole, setPickRole] = useState<CardRole>('assignee');
 
-  const isWatchingSelf = members.some((m) => m.userId === viewerUserId && m.role === 'watcher');
-
-  // Board members who don't already hold the chosen role aren't filtered here —
-  // the server is idempotent; we just offer the full list (minus nobody) for
-  // simplicity, the picker resets after a submit.
-  const addableBoardMembers = boardMembers;
+  // DEM-298 — the caller cannot add themselves, so hide them from the picker.
+  // Server enforces the same rule with `FORBIDDEN`; this is the UX layer.
+  const addableBoardMembers = boardMembers.filter((bm) => bm.userId !== viewerUserId);
 
   const handleAdd = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -96,21 +94,6 @@ export function CardDetailMembers({
           <InfoTooltipButton label={copy.infoLabel} content={copy.info} />
         </div>
         <div className="flex gap-2">
-          {!canEdit && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                isWatchingSelf
-                  ? onRemove({ userId: viewerUserId, role: 'watcher' })
-                  : onAdd({ userId: viewerUserId, role: 'watcher' })
-              }
-            >
-              {pending ? copy.watching : isWatchingSelf ? copy.unwatchSelf : copy.watchSelf}
-            </Button>
-          )}
           {canEdit && (
             <Button type="button" variant="ghost" size="sm" onClick={() => setAdding((v) => !v)}>
               {copy.addAction}

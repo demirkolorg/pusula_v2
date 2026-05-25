@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { AddBoardMemberForm } from './add-board-member-form';
@@ -22,6 +23,10 @@ export function BoardInvitationsSection({ boardId, canManage }: BoardInvitations
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const copy = strings.board.settings;
+  // DEM-298 — self-invite is blocked at the UI seam; the form filters out the
+  // caller's own e-mail and surfaces an inline error before any mutation fires.
+  const { data: session } = authClient.useSession();
+  const currentUserEmail = session?.user.email;
   const [addNotice, setAddNotice] = useState<string | null>(null);
   // The server's `added` / `added_as_guest` results only carry a `userId`, so
   // keep the submitted e-mail around for the success notice.
@@ -67,6 +72,7 @@ export function BoardInvitationsSection({ boardId, canManage }: BoardInvitations
           pending={addMember.isPending}
           error={addMember.isError ? addMember.error.message || strings.common.unknownError : null}
           notice={addNotice}
+          currentUserEmail={currentUserEmail}
         />
       )}
 

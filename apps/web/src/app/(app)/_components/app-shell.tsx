@@ -6,15 +6,14 @@ import { useParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { Separator, boardBackgroundClass, cn } from '@pusula/ui';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandLogoAnimated } from '@/components/brand-logo-animated';
 import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import { BoardSwitcher } from './board-switcher';
 import { ColorThemeToggle } from './color-theme-toggle';
 import { EmailVerificationBanner } from './email-verification-banner';
-import { FontFamilyToggle } from './font-family-toggle';
-import { FontSizeToggle } from './font-size-toggle';
+import { FontToggle } from './font-toggle';
 import { NavigatorPanel } from './navigator-panel';
 import { NavigatorToggle } from './navigator-toggle';
 import { NotificationBell } from './notification-bell';
@@ -107,15 +106,25 @@ export function AppShell({
   // (fixed + backdrop) olarak açılır, link/aksiyon sonrası kendini kapatır.
   // Mobilde mutex: ikisi aynı anda overlay olamaz (üst üste binme önlenir);
   // desktop'ta ikisi yan yana açılabilir.
+  //
+  // Gezgin paneli istisnası: anasayfa (`/`) her ziyarette default AÇIK gelir;
+  // kullanıcı o oturumda kapatabilir ama tercih localStorage'a yazılmaz, yani
+  // bir sonraki anasayfa ziyaretinde tekrar açılır. Diğer sayfalarda mevcut
+  // localStorage davranışı korunur (kullanıcı tercihi hatırlanır).
   const [navigatorOpen, setNavigatorOpenState] = useState(false);
   const [quickNotesOpen, setQuickNotesOpenState] = useState(false);
   useEffect(() => {
-    setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
+    if (isHome) {
+      setNavigatorOpenState(true);
+    } else {
+      setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
+    }
     setQuickNotesOpenState(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
-  }, []);
+  }, [isHome, pathname]);
   useEffect(() => {
+    if (isHome) return;
     window.localStorage.setItem(NAVIGATOR_PANEL_KEY, String(navigatorOpen));
-  }, [navigatorOpen]);
+  }, [navigatorOpen, isHome]);
   useEffect(() => {
     window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
   }, [quickNotesOpen]);
@@ -192,7 +201,7 @@ export function AppShell({
                 'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               )}
             >
-              <BrandLogo variant="plain" markClassName="size-8" textClassName="hidden sm:inline" />
+              <BrandLogoAnimated markClassName="size-8" textClassName="hidden sm:inline" />
             </Link>
             {SHOW_HEADER_SWITCHERS && (
               <>
@@ -226,8 +235,7 @@ export function AppShell({
             />
             <ThemeToggle />
             <ColorThemeToggle />
-            <FontFamilyToggle />
-            <FontSizeToggle />
+            <FontToggle />
             <NotificationBell />
             <UserNavMenu userName={userName} userEmail={userEmail} userImage={userImage} />
           </div>
@@ -235,14 +243,14 @@ export function AppShell({
       </header>
       {!emailVerified && <EmailVerificationBanner email={userEmail} />}
       {/* Trello-style "windowed" gövde: lg+'da row container shell rengini
-          (`bg-board-shell` fullBleed'de; non-fullBleed'de transparan) gösterir;
-          küçük `p-2 gap-2` padding/aralık ile sol panel ve içerik yan yana
-          yuvarlak köşeli kartlar gibi durur. Mobilde padding/gap yok — sığacak
-          yer yok; panel zaten overlay. */}
+          (fullBleed'de `bg-board-shell`; diğer ekranlarda `bg-muted` ayırıcı
+          arka plan) gösterir; küçük `p-2 gap-2` padding/aralık ile sol panel
+          ve içerik yan yana yuvarlak köşeli kartlar gibi durur. Mobilde
+          padding/gap yok — sığacak yer yok; panel zaten overlay. */}
       <div
         className={cn(
           'flex min-h-0 flex-1 lg:gap-2 lg:p-2',
-          fullBleed && 'bg-board-shell',
+          fullBleed ? 'bg-board-shell' : 'lg:bg-muted/50',
         )}
       >
         {/* Gezgin paneli — `lg+`: row akışında shrink-0 (içeriği iter, yuvarlak
@@ -293,7 +301,10 @@ export function AppShell({
           // Non-board sayfalar: main kendi içinde scroll'lanır → outer
           // `h-svh overflow-hidden` ile birlikte body değil bu main scroll'lar.
           // Yan panel + header viewport'ta sabit kalır, içerik tek başına akar.
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          // `lg+`: panel ile aynı stilde yuvarlak kart (Trello "windowed"
+          // görünümü); shell rengi gap'ten görünür. Mobilde köşesiz/kenarsız
+          // full-bleed kalır (sığması için).
+          <main className="bg-background min-h-0 min-w-0 flex-1 overflow-y-auto lg:rounded-xl lg:border">
             <div
               className={cn(
                 'mx-auto w-full py-8',

@@ -118,7 +118,11 @@ export function QuickNoteRow({ note, canConvert, onUpdate, onDelete }: QuickNote
         )}
         <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm">{note.content}</p>
       </div>
-      <div className="mt-2 flex items-center gap-1">
+      {/* Eylem satırı: edit / delete (+ drag ipucu) varsayılan gizli, satır
+          hover'lanınca veya iç odak alındığında (`focus-within`) görünür.
+          Klavye erişimi için `focus-within` zorunlu; opacity-only geçiş
+          layout shift üretmez. */}
+      <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         {draggableEnabled && (
           <span className="text-muted-foreground mr-auto text-xs">{copy.dragHint}</span>
         )}

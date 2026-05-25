@@ -14,19 +14,27 @@ type InviteMemberFormProps = {
   pending?: boolean;
   /** Server-side error message to surface inline (e.g. CONFLICT). */
   error?: string | null;
+  /**
+   * The signed-in user's own e-mail — passed by the dialog from `useSession`.
+   * Used to block self-invite at the UI seam (DEM-298); server also rejects
+   * with `BAD_REQUEST` for defense-in-depth.
+   */
+  currentUserEmail?: string;
 };
 
 /**
  * Presentational "invite a member" form: an e-mail field + submit. No tRPC /
  * query-client dependency — the dialog wrapper wires those in. Validation uses
  * the shared `@pusula/domain` `emailSchema` so the rule matches the server
- * (which also normalizes the address).
+ * (which also normalizes the address). Self-invite is rejected inline when the
+ * caller types their own address (DEM-298).
  */
 export function InviteMemberForm({
   onSubmit,
   onCancel,
   pending = false,
   error,
+  currentUserEmail,
 }: InviteMemberFormProps) {
   const emailId = useId();
   const copy = strings.invitations;
@@ -38,6 +46,13 @@ export function InviteMemberForm({
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) {
       setEmailError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
+      return;
+    }
+    if (
+      currentUserEmail &&
+      parsed.data.trim().toLowerCase() === currentUserEmail.trim().toLowerCase()
+    ) {
+      setEmailError(strings.invitations.cannotInviteSelf);
       return;
     }
     setEmailError(null);

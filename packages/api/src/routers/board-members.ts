@@ -195,6 +195,12 @@ export const boardMembersRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Board üyesi ekleme yetkiniz yok.' });
     }
     const email = input.email; // already trimmed + lowercased by `emailSchema`
+    // DEM-298 — caller cannot invite themselves (UI prevents it too; this is
+    // the server-side defense-in-depth). Match against the session e-mail in
+    // its normalized form so case differences don't slip through.
+    if (ctx.session.user.email.trim().toLowerCase() === email) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+    }
 
     let notificationEventId: string | undefined;
     let realtimeEventId: string | undefined;

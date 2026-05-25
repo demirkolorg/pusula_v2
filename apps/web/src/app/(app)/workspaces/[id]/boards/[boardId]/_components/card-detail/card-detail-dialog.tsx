@@ -611,6 +611,100 @@ export function CardDetailDialog({
               archived={archived}
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen((value) => !value)}
+              metaChips={
+                <CardModalMetaChips
+                  memberCount={cardMembers.length}
+                  labelCount={(cardLabelsQ.data ?? []).length}
+                  dueAt={card.dueAt}
+                  coverColor={coverColor}
+                  canEdit={canEdit}
+                  openMenu={openMetaMenu}
+                  onOpenMenuChange={setOpenMetaMenu}
+                  attachmentCount={attachmentCount}
+                  onOpenAttachments={() => {
+                    setSidebarTab('attachments');
+                    setSidebarOpen(true);
+                  }}
+                  membersContent={
+                    <CardDetailMembers
+                      members={cardMembers}
+                      boardMembers={boardMembers.map((m) => ({
+                        userId: m.userId,
+                        name: m.name,
+                        image: m.image,
+                      }))}
+                      viewerUserId={viewerUserId}
+                      canEdit={canEdit}
+                      onAdd={(input: { userId: string; role: CardRole }) =>
+                        addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                      }
+                      onRemove={(input: { userId: string; role: CardRole }) =>
+                        removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
+                      }
+                      pending={addMember.isPending || removeMember.isPending}
+                      error={errOf(addMember) || errOf(removeMember)}
+                    />
+                  }
+                  dueContent={
+                    <CardDetailDueDate
+                      dueAt={card.dueAt}
+                      canEdit={canEdit}
+                      onSave={(dueAt) => updateDueAt.mutate({ cardId, dueAt })}
+                      pending={updateDueAt.isPending}
+                      error={errOf(updateDueAt)}
+                    />
+                  }
+                  labelsContent={
+                    <CardDetailLabels
+                      cardLabels={cardLabelsQ.data ?? []}
+                      boardLabels={boardLabelsQ.data ?? []}
+                      canEdit={canEdit}
+                      onAdd={(labelId) =>
+                        addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                      }
+                      onRemove={(labelId) =>
+                        removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
+                      }
+                      onCreate={(input: { color: LabelColor; name?: string }) =>
+                        createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
+                      }
+                      pending={
+                        addLabel.isPending ||
+                        removeLabel.isPending ||
+                        createLabel.isPending
+                      }
+                      error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
+                    />
+                  }
+                  coverContent={
+                    <CardDetailCoverColor
+                      coverColor={coverColor}
+                      coverImage={card.coverImage ?? null}
+                      canEdit={canEdit}
+                      onSelect={(next) =>
+                        updateCoverColor.mutate({ cardId, coverColor: next })
+                      }
+                      onImageSelect={uploadCoverImage}
+                      onClearImage={clearCoverImage}
+                      imageAttachments={coverImageOptions}
+                      onCoverImageSelect={selectCoverImageAttachment}
+                      pending={updateCoverColor.isPending}
+                      imagePending={
+                        initiateAttachment.isPending ||
+                        commitAttachment.isPending ||
+                        updateCoverImage.isPending
+                      }
+                      error={
+                        coverImageUploadError ||
+                        errOf(initiateAttachment) ||
+                        errOf(commitAttachment) ||
+                        errOf(updateCoverImage) ||
+                        errOf(updateCoverColor)
+                      }
+                    />
+                  }
+                />
+              }
             />
 
             <div
@@ -620,11 +714,13 @@ export function CardDetailDialog({
               )}
             >
               {/* Left column ------------------------------------------------ */}
-              {/* Toplam scroll YOK — başlık/meta/alert sabit (flex-shrink-0),
+              {/* Toplam scroll YOK — başlık/alert sabit (flex-shrink-0),
                   alttaki iki sütun grid kalan alanı doldurur ve her sütun
-                  kendi içinde bağımsız scroll yapar (2026-05-25). */}
+                  kendi içinde bağımsız scroll yapar (2026-05-25). Meta
+                  chip'ler artık modal header'da (sidebar toggle vb.
+                  butonların solunda) — başlık tüm satırı kullanır. */}
               <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-                <div className="min-w-0 shrink-0 space-y-2 bg-background px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
+                <div className="min-w-0 shrink-0 bg-background px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <CardCompleteToggle
                       checked={completed}
@@ -651,101 +747,7 @@ export function CardDetailDialog({
                         focusEditToken={titleFocusToken}
                       />
                     </div>
-                    {/* Faz 13G (DEM-263) / Faz 9D (DEM-130) — rapor ve paylaş
-                        butonları artık CardModalHeader içinde (icon-only). */}
                   </div>
-
-                  {/* Meta chip row — members / due / labels / cover-colour each
-                      open their picker in a dropdown. */}
-                  <CardModalMetaChips
-                    memberCount={cardMembers.length}
-                    labelCount={(cardLabelsQ.data ?? []).length}
-                    dueAt={card.dueAt}
-                    coverColor={coverColor}
-                    canEdit={canEdit}
-                    openMenu={openMetaMenu}
-                    onOpenMenuChange={setOpenMetaMenu}
-                    attachmentCount={attachmentCount}
-                    onOpenAttachments={() => {
-                      setSidebarTab('attachments');
-                      setSidebarOpen(true);
-                    }}
-                    membersContent={
-                      <CardDetailMembers
-                        members={cardMembers}
-                        boardMembers={boardMembers.map((m) => ({
-                          userId: m.userId,
-                          name: m.name,
-                          image: m.image,
-                        }))}
-                        viewerUserId={viewerUserId}
-                        canEdit={canEdit}
-                        onAdd={(input: { userId: string; role: CardRole }) =>
-                          addMember.mutate({ cardId, ...input, clientMutationId: cmid() })
-                        }
-                        onRemove={(input: { userId: string; role: CardRole }) =>
-                          removeMember.mutate({ cardId, ...input, clientMutationId: cmid() })
-                        }
-                        pending={addMember.isPending || removeMember.isPending}
-                        error={errOf(addMember) || errOf(removeMember)}
-                      />
-                    }
-                    dueContent={
-                      <CardDetailDueDate
-                        dueAt={card.dueAt}
-                        canEdit={canEdit}
-                        onSave={(dueAt) => updateDueAt.mutate({ cardId, dueAt })}
-                        pending={updateDueAt.isPending}
-                        error={errOf(updateDueAt)}
-                      />
-                    }
-                    labelsContent={
-                      <CardDetailLabels
-                        cardLabels={cardLabelsQ.data ?? []}
-                        boardLabels={boardLabelsQ.data ?? []}
-                        canEdit={canEdit}
-                        onAdd={(labelId) =>
-                          addLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
-                        }
-                        onRemove={(labelId) =>
-                          removeLabel.mutate({ cardId, labelId, clientMutationId: cmid() })
-                        }
-                        onCreate={(input: { color: LabelColor; name?: string }) =>
-                          createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
-                        }
-                        pending={
-                          addLabel.isPending || removeLabel.isPending || createLabel.isPending
-                        }
-                        error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
-                      />
-                    }
-                    coverContent={
-                      <CardDetailCoverColor
-                        coverColor={coverColor}
-                        coverImage={card.coverImage ?? null}
-                        canEdit={canEdit}
-                        onSelect={(next) => updateCoverColor.mutate({ cardId, coverColor: next })}
-                        onImageSelect={uploadCoverImage}
-                        onClearImage={clearCoverImage}
-                        imageAttachments={coverImageOptions}
-                        onCoverImageSelect={selectCoverImageAttachment}
-                        pending={updateCoverColor.isPending}
-                        imagePending={
-                          initiateAttachment.isPending ||
-                          commitAttachment.isPending ||
-                          updateCoverImage.isPending
-                        }
-                        error={
-                          coverImageUploadError ||
-                          errOf(initiateAttachment) ||
-                          errOf(commitAttachment) ||
-                          errOf(updateCoverImage) ||
-                          errOf(updateCoverColor)
-                        }
-                      />
-                    }
-                  />
-
                 </div>
 
                 {(completeError || archiveCard.isError) && (

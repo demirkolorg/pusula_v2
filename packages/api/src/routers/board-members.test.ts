@@ -347,6 +347,28 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('add: caller cannot invite themselves by e-mail — DEM-298 (BAD_REQUEST)', async () => {
+    // boardAdminId has board admin so the permission gate passes; the self-
+    // invite guard must still trip on the e-mail match.
+    await expect(
+      callerFor(boardAdminId).board.members.add({
+        boardId,
+        email: emailOf(boardAdminId),
+        role: 'member',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+    // case-insensitive normalization — uppercased same address still rejected.
+    await expect(
+      callerFor(boardAdminId).board.members.add({
+        boardId,
+        email: emailOf(boardAdminId).toUpperCase(),
+        role: 'member',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+  });
+
   it('add: an archived board is read-only (BAD_REQUEST)', async () => {
     const archBoard = await callerFor(ownerId).board.create({
       workspaceId,

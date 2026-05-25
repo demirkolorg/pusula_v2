@@ -5,13 +5,15 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
+  CheckCheckIcon,
+  CheckCircle2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
   ChevronsDownUpIcon,
   ChevronsUpDownIcon,
+  CircleIcon,
   CompassIcon,
   ListIcon,
-  RectangleHorizontalIcon,
   RefreshCwIcon,
   SearchIcon,
   SlidersHorizontalIcon,
@@ -88,6 +90,9 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
       else next.add(kind);
       return next;
     });
+  const selectAllKinds = () =>
+    setVisible(new Set<EntityKind>(['workspaces', 'boards', 'lists', 'cards']));
+  const clearAllKinds = () => setVisible(new Set<EntityKind>());
 
   // Genişletme durumu — workspace + board + list seviyeleri.
   const [openWorkspaces, setOpenWorkspaces] = useState<Set<string>>(() => new Set());
@@ -267,7 +272,39 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
               <TooltipContent>{copy.filterTitle}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs">{copy.filterTitle}</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center justify-between gap-2 text-xs">
+                <span>{copy.filterTitle}</span>
+                <span className="flex items-center gap-0.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={selectAllKinds}
+                        aria-label={copy.filterSelectAll}
+                        disabled={visible.size === 4}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-6 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <CheckCheckIcon className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copy.filterSelectAll}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={clearAllKinds}
+                        aria-label={copy.filterClearAll}
+                        disabled={visible.size === 0}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-6 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{copy.filterClearAll}</TooltipContent>
+                  </Tooltip>
+                </span>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={visible.has('workspaces')}
@@ -379,7 +416,14 @@ function WorkspaceRow({
 }) {
   const showWorkspaces = visible.has('workspaces');
   const showBoards = visible.has('boards');
+  const showLists = visible.has('lists');
+  const showCards = visible.has('cards');
+  // Başlık gizliyken (showWorkspaces=false) her zaman expanded — alt seviyeler
+  // flatten görünür.
   const expanded = showWorkspaces ? openWorkspaces.has(workspace.id) : true;
+  // Child ul'u render etmek için en az bir alt seviye seçili olmalı.
+  const renderChildren = showBoards || showLists || showCards;
+  const childDepth = showWorkspaces ? 1 : 0;
   const copy = strings.board.navigator;
   // Aktif workspace highlight'ı yalnız board ekranında değilken — board ekranındaysa
   // board row vurgusu daha bilgi verici, workspace satırını sade bırak.
@@ -408,17 +452,17 @@ function WorkspaceRow({
           onNavigate={onNavigate}
         />
       )}
-      {expanded && showBoards && (
+      {expanded && renderChildren && (
         <ul role="group" className="space-y-0.5">
           {workspace.boards.length === 0 ? (
-            <EmptyRow depth={showWorkspaces ? 1 : 0} text={copy.emptyBoards} />
+            showWorkspaces ? <EmptyRow depth={childDepth} text={copy.emptyBoards} /> : null
           ) : (
             workspace.boards.map((board) => (
               <BoardRow
                 key={board.id}
                 workspaceId={workspace.id}
                 board={board}
-                depth={showWorkspaces ? 1 : 0}
+                depth={childDepth}
                 visible={visible}
                 openBoards={openBoards}
                 setOpenBoards={setOpenBoards}
@@ -458,8 +502,15 @@ function BoardRow({
   isActive: boolean;
   onNavigate?: () => void;
 }) {
+  const showBoards = visible.has('boards');
   const showLists = visible.has('lists');
-  const expanded = openBoards.has(board.id);
+  const showCards = visible.has('cards');
+  // Başlık gizliyken (showBoards=false) her zaman expanded — child seviyeler
+  // flatten görünür; kullanıcının tıklayabileceği bir chevron yok zaten.
+  const expanded = showBoards ? openBoards.has(board.id) : true;
+  // Child ul'u render etmek için en az bir alt seviye seçili olmalı.
+  const renderChildren = showLists || showCards;
+  const childDepth = showBoards ? depth + 1 : depth;
   const copy = strings.board.navigator;
 
   const toggle = () => {
@@ -471,20 +522,22 @@ function BoardRow({
 
   return (
     <li role="treeitem" aria-expanded={expanded}>
-      <TreeRow
-        depth={depth}
-        chevron={board.lists.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
-        onChevronClick={toggle}
-        href={`/workspaces/${workspaceId}/boards/${board.id}`}
-        icon={<EntityIconGlyph icon={board.icon} className="size-3.5" />}
-        label={board.title}
-        active={isActive}
-        onNavigate={onNavigate}
-      />
-      {expanded && showLists && (
+      {showBoards && (
+        <TreeRow
+          depth={depth}
+          chevron={board.lists.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
+          onChevronClick={toggle}
+          href={`/workspaces/${workspaceId}/boards/${board.id}`}
+          icon={<EntityIconGlyph icon={board.icon} className="size-3.5" />}
+          label={board.title}
+          active={isActive}
+          onNavigate={onNavigate}
+        />
+      )}
+      {expanded && renderChildren && (
         <ul role="group" className="space-y-0.5">
           {board.lists.length === 0 ? (
-            <EmptyRow depth={depth + 1} text={copy.emptyLists} />
+            showBoards ? <EmptyRow depth={childDepth} text={copy.emptyLists} /> : null
           ) : (
             board.lists.map((list) => (
               <ListRow
@@ -492,7 +545,7 @@ function BoardRow({
                 workspaceId={workspaceId}
                 boardId={board.id}
                 list={list}
-                depth={depth + 1}
+                depth={childDepth}
                 visible={visible}
                 openLists={openLists}
                 setOpenLists={setOpenLists}
@@ -525,8 +578,11 @@ function ListRow({
   setOpenLists: (next: Set<string>) => void;
   onNavigate?: () => void;
 }) {
+  const showLists = visible.has('lists');
   const showCards = visible.has('cards');
-  const expanded = openLists.has(list.id);
+  // Başlık gizliyken (showLists=false) her zaman expanded — kartlar flatten görünür.
+  const expanded = showLists ? openLists.has(list.id) : true;
+  const childDepth = showLists ? depth + 1 : depth;
   const copy = strings.board.navigator;
 
   const toggle = () => {
@@ -538,19 +594,21 @@ function ListRow({
 
   return (
     <li role="treeitem" aria-expanded={expanded}>
-      <TreeRow
-        depth={depth}
-        chevron={list.cards.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
-        onChevronClick={toggle}
-        href={`/workspaces/${workspaceId}/boards/${boardId}`}
-        icon={<ListIcon className="size-3.5 opacity-70" aria-hidden />}
-        label={list.title}
-        onNavigate={onNavigate}
-      />
+      {showLists && (
+        <TreeRow
+          depth={depth}
+          chevron={list.cards.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
+          onChevronClick={toggle}
+          href={`/workspaces/${workspaceId}/boards/${boardId}`}
+          icon={<ListIcon className="size-3.5 opacity-70" aria-hidden />}
+          label={list.title}
+          onNavigate={onNavigate}
+        />
+      )}
       {expanded && showCards && (
         <ul role="group" className="space-y-0.5">
           {list.cards.length === 0 ? (
-            <EmptyRow depth={depth + 1} text={copy.emptyCards} />
+            showLists ? <EmptyRow depth={childDepth} text={copy.emptyCards} /> : null
           ) : (
             list.cards.map((card) => (
               <CardRow
@@ -558,7 +616,7 @@ function ListRow({
                 workspaceId={workspaceId}
                 boardId={boardId}
                 card={card}
-                depth={depth + 1}
+                depth={childDepth}
                 onNavigate={onNavigate}
               />
             ))
@@ -589,16 +647,17 @@ function CardRow({
         chevron="none"
         href={`/workspaces/${workspaceId}/boards/${boardId}?card=${card.id}`}
         icon={
-          <RectangleHorizontalIcon
-            className={cn(
-              'size-3.5 opacity-70',
-              card.completed && 'line-through opacity-50',
-            )}
-            aria-hidden
-          />
+          // Tamamlanma durumunu soluk renk + line-through ile göstermek göz
+          // yoruyordu; bunun yerine farklı bir ikon ile ayırt ediyoruz.
+          // Tamamlanmış: tikli yuvarlak; tamamlanmamış: boş yuvarlak.
+          // Metin rengine dokunmuyoruz (normal foreground kalıyor).
+          card.completed ? (
+            <CheckCircle2Icon className="size-3.5 opacity-70" aria-hidden />
+          ) : (
+            <CircleIcon className="size-3.5 opacity-70" aria-hidden />
+          )
         }
         label={card.title}
-        muted={card.completed}
         onNavigate={onNavigate}
       />
     </li>
@@ -613,7 +672,6 @@ function TreeRow({
   icon,
   label,
   active,
-  muted,
   onNavigate,
 }: {
   depth: number;
@@ -623,7 +681,6 @@ function TreeRow({
   icon: ReactNode;
   label: string;
   active?: boolean;
-  muted?: boolean;
   onNavigate?: () => void;
 }) {
   const indentPx = depth * 14;
@@ -656,9 +713,8 @@ function TreeRow({
         href={href}
         onClick={onNavigate}
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1',
+          'text-foreground flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-          muted ? 'text-muted-foreground' : 'text-foreground',
         )}
       >
         <span className="shrink-0">{icon}</span>
@@ -682,7 +738,10 @@ function EmptyRow({ depth, text }: { depth: number; text: string }) {
 
 // --- yardımcılar -------------------------------------------------------------
 
-/** Recursive filter: query string ve görünür-tipler maskesine göre ağacı sadeleştirir. */
+/** Recursive filter: query string ve görünür-tipler maskesine göre ağacı sadeleştirir.
+ *  Filtreler "şu seviyeleri ağaçta göster" anlamına gelir; bir alt seviye seçiliyse
+ *  üst seviye gizli olsa bile yüklenir (gizli başlık render aşamasında atlanır,
+ *  alt seviyeler flatten görünür). */
 function filterTree(
   workspaces: ReadonlyArray<RawWorkspace>,
   q: string,
@@ -691,16 +750,25 @@ function filterTree(
   const showCards = visible.has('cards');
   const showLists = visible.has('lists');
   const showBoards = visible.has('boards');
+  const showWorkspaces = visible.has('workspaces');
+  // Alt seviye seçiliyse üst seviye yine yüklenmeli (parent path olarak render'da
+  // atlanabilir ama veriyi taşıyıcı kalır). Sadece kendi seviyesi seçiliyse de
+  // yüklenir — yani her bayrak hem "kendisi" hem de "alt seviyeyi taşımak için"
+  // ile kapsanır.
+  const includeBoards = showBoards || showLists || showCards;
+  const includeLists = showLists || showCards;
+  const includeCards = showCards;
+  const includeWorkspaces = showWorkspaces || includeBoards;
 
   return workspaces
     .map((w) => {
-      const boards: RawBoard[] = showBoards
+      const boards: RawBoard[] = includeBoards
         ? w.boards
             .map((b) => {
-              const lists: RawList[] = showLists
+              const lists: RawList[] = includeLists
                 ? b.lists
                     .map((l) => {
-                      const cards: RawCard[] = showCards
+                      const cards: RawCard[] = includeCards
                         ? l.cards.filter((c) => matches(c.title, q))
                         : [];
                       const listVisible = matches(l.title, q) || cards.length > 0;
@@ -713,7 +781,7 @@ function filterTree(
             })
             .filter((b): b is RawBoard => b !== null)
         : [];
-      const workspaceVisible = matches(w.name, q) || boards.length > 0;
+      const workspaceVisible = includeWorkspaces && (matches(w.name, q) || boards.length > 0);
       return workspaceVisible ? { ...w, boards } : null;
     })
     .filter((w): w is RawWorkspace => w !== null);

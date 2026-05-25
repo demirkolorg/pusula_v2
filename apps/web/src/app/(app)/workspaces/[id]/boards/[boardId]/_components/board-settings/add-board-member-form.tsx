@@ -27,6 +27,12 @@ type AddBoardMemberFormProps = {
   error?: string | null;
   /** Inline success notice (set by the container after `board.members.add` resolves). */
   notice?: string | null;
+  /**
+   * The signed-in user's own e-mail — passed by the section from `useSession`.
+   * Used to block self-invite at the UI seam (DEM-298); server also rejects
+   * with `BAD_REQUEST` for defense-in-depth.
+   */
+  currentUserEmail?: string;
 };
 
 /**
@@ -34,13 +40,15 @@ type AddBoardMemberFormProps = {
  * submit. No tRPC / query-client dependency — the section container wires those
  * in and maps the server's `kind` result (`added` / `added_as_guest` / `invited`)
  * to `notice`. Validation uses the shared `@pusula/domain` `emailSchema` so the
- * rule matches the server (which also normalizes the address).
+ * rule matches the server (which also normalizes the address). Self-invite is
+ * rejected inline when the caller types their own address (DEM-298).
  */
 export function AddBoardMemberForm({
   onSubmit,
   pending = false,
   error,
   notice,
+  currentUserEmail,
 }: AddBoardMemberFormProps) {
   const emailId = useId();
   const roleId = useId();
@@ -54,6 +62,13 @@ export function AddBoardMemberForm({
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) {
       setEmailError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
+      return;
+    }
+    if (
+      currentUserEmail &&
+      parsed.data.trim().toLowerCase() === currentUserEmail.trim().toLowerCase()
+    ) {
+      setEmailError(strings.invitations.cannotInviteSelf);
       return;
     }
     setEmailError(null);

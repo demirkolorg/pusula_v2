@@ -459,11 +459,12 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
       clientMutationId: crypto.randomUUID(),
     });
 
-    // Owner is already implicitly the board admin but not a card member yet —
-    // add them to the card as the assignee.
+    // DEM-298 — caller can't self-add as a card member; the workspace
+    // `memberId` is added by the owner instead so the assertions downstream
+    // still see a populated `memberCount`.
     await callerFor(ownerId).card.members.add({
       cardId: richCard.id,
-      userId: ownerId,
+      userId: memberId,
       role: 'assignee',
       clientMutationId: crypto.randomUUID(),
     });
@@ -520,7 +521,7 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     expect(rich2?.commentCount).toBe(1);
     expect(rich2?.attachmentCount).toBe(2);
     expect(rich2?.members).toHaveLength(1);
-    expect(rich2?.members[0]).toMatchObject({ userId: ownerId, role: 'assignee' });
+    expect(rich2?.members[0]).toMatchObject({ userId: memberId, role: 'assignee' });
     // privacy — no e-mail field leaks through
     expect(rich2?.members[0]).not.toHaveProperty('email');
 
