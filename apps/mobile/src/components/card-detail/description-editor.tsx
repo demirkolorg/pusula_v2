@@ -8,11 +8,13 @@ import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { TextArea } from '@/components/text-area';
 import { TiptapRender } from '@/components/tiptap-render';
-import { DetailSection } from '@/components/card-detail/section';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { serializeTiptapDoc, tiptapHasContent, tiptapToPlainText } from '@/lib/tiptap';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
+
+/** "Daha fazla göster" eşiği — düz metin uzunluğu (Tiptap içeriğinden çıkarılır). */
+const DESCRIPTION_TRUNCATE_LIMIT = 500;
 
 type CardGet = RouterOutputs['card']['get'];
 
@@ -30,6 +32,11 @@ type DescriptionEditorProps = {
  * doc'una serialize eder (`serializeTiptapDoc`), tohum metni mevcut değerden
  * `tiptapToPlainText` ile çıkarılır. Mutation optimistic — `card.get` cache'i
  * anında yamanır, hata olursa geri alınır.
+ *
+ * DEM-2026-05-26 — bileşen kendini `DetailSection` ile sarmayı bırakır;
+ * `DescriptionChecklistTabs` içinde sekme zemini ortak. Okuma modunda düz metin
+ * `DESCRIPTION_TRUNCATE_LIMIT` (500) karakteri aşarsa `numberOfLines` ile
+ * kısıtlanır + "Daha fazla göster" toggle. Düzenleme modunda kısıtlama yok.
  */
 export function DescriptionEditor({ cardId, description, canEdit }: DescriptionEditorProps) {
   const trpc = useTRPC();
@@ -38,6 +45,7 @@ export function DescriptionEditor({ cardId, description, canEdit }: DescriptionE
   const cardKey = trpc.card.get.queryKey({ cardId });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   const updateCard = useMutation(
     trpc.card.update.mutationOptions({
@@ -86,59 +94,81 @@ export function DescriptionEditor({ cardId, description, canEdit }: DescriptionE
     );
   };
 
-  return (
-    <DetailSection icon="align-left" title={strings.cardDetail.descriptionTitle}>
-      {editing ? (
-        <View className="gap-2">
-          <TextArea
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={strings.cardDetail.descriptionPlaceholder}
-            editable={!updateCard.isPending}
-            autoFocus
-          />
-          <View className="flex-row gap-2">
-            <View className="flex-1">
-              <Button
-                label={strings.cardDetail.cancel}
-                variant="ghost"
-                onPress={() => setEditing(false)}
-                disabled={updateCard.isPending}
-              />
-            </View>
-            <View className="flex-1">
-              <Button
-                label={updateCard.isPending ? strings.cardDetail.saving : strings.cardDetail.save}
-                onPress={handleSave}
-                pending={updateCard.isPending}
-                disabled={updateCard.isPending}
-              />
-            </View>
+  if (editing) {
+    return (
+      <View className="gap-2">
+        <TextArea
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={strings.cardDetail.descriptionPlaceholder}
+          editable={!updateCard.isPending}
+          autoFocus
+        />
+        <View className="flex-row gap-2">
+          <View className="flex-1">
+            <Button
+              label={strings.cardDetail.cancel}
+              variant="ghost"
+              onPress={() => setEditing(false)}
+              disabled={updateCard.isPending}
+            />
+          </View>
+          <View className="flex-1">
+            <Button
+              label={updateCard.isPending ? strings.cardDetail.saving : strings.cardDetail.save}
+              onPress={handleSave}
+              pending={updateCard.isPending}
+              disabled={updateCard.isPending}
+            />
           </View>
         </View>
-      ) : (
-        <View className="gap-2">
-          {tiptapHasContent(description) ? (
-            <TiptapRender doc={description} />
-          ) : (
-            <Text className="text-sm text-muted-foreground">
-              {strings.cardDetail.noDescription}
-            </Text>
-          )}
-          {canEdit ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={startEditing}
-              className="flex-row items-center gap-1.5 self-start active:opacity-70"
-            >
-              <Icon name="edit-2" size={13} color={theme.primary} />
-              <Text weight="medium" className="text-sm text-primary">
-                {strings.cardDetail.descriptionEdit}
-              </Text>
-            </Pressable>
-          ) : null}
+      </View>
+    );
+  }
+
+  // Truncation kararı düz metin uzunluğundan; uzunsa kapsayıcı `maxHeight` +
+  // `overflow: hidden` ile kısıtla — TiptapRender çoklu blok ürettiği için tek
+  // `numberOfLines` prop'u uygulanamıyor; görsel kesim wrapper seviyesinde.
+  // "Daha fazla göster" tıklanınca kısıt kaldırılır.
+  const plainText = tiptapToPlainText(description);
+  const isTruncatable = plainText.length > DESCRIPTION_TRUNCATE_LIMIT;
+  const showCollapsed = isTruncatable && !expanded;
+
+  return (
+    <View className="gap-2">
+      {tiptapHasContent(description) ? (
+        <View style={showCollapsed ? { maxHeight: 200, overflow: 'hidden' } : undefined}>
+          <TiptapRender doc={description} />
         </View>
+      ) : (
+        <Text className="text-sm text-muted-foreground">{strings.cardDetail.noDescription}</Text>
       )}
-    </DetailSection>
+      {isTruncatable ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setExpanded((prev) => !prev)}
+          className="flex-row items-center gap-1.5 self-start active:opacity-70"
+        >
+          <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={13} color={theme.primary} />
+          <Text weight="medium" className="text-sm text-primary">
+            {expanded
+              ? strings.cardDetail.descriptionShowLess
+              : strings.cardDetail.descriptionShowMore}
+          </Text>
+        </Pressable>
+      ) : null}
+      {canEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={startEditing}
+          className="flex-row items-center gap-1.5 self-start active:opacity-70"
+        >
+          <Icon name="edit-2" size={13} color={theme.primary} />
+          <Text weight="medium" className="text-sm text-primary">
+            {strings.cardDetail.descriptionEdit}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }

@@ -17,12 +17,11 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { DetailSection, SectionBadge } from '@/components/card-detail/section';
-import { DescriptionEditor } from '@/components/card-detail/description-editor';
+import { DescriptionChecklistTabs } from '@/components/card-detail/description-checklist-tabs';
 import { CardMetaBar } from '@/components/card-detail/meta-bar';
 import { CardCompleteToggle } from '@/components/card-detail/complete-toggle';
 import { CardActionsSheet } from '@/components/card-detail/card-actions-sheet';
 import { CardDetailHeaderTitle } from '@/components/card-detail/header-title';
-import { ChecklistSection } from '@/components/card-detail/checklist-section';
 import { AttachmentsSection } from '@/components/card-detail/attachments-section';
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
 import { CommentComposer } from '@/components/card-detail/comment-composer';
@@ -421,23 +420,15 @@ export default function CardDetailScreen() {
           />
         </View>
 
-        <DescriptionEditor cardId={card.id} description={card.description} canEdit={canEdit} />
-
-        <DetailSection
-          icon="check-square"
-          title={strings.cardDetail.checklistsTitle}
-          trailing={
-            checklists.length > 0 ? (
-              <SectionBadge label={`${checklistItemsDone}/${checklistItemsTotal}`} />
-            ) : undefined
-          }
-        >
-          {checklistsQuery.isError ? (
-            <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
-          ) : (
-            <ChecklistSection cardId={card.id} checklists={checklists} canEdit={canEdit} />
-          )}
-        </DetailSection>
+        <DescriptionChecklistTabs
+          cardId={card.id}
+          description={card.description}
+          canEdit={canEdit}
+          checklists={checklists}
+          checklistsError={checklistsQuery.isError}
+          checklistItemsDone={checklistItemsDone}
+          checklistItemsTotal={checklistItemsTotal}
+        />
 
         {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme
             `canEdit`, silme uploader/admin (alt bileşende çözülür). */}

@@ -259,6 +259,8 @@ export const strings = {
     // Açıklama düzenleme.
     descriptionEdit: 'Düzenle',
     descriptionPlaceholder: 'Bu karta bir açıklama ekle…',
+    descriptionShowMore: 'Daha fazla göster',
+    descriptionShowLess: 'Daha az göster',
     // Etiketler.
     labelsEmpty: 'Etiket eklenmemiş.',
     labelAdd: 'Etiket ekle',
