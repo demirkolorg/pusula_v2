@@ -125,6 +125,14 @@ export const QUEUE = {
    * (producer side) — must stay in sync: `'pusula-attachment-cleanup'`.
    */
   attachmentCleanup: 'pusula-attachment-cleanup',
+  /**
+   * Faz 8F (DEM-283) — davet expiry sweeper. Tek repeatable cron tick
+   * (`0 3 * * *` UTC) workspace + board davet'lerinde `status='pending' AND
+   * expires_at < NOW()` satırlarını `status='expired'` damgalar. Pattern:
+   * `reportRetention` daily cron + `attachment-cleanup-sweeper` tick.
+   * Sadece worker tarafında — producer yok.
+   */
+  invitationExpirySweeper: 'pusula-invitation-expiry-sweeper',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -220,6 +228,18 @@ export const reportRetentionQueue = new Queue(QUEUE.reportRetention, {
     removeOnFail: { age: 60 * 60 * 24 * 30 },
   },
 });
+// Faz 8F (DEM-283) — invitation expiry sweeper. Daily 03:00 UTC tick;
+// retry profili `reportRetention` ile aynı (2 attempt + 5dk backoff). Kaçırılan
+// tick zaten 24 saat sonra rekapture eder (`expires_at` geriye gitmez).
+export const invitationExpirySweeperQueue = new Queue(QUEUE.invitationExpirySweeper, {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential' as const, delay: 5 * 60_000 },
+    removeOnComplete: { age: 60 * 60 * 24 * 7, count: 30 },
+    removeOnFail: { age: 60 * 60 * 24 * 30 },
+  },
+});
 
 export const allQueues = [
   notificationsQueue,
@@ -235,4 +255,5 @@ export const allQueues = [
   reportRenderQueue,
   reportScheduleQueue,
   reportRetentionQueue,
+  invitationExpirySweeperQueue,
 ];

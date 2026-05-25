@@ -6,6 +6,7 @@ import {
   QUEUE,
   allQueues,
   attachmentCleanupQueue,
+  invitationExpirySweeperQueue,
   notificationsEmailDigestQueue,
   notificationsEmailQueue,
   notificationsPushQueue,
@@ -114,6 +115,11 @@ import {
   REPORT_RETENTION_TICK_JOB_NAME,
   processReportRetentionTick,
 } from './jobs/report-retention';
+import {
+  INVITATION_EXPIRY_SWEEPER_CRON,
+  INVITATION_EXPIRY_SWEEPER_JOB_NAME,
+  sweepExpiredInvitations,
+} from './jobs/invitation-expiry-sweeper';
 import { sendScheduledReportEmail } from './jobs/report-scheduled-email';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -574,6 +580,28 @@ const reportScheduleWorker = new Worker(
   { connection, concurrency: 1 },
 );
 
+// Faz 8F (DEM-283) — davet expiry sweeper worker. Daily 03:00 UTC tick;
+// workspace + board davet'lerinden `status='pending' AND expires_at < NOW()`
+// satırlarını `status='expired'` damgalar. `reportRetention` paterni.
+const invitationExpirySweeperWorker = new Worker(
+  QUEUE.invitationExpirySweeper,
+  async (job) => {
+    if (job.name !== INVITATION_EXPIRY_SWEEPER_JOB_NAME) {
+      console.warn(`[worker:invitation-expiry-sweeper] unknown job ${job.name} — skipped`);
+      return;
+    }
+    const result = await sweepExpiredInvitations(db);
+    if (result.workspaceExpired > 0 || result.boardExpired > 0) {
+      console.warn(
+        `[worker:invitation-expiry-sweeper] tick — workspaceExpired=${result.workspaceExpired} ` +
+          `boardExpired=${result.boardExpired}`,
+      );
+    }
+  },
+  // Concurrency 1: tick UPDATE'leri kısa; daily cron seyrek; race yok.
+  { connection, concurrency: 1 },
+);
+
 const attachmentCleanupWorker = new Worker(
   QUEUE.attachmentCleanup,
   async (job) => {
@@ -610,6 +638,7 @@ const workers = [
   compactionWorker,
   searchReindexWorker,
   attachmentCleanupWorker,
+  invitationExpirySweeperWorker,
 ];
 
 for (const w of workers) {
@@ -749,6 +778,25 @@ void attachmentCleanupQueue
   )
   .catch((err) => {
     console.error('[worker:attachment-cleanup-sweeper] failed to register repeatable job:', err.message);
+  });
+
+// Faz 8F (DEM-283) — register the daily invitation expiry sweeper. Cron
+// pattern `0 3 * * *` (03:00 UTC); `jobId` fixed → worker restart'ta tek
+// scheduler row (BullMQ debounce). `reportRetention` paterni; kaçırılan
+// tick zaten 24 saat sonra rekapture eder.
+void invitationExpirySweeperQueue
+  .add(
+    INVITATION_EXPIRY_SWEEPER_JOB_NAME,
+    {},
+    {
+      jobId: 'invitation-expiry-sweeper-repeating',
+      repeat: { pattern: INVITATION_EXPIRY_SWEEPER_CRON },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 * 30 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:invitation-expiry-sweeper] tick register failed:', err.message);
   });
 
 // Faz 6A (DEM-90) — register the 5-minute due-date scheduler. Lives on
