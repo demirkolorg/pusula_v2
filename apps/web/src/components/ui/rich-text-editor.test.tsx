@@ -14,6 +14,8 @@ const labels: RichTextEditorLabels = {
   italic: 'İtalik',
   strike: 'Üstü çizili',
   code: 'Kod',
+  textStyle: 'Metin stili',
+  paragraph: 'Normal yazı',
   heading1: 'Başlık 1',
   heading2: 'Başlık 2',
   heading3: 'Başlık 3',
@@ -147,7 +149,10 @@ describe('<RichTextEditor>', () => {
   it('renders the full toolbar with localised labels', () => {
     render(<RichTextEditor value={null} placeholder="Yaz…" labels={labels} />);
     expect(screen.getByRole('button', { name: labels.bold })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: labels.heading1 })).toBeInTheDocument();
+    // Headings live inside the text-style ("T") dropdown — the trigger carries
+    // the textStyle aria-label; H1/H2/H3 only appear after opening it.
+    expect(screen.getByRole('button', { name: labels.textStyle })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: labels.heading1 })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: labels.bulletList })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: labels.link })).toBeInTheDocument();
   });
@@ -155,9 +160,38 @@ describe('<RichTextEditor>', () => {
   it('hides headings/lists in the mini toolbar', () => {
     render(<RichTextEditor value={null} placeholder="Yaz…" labels={labels} toolbar="mini" />);
     expect(screen.getByRole('button', { name: labels.bold })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: labels.textStyle })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: labels.heading1 })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: labels.bulletList })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: labels.link })).toBeInTheDocument();
+  });
+
+  it('opens the text-style dropdown and applies a heading on selection', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <RichTextEditor
+        value="Merhaba"
+        placeholder="Yaz…"
+        ariaLabel="Açıklama"
+        labels={labels}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByLabelText('Açıklama'));
+    await user.click(screen.getByRole('button', { name: labels.textStyle }));
+
+    const headingItem = await screen.findByRole('menuitemradio', { name: labels.heading1 });
+    await user.click(headingItem);
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const [serialized] = onChange.mock.calls.at(-1) as [string, boolean];
+    const doc = JSON.parse(serialized) as {
+      content: Array<{ type: string; attrs?: { level?: number } }>;
+    };
+    const node = doc.content[0];
+    expect(node?.type).toBe('heading');
+    expect(node?.attrs?.level).toBe(1);
   });
 
   it('opens the @-mention picker, narrows by query and inserts a mention node on click', async () => {

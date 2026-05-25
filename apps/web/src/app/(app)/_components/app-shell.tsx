@@ -225,13 +225,13 @@ export function AppShell({
             />
           </div>
           <div className="flex flex-1 shrink-0 items-center justify-end gap-1">
-            <QuickNotesToggle
-              open={quickNotesOpen}
-              onToggle={() => setQuickNotesOpen(!quickNotesOpen)}
-            />
             <NavigatorToggle
               open={navigatorOpen}
               onToggle={() => setNavigatorOpen(!navigatorOpen)}
+            />
+            <QuickNotesToggle
+              open={quickNotesOpen}
+              onToggle={() => setQuickNotesOpen(!quickNotesOpen)}
             />
             <ThemeToggle />
             <ColorThemeToggle />

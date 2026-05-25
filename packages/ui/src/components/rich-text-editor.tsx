@@ -9,6 +9,8 @@ import Mention from '@tiptap/extension-mention';
 import type { SuggestionProps } from '@tiptap/suggestion';
 import {
   BoldIcon,
+  CheckIcon,
+  ChevronDownIcon,
   CodeIcon,
   Heading1Icon,
   Heading2Icon,
@@ -17,9 +19,13 @@ import {
   Link2Icon,
   ListIcon,
   ListOrderedIcon,
+  PilcrowIcon,
   StrikethroughIcon,
+  TypeIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
 
 /** A parsed Tiptap document (root `doc` node). */
 type TiptapDoc = JSONContent & { type: 'doc' };
@@ -65,6 +71,10 @@ export interface RichTextEditorLabels {
   italic: string;
   strike: string;
   code: string;
+  /** Tooltip + aria-label for the text-style dropdown trigger (the "T" button). */
+  textStyle: string;
+  /** "Normal text" option inside the text-style dropdown (clears any heading). */
+  paragraph: string;
   heading1: string;
   heading2: string;
   heading3: string;
@@ -304,27 +314,100 @@ type ToolbarButtonProps = {
   children: React.ReactNode;
 };
 
+const TOOLBAR_BUTTON_CLASS =
+  'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-3.5';
+
 function ToolbarButton({ label, active = false, onClick, children }: ToolbarButtonProps) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={active}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      className={cn(
-        'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none [&_svg]:size-3.5',
-        active && 'bg-accent text-foreground',
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-pressed={active}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onClick}
+          className={cn(TOOLBAR_BUTTON_CLASS, active && 'bg-accent text-foreground')}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
 function Divider() {
   return <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />;
+}
+
+/**
+ * Dropdown trigger styled like a toolbar button (the "T" pill). Carries the
+ * `textStyle` tooltip; `headingLevel` controls which icon is shown so the
+ * trigger reflects the current block: pilcrow for paragraph, H1/H2/H3
+ * otherwise. The popover content (paragraph + heading rows) is rendered by
+ * the caller, since it owns the editor commands and active state.
+ */
+type TextStyleTriggerProps = {
+  label: string;
+  headingLevel: 1 | 2 | 3 | null;
+};
+
+function TextStyleTrigger({ label, headingLevel }: TextStyleTriggerProps) {
+  const Icon =
+    headingLevel === 1
+      ? Heading1Icon
+      : headingLevel === 2
+        ? Heading2Icon
+        : headingLevel === 3
+          ? Heading3Icon
+          : TypeIcon;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <PopoverTrigger
+          aria-label={label}
+          onMouseDown={(e) => e.preventDefault()}
+          className={cn(
+            TOOLBAR_BUTTON_CLASS,
+            'gap-0.5 px-1 w-auto [&_svg]:size-3.5',
+            headingLevel !== null && 'bg-accent text-foreground',
+          )}
+        >
+          <Icon />
+          <ChevronDownIcon className="!size-3 opacity-60" />
+        </PopoverTrigger>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+type TextStyleItemProps = {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+};
+
+function TextStyleItem({ label, active, onSelect, icon }: TextStyleItemProps) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none [&_svg]:size-3.5',
+        active && 'bg-accent/60 text-foreground',
+      )}
+    >
+      <span className="text-muted-foreground">{icon}</span>
+      <span className="flex-1">{label}</span>
+      {active && <CheckIcon className="!size-3.5 text-primary" />}
+    </button>
+  );
 }
 
 export interface RichTextEditorProps {
@@ -479,99 +562,127 @@ export function RichTextEditor({
     editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
   };
 
+  const activeHeading: 1 | 2 | 3 | null = editor.isActive('heading', { level: 1 })
+    ? 1
+    : editor.isActive('heading', { level: 2 })
+      ? 2
+      : editor.isActive('heading', { level: 3 })
+        ? 3
+        : null;
+
   return (
-    <div
-      data-slot="rich-text-editor"
-      className={cn(
-        'overflow-hidden rounded-md border bg-card',
-        disabled && 'opacity-60',
-        className,
-      )}
-    >
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-card px-1 py-1">
-        <ToolbarButton
-          label={labels.bold}
-          active={editor.isActive('bold')}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          <BoldIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          label={labels.italic}
-          active={editor.isActive('italic')}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          <ItalicIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          label={labels.strike}
-          active={editor.isActive('strike')}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        >
-          <StrikethroughIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          label={labels.code}
-          active={editor.isActive('code')}
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        >
-          <CodeIcon />
-        </ToolbarButton>
-        {toolbar === 'full' && (
-          <>
-            <Divider />
-            <ToolbarButton
-              label={labels.heading1}
-              active={editor.isActive('heading', { level: 1 })}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            >
-              <Heading1Icon />
-            </ToolbarButton>
-            <ToolbarButton
-              label={labels.heading2}
-              active={editor.isActive('heading', { level: 2 })}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            >
-              <Heading2Icon />
-            </ToolbarButton>
-            <ToolbarButton
-              label={labels.heading3}
-              active={editor.isActive('heading', { level: 3 })}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            >
-              <Heading3Icon />
-            </ToolbarButton>
-            <Divider />
-            <ToolbarButton
-              label={labels.bulletList}
-              active={editor.isActive('bulletList')}
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-            >
-              <ListIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label={labels.orderedList}
-              active={editor.isActive('orderedList')}
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            >
-              <ListOrderedIcon />
-            </ToolbarButton>
-          </>
+    <TooltipProvider delayDuration={200}>
+      <div
+        data-slot="rich-text-editor"
+        className={cn(
+          'overflow-hidden rounded-md border bg-card',
+          disabled && 'opacity-60',
+          className,
         )}
-        <Divider />
-        <ToolbarButton label={labels.link} active={editor.isActive('link')} onClick={setLink}>
-          <Link2Icon />
-        </ToolbarButton>
+      >
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-card px-1 py-1">
+          {toolbar === 'full' && (
+            <>
+              <Popover>
+                <TextStyleTrigger label={labels.textStyle} headingLevel={activeHeading} />
+                <PopoverContent
+                  align="start"
+                  sideOffset={6}
+                  className="w-48 p-1"
+                  role="menu"
+                  aria-label={labels.textStyle}
+                >
+                  <TextStyleItem
+                    label={labels.paragraph}
+                    active={activeHeading === null}
+                    icon={<PilcrowIcon />}
+                    onSelect={() => editor.chain().focus().setParagraph().run()}
+                  />
+                  <TextStyleItem
+                    label={labels.heading1}
+                    active={activeHeading === 1}
+                    icon={<Heading1Icon />}
+                    onSelect={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                  />
+                  <TextStyleItem
+                    label={labels.heading2}
+                    active={activeHeading === 2}
+                    icon={<Heading2Icon />}
+                    onSelect={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                  />
+                  <TextStyleItem
+                    label={labels.heading3}
+                    active={activeHeading === 3}
+                    icon={<Heading3Icon />}
+                    onSelect={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Divider />
+            </>
+          )}
+          <ToolbarButton
+            label={labels.bold}
+            active={editor.isActive('bold')}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+          >
+            <BoldIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label={labels.italic}
+            active={editor.isActive('italic')}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+          >
+            <ItalicIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label={labels.strike}
+            active={editor.isActive('strike')}
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+          >
+            <StrikethroughIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label={labels.code}
+            active={editor.isActive('code')}
+            onClick={() => editor.chain().focus().toggleCode().run()}
+          >
+            <CodeIcon />
+          </ToolbarButton>
+          {toolbar === 'full' && (
+            <>
+              <Divider />
+              <ToolbarButton
+                label={labels.bulletList}
+                active={editor.isActive('bulletList')}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+              >
+                <ListIcon />
+              </ToolbarButton>
+              <ToolbarButton
+                label={labels.orderedList}
+                active={editor.isActive('orderedList')}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              >
+                <ListOrderedIcon />
+              </ToolbarButton>
+            </>
+          )}
+          <Divider />
+          <ToolbarButton label={labels.link} active={editor.isActive('link')} onClick={setLink}>
+            <Link2Icon />
+          </ToolbarButton>
+        </div>
+        <EditorContent editor={editor} />
+        {suggestion && mentions && (
+          <MentionSuggestionPopup
+            ref={suggestionRef}
+            state={suggestion}
+            emptyLabel={mentions.emptyLabel}
+          />
+        )}
       </div>
-      <EditorContent editor={editor} />
-      {suggestion && mentions && (
-        <MentionSuggestionPopup
-          ref={suggestionRef}
-          state={suggestion}
-          emptyLabel={mentions.emptyLabel}
-        />
-      )}
-    </div>
+    </TooltipProvider>
   );
 }
 

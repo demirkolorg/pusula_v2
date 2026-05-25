@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { LogOutIcon, UserIcon } from 'lucide-react';
+import { LogOutIcon, SparklesIcon, UserIcon } from 'lucide-react';
 import {
   Avatar,
   Button,
@@ -68,6 +68,10 @@ export function UserNavMenu({ userName, userEmail, userImage }: UserNavMenuProps
         <DropdownMenuItem onSelect={() => router.push('/account')}>
           <UserIcon />
           {copy.account}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => router.push('/yenilikler')}>
+          <SparklesIcon />
+          {copy.changelog}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

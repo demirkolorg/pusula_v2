@@ -459,6 +459,7 @@ export const strings = {
     },
     userMenu: {
       account: 'Hesap ayarları',
+      changelog: 'Yenilikler',
       ariaLabel: 'Kullanıcı menüsü',
     },
     notifications: {
@@ -1401,6 +1402,8 @@ export const strings = {
         italic: 'İtalik',
         strike: 'Üstü çizili',
         code: 'Kod',
+        textStyle: 'Metin stili',
+        paragraph: 'Normal yazı',
         heading1: 'Başlık 1',
         heading2: 'Başlık 2',
         heading3: 'Başlık 3',
