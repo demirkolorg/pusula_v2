@@ -22,6 +22,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
   toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
@@ -39,6 +40,12 @@ type ShareDialogProps = {
   onOpenChange?: (open: boolean) => void;
   /** `true` ise gömülü "Paylaş" tetik düğmesi render edilmez (dışarıdan açılır). */
   hideTrigger?: boolean;
+  /**
+   * İkon-only varyant: card modal header'da label yerine Tooltip ile etiket
+   * gösterir. `onColored` kapak rengi açıkken kontrast için.
+   */
+  iconOnly?: boolean;
+  onColored?: boolean;
 };
 
 type ExpiryPreset = 7 | 30 | 90;
@@ -68,6 +75,8 @@ export function ShareDialog({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  iconOnly = false,
+  onColored = false,
 }: ShareDialogProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -141,18 +150,33 @@ export function ShareDialog({
     });
   };
 
-  const triggerButton = (disabled: boolean) => (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={disabled}
-      aria-label={copy.action}
-    >
-      <Share2Icon className="size-4" />
-      {copy.action}
-    </Button>
-  );
+  const triggerButton = (disabled: boolean) =>
+    iconOnly ? (
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={copy.action}
+        className={cn(
+          'inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:size-4',
+          onColored
+            ? 'text-current hover:bg-current/15'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        )}
+      >
+        <Share2Icon aria-hidden />
+      </button>
+    ) : (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        aria-label={copy.action}
+      >
+        <Share2Icon className="size-4" />
+        {copy.action}
+      </Button>
+    );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

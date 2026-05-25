@@ -6,6 +6,8 @@ import { CardModalHeader } from './card-modal-header';
 
 // Faz 10H (DEM-142) — CardDetailSnooze artık header içinde render ediliyor;
 // preferences.get + snooze/unsnooze mutation'larını mock'lamamız gerek.
+// Ek olarak ShareDialog (DEM-130) header'a taşındığından `share.list` query'si
+// mount aşamasında çağrılır; deepProxy ile karşılanır.
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({
     data: { url: 'https://storage.test/modal-cover.png' },
@@ -27,6 +29,13 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }));
 
+// Recursive proxy — any property access / call returns itself. Mirrors the
+// pattern used in card-detail-dialog.test.tsx so deep tRPC paths resolve.
+const deepProxy: unknown = new Proxy(function () {} as object, {
+  get: (_t, prop) => (prop === 'then' ? undefined : deepProxy),
+  apply: () => deepProxy,
+});
+
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
     // DEM-227 — kart kapağı artık `attachment.getDownloadUrl` query'si yapmaz;
@@ -44,6 +53,8 @@ vi.mock('@/trpc/client', () => ({
         unsnooze: { mutationOptions: (o: unknown) => o },
       },
     },
+    // ShareDialog header'a taşındı (DEM-130) — list/create/revoke için stub.
+    share: { list: deepProxy, create: deepProxy, revoke: deepProxy },
   }),
 }));
 
@@ -53,13 +64,13 @@ const m = copy.modal;
 function setup(overrides: Partial<Parameters<typeof CardModalHeader>[0]> = {}) {
   const props = {
     cardId: 'c_test',
+    boardId: 'b_test',
+    canShare: true,
     boardName: 'Yol Haritası',
     listName: 'Yapılacaklar',
     archived: false,
-    canArchive: true,
-    archivePending: false,
-    onArchiveToggle: vi.fn(),
-    onClose: vi.fn(),
+    sidebarOpen: false,
+    onToggleSidebar: vi.fn(),
     ...overrides,
   };
   render(<CardModalHeader {...props} />);
@@ -77,67 +88,61 @@ describe('<CardModalHeader>', () => {
     const { rerender } = render(
       <CardModalHeader
         cardId="c_test"
+        boardId="b_test"
+        canShare
         boardName="B"
         listName="L"
         archived={false}
-        canArchive
-        onArchiveToggle={vi.fn()}
-        onClose={vi.fn()}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
       />,
     );
     expect(screen.queryByText(m.archivedBadge)).not.toBeInTheDocument();
     rerender(
       <CardModalHeader
         cardId="c_test"
+        boardId="b_test"
+        canShare
         boardName="B"
         listName="L"
         archived
-        canArchive
-        onArchiveToggle={vi.fn()}
-        onClose={vi.fn()}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
       />,
     );
     expect(screen.getByText(m.archivedBadge)).toBeInTheDocument();
   });
 
-  it('the close button calls onClose', async () => {
+  it('shows the sidebar toggle with a text label', () => {
+    setup();
+    expect(screen.getByRole('button', { name: m.sidebarOpen })).toBeInTheDocument();
+  });
+
+  it('clicking the sidebar toggle fires onToggleSidebar', async () => {
     const user = userEvent.setup();
     const props = setup();
-    await user.click(screen.getByRole('button', { name: copy.close }));
-    expect(props.onClose).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: m.sidebarOpen })!);
+    expect(props.onToggleSidebar).toHaveBeenCalledTimes(1);
   });
 
-  it('the ⋮ menu exposes archive (and disabled move/copy) for an editor', async () => {
-    const user = userEvent.setup();
-    setup({ archived: false });
-    await user.click(screen.getByRole('button', { name: m.more }));
-    expect(await screen.findByRole('menuitem', { name: m.menuArchive })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: m.menuMove })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
-  });
-
-  it('the ⋮ menu offers restore when the card is archived', async () => {
-    const user = userEvent.setup();
-    const props = setup({ archived: true });
-    await user.click(screen.getByRole('button', { name: m.more }));
-    const restore = await screen.findByRole('menuitem', { name: m.menuRestore });
-    await user.click(restore);
-    expect(props.onArchiveToggle).toHaveBeenCalledWith(false);
+  it('label flips to "close" when sidebar is open', () => {
+    setup({ sidebarOpen: true });
+    expect(screen.getByRole('button', { name: m.sidebarClose })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: m.sidebarOpen })).not.toBeInTheDocument();
   });
 
   it('plain bar (border-b, no palette class) when no cover colour is set', () => {
     render(
       <CardModalHeader
         cardId="c_test"
+        boardId="b_test"
+        canShare
         boardName="B"
         listName="L"
         coverColor={null}
         archived={false}
-        canArchive
-        onArchiveToggle={vi.fn()}
-        onClose={vi.fn()}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
       />,
     );
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
@@ -149,13 +154,14 @@ describe('<CardModalHeader>', () => {
     render(
       <CardModalHeader
         cardId="c_test"
+        boardId="b_test"
+        canShare
         boardName="B"
         listName="L"
         coverColor="mavi"
         archived={false}
-        canArchive
-        onArchiveToggle={vi.fn()}
-        onClose={vi.fn()}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
       />,
     );
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
@@ -167,6 +173,8 @@ describe('<CardModalHeader>', () => {
     render(
       <CardModalHeader
         cardId="c_test"
+        boardId="b_test"
+        canShare
         boardName="B"
         listName="L"
         coverColor="mavi"
@@ -178,15 +186,14 @@ describe('<CardModalHeader>', () => {
         }}
         coverImageUrl="https://storage.test/modal-cover.png"
         archived={false}
-        canArchive
-        onArchiveToggle={vi.fn()}
-        onClose={vi.fn()}
+        sidebarOpen={false}
+        onToggleSidebar={vi.fn()}
       />,
     );
 
     const image = screen.getByRole('img', { name: 'kapak.png' });
     expect(image).toHaveAttribute('src', 'https://storage.test/modal-cover.png');
-    expect(image.closest('[data-slot="card-modal-cover-image"]')).toHaveClass('h-40');
+    expect(image.closest('[data-slot="card-modal-cover-image"]')).toHaveClass('h-56');
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
     expect(bar).toHaveClass('bg-background', 'border-b');
     expect(bar.className).not.toMatch(/bg-palet-/);

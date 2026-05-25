@@ -48,11 +48,9 @@ import { CardDetailDueDate } from './card-detail-due-date';
 import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
-import { CardReportsButton } from '@/components/reports/entity-tab/card-reports-button';
 import { CardModalHeader } from './card-modal-header';
-import { ShareDialog } from './share-dialog';
 import { CardModalMetaChips, type CardModalMetaMenu } from './card-modal-meta-chips';
-import { CardModalSidebar } from './card-modal-sidebar';
+import { CardModalSidebar, type CardSidebarTab } from './card-modal-sidebar';
 
 const cmid = () => crypto.randomUUID();
 
@@ -106,6 +104,8 @@ export function CardDetailDialog({
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [titleFocusToken, setTitleFocusToken] = useState(0);
   const [openMetaMenu, setOpenMetaMenu] = useState<CardModalMetaMenu>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>('comments');
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
   const queries = useQueries({
@@ -566,7 +566,7 @@ export function CardDetailDialog({
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
-          'flex h-[85vh] max-h-[85vh] w-[min(1200px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[70vw] sm:max-w-none',
+          'flex h-[85vh] max-h-[85vh] w-[min(1040px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[62vw] sm:max-w-none',
           coverColor && !card?.coverImage && 'border-transparent',
         )}
         showCloseButton={false}
@@ -601,22 +601,30 @@ export function CardDetailDialog({
 
             <CardModalHeader
               cardId={cardId}
+              boardId={boardId}
+              canShare={canEdit}
               boardName={boardTitle}
               listName={listTitle}
               coverImage={card.coverImage ?? null}
               coverImageUrl={card.coverImageUrl ?? null}
               coverColor={coverColor}
               archived={archived}
-              canArchive={canArchive}
-              archivePending={archiveCard.isPending}
-              onArchiveToggle={(toArchived) => archiveCard.mutate({ cardId, archived: toArchived })}
-              onClose={onClose}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((value) => !value)}
             />
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_360px]">
+            <div
+              className={cn(
+                'grid min-h-0 flex-1 grid-cols-1 overflow-hidden',
+                sidebarOpen && 'md:grid-cols-[1fr_360px]',
+              )}
+            >
               {/* Left column ------------------------------------------------ */}
-              <div className="min-h-0 min-w-0 overflow-y-auto">
-                <div className="sticky top-0 z-10 min-w-0 space-y-2 bg-background px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
+              {/* Toplam scroll YOK — başlık/meta/alert sabit (flex-shrink-0),
+                  alttaki iki sütun grid kalan alanı doldurur ve her sütun
+                  kendi içinde bağımsız scroll yapar (2026-05-25). */}
+              <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+                <div className="min-w-0 shrink-0 space-y-2 bg-background px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <CardCompleteToggle
                       checked={completed}
@@ -643,9 +651,8 @@ export function CardDetailDialog({
                         focusEditToken={titleFocusToken}
                       />
                     </div>
-                    {/* Faz 9D (DEM-130) — kart paylaşım dialogu. Board admin/member
-                        görür; viewer için `disabled` (server ayrıca FORBIDDEN döner). */}
-                    <ShareDialog cardId={cardId} canShare={canEdit} />
+                    {/* Faz 13G (DEM-263) / Faz 9D (DEM-130) — rapor ve paylaş
+                        butonları artık CardModalHeader içinde (icon-only). */}
                   </div>
 
                   {/* Meta chip row — members / due / labels / cover-colour each
@@ -658,6 +665,11 @@ export function CardDetailDialog({
                     canEdit={canEdit}
                     openMenu={openMetaMenu}
                     onOpenMenuChange={setOpenMetaMenu}
+                    attachmentCount={attachmentCount}
+                    onOpenAttachments={() => {
+                      setSidebarTab('attachments');
+                      setSidebarOpen(true);
+                    }}
                     membersContent={
                       <CardDetailMembers
                         members={cardMembers}
@@ -734,134 +746,148 @@ export function CardDetailDialog({
                     }
                   />
 
-                  {/* Faz 13G (DEM-263) — kart scope rapor composer butonu.
-                      Sticky header'ın altında, meta chip row'unun sonunda. */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <CardReportsButton cardId={cardId} boardId={boardId} />
-                  </div>
                 </div>
 
-                <div className="flex flex-col gap-[22px] px-4 pb-4 sm:px-6 sm:pb-5">
-                  {completeError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{completeError}</AlertDescription>
-                    </Alert>
-                  )}
+                {(completeError || archiveCard.isError) && (
+                  <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 sm:px-6">
+                    {completeError && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{completeError}</AlertDescription>
+                      </Alert>
+                    )}
 
-                  {archiveCard.isError && (
-                    <Alert variant="destructive">
-                      <AlertTitle>{strings.common.unknownError}</AlertTitle>
-                      <AlertDescription>
-                        {errOf(archiveCard) ?? strings.common.unknownError}
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                    {archiveCard.isError && (
+                      <Alert variant="destructive">
+                        <AlertTitle>{strings.common.unknownError}</AlertTitle>
+                        <AlertDescription>
+                          {errOf(archiveCard) ?? strings.common.unknownError}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
 
-                  <CardDetailDescription
-                    description={card.description}
-                    canEdit={canEdit}
-                    onSave={(description) => updateDescription.mutate({ cardId, description })}
-                    pending={updateDescription.isPending}
-                    error={errOf(updateDescription)}
-                  />
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5">
+                  <div className="pusula-scrollbar min-h-0 min-w-0 overflow-y-auto">
+                    <CardDetailDescription
+                      description={card.description}
+                      canEdit={canEdit}
+                      onSave={(description) => updateDescription.mutate({ cardId, description })}
+                      pending={updateDescription.isPending}
+                      error={errOf(updateDescription)}
+                    />
+                  </div>
 
-                  <CardDetailChecklists
-                    checklists={(checklistsQ.data ?? []) as ChecklistView[]}
-                    canEdit={canEdit}
-                    nameOf={nameOf}
-                    imageOf={imageOf}
-                    onCreateChecklist={(title) =>
-                      createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
-                    }
-                    onRenameChecklist={({ checklistId, title }) =>
-                      renameChecklist.mutate({
-                        cardId,
-                        checklistId,
-                        title,
-                        clientMutationId: cmid(),
-                      })
-                    }
-                    onDeleteChecklist={(checklistId) =>
-                      deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
-                    }
-                    onAddItem={({ checklistId, content }) =>
-                      addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
-                    }
-                    onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
-                      toggleItem.mutate({
-                        cardId,
-                        checklistId,
-                        itemId,
-                        completed: itemCompleted,
-                        clientMutationId: cmid(),
-                      })
-                    }
-                    onEditItem={({ checklistId, itemId, content }) =>
-                      editItem.mutate({
-                        cardId,
-                        checklistId,
-                        itemId,
-                        content,
-                        clientMutationId: cmid(),
-                      })
-                    }
-                    onDeleteItem={({ checklistId, itemId }) =>
-                      deleteItem.mutate({ cardId, checklistId, itemId, clientMutationId: cmid() })
-                    }
-                    pending={
-                      createChecklist.isPending ||
-                      renameChecklist.isPending ||
-                      deleteChecklist.isPending ||
-                      addItem.isPending ||
-                      toggleItem.isPending ||
-                      editItem.isPending ||
-                      deleteItem.isPending
-                    }
-                    error={
-                      errOf(createChecklist) ||
-                      errOf(renameChecklist) ||
-                      errOf(deleteChecklist) ||
-                      errOf(addItem) ||
-                      errOf(toggleItem) ||
-                      errOf(editItem) ||
-                      errOf(deleteItem)
-                    }
-                  />
+                  <div className="pusula-scrollbar min-h-0 min-w-0 overflow-y-auto">
+                    <CardDetailChecklists
+                      checklists={(checklistsQ.data ?? []) as ChecklistView[]}
+                      canEdit={canEdit}
+                      nameOf={nameOf}
+                      imageOf={imageOf}
+                      onCreateChecklist={(title) =>
+                        createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
+                      }
+                      onRenameChecklist={({ checklistId, title }) =>
+                        renameChecklist.mutate({
+                          cardId,
+                          checklistId,
+                          title,
+                          clientMutationId: cmid(),
+                        })
+                      }
+                      onDeleteChecklist={(checklistId) =>
+                        deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
+                      }
+                      onAddItem={({ checklistId, content }) =>
+                        addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
+                      }
+                      onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
+                        toggleItem.mutate({
+                          cardId,
+                          checklistId,
+                          itemId,
+                          completed: itemCompleted,
+                          clientMutationId: cmid(),
+                        })
+                      }
+                      onEditItem={({ checklistId, itemId, content }) =>
+                        editItem.mutate({
+                          cardId,
+                          checklistId,
+                          itemId,
+                          content,
+                          clientMutationId: cmid(),
+                        })
+                      }
+                      onDeleteItem={({ checklistId, itemId }) =>
+                        deleteItem.mutate({
+                          cardId,
+                          checklistId,
+                          itemId,
+                          clientMutationId: cmid(),
+                        })
+                      }
+                      pending={
+                        createChecklist.isPending ||
+                        renameChecklist.isPending ||
+                        deleteChecklist.isPending ||
+                        addItem.isPending ||
+                        toggleItem.isPending ||
+                        editItem.isPending ||
+                        deleteItem.isPending
+                      }
+                      error={
+                        errOf(createChecklist) ||
+                        errOf(renameChecklist) ||
+                        errOf(deleteChecklist) ||
+                        errOf(addItem) ||
+                        errOf(toggleItem) ||
+                        errOf(editItem) ||
+                        errOf(deleteItem)
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Right panel ------------------------------------------------ */}
-              <CardModalSidebar
-                cardId={cardId}
-                comments={commentsQ.data ?? []}
-                activity={activityQ.data ?? []}
-                activityPending={activityQ.isPending}
-                attachmentCount={attachmentCount}
-                activityError={
-                  activityQ.isError ? activityQ.error?.message || strings.common.unknownError : null
-                }
-                nameOf={nameOf}
-                imageOf={imageOf}
-                viewerUserId={viewerUserId}
-                viewerName={viewerName}
-                viewerImage={viewerImage}
-                isBoardAdmin={isBoardAdmin}
-                canComment={canEdit}
-                onCreateComment={(body) =>
-                  createComment.mutate({ cardId, body, clientMutationId: cmid() })
-                }
-                onEditComment={({ commentId, body }) =>
-                  editComment.mutate({ cardId, commentId, body, clientMutationId: cmid() })
-                }
-                onDeleteComment={(commentId) =>
-                  deleteComment.mutate({ cardId, commentId, clientMutationId: cmid() })
-                }
-                commentPending={
-                  createComment.isPending || editComment.isPending || deleteComment.isPending
-                }
-                commentError={errOf(createComment) || errOf(editComment) || errOf(deleteComment)}
-                mentions={mentionSource}
-              />
+              {sidebarOpen && (
+                <CardModalSidebar
+                  cardId={cardId}
+                  comments={commentsQ.data ?? []}
+                  activity={activityQ.data ?? []}
+                  activityPending={activityQ.isPending}
+                  attachmentCount={attachmentCount}
+                  activityError={
+                    activityQ.isError
+                      ? activityQ.error?.message || strings.common.unknownError
+                      : null
+                  }
+                  nameOf={nameOf}
+                  imageOf={imageOf}
+                  viewerUserId={viewerUserId}
+                  viewerName={viewerName}
+                  viewerImage={viewerImage}
+                  isBoardAdmin={isBoardAdmin}
+                  canComment={canEdit}
+                  onCreateComment={(body) =>
+                    createComment.mutate({ cardId, body, clientMutationId: cmid() })
+                  }
+                  onEditComment={({ commentId, body }) =>
+                    editComment.mutate({ cardId, commentId, body, clientMutationId: cmid() })
+                  }
+                  onDeleteComment={(commentId) =>
+                    deleteComment.mutate({ cardId, commentId, clientMutationId: cmid() })
+                  }
+                  commentPending={
+                    createComment.isPending || editComment.isPending || deleteComment.isPending
+                  }
+                  commentError={errOf(createComment) || errOf(editComment) || errOf(deleteComment)}
+                  mentions={mentionSource}
+                  tab={sidebarTab}
+                  onTabChange={setSidebarTab}
+                />
+              )}
             </div>
           </>
         )}

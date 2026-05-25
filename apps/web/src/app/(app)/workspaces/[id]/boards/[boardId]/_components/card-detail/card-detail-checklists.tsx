@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { CheckSquareIcon } from 'lucide-react';
 import { Alert, AlertDescription, EmptyState, Progress, SectionHeader } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { AddChecklistForm } from './checklist-add-forms';
+import { AddChecklistFormPanel, AddChecklistTrigger } from './checklist-add-forms';
 import { ChecklistBlock } from './checklist-block';
 import type {
   ChecklistHandlers,
@@ -45,6 +46,10 @@ export function CardDetailChecklists({
   ...handlers
 }: CardDetailChecklistsProps) {
   const copy = strings.card.checklist;
+  // Yeni checklist ekleme formu açık/kapalı durumu — parent'ta tutulur ki
+  // `SectionHeader` action slotunun dar alanına sıkışmasın, gövdede tam
+  // genişlikte render edilsin (UI tutarlılığı: `ChecklistBlock` shell'i).
+  const [addingChecklist, setAddingChecklist] = useState(false);
 
   const total = checklists.reduce((sum, c) => sum + c.items.length, 0);
   const done = checklists.reduce((sum, c) => sum + c.items.filter((i) => i.completed).length, 0);
@@ -69,8 +74,11 @@ export function CardDetailChecklists({
                 </span>
               </span>
             )}
-            {canEdit && (
-              <AddChecklistForm onSubmit={handlers.onCreateChecklist} pending={pending} />
+            {canEdit && !addingChecklist && (
+              <AddChecklistTrigger
+                onClick={() => setAddingChecklist(true)}
+                disabled={pending}
+              />
             )}
           </>
         }
@@ -84,8 +92,18 @@ export function CardDetailChecklists({
         </Alert>
       )}
 
+      {canEdit && addingChecklist && (
+        <AddChecklistFormPanel
+          onSubmit={handlers.onCreateChecklist}
+          onClose={() => setAddingChecklist(false)}
+          pending={pending}
+        />
+      )}
+
       {checklists.length === 0 ? (
-        <EmptyState icon={<CheckSquareIcon className="size-8" />} message={copy.empty} />
+        !addingChecklist && (
+          <EmptyState icon={<CheckSquareIcon className="size-8" />} message={copy.empty} />
+        )
       ) : (
         <div className="space-y-3">
           {checklists.map((checklist) => (

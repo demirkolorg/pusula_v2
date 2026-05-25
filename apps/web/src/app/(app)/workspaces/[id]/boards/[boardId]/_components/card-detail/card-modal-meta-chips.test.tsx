@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 import { CardModalMetaChips } from './card-modal-meta-chips';
 
@@ -66,5 +66,26 @@ describe('<CardModalMetaChips>', () => {
   it('hides the "add" chip for a read-only viewer', () => {
     setup({ canEdit: false });
     expect(screen.queryByRole('button', { name: m.addMeta })).not.toBeInTheDocument();
+  });
+
+  it('renders the "Ek" chip with count > 0 and calls onOpenAttachments when clicked', async () => {
+    const user = userEvent.setup();
+    const onOpenAttachments = vi.fn();
+    setup({ attachmentCount: 3, onOpenAttachments });
+    const chip = screen.getByRole('button', { name: m.attachmentsChip });
+    expect(chip).toHaveTextContent('3');
+    await user.click(chip);
+    expect(onOpenAttachments).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the "Ek" chip label when attachmentCount is 0', () => {
+    setup({ attachmentCount: 0, onOpenAttachments: () => undefined });
+    const chip = screen.getByRole('button', { name: m.attachmentsChip });
+    expect(chip).toHaveTextContent(m.attachmentsChip);
+  });
+
+  it('omits the "Ek" chip when onOpenAttachments is not provided', () => {
+    setup();
+    expect(screen.queryByRole('button', { name: m.attachmentsChip })).not.toBeInTheDocument();
   });
 });

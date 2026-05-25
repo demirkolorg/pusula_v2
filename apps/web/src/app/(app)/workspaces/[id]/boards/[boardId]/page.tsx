@@ -15,15 +15,11 @@ import { useTRPC } from '@/trpc/client';
 import { useBoardRealtime } from '@/lib/realtime';
 import { BoardAccessRequestScreen } from './_components/board-access-request-screen';
 import { BoardColumns } from './_components/board-columns';
-import { QuickNotesPanel } from './_components/quick-notes-panel';
 import { countArchivedLists, type DueDateFilter } from './_components/board-filter';
 import type { BoardFilterLabel } from './_components/board-filter-bar';
 import { BoardSkeleton } from './_components/board-skeleton';
 import { BoardTopBar } from './_components/board-top-bar';
 import { CardDetailRoute } from './_components/card-detail/card-detail-route';
-
-/** `localStorage` key for the "Hızlı Notlar" panel open state (DEM-205). */
-const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
 
 /**
  * `ShortcutHelpDialog` nadiren açılan bir modal — yalnız `?` kısayoluyla
@@ -156,15 +152,8 @@ export default function BoardDetailPage({
   const [showArchivedCards, setShowArchivedCards] = useState(false);
   const [boardSearchOpen, setBoardSearchOpen] = useState(false);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
-  // "Hızlı Notlar" panel (DEM-205). Starts closed to keep the SSR/first render
-  // deterministic, then adopts the persisted preference on mount.
-  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
-  useEffect(() => {
-    setQuickNotesOpen(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
-  }, []);
-  useEffect(() => {
-    window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
-  }, [quickNotesOpen]);
+  // Hızlı Notlar paneli artık `AppShell` (global) seviyesinde — board ekranı
+  // kendi state'ini tutmaz, toggle global header'da.
   const [openFirstCardComposerToken, setOpenFirstCardComposerToken] = useState(0);
   const [openAddListComposerToken, setOpenAddListComposerToken] = useState(0);
   const archivedCards = useQuery(
@@ -302,28 +291,16 @@ export default function BoardDetailPage({
 
   return (
     <div
-      // App-shell header rengi (`bg-board-shell`); panel ile pano arasındaki
-      // `gap` bu rengi bir şerit olarak gösterir (Trello "Gelen Kutusu" deseni).
-      className="bg-board-shell flex min-h-0 flex-1 gap-2"
+      // AppShell row container artık global yan panelleri (Gezgin + Hızlı
+      // Notlar) hallediyor. Board page sadece kendi içerik kartı —
+      // `lg+`'da yuvarlak köşeli, board renkli yüzey.
+      className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-hidden lg:rounded-xl',
+        boardBackgroundClass(b.background ?? null),
+      )}
       data-realtime-board-id={boardId}
       data-realtime-board-joined={realtime.joined ? 'true' : 'false'}
     >
-      {/* Hızlı Notlar paneli — pano başlık çubuğu dâhil tüm pano yüzeyinin
-          soluna, ayrı bir parça olarak oturur (yalnız app-shell header sabit). */}
-      {quickNotesOpen && (
-        <QuickNotesPanel
-          canConvert={canEditBoardContent}
-          background={b.background ?? null}
-          onClose={() => setQuickNotesOpen(false)}
-        />
-      )}
-
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden',
-          boardBackgroundClass(b.background ?? null),
-        )}
-      >
         <BoardTopBar
           boardId={boardId}
           workspaceId={workspaceId}
@@ -345,10 +322,6 @@ export default function BoardDetailPage({
           assignedToMe={{
             active: assignedToMeOnly,
             onToggle: () => setAssignedToMeOnly((value) => !value),
-          }}
-          quickNotes={{
-            open: quickNotesOpen,
-            onToggle: () => setQuickNotesOpen((value) => !value),
           }}
           archive={{
             lists,
@@ -414,7 +387,6 @@ export default function BoardDetailPage({
             includeCardModal={false}
           />
         )}
-      </div>
     </div>
   );
 }

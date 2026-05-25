@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { CalendarIcon, ImageIcon, ShieldIcon, TagIcon } from 'lucide-react';
+import { CalendarIcon, ImageIcon, PaperclipIcon, ShieldIcon, TagIcon } from 'lucide-react';
 import { type CardCoverColor } from '@pusula/domain';
 import {
   DropdownMenu,
@@ -42,6 +42,16 @@ type CardModalMetaChipsProps = {
   coverContent: ReactNode;
   openMenu?: CardModalMetaMenu;
   onOpenMenuChange?: (menu: CardModalMetaMenu) => void;
+  /**
+   * Committed-attachment count — drives the "Ek" chip suffix. When omitted the
+   * chip is not rendered (keeps the chip optional for read-only contexts).
+   */
+  attachmentCount?: number;
+  /**
+   * Click handler for the "Ek" chip — opens the sidebar's attachments tab in
+   * the dialog. When omitted the chip is not rendered.
+   */
+  onOpenAttachments?: () => void;
 };
 
 export type CardModalMetaMenu = 'members' | 'due' | 'labels' | 'cover' | null;
@@ -95,6 +105,8 @@ export function CardModalMetaChips({
   coverContent,
   openMenu,
   onOpenMenuChange,
+  attachmentCount,
+  onOpenAttachments,
 }: CardModalMetaChipsProps) {
   const copy = strings.card.detail.modal;
   const state = dueAt != null ? dueState(dueAt) : 'normal';
@@ -197,6 +209,20 @@ export function CardModalMetaChips({
       >
         {coverContent}
       </MetaDropdown>
+
+      {onOpenAttachments && (
+        <MetaChip
+          variant="modal"
+          interactive
+          icon={<PaperclipIcon className="size-3.5" aria-hidden />}
+          aria-label={copy.attachmentsChip}
+          onClick={onOpenAttachments}
+        >
+          {attachmentCount != null && attachmentCount > 0
+            ? attachmentCount
+            : copy.attachmentsChip}
+        </MetaChip>
+      )}
     </MetaRow>
   );
 }

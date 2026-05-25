@@ -11,36 +11,57 @@ import { strings } from '@/lib/strings';
 // until opened; validate against the domain schema and reset on submit/cancel.
 // ---------------------------------------------------------------------------
 
-export function AddChecklistForm({
+/**
+ * "+ Liste ekle" trigger — `SectionHeader` action slotunda durur. Tıklayınca
+ * gerçek form (`AddChecklistFormPanel`) section gövdesinde tam genişlikte
+ * açılır; state parent'ta (`CardDetailChecklists`) tutulur ki dar action
+ * slotunda input sıkışmasın.
+ */
+export function AddChecklistTrigger({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  const copy = strings.card.checklist;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={copy.addAction}
+        >
+          <PlusIcon className="size-4" aria-hidden />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{copy.addAction}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * Yeni checklist ekleme formu — tam genişlikte, `ChecklistBlock`'larla aynı
+ * `border rounded-md` shell'i (UI tutarlılığı). Submit/Cancel sonrası
+ * `onClose` ile parent state'i kapatır.
+ */
+export function AddChecklistFormPanel({
   onSubmit,
+  onClose,
   pending,
 }: {
   onSubmit: (title: string) => void;
+  onClose: () => void;
   pending: boolean;
 }) {
   const copy = strings.card.checklist;
-  const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  if (!open) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setOpen(true)}
-            aria-label={copy.addAction}
-          >
-            <PlusIcon className="size-4" aria-hidden />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{copy.addAction}</TooltipContent>
-      </Tooltip>
-    );
-  }
   return (
     <form
       onSubmit={(event) => {
@@ -53,10 +74,10 @@ export function AddChecklistForm({
         setError(null);
         onSubmit(parsed.data);
         setValue('');
-        setOpen(false);
+        onClose();
       }}
       noValidate
-      className="space-y-2"
+      className="space-y-2 rounded-md border bg-card p-3"
     >
       <Input
         name="checklistTitle"
@@ -67,6 +88,7 @@ export function AddChecklistForm({
         disabled={pending}
         autoComplete="off"
         aria-invalid={error ? true : undefined}
+        autoFocus
       />
       {error && <p className="text-destructive text-sm">{error}</p>}
       <div className="flex gap-2">
@@ -79,9 +101,9 @@ export function AddChecklistForm({
           size="sm"
           disabled={pending}
           onClick={() => {
-            setOpen(false);
             setValue('');
             setError(null);
+            onClose();
           }}
         >
           {copy.cancel}

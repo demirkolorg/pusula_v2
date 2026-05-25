@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+export type CardSidebarTab = 'comments' | 'activity' | 'attachments' | 'all';
 import { ActivityIcon } from 'lucide-react';
 import {
   EmptyState,
@@ -52,6 +53,13 @@ type CardModalSidebarProps = {
   commentError: string | null;
   /** Optional @-mention picker source (board members) for composer + inline edit. */
   mentions?: MentionSource;
+  /**
+   * Optional controlled tab — when set, the parent owns the active tab (used
+   * by the "Ek" meta chip to jump to the attachments tab). Falls back to
+   * internal state when omitted.
+   */
+  tab?: CardSidebarTab;
+  onTabChange?: (tab: CardSidebarTab) => void;
 };
 
 type FeedItem =
@@ -92,9 +100,16 @@ export function CardModalSidebar({
   commentPending,
   commentError,
   mentions,
+  tab: controlledTab,
+  onTabChange,
 }: CardModalSidebarProps) {
   const copy = strings.card.detail;
-  const [tab, setTab] = useState<'comments' | 'activity' | 'attachments' | 'all'>('comments');
+  const [internalTab, setInternalTab] = useState<CardSidebarTab>('comments');
+  const tab = controlledTab ?? internalTab;
+  const setTab = (next: CardSidebarTab) => {
+    if (controlledTab === undefined) setInternalTab(next);
+    onTabChange?.(next);
+  };
 
   const visibleCommentCount = useMemo(
     () => comments.filter((c) => c.deletedAt == null).length,
@@ -150,7 +165,7 @@ export function CardModalSidebar({
     >
       <Tabs
         value={tab}
-        onValueChange={(v) => setTab(v as typeof tab)}
+        onValueChange={(v) => setTab(v as CardSidebarTab)}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
         <div className="sticky top-0 z-10 shrink-0 bg-muted/40 px-4 pt-3 pb-2.5 backdrop-blur sm:px-[18px]">
@@ -170,7 +185,7 @@ export function CardModalSidebar({
           </TabsList>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-4 sm:px-[18px] sm:pb-[18px]">
+        <div className="pusula-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-4 sm:px-[18px] sm:pb-[18px]">
           <TabsContent value="comments" className="space-y-3">
             {canComment && (
               <CardCommentComposer

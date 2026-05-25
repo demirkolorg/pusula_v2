@@ -59,6 +59,8 @@ type CardDetailSnoozeProps = {
    * `onColored` flag'ini bu prop üzerinden iletir.
    */
   onColored?: boolean;
+  /** İkon yanına metin etiketi göster (kart modal header — kompakt yerine geniş varyant). */
+  showLabel?: boolean;
 };
 
 /** Snooze aktif mi — `mute_until` future ise. tRPC superjson Date olarak teslim eder. */
@@ -67,7 +69,11 @@ function isSnoozeActive(value: Date | null | undefined): value is Date {
   return value.getTime() > Date.now();
 }
 
-export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnoozeProps) {
+export function CardDetailSnooze({
+  cardId,
+  onColored = false,
+  showLabel = false,
+}: CardDetailSnoozeProps) {
   const copy = strings.account.notifications.snooze;
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -216,7 +222,8 @@ export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnooze
                 disabled={preferenceQuery.isPending || snooze.isPending || unsnooze.isPending}
                 data-snooze-active={active ? 'true' : undefined}
                 className={cn(
-                  'inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:size-4',
+                  'inline-flex h-7 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:size-4',
+                  showLabel ? 'gap-1.5 px-2 text-xs' : 'w-7',
                   onColored
                     ? 'text-current hover:bg-current/15'
                     : active
@@ -225,6 +232,11 @@ export function CardDetailSnooze({ cardId, onColored = false }: CardDetailSnooze
                 )}
               >
                 <Icon aria-hidden />
+                {showLabel ? (
+                  <span className="truncate">
+                    {active ? `${copy.button} · ${remainingLabel}` : copy.button}
+                  </span>
+                ) : null}
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
