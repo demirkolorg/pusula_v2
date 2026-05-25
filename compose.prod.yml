@@ -154,6 +154,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Faz 14E (DEM-295) — `apps/web/.../api/boards/[boardId]/report` route
+      # handler `@pusula/db` üzerinden `getDb()` çağırır. Web container'ında
+      # runtime DATABASE_URL gerek; aksi halde route 500 + Zod env hatası.
+      # Dockerfile build-time placeholder ayrı (next build "Collecting page
+      # data" için); bu satır runtime override sağlar (Dokploy env injection).
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       api: { condition: service_started }
     labels:

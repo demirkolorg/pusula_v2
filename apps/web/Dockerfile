@@ -20,6 +20,15 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+# Faz 14E (DEM-295) — `apps/web/src/app/api/boards/[boardId]/report/route.ts`
+# `@pusula/db` import eder; `@pusula/db/src/env.ts` modül seviyesinde Zod
+# `DATABASE_URL` parse eder. Next.js "Collecting page data" aşamasında route
+# yüklendiği için build-time DATABASE_URL zorunlu. Placeholder yeterli (Zod
+# string parse pass eder, bağlantı denenmez). Runtime'da Dokploy env injection
+# gerçek `DATABASE_URL`'i override eder. V2 follow-up: route handler lazy
+# import refactor (`await import('@pusula/db')` GET içinde) ile bu placeholder
+# kaldırılabilir.
+ENV DATABASE_URL=postgresql://build-placeholder@localhost:5432/build
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
