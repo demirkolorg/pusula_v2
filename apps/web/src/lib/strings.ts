@@ -316,6 +316,7 @@ export const strings = {
       // Sayfa altı landing footer'ı.
       footer: {
         privacy: 'Gizlilik',
+        changelog: 'Yenilikler',
         signUp: 'Kayıt ol',
       },
     },

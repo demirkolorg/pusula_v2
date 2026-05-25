@@ -28,6 +28,9 @@ export function LandingFooter() {
           © {new Date().getFullYear()} {strings.common.appName}
         </span>
         <nav className="flex items-center gap-4">
+          <Link href="/yenilikler" className={linkClass}>
+            {copy.changelog}
+          </Link>
           <Link href="/gizlilik" className={linkClass}>
             {copy.privacy}
           </Link>

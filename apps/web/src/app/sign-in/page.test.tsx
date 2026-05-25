@@ -152,7 +152,7 @@ describe('<SignInPage>', () => {
     }
   });
 
-  it('renders the landing footer with privacy and sign-up links', async () => {
+  it('renders the landing footer with changelog, privacy and sign-up links', async () => {
     render(<SignInPage />);
     await screen.findByLabelText(strings.auth.emailLabel);
 
@@ -160,6 +160,9 @@ describe('<SignInPage>', () => {
     expect(
       within(footer).getByText(`© ${new Date().getFullYear()} ${strings.common.appName}`),
     ).toBeInTheDocument();
+    expect(
+      within(footer).getByRole('link', { name: strings.auth.landing.footer.changelog }),
+    ).toHaveAttribute('href', '/yenilikler');
     expect(
       within(footer).getByRole('link', { name: strings.auth.landing.footer.privacy }),
     ).toHaveAttribute('href', '/gizlilik');
