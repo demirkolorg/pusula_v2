@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-20
+updated: 2026-05-25
 ---
 
 # 13 — UI Tasarım Dili
@@ -246,12 +246,15 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
 
 `grid grid-cols-1 md:grid-cols-[1fr_360px] overflow-hidden flex-1`.
 
-**Sol kolon** — `overflow-y-auto px-5 py-4 space-y-5`:
+**Sol kolon** — `flex flex-col min-h-0 min-w-0 overflow-hidden` (2026-05-25 UX rafine — tek scroll alanı yerine üç katmanlı: sabit başlık + sabit alert satırı + iki bağımsız scroll'lu sütun):
 
-- **Sticky başlık alanı** (`sticky top-0 bg-background z-10 pb-2 -mt-4 pt-4`): `CardCompleteToggle` (yuvarlak, hep görünür) + başlık inline-edit (`textarea`, `text-lg font-semibold leading-tight`, `field-sizing-content`).
-- **Meta chip satırı (`CardModalMetaChips`)** — `flex flex-wrap items-center gap-1`; chip shell `group inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground`: `ShieldIcon`+üye sayısı (→ üye picker `Popover`) · `CalendarIcon`+due (→ date picker; gecikmiş kırmızı + "GECİKTİ" rozeti, soon amber nokta) · `TagIcon`+etiket sayısı (→ etiket picker) · `PaletteIcon`+kapak rengi (→ renk picker) · `+` ekle.
-- **AÇIKLAMA** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` `|` **H1 H2 H3** `|` bullet ordered `|` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
-- **KONTROL LİSTESİ** — `SectionHeader` (`CheckSquareIcon` + "KONTROL LİSTESİ" + sağda toplam `Progress` mini-bar `w-20` + `x/y` `text-primary text-[11px] font-semibold` + "+ Liste ekle" `Button variant=outline size=sm border-dashed`): her checklist `border rounded-md p-3 space-y-1.5` — başlık (inline edit) + `x/y` + `Progress` (`h-1`, dolu → `bg-success`) + maddeler (`flex items-center gap-2`: `Checkbox` yuvarlak + madde metni inline-edit [tamsa `line-through text-muted-foreground`] + sağda atanan `Avatar size-xs` + chip "Ad S." `text-[10px] text-muted-foreground` + sil ikonu hover) + "+ Madde ekle" ghost.
+- **Üst sabit alan** (`shrink-0` — eski `sticky top-0` çözümünün yerine; modal kaydırmadığı için sticky'ye gerek yok), `px-4 pt-4 pb-2 sm:px-6 sm:pt-5 space-y-2`:
+  - `CardCompleteToggle` (yuvarlak, hep görünür) + başlık inline-edit (`textarea`, `text-lg font-semibold leading-tight`, `field-sizing-content`) + `CardReportsButton` + `ShareDialog`.
+  - **Meta chip satırı (`CardModalMetaChips`)** — `flex flex-wrap items-center gap-1`; chip shell `group inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground`: `ShieldIcon`+üye sayısı (→ üye picker `Popover`) · `CalendarIcon`+due (→ date picker; gecikmiş kırmızı + "GECİKTİ" rozeti, soon amber nokta) · `TagIcon`+etiket sayısı (→ etiket picker) · `PaletteIcon`+kapak rengi (→ renk picker) · `+` ekle.
+- **Sabit alert satırı** (`shrink-0 px-4 sm:px-6 pb-2` — yalnız modal-geneli `completeError` / `archiveCard.isError` varsa render).
+- **AÇIKLAMA + KONTROL LİSTESİ — yan yana iki sütun + bağımsız scroll**: kalan alanı `grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5` doldurur (sol sütun AÇIKLAMA, sağ sütun KONTROL LİSTESİ; sidebar açık/kapalı ve viewport boyutundan bağımsız sabit — mobilde de yan yana, kullanıcı kararı). Her grid hücresi `pusula-scrollbar min-h-0 min-w-0 overflow-y-auto` wrapper içinde — sütunlar `items-stretch` (default) ile grid yüksekliğini alır; uzun checklist sağ sütunda scroll yapar, sol sütun yerinde durur. `pusula-scrollbar` utility'si (`theme.css` `@layer utilities`) 6px ince thumb + transparent track + token bazlı (`--scrollbar-thumb`/`--scrollbar-thumb-hover`) renkler ile light/dark teması için yumuşak görünüm sağlar — modal sağ paneldeki `TabsContent` scroll alanı da aynı utility'yi paylaşır. Modal-tamamı için scroll çıkmaz.
+  - **AÇIKLAMA (sol sütun)** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` `|` **H1 H2 H3** `|` bullet ordered `|` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
+  - **KONTROL LİSTESİ (sağ sütun)** — `SectionHeader` (`CheckSquareIcon` + "KONTROL LİSTESİ" + sağda toplam `Progress` mini-bar `w-20` + `x/y` `text-primary text-[11px] font-semibold` + "+ Liste ekle" `Button variant=outline size=sm border-dashed`): her checklist `border rounded-md p-3 space-y-1.5` — başlık (inline edit) + `x/y` + `Progress` (`h-1`, dolu → `bg-success`) + maddeler (`flex items-center gap-2`: `Checkbox` yuvarlak + madde metni inline-edit [tamsa `line-through text-muted-foreground`] + sağda atanan `Avatar size-xs` + chip "Ad S." `text-[10px] text-muted-foreground` + sil ikonu hover) + "+ Madde ekle" ghost.
 
 **Sağ panel (`CardModalSidebar`)** — `bg-muted/40 backdrop-blur border-t md:border-t-0 md:border-l overflow-y-auto flex flex-col`:
 

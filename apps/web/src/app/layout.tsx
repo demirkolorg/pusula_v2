@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Poppins } from 'next/font/google';
 import { Toaster } from '@pusula/ui';
 import { TRPCReactProvider } from '@/trpc/client';
+import { ColorThemeProvider } from './_components/color-theme-provider';
 import { FontSizeProvider } from './_components/font-size-provider';
 import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
@@ -67,13 +68,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="tr" className={poppins.variable} suppressHydrationWarning>
+    <html
+      lang="tr"
+      className={poppins.variable}
+      data-color-theme="slate"
+      suppressHydrationWarning
+    >
       <body className="bg-background text-foreground min-h-svh font-sans antialiased">
         <ThemeProvider>
-          <FontSizeProvider>
-            <TRPCReactProvider>{children}</TRPCReactProvider>
-          </FontSizeProvider>
-          <Toaster />
+          <ColorThemeProvider>
+            <FontSizeProvider>
+              <TRPCReactProvider>{children}</TRPCReactProvider>
+            </FontSizeProvider>
+            <Toaster />
+          </ColorThemeProvider>
         </ThemeProvider>
       </body>
     </html>

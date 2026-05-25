@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { InboxIcon, PencilLineIcon, PlusIcon, XIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { quickNoteContentSchema } from '@pusula/domain';
-import { Button, Textarea, boardBackgroundClass, cn } from '@pusula/ui';
+import { Button, Textarea } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useQuickNoteMutations } from '@/lib/use-quick-note-mutations';
 import { useTRPC } from '@/trpc/client';
@@ -14,46 +14,35 @@ type QuickNotesPanelProps = {
   /**
    * Whether a note may be dragged onto a list to convert it — board `member+`
    * on an active board. Note CRUD is always allowed (a quick note is personal).
+   * Board ekranı dışında `false` geçilir → drag handle gizli, kullanıcı sadece
+   * not yazıp/düzenleyip/silebilir.
    */
   canConvert: boolean;
-  /** The board's background — the panel body shares it so it reads as one board surface. */
-  background: string | null;
-  /** Close the panel (the `BoardTopBar` toggle owns the open state). */
+  /** Close the panel (the global header toggle owns the open state). */
   onClose: () => void;
+  /**
+   * Bir link / aksiyon sonrası çağrılır. Mobil sheet modunda panelin kendini
+   * kapatması için kullanılır; persistent (lg+) modda parent `undefined`
+   * geçer ve panel açık kalır. Şu an Hızlı Notlar'ın içinde navigate yok;
+   * future-proof için Gezgin paneliyle simetrik tutuldu.
+   */
+  onNavigate?: () => void;
 };
 
-/** Chrome-foreground ghost button for the board-coloured panel header. */
-const headerButtonClass =
-  'text-[color:var(--board-chrome-fg)] hover:bg-white/10 hover:text-[color:var(--board-chrome-fg)]';
-
 /**
- * Foreground for text that sits directly on the transparent (board-coloured)
- * panel body — loading / error / empty states. `--board-canvas-fg` flips
- * light/dark by the board surface lightness, so the copy stays readable on any
- * background. The composer + note rows are `bg-card` surfaces and keep theme
- * foreground colours.
- */
-const canvasFgClass = 'text-[color:var(--board-canvas-fg)]';
-const canvasFgMutedClass = 'text-[color:var(--board-canvas-fg-muted)]';
-
-/**
- * Web "Hızlı Notlar" paneli (DEM-205) — pano ekranının solunda açılıp kapanan,
+ * Global "Hızlı Notlar" paneli (DEM-205) — uygulamanın her ekranında erişilebilen,
  * Trello "Gelen Kutusu" mantığında kişisel yakalama paneli. Üstte not ekleme
- * alanı, altında notlar yeniden-eskiye. Bir not satırı bir pano listesine
- * sürüklenince karta dönüşür (`QuickNoteRow` + board `monitorForElements`).
+ * alanı, altında notlar yeniden-eskiye. Pano ekranında bir not satırı bir
+ * listeye sürüklenince karta dönüşür (`QuickNoteRow` + board
+ * `monitorForElements`); pano dışında drag handle gizli (sadece CRUD).
  *
- * Panel pano yüzeyinin bir parçası gibi okunur: başlık şeridi `BoardTopBar` ile
- * aynı renkte (`bg-board-topbar`) ve aynı yükseklikte; gövdesi şeffaftır, pano
- * arka planını gösterir. Not kartları `bg-card`; not ekleme alanı (composer) ise
- * pano listeleriyle aynı yüzeyi (`--board-list-bg`) kullanır → şeffaf pano
- * üzerinde yalnız duran beyaz bir kutu gibi değil, panonun bir listesi gibi
- * okunur. Gövdeye `p-5` boşluk verilir → panel içeriği ile pano kolonları
- * arasında nefes payı.
- *
- * Panel yalnız pano ekranında render edilir; açık/kapalı durumu
- * `BoardDetailPage`'de tutulur ve `localStorage`'da saklanır.
+ * Gezgin paneliyle birebir aynı görsel + davranış:
+ * - **Sistem teması:** `bg-background` + `text-foreground` (pano arka planı
+ *   etkilemez).
+ * - `lg+`: persistent sidebar (yuvarlak köşeli kart).
+ * - `<lg`: overlay sheet (full-bleed).
  */
-export function QuickNotesPanel({ canConvert, background, onClose }: QuickNotesPanelProps) {
+export function QuickNotesPanel({ canConvert, onClose }: QuickNotesPanelProps) {
   const trpc = useTRPC();
   const notesQuery = useQuery(trpc.quickNote.list.queryOptions());
   const { createNote, updateNote, deleteNote } = useQuickNoteMutations();
@@ -62,17 +51,18 @@ export function QuickNotesPanel({ canConvert, background, onClose }: QuickNotesP
   return (
     <aside
       aria-label={copy.panelTitle}
-      className={cn('flex h-full w-96 shrink-0 flex-col', boardBackgroundClass(background))}
+      // `lg+`: yuvarlak kart (Trello "Gelen Kutusu" deseni); sistem teması
+      // (Gezgin paneliyle aynı). Mobilde köşesiz — paneller arası gap yok.
+      className="bg-background text-foreground border-border flex h-full w-96 shrink-0 flex-col overflow-hidden lg:rounded-xl lg:border"
     >
-      {/* Header — board topbar colour, `min-h-14` aligned with `BoardTopBar`. */}
-      <header className="bg-board-topbar flex min-h-14 shrink-0 items-center gap-2 px-3 text-[color:var(--board-chrome-fg)]">
-        <InboxIcon aria-hidden className="size-4" />
+      <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
+        <InboxIcon aria-hidden className="size-4 opacity-70" />
         <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className={`size-7 ${headerButtonClass}`}
+          className="size-7"
           aria-label={copy.close}
           onClick={onClose}
         >
@@ -80,18 +70,17 @@ export function QuickNotesPanel({ canConvert, background, onClose }: QuickNotesP
         </Button>
       </header>
 
-      {/* Body — transparent (the board background shows through); `p-5` gap. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
         <QuickNoteComposer onSubmit={createNote} />
 
         <div className="pusula-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto">
           {notesQuery.isPending ? (
-            <p className={cn('py-6 text-center text-sm', canvasFgMutedClass)}>
+            <p className="text-muted-foreground py-6 text-center text-sm">
               {strings.common.loading}
             </p>
           ) : notesQuery.isError ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <p className={cn('text-sm font-medium', canvasFgClass)}>{copy.loadErrorTitle}</p>
+              <p className="text-foreground text-sm font-medium">{copy.loadErrorTitle}</p>
               <Button
                 type="button"
                 variant="outline"
@@ -103,9 +92,9 @@ export function QuickNotesPanel({ canConvert, background, onClose }: QuickNotesP
             </div>
           ) : notesQuery.data.length === 0 ? (
             <div className="flex flex-col items-center gap-1.5 py-8 text-center">
-              <InboxIcon aria-hidden className={cn('size-7', canvasFgMutedClass)} />
-              <p className={cn('text-sm font-medium', canvasFgClass)}>{copy.emptyTitle}</p>
-              <p className={cn('text-xs', canvasFgMutedClass)}>{copy.emptyDescription}</p>
+              <InboxIcon aria-hidden className="text-muted-foreground size-7" />
+              <p className="text-foreground text-sm font-medium">{copy.emptyTitle}</p>
+              <p className="text-muted-foreground text-xs">{copy.emptyDescription}</p>
             </div>
           ) : (
             notesQuery.data.map((note) => (
@@ -126,11 +115,8 @@ export function QuickNotesPanel({ canConvert, background, onClose }: QuickNotesP
 
 /**
  * Always-open "add a quick note" composer — clears + stays focused after submit.
- *
- * The form is a `--board-list-bg` surface (the same colour as the board's list
- * columns) carrying a small section label, the input and the submit button. On
- * that tinted surface the `bg-card` textarea reads as a proper input field —
- * not a lone white box floating on the board background.
+ * Form `bg-muted` tinted yüzey üzerine `bg-card` textarea — sistem temasıyla
+ * uyumlu (pano arka planından bağımsız).
  */
 function QuickNoteComposer({ onSubmit }: { onSubmit: (content: string) => void }) {
   const inputId = useId();
@@ -151,7 +137,7 @@ function QuickNoteComposer({ onSubmit }: { onSubmit: (content: string) => void }
 
   return (
     <form
-      className="shrink-0 space-y-2.5 rounded-xl bg-[color:var(--board-list-bg)] p-3 shadow-sm ring-1 ring-[color:var(--board-list-border)]"
+      className="bg-muted/50 ring-border shrink-0 space-y-2.5 rounded-xl p-3 ring-1"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();

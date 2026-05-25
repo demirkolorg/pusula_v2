@@ -1,6 +1,7 @@
 import { router } from './trpc';
 import { authRouter } from './routers/auth';
 import { attachmentRouter } from './routers/attachment';
+import { auditRouter } from './routers/audit';
 import { boardRouter } from './routers/board';
 import { cardRouter } from './routers/card';
 import { checklistRouter } from './routers/checklist';
@@ -8,6 +9,7 @@ import { commentRouter } from './routers/comment';
 import { healthRouter } from './routers/health';
 import { labelRouter } from './routers/label';
 import { listRouter } from './routers/list';
+import { navRouter } from './routers/nav';
 import { notificationsRouter } from './routers/notifications';
 import { pushRouter } from './routers/push';
 import { quickNoteRouter } from './routers/quick-note';
@@ -22,9 +24,11 @@ export const appRouter = router({
   auth: authRouter,
   user: userRouter,
   attachment: attachmentRouter,
+  audit: auditRouter,
   workspace: workspaceRouter,
   board: boardRouter,
   list: listRouter,
+  nav: navRouter,
   card: cardRouter,
   comment: commentRouter,
   checklist: checklistRouter,
