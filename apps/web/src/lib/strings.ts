@@ -390,6 +390,22 @@ export const strings = {
       increase: 'Büyüt',
       reset: 'Sıfırla',
     },
+    fontFamily: {
+      trigger: 'Yazı tipi',
+      label: 'Yazı tipi',
+      reset: 'Varsayılana dön',
+      preview: 'Aa Pusula',
+      options: {
+        poppins: 'Poppins',
+        inter: 'Inter',
+        system: 'Sistem yazı tipi',
+        lora: 'Lora',
+        manrope: 'Manrope',
+        'dm-sans': 'DM Sans',
+        'jetbrains-mono': 'JetBrains Mono',
+        atkinson: 'Atkinson Hyperlegible',
+      },
+    },
     colorTheme: {
       trigger: 'Renk teması',
       label: 'Renk teması',
@@ -1418,9 +1434,6 @@ export const strings = {
       remove: 'Çıkar',
       removing: 'Çıkarılıyor…',
       noBoardMembers: 'Eklenebilecek başka pano üyesi yok.',
-      watchSelf: 'Bu kartı izle',
-      unwatchSelf: 'İzlemeyi bırak',
-      watching: 'İşleniyor…',
     },
     labels: {
       title: 'Etiketler',

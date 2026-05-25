@@ -13,6 +13,7 @@ import { useTRPC } from '@/trpc/client';
 import { BoardSwitcher } from './board-switcher';
 import { ColorThemeToggle } from './color-theme-toggle';
 import { EmailVerificationBanner } from './email-verification-banner';
+import { FontFamilyToggle } from './font-family-toggle';
 import { FontSizeToggle } from './font-size-toggle';
 import { NavigatorPanel } from './navigator-panel';
 import { NavigatorToggle } from './navigator-toggle';
@@ -36,6 +37,16 @@ function isMobileViewport(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia(LG_QUERY).matches;
 }
+
+/**
+ * Header'daki klasik `WorkspaceSwitcher` + `BoardSwitcher` görünürlüğü.
+ * Gezgin paneli (sol global panel) workspace/board navigasyonunu üstlendiği
+ * için bu switcher'lar şimdilik gizli. Kullanıcı geri ister(se hızlıca açmak
+ * için bu sabiti `true` yap (kod ve importlar yerinde duruyor). Tamamen
+ * kaldırma kararı verildiğinde bu sabit + JSX bloğu + ilgili importlar
+ * temizlenir.
+ */
+const SHOW_HEADER_SWITCHERS = false;
 
 type AppShellProps = {
   userName: string;
@@ -149,12 +160,11 @@ export function AppShell({
   return (
     <div
       className={cn(
-        'flex flex-col',
+        'flex h-svh flex-col overflow-hidden',
         fullBleed && boardBackgroundClass(activeBoardBackground),
-        // Board route is viewport-bound (page scroll is suppressed; only the
-        // list column's card stream scrolls). All other routes use `min-h-svh`
-        // and grow with content like normal pages.
-        fullBleed ? 'h-svh overflow-hidden' : 'min-h-svh',
+        // Tüm rotalar viewport-bound (sticky header + global yan paneller +
+        // içerik-içi scroll). Sayfa içeriği `main` içinde `overflow-y-auto`
+        // ile kendi scroll çubuğunu yönetir.
       )}
     >
       <header
@@ -177,16 +187,20 @@ export function AppShell({
               href="/"
               aria-label={strings.common.appName}
               className={cn(
-                'inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-semibold tracking-tight',
+                'inline-flex shrink-0 items-center gap-2 rounded-md text-lg font-semibold tracking-tight',
                 fullBleed ? 'text-[color:var(--board-chrome-fg)]' : 'text-foreground',
                 'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               )}
             >
-              <BrandLogo variant="plain" markClassName="size-5" textClassName="hidden sm:inline" />
+              <BrandLogo variant="plain" markClassName="size-8" textClassName="hidden sm:inline" />
             </Link>
-            <Separator orientation="vertical" className="h-5" />
-            <WorkspaceSwitcher />
-            <BoardSwitcher />
+            {SHOW_HEADER_SWITCHERS && (
+              <>
+                <Separator orientation="vertical" className="h-5" />
+                <WorkspaceSwitcher />
+                <BoardSwitcher />
+              </>
+            )}
           </div>
           <div className="hidden min-w-0 flex-[0.8] justify-center md:flex">
             <SearchDialog
@@ -210,10 +224,11 @@ export function AppShell({
               open={navigatorOpen}
               onToggle={() => setNavigatorOpen(!navigatorOpen)}
             />
-            <NotificationBell />
             <ThemeToggle />
             <ColorThemeToggle />
+            <FontFamilyToggle />
             <FontSizeToggle />
+            <NotificationBell />
             <UserNavMenu userName={userName} userEmail={userEmail} userImage={userImage} />
           </div>
         </div>
@@ -226,10 +241,8 @@ export function AppShell({
           yer yok; panel zaten overlay. */}
       <div
         className={cn(
-          'flex',
-          fullBleed
-            ? 'bg-board-shell min-h-0 flex-1 lg:gap-2 lg:p-2'
-            : 'flex-1 lg:gap-2 lg:p-2',
+          'flex min-h-0 flex-1 lg:gap-2 lg:p-2',
+          fullBleed && 'bg-board-shell',
         )}
       >
         {/* Gezgin paneli — `lg+`: row akışında shrink-0 (içeriği iter, yuvarlak
@@ -270,16 +283,17 @@ export function AppShell({
         )}
 
         {fullBleed ? (
-          // BoardDetailPage kendi içinde QuickNotes ve board content'i ayrı
-          // kartlara böler; main sadece flex sarmalayıcı.
+          // Board sayfası: main bir flex sarmalayıcı; BoardDetailPage kendi
+          // `overflow-hidden` davranışını yönetir (kart sütun stream'i
+          // scrollable).
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {children}
           </main>
         ) : (
-          // `flex-1` panelin sağında kalan alanı doldurur; iç padding/center'lama
-          // wrapper'da. Wrapper `mx-auto max-w-5xl` ile içeriği ortalar (DEM-192
-          // landing'i `max-w-none` ile sınırsız tutar).
-          <main className="min-w-0 flex-1">
+          // Non-board sayfalar: main kendi içinde scroll'lanır → outer
+          // `h-svh overflow-hidden` ile birlikte body değil bu main scroll'lar.
+          // Yan panel + header viewport'ta sabit kalır, içerik tek başına akar.
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <div
               className={cn(
                 'mx-auto w-full py-8',

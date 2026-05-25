@@ -1,23 +1,89 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { Poppins } from 'next/font/google';
+import {
+  Atkinson_Hyperlegible,
+  DM_Sans,
+  Inter,
+  JetBrains_Mono,
+  Lora,
+  Manrope,
+  Poppins,
+} from 'next/font/google';
 import { Toaster } from '@pusula/ui';
 import { TRPCReactProvider } from '@/trpc/client';
 import { ColorThemeProvider } from './_components/color-theme-provider';
+import { FontFamilyProvider } from './_components/font-family-provider';
 import { FontSizeProvider } from './_components/font-size-provider';
 import { ThemeProvider } from './_components/theme-provider';
 import './globals.css';
 
-// Poppins is the single project typeface. It is not a variable font on Google
-// Fonts, so the weights actually used across the UI (regular / medium /
-// semibold / bold) are requested explicitly. `latin-ext` covers Turkish
-// glyphs (ğ ş ı İ ç ö ü).
+// Poppins is the brand/default typeface. Additional families below are
+// opt-in personalization options exposed via the header `FontFamilyToggle`
+// — only the active family's font file is actually requested by the
+// browser; the others stay as preloaded CSS variables that can be swapped
+// at runtime without an extra fetch. `latin-ext` covers Turkish glyphs
+// (ğ ş ı İ ç ö ü) on every family.
 const poppins = Poppins({
   subsets: ['latin', 'latin-ext'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-poppins',
   display: 'swap',
 });
+
+const inter = Inter({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const manrope = Manrope({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-manrope',
+  display: 'swap',
+});
+
+const lora = Lora({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-lora',
+  display: 'swap',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
+
+// Atkinson Hyperlegible only ships Regular + Bold on Google Fonts; missing
+// weights fall back to the nearest available weight (the browser handles
+// the substitution automatically).
+const atkinson = Atkinson_Hyperlegible({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '700'],
+  variable: '--font-atkinson',
+  display: 'swap',
+});
+
+const fontVariables = [
+  poppins.variable,
+  inter.variable,
+  manrope.variable,
+  lora.variable,
+  dmSans.variable,
+  jetbrainsMono.variable,
+  atkinson.variable,
+].join(' ');
 
 // Link önizlemeleri (WhatsApp, Slack, vb.) mutlak URL ister; `metadataBase`
 // olmadan `opengraph-image` göreli kalır. Üretim domain'i sabit, env ile
@@ -70,16 +136,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="tr"
-      className={poppins.variable}
+      className={fontVariables}
       data-color-theme="slate"
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground min-h-svh font-sans antialiased">
         <ThemeProvider>
           <ColorThemeProvider>
-            <FontSizeProvider>
-              <TRPCReactProvider>{children}</TRPCReactProvider>
-            </FontSizeProvider>
+            <FontFamilyProvider>
+              <FontSizeProvider>
+                <TRPCReactProvider>{children}</TRPCReactProvider>
+              </FontSizeProvider>
+            </FontFamilyProvider>
             <Toaster />
           </ColorThemeProvider>
         </ThemeProvider>
