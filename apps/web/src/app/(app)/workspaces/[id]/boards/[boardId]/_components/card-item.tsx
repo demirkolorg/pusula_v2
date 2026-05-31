@@ -39,7 +39,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Progress,
   cn,
   toast,
 } from '@pusula/ui';
@@ -176,23 +175,6 @@ function asLabelColor(value: string): LabelColor | null {
 
 function displayMemberName(member: BoardCardMemberOption) {
   return member.name?.trim() || member.userId;
-}
-
-function CardChecklistProgress({ done, total }: { done: number; total: number }) {
-  if (total <= 0) return null;
-  const complete = done >= total;
-
-  return (
-    <div data-slot="card-checklist-progress" className="mt-1.5 space-y-1">
-      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span className="font-medium">{strings.card.checklist.title}</span>
-        <span className={cn('shrink-0 tabular-nums', complete && 'text-success')}>
-          {done}/{total}
-        </span>
-      </div>
-      <Progress value={done} max={total} complete={complete} className="h-1" />
-    </div>
-  );
 }
 
 function startOfLocalDay(value = new Date()) {
@@ -573,11 +555,11 @@ function CardItemInner({
           </div>
         </div>
 
-        <CardChecklistProgress done={card.checklistDone} total={card.checklistTotal} />
         <CardMetaRow
-          description={card.description}
           dueAt={card.dueAt}
           labelCount={card.labels.length}
+          checklistTotal={card.checklistTotal}
+          checklistDone={card.checklistDone}
           commentCount={card.commentCount}
           attachmentCount={card.attachmentCount}
           members={card.members.filter((m) => m.role === 'assignee')}

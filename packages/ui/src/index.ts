@@ -110,6 +110,7 @@ export {
   parseRichTextValue,
   serializeRichTextValue,
   isRichTextEmpty,
+  renderRichTextToHTML,
   type RichTextEditorProps,
   type RichTextEditorLabels,
   type RichTextContentProps,

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent, type Editor, type JSONContent } from '@tiptap/react';
+import { generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Mention from '@tiptap/extension-mention';
@@ -181,6 +182,18 @@ function buildExtensions(placeholder: string, mentions?: MentionSuggestionWire) 
 /** Same as `buildExtensions` but read-only — no Placeholder / suggestion. */
 function buildContentExtensions() {
   return [StarterKit.configure(starterKitOptions()), Mention.configure(mentionNodeOptions())];
+}
+
+/**
+ * Render a stored Tiptap value (JSON string or legacy plain text) to HTML using
+ * the same extension set as `RichTextContent` — so the rendered tree mirrors
+ * what the modal shows (link sanitisation + mention chip + heading levels). Used
+ * by the description "Kopyala" + "Word olarak indir" actions (FE-2026-05-31-002).
+ * Empty values render an empty string (callers decide what to do with that).
+ */
+export function renderRichTextToHTML(value: string | null | undefined): string {
+  const doc = parseRichTextValue(value);
+  return generateHTML(doc, buildContentExtensions());
 }
 
 /** Tiptap suggestion configuration the editor actually consumes. */

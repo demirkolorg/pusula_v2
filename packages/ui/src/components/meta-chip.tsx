@@ -2,7 +2,7 @@ import * as React from 'react';
 import { cn } from '../lib/utils';
 
 type MetaVariant = 'card' | 'modal';
-type MetaTone = 'default' | 'overdue' | 'soon';
+type MetaTone = 'default' | 'overdue' | 'soon' | 'complete';
 
 export interface MetaRowProps extends React.ComponentProps<'div'> {
   /** `card` = dense `text-[10px]` row; `modal` = looser chip row. */
@@ -20,7 +20,7 @@ function MetaRow({ variant = 'card', className, ...props }: MetaRowProps) {
       data-slot="meta-row"
       className={cn(
         'flex flex-wrap items-center',
-        variant === 'card' ? 'gap-x-2 gap-y-1 text-[10px] text-muted-foreground' : 'gap-1',
+        variant === 'card' ? 'gap-x-2 gap-y-1 text-xs text-muted-foreground' : 'gap-1',
         className,
       )}
       {...props}
@@ -43,7 +43,12 @@ export type MetaChipProps = MetaChipOwnProps &
 const TONE_CLASS: Record<MetaTone, string> = {
   default: '',
   overdue: 'rounded-sm bg-destructive/12 px-1 py-px font-medium text-destructive',
-  soon: '',
+  // `text-warning-foreground` warning'in semantik kontrast eşi — yumuşak amber
+  // zemin (bg-warning/15) üzerinde okunabilirliği `text-warning`'tan yüksek;
+  // warning token light mode'da lightness ≈ 0.78 olduğu için vivid metin
+  // soluk zeminde silikleşir.
+  soon: 'rounded-sm bg-warning/15 px-1 py-px font-medium text-warning-foreground',
+  complete: 'rounded-sm bg-success/15 px-1 py-px font-medium text-success',
 };
 
 /**
@@ -64,7 +69,7 @@ function MetaChip({
 }: MetaChipProps) {
   const base =
     variant === 'card'
-      ? 'inline-flex items-center gap-1 text-[10px]'
+      ? 'inline-flex items-center gap-1 text-xs'
       : 'inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground';
   const interactiveClass =
     interactive && variant === 'modal'

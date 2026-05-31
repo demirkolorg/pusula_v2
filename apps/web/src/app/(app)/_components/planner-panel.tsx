@@ -61,6 +61,7 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventIdFromUrl = searchParams.get('event');
+  const calendarIdFromUrl = searchParams.get('calendar');
 
   const [viewDate, setViewDate] = useState<Date>(() => startOfDay(new Date()));
 
@@ -121,14 +122,17 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
     if (connected) void eventsQuery.refetch();
   };
 
-  const openEvent = (id: string) => {
+  const openEvent = (id: string, calendarId?: string) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('event', id);
+    if (calendarId) next.set('calendar', calendarId);
+    else next.delete('calendar');
     router.replace(`?${next.toString()}`, { scroll: false });
   };
   const closeEvent = () => {
     const next = new URLSearchParams(searchParams.toString());
     next.delete('event');
+    next.delete('calendar');
     const query = next.toString();
     router.replace(query ? `?${query}` : '?', { scroll: false });
   };
@@ -237,10 +241,13 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
         )}
       </div>
 
-      {/* Etkinlik detay modal'ı — URL param'a göre açılır. */}
+      {/* Etkinlik detay modal'ı — URL param'a göre açılır.
+          `calendarId` URL'de yoksa backend `primary`'i sorgular (geriye uyumlu);
+          çok-takvim revize'sinden itibaren her blok tıklamasında set edilir. */}
       {eventIdFromUrl && connected && (
         <PlannerEventModal
           eventId={eventIdFromUrl}
+          calendarId={calendarIdFromUrl ?? undefined}
           open
           onClose={closeEvent}
         />
@@ -322,7 +329,7 @@ function PlannerAllDayBanner({
   onEventClick,
 }: {
   events: PlannerEvent[];
-  onEventClick: (id: string) => void;
+  onEventClick: (id: string, calendarId?: string) => void;
 }) {
   const allDayLabel = strings.board.planner.allDayLabel;
   return (
@@ -339,7 +346,7 @@ function PlannerAllDayBanner({
           <button
             key={`${event.calendarId ?? 'primary'}-${event.id}`}
             type="button"
-            onClick={() => onEventClick(event.id)}
+            onClick={() => onEventClick(event.id, event.calendarId)}
             title={titleAttr}
             className={cn(
               'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs transition-colors',
@@ -375,7 +382,7 @@ function PlannerTimeline({
 }: {
   events: PlannerEvent[];
   loading: boolean;
-  onEventClick: (id: string) => void;
+  onEventClick: (id: string, calendarId?: string) => void;
   isToday: boolean;
 }) {
   const copy = strings.board.planner;
@@ -440,7 +447,7 @@ function PlannerTimeline({
               <button
                 key={`${pos.event.calendarId ?? 'primary'}-${pos.event.id}`}
                 type="button"
-                onClick={() => onEventClick(pos.event.id)}
+                onClick={() => onEventClick(pos.event.id, pos.event.calendarId)}
                 title={titleAttr}
                 className={cn(
                   'absolute left-0 right-1 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-xs transition-colors',

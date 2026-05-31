@@ -1,60 +1,140 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
+import { useBoardRealtime } from '@/lib/realtime/use-board-realtime';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { BoardsColumn } from './_components/home/boards-column';
+import { CardsColumn } from './_components/home/cards-column';
+import { HomeBreadcrumb } from './_components/home/home-breadcrumb';
+import { HomeHero } from './_components/home/home-hero';
+import { ListsColumn } from './_components/home/lists-column';
+import { useHomeSelection } from './_components/home/use-home-selection';
+import { WorkspacesColumn } from './_components/home/workspaces-column';
+import type { BoardRow, CardRow, ListRow, WorkspaceRow } from './_components/home/types';
 import { OnboardingEmptyState } from './_components/onboarding-empty-state';
 import { PendingInvitations } from './_components/pending-invitations';
-import { BoardGrid } from './_components/home/board-grid';
-import { WorkspaceOverviewHeader } from './_components/home/workspace-overview-header';
-import { WorkspaceRail } from './_components/home/workspace-rail';
-import { WorkspaceStatStrip } from './_components/home/workspace-stat-strip';
-import type { BoardRow, WorkspaceRow } from './_components/home/types';
 
 /**
- * `(app)/` landing — DEM-192 "Anasayfa Variant A". Branches on how many
- * workspaces the caller has (see `docs/architecture/13-ui-tasarim-dili.md`
- * §13.11): 0 -> onboarding empty state; 1+ -> a workspace rail on the left and
- * the selected workspace's overview (header + stat strip + board grid) on the
- * right. Pending invitations stay surfaced above either branch.
+ * `(app)/` landing — 4-sütun "Gezgin" drill-down (§13.11, karar 2026-06-01).
+ * URL-driven: `?ws=&board=&list=` carry column selections; clicking a card in
+ * Sütun 4 navigates to the board route (`?card=<id>`) — the detail modal
+ * stays single-sourced inside the board context. On `<lg` screens only the
+ * deepest selected column is visible, with a tappable breadcrumb above.
  */
 export default function WorkspacesPage() {
   const trpc = useTRPC();
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | undefined>();
+  const selection = useHomeSelection();
 
-  const workspaces = useQuery(trpc.workspace.list.queryOptions());
-  const workspaceList = workspaces.isSuccess
-    ? ((workspaces.data ?? []) as WorkspaceRow[])
+  // Sütun 1 — workspaces.
+  const workspacesQuery = useQuery(trpc.workspace.list.queryOptions());
+  const workspaceList: readonly WorkspaceRow[] = workspacesQuery.isSuccess
+    ? ((workspacesQuery.data ?? []) as WorkspaceRow[])
     : [];
+
+  // URL'de `ws` yoksa display-fallback ile ilk workspace seçili gibi davran;
+  // URL'i zorlamayız (kullanıcı bir seçim yapınca `setWorkspace` üzerinden
+  // doğal olarak yazılır).
+  const effectiveWorkspaceId =
+    selection.workspaceId ?? workspaceList[0]?.id ?? null;
   const selectedWorkspace =
-    workspaceList.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaceList[0];
+    workspaceList.find((workspace) => workspace.id === effectiveWorkspaceId) ?? null;
 
-  const boards = useQuery({
-    ...trpc.board.list.queryOptions({ workspaceId: selectedWorkspace?.id ?? '__none__' }),
-    enabled: Boolean(selectedWorkspace),
+  // Sütun 2 — boards of selected workspace.
+  const boardsQuery = useQuery({
+    ...trpc.board.list.queryOptions({
+      workspaceId: effectiveWorkspaceId ?? '__none__',
+    }),
+    enabled: Boolean(effectiveWorkspaceId),
   });
-  const boardList = (boards.data ?? []) as BoardRow[];
+  const boardList: readonly BoardRow[] =
+    boardsQuery.isSuccess && effectiveWorkspaceId
+      ? ((boardsQuery.data ?? []) as BoardRow[])
+      : [];
 
-  if (workspaces.isPending) {
+  const selectedBoardId = selection.boardId;
+  const selectedBoard = boardList.find((board) => board.id === selectedBoardId) ?? null;
+
+  // Sütun 3 + 4 share a single `board.get` payload — yeni endpoint açmıyoruz.
+  // Realtime sub için ayrı koşullu mount alt-componenti var (aşağıda); hook'u
+  // boş `boardId` ile çağırmıyoruz (W1 düzeltmesi — review code-reviewer).
+  const boardGetQuery = useQuery({
+    ...trpc.board.get.queryOptions({ boardId: selectedBoardId ?? '__none__' }),
+    enabled: Boolean(selectedBoardId),
+  });
+
+  const lists: readonly ListRow[] = useMemo(() => {
+    if (!selectedBoardId || !boardGetQuery.data) return [];
+    return (boardGetQuery.data.lists ?? []) as ListRow[];
+  }, [boardGetQuery.data, selectedBoardId]);
+
+  const cards: readonly CardRow[] = useMemo(() => {
+    if (!selectedBoardId || !boardGetQuery.data) return [];
+    return (boardGetQuery.data.cards ?? []) as CardRow[];
+  }, [boardGetQuery.data, selectedBoardId]);
+
+  const selectedListId = selection.listId;
+  const selectedList = lists.find((list) => list.id === selectedListId) ?? null;
+
+  /**
+   * Drill-down auto-select: her sütun ilk verisi geldiğinde URL'de seçim yoksa
+   * ilk öğeyi seçer ve URL'e yazar. Zincir: workspaces → boards → lists →
+   * (cards filter otomatik). Setter'lar `useCallback` ile sabit, dep listesi
+   * minimal — sonsuz döngü olmaz çünkü `selection.xxxId` set olur olmaz koşul
+   * yanlışlanır.
+   */
+  const { setWorkspace, setBoard, setList } = selection;
+  useEffect(() => {
+    if (!workspacesQuery.isSuccess) return;
+    if (selection.workspaceId) return;
+    const first = workspaceList[0];
+    if (first) setWorkspace(first.id);
+  }, [workspacesQuery.isSuccess, workspaceList, selection.workspaceId, setWorkspace]);
+  useEffect(() => {
+    if (!boardsQuery.isSuccess || !effectiveWorkspaceId) return;
+    if (selection.boardId) return;
+    const first = boardList[0];
+    if (first) setBoard(first.id);
+  }, [
+    boardsQuery.isSuccess,
+    boardList,
+    effectiveWorkspaceId,
+    selection.boardId,
+    setBoard,
+  ]);
+  useEffect(() => {
+    if (!boardGetQuery.isSuccess || !selectedBoardId) return;
+    if (selection.listId) return;
+    // Arşivli listeler ilk seçimde atlanır; hepsi arşivliyse ilk öğeye düş.
+    const first = lists.find((list) => list.archivedAt == null) ?? lists[0];
+    if (first) setList(first.id);
+  }, [
+    boardGetQuery.isSuccess,
+    lists,
+    selectedBoardId,
+    selection.listId,
+    setList,
+  ]);
+
+  if (workspacesQuery.isPending) {
     return <AppSpinner label={strings.workspace.loading} showLabel className="justify-start" />;
   }
-
-  if (workspaces.isError) {
+  if (workspacesQuery.isError) {
     return (
       <Alert variant="destructive">
         <AlertTitle>{strings.workspace.loadErrorTitle}</AlertTitle>
         <AlertDescription>
-          {workspaces.error.message || strings.common.unknownError}
+          {workspacesQuery.error.message || strings.common.unknownError}
         </AlertDescription>
       </Alert>
     );
   }
 
-  // No workspaces -> onboarding (bootstrap is best-effort). Still surface invites.
-  if (workspaceList.length === 0 || !selectedWorkspace) {
+  // 0 workspace → onboarding (bootstrap best-effort). Bekleyen davetler de surface'lenir.
+  if (workspaceList.length === 0) {
     return (
       <div className="space-y-6">
         <PendingInvitations />
@@ -63,37 +143,124 @@ export default function WorkspacesPage() {
     );
   }
 
+  // Accordion modu için en derin seçili sütunu hesapla.
+  const deepestColumn: 'workspaces' | 'boards' | 'lists' | 'cards' = selectedListId
+    ? 'cards'
+    : selectedBoardId
+      ? 'lists'
+      : selection.workspaceId
+        ? 'boards'
+        : 'workspaces';
+
+  const workspacesColumnEl = (
+    <WorkspacesColumn
+      workspaces={workspaceList}
+      selectedWorkspaceId={effectiveWorkspaceId}
+      onSelect={selection.setWorkspace}
+    />
+  );
+
+  const boardsColumnEl = (
+    <BoardsColumn
+      workspace={selectedWorkspace}
+      boards={boardList}
+      selectedBoardId={selectedBoardId}
+      onSelect={selection.setBoard}
+      onBack={() => selection.setWorkspace(null)}
+      isPending={Boolean(effectiveWorkspaceId) && boardsQuery.isPending}
+      isError={boardsQuery.isError}
+      errorMessage={boardsQuery.error?.message}
+    />
+  );
+
+  const listsColumnEl = (
+    <ListsColumn
+      boardId={selectedBoardId}
+      lists={lists}
+      cards={cards}
+      selectedListId={selectedListId}
+      onSelect={selection.setList}
+      onBack={() => selection.setBoard(null)}
+      isPending={Boolean(selectedBoardId) && boardGetQuery.isPending}
+      isError={boardGetQuery.isError}
+      errorMessage={boardGetQuery.error?.message}
+    />
+  );
+
+  const cardsColumnEl = (
+    <CardsColumn
+      workspaceId={effectiveWorkspaceId}
+      boardId={selectedBoardId}
+      listId={selectedListId}
+      cards={cards}
+      onBack={() => selection.setList(null)}
+      isPending={Boolean(selectedBoardId) && boardGetQuery.isPending}
+      isError={boardGetQuery.isError}
+      errorMessage={boardGetQuery.error?.message}
+    />
+  );
+
   return (
-    <div className="relative space-y-6">
-      {/* Atmospheric glow — token-driven, low-opacity radial behind the hero. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-28 left-0 -z-10 h-72 w-[44rem] rounded-full bg-primary/15 blur-3xl dark:bg-primary/25"
-      />
+    <div className="relative isolate flex h-[calc(100svh-12rem)] min-h-0 flex-col gap-4">
+      {/* Sayfa-geneli dekoratif arka plan: ince dot pattern + tek primary glow.
+          Glass sütunların ve hero'nun altında ortak bir doku oluşturur. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage:
+              'radial-gradient(var(--border) 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
+        />
+        <div className="bg-primary/10 absolute left-1/3 top-1/4 size-[28rem] rounded-full blur-3xl" />
+      </div>
+
+      {/* Realtime sub yalnız seçili board için aktif — boş id ile mount yok. */}
+      {selectedBoardId && <BoardRealtimeMount boardId={selectedBoardId} />}
 
       <PendingInvitations />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        <div className="lg:sticky lg:top-20 lg:max-h-[calc(100svh-7rem)]">
-          <WorkspaceRail
-            workspaces={workspaceList}
-            selectedWorkspaceId={selectedWorkspace.id}
-            onSelect={setSelectedWorkspaceId}
-          />
-        </div>
+      {/* `<lg` ekranda accordion breadcrumb; `lg+` ekranda gizli. */}
+      <HomeBreadcrumb
+        className="lg:hidden"
+        workspaceName={selectedWorkspace?.name ?? null}
+        boardTitle={selectedBoard?.title ?? null}
+        listTitle={selectedList?.title ?? null}
+        onResetAll={() => selection.setWorkspace(null)}
+        onResetToBoards={() => selection.setBoard(null)}
+        onResetToLists={() => selection.setList(null)}
+      />
 
-        <div className="min-w-0 space-y-6">
-          <WorkspaceOverviewHeader workspace={selectedWorkspace} />
-          <WorkspaceStatStrip workspaceId={selectedWorkspace.id} />
-          <BoardGrid
-            workspace={selectedWorkspace}
-            boards={boardList}
-            isPending={boards.isPending}
-            isError={boards.isError}
-            errorMessage={boards.error?.message}
-          />
+      {/* `lg+`: dikey 2 zone — üst 1/3 hero + alt 2/3 sütunlar (4 eşit). */}
+      <div className="hidden min-h-0 flex-1 grid-rows-[1fr_2fr] gap-4 lg:grid">
+        <HomeHero />
+        <div className="grid min-h-0 grid-cols-4 gap-3">
+          {workspacesColumnEl}
+          {boardsColumnEl}
+          {listsColumnEl}
+          {cardsColumnEl}
         </div>
+      </div>
+
+      {/* `<lg` ekranda yalnız en derin seçili sütun görünür (hero gizli). */}
+      <div className="min-h-0 flex-1 lg:hidden">
+        {deepestColumn === 'workspaces' && workspacesColumnEl}
+        {deepestColumn === 'boards' && boardsColumnEl}
+        {deepestColumn === 'lists' && listsColumnEl}
+        {deepestColumn === 'cards' && cardsColumnEl}
       </div>
     </div>
   );
+}
+
+/**
+ * Renders nothing; mounts `useBoardRealtime` for the selected board so the
+ * socket join/leave lifecycle aligns with column selection rather than the
+ * page mount. Conditional rendering ensures the hook never sees a sentinel
+ * empty `boardId`.
+ */
+function BoardRealtimeMount({ boardId }: { boardId: string }) {
+  useBoardRealtime(boardId, { enabled: true });
+  return null;
 }

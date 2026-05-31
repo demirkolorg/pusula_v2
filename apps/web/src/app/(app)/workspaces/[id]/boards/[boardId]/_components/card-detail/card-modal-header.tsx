@@ -57,11 +57,16 @@ type CardModalHeaderProps = {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   /**
-   * Üye / vade / etiket / kapak / ek meta chip'leri. Başlığın tüm satırı
-   * kullanabilmesi için chip satırı header'a, aksiyon butonlarının soluna
-   * yerleştirilir (2026-05-25).
+   * Breadcrumb (`pano / liste`) yanında gösterilen salt okunabilir meta info
+   * (üye sayısı, etiket sayısı, son tarih, kapak rengi, ek sayısı). Tıklanmaz —
+   * tüm ekleme/düzenleme aksiyonları aşağıdaki `addAction` popover'ında.
    */
-  metaChips?: ReactNode;
+  metaInfo?: ReactNode;
+  /**
+   * Sağdaki aksiyon ikonlarının solunda render edilen "+ Ekle" popover'ı
+   * (Trello tarzı tek popover, view stack). Salt-okuma görüntülerde `null`.
+   */
+  addAction?: ReactNode;
 };
 
 /**
@@ -83,7 +88,8 @@ export function CardModalHeader({
   archived,
   sidebarOpen,
   onToggleSidebar,
-  metaChips,
+  metaInfo,
+  addAction,
 }: CardModalHeaderProps) {
   const copy = strings.card.detail.modal;
   const [copied, setCopied] = useState(false);
@@ -147,29 +153,32 @@ export function CardModalHeader({
       >
         <div
           className={cn(
-            'flex min-w-0 items-center gap-1.5 text-xs',
+            'flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs',
             onColored ? 'text-current/80' : 'text-muted-foreground',
           )}
         >
-          <ListIcon className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">
-            {boardName?.trim() || copy.breadcrumbBoard} <span aria-hidden>/</span>{' '}
-            {listName?.trim() || copy.breadcrumbList}
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <ListIcon className="size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">
+              {boardName?.trim() || copy.breadcrumbBoard} <span aria-hidden>/</span>{' '}
+              {listName?.trim() || copy.breadcrumbList}
+            </span>
+            {archived && (
+              <Badge
+                variant="outline"
+                className={cn('ml-1 shrink-0', onColored && 'border-current/40 text-current')}
+              >
+                {copy.archivedBadge}
+              </Badge>
+            )}
           </span>
-          {archived && (
-            <Badge
-              variant="outline"
-              className={cn('ml-1 shrink-0', onColored && 'border-current/40 text-current')}
-            >
-              {copy.archivedBadge}
-            </Badge>
-          )}
+          {metaInfo}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {metaChips && (
+          {addAction && (
             <>
-              <div className="flex shrink-0 items-center">{metaChips}</div>
+              <div className="flex shrink-0 items-center">{addAction}</div>
               <div
                 aria-hidden
                 className={cn(

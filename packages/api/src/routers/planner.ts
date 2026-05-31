@@ -46,6 +46,8 @@ export const plannerRouter = router({
 
     /**
      * Tek etkinlik detayı — modal için. ID Google'ın event ID'si (URL-safe).
+     * `calendarId` taşınmazsa `primary` sorgulanır; UI çok-takvim revize'sinden
+     * itibaren her etkinlik blok tıklaması `calendarId`'i URL'e yazar.
      */
     get: protectedProcedure
       .input(plannerEventGetInputSchema)
@@ -56,7 +58,12 @@ export const plannerRouter = router({
             message: 'GOOGLE_NOT_CONNECTED',
           });
         }
-        return getEvent(ctx.session.user.id, input.eventId, ctx.googleCalendar);
+        return getEvent(
+          ctx.session.user.id,
+          input.eventId,
+          ctx.googleCalendar,
+          input.calendarId,
+        );
       }),
   }),
 });

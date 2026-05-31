@@ -237,14 +237,20 @@ function safeMapCalendar(raw: unknown): PlannerCalendar | null {
 }
 
 /**
- * Tek etkinlik detayı — modal için. Bulunamazsa `NOT_FOUND` (404 mapping).
+ * Tek etkinlik detayı — modal için. `calendarId` taşınmazsa `primary` sorgulanır
+ * (eski davranış). Faz 16 hızlı revize'den itibaren UI `calendarId` taşır;
+ * etkinlik primary dışında bir takvimde olsa bile doğru takvim sorgulanır
+ * (eski şema 404 dönderirdi).
+ *
+ * Bulunamazsa `NOT_FOUND` (404 mapping).
  */
 export async function getEvent(
   userId: string,
   eventId: string,
   deps: GoogleCalendarDeps,
+  calendarId: string = 'primary',
 ): Promise<PlannerEvent> {
-  const url = `${CALENDAR_API_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}`;
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
   const raw = await googleFetch<unknown>(userId, url, deps);
   const event = safeMapEvent(raw);
   if (!event) {

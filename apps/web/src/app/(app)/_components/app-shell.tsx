@@ -107,40 +107,32 @@ export function AppShell({
   const isHome = pathname === HOME_ROUTE;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
 
-  // Global yan paneller (Gezgin + Hızlı Notlar) — SSR/first render için kapalı
-  // başla, mount'ta localStorage tercihi adopt edilir. `lg+` (≥1024px) ekranda
-  // persistent sidebar (içeriği sağa iter); `<lg` ekranda overlay sheet
+  // Global yan paneller (Gezgin + Hızlı Notlar + Planlayıcı) — SSR/first render
+  // için kapalı başla, mount'ta localStorage tercihi adopt edilir. `lg+` (≥1024px)
+  // ekranda persistent sidebar (içeriği sağa iter); `<lg` ekranda overlay sheet
   // (fixed + backdrop) olarak açılır, link/aksiyon sonrası kendini kapatır.
-  // Mobilde mutex: ikisi aynı anda overlay olamaz (üst üste binme önlenir);
-  // desktop'ta ikisi yan yana açılabilir.
+  // Mobilde mutex: üçü aynı anda overlay olamaz (üst üste binme önlenir);
+  // desktop'ta üçü yan yana açılabilir.
   //
-  // Gezgin paneli istisnası: anasayfa (`/`) her ziyarette default AÇIK gelir;
-  // kullanıcı o oturumda kapatabilir ama tercih localStorage'a yazılmaz, yani
-  // bir sonraki anasayfa ziyaretinde tekrar açılır. Diğer sayfalarda mevcut
-  // localStorage davranışı korunur (kullanıcı tercihi hatırlanır).
+  // Üç panel de aynı davranır: kullanıcı tercihi localStorage'da hatırlanır,
+  // varsayılan kapalı, her sayfada (anasayfa dahil) toggle ile açılır.
   const [navigatorOpen, setNavigatorOpenState] = useState(false);
   const [quickNotesOpen, setQuickNotesOpenState] = useState(false);
   // Faz 16B (DEM-311) — Planlayıcı 3. global panel. Mevcut iki panelle
   // birebir pattern: localStorage'da persistent, mobilde mutex.
   const [plannerOpen, setPlannerOpenState] = useState(false);
   useEffect(() => {
-    if (isHome) {
-      setNavigatorOpenState(true);
-    } else {
-      setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
-    }
+    setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
     setQuickNotesOpenState(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
     setPlannerOpenState(window.localStorage.getItem(PLANNER_PANEL_KEY) === 'true');
-  }, [isHome, pathname]);
+  }, [pathname]);
   useEffect(() => {
-    if (isHome) return;
     window.localStorage.setItem(NAVIGATOR_PANEL_KEY, String(navigatorOpen));
-  }, [navigatorOpen, isHome]);
+  }, [navigatorOpen]);
   useEffect(() => {
     window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
   }, [quickNotesOpen]);
   useEffect(() => {
-    // Planlayıcı için anasayfa istisnası YOK — her zaman localStorage tercihini izle.
     window.localStorage.setItem(PLANNER_PANEL_KEY, String(plannerOpen));
   }, [plannerOpen]);
 

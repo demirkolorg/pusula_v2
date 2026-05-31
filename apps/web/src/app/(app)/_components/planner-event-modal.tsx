@@ -27,6 +27,13 @@ import { useTRPC } from '@/trpc/client';
 type PlannerEventModalProps = {
   /** Google Calendar event ID; `?event=<id>` URL param'dan gelir. */
   eventId: string;
+  /**
+   * Etkinliğin geldiği takvim ID'si — `?calendar=<id>` URL param'dan gelir.
+   * Faz 16 hızlı revize (2026-06-01): primary dışındaki bir takvimdeki
+   * etkinliğin detayı `events.get?calendarId=…`'a yönlendirilmeli, yoksa
+   * primary'de aranır ve 404 → "Etkinlik yüklenemedi." görünür.
+   */
+  calendarId?: string;
   open: boolean;
   /** URL param'ı temizle + modal'ı kapat. */
   onClose: () => void;

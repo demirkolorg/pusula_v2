@@ -370,7 +370,7 @@ describe('<CardItem>', () => {
     expect(actions).not.toHaveTextContent('AL');
   });
 
-  it('shows the due chip with the "GECİKTİ" badge when the due date is in the past', () => {
+  it('marks the due chip with the "overdue" tone when the due date is in the past', () => {
     render(
       <CardItem
         boardId="b1"
@@ -378,12 +378,22 @@ describe('<CardItem>', () => {
         canEdit={false}
       />,
     );
-    // The metadata row component uses Date.now() by default — the date is well in
-    // the past relative to 2026-05-12, so the overdue badge is shown.
-    expect(screen.getByText(/gecikti/i)).toBeInTheDocument();
+    // Tarih 2026-05-12'ye göre geçmiş; chip "overdue" rengini almalı.
+    // "GECİKTİ" yazısı (badge) artık yok — anlam chip'in renginde duruyor.
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const actions = article.querySelector(
+      '[data-slot="card-meta-actions"]',
+    ) as HTMLElement | null;
+    expect(actions).not.toBeNull();
+    expect(actions).not.toHaveTextContent(/gecikti/i);
+    const dueChip = within(actions!).getAllByText(/2026|may/i)[0]?.closest(
+      '[data-slot="meta-chip"]',
+    );
+    expect(dueChip).not.toBeNull();
+    expect(dueChip).toHaveClass('text-destructive');
   });
 
-  it('shows checklist progress as a separate card section with a progress bar', () => {
+  it('shows checklist progress as a chip in the meta row', () => {
     render(
       <CardItem
         boardId="b1"
@@ -393,13 +403,34 @@ describe('<CardItem>', () => {
     );
 
     const article = screen.getByRole('button', { name: 'Bir kart' });
-    const checklist = article.querySelector('[data-slot="card-checklist-progress"]');
-    expect(checklist).not.toBeNull();
-    expect(checklist).toHaveTextContent('Yapılacaklar');
-    expect(within(checklist as HTMLElement).getByText('2/3')).toBeInTheDocument();
-    const progress = within(checklist as HTMLElement).getByRole('progressbar');
-    expect(progress).toHaveAttribute('aria-valuenow', '2');
-    expect(progress).toHaveAttribute('aria-valuemax', '3');
+    // Üstteki ayrı "Yapılacaklar + progress bar" bloğu kaldırıldı.
+    expect(article.querySelector('[data-slot="card-checklist-progress"]')).toBeNull();
+    const actions = article.querySelector(
+      '[data-slot="card-meta-actions"]',
+    ) as HTMLElement | null;
+    expect(actions).not.toBeNull();
+    expect(within(actions!).getByText('2/3')).toBeInTheDocument();
+  });
+
+  it('marks the checklist chip "complete" tone when done equals total', () => {
+    render(
+      <CardItem
+        boardId="b1"
+        card={card({ checklistTotal: 3, checklistDone: 3 })}
+        canEdit={false}
+      />,
+    );
+
+    const article = screen.getByRole('button', { name: 'Bir kart' });
+    const actions = article.querySelector(
+      '[data-slot="card-meta-actions"]',
+    ) as HTMLElement | null;
+    expect(actions).not.toBeNull();
+    const checklistChip = within(actions!).getByText('3/3').closest(
+      '[data-slot="meta-chip"]',
+    );
+    expect(checklistChip).not.toBeNull();
+    expect(checklistChip).toHaveClass('text-success');
   });
 
   it('shows the comment count', () => {

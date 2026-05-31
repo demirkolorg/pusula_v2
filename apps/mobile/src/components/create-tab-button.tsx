@@ -7,6 +7,15 @@ import { useQuickNoteDraft } from '@/lib/quick-note-draft';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
+type CreateTabButtonProps = {
+  /**
+   * Faz 15H — pill içinde kompakt mod. `true` ise `flex-1` wrapper ve
+   * yükseltme (`marginTop: -18`) kaldırılır; buton diğer pill sekmeleri kadar
+   * yer kaplar (`w-11 h-11`). Default `false` → mevcut phone davranışı.
+   */
+  compact?: boolean;
+};
+
 /**
  * Merkezi "Ekle" tab butonu — DEM-203.
  *
@@ -27,8 +36,12 @@ import { themeFor } from '@/theme/tokens';
  *
  * `<Tabs>` `tabBarButton` `props` (basış davranışı dahil) sağlar; bunları
  * bilerek yok sayarız — kendi `onPress`/`onLongPress`'imizi kullanırız.
+ *
+ * Faz 15H — iPad floating pill nav (`FloatingPillTabBar`) bu butonu pill içinde
+ * render eder. `compact={true}` props'u ile `flex-1` wrap + yükseltme kapatılır,
+ * buton diğer pill sekmeleriyle eşit boyutta (`w-11 h-11`) kalır.
  */
-export function CreateTabButton() {
+export function CreateTabButton({ compact = false }: CreateTabButtonProps = {}) {
   const router = useRouter();
   const theme = themeFor(useColorScheme());
   const [menuVisible, setMenuVisible] = useState(false);
@@ -45,29 +58,38 @@ export function CreateTabButton() {
   };
 
   return (
-    // `flex-1` ile diğer 4 sekmeyle eşit pay alır — böylece navigasyon
-    // butonları tab bar'da eşit/ortalı dağılır. Kapsayıcı yüksekliği
-    // bozmadan butonu yukarı taşır (buton üst kenardan ~18px taşar).
-    <View className="flex-1 items-center justify-center">
+    // Phone (default): `flex-1` ile diğer 4 sekmeyle eşit pay alır.
+    // Tablet pill (compact): kompakt `items-center justify-center`; pill içinde
+    // diğer sekmelerle aynı boyutta kalır.
+    <View className={compact ? 'items-center justify-center' : 'flex-1 items-center justify-center'}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={strings.create.buttonLabel}
         accessibilityHint={strings.create.buttonHint}
         onPress={handlePress}
         onLongPress={() => setMenuVisible(true)}
-        // ~18px yukarı taşar; gölge ile tab bar düzleminden ayrışır.
-        style={{
-          backgroundColor: theme.primary,
-          marginTop: -18,
-          shadowColor: '#000',
-          shadowOpacity: 0.2,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 5,
-        }}
-        className="h-16 w-16 items-center justify-center rounded-full active:opacity-80"
+        // Phone: ~18px yukarı taşar + büyük gölge. Tablet pill: yükseltme yok,
+        // pill kendi gölgesini taşır — buton sade `primary` dairesi.
+        style={
+          compact
+            ? { backgroundColor: theme.primary }
+            : {
+                backgroundColor: theme.primary,
+                marginTop: -18,
+                shadowColor: '#000',
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 3 },
+                elevation: 5,
+              }
+        }
+        className={
+          compact
+            ? 'h-11 w-11 items-center justify-center rounded-full active:opacity-80'
+            : 'h-16 w-16 items-center justify-center rounded-full active:opacity-80'
+        }
       >
-        <Icon name="plus" size={34} color={theme.primaryForeground} />
+        <Icon name="plus" size={compact ? 24 : 34} color={theme.primaryForeground} />
       </Pressable>
       <CreateMenuSheet visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </View>

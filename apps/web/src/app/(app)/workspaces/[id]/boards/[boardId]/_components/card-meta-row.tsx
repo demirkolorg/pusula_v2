@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  AlignLeftIcon,
   CalendarIcon,
+  CheckSquare2Icon,
   MessageSquareIcon,
   PaperclipIcon,
   TagIcon,
@@ -20,9 +20,12 @@ export type CardMember = {
 };
 
 type CardMetaRowProps = {
-  description: string | null;
   dueAt: Date | string | null;
   labelCount?: number;
+  /** Total checklist items across the card's checklists. */
+  checklistTotal?: number;
+  /** Completed checklist items. */
+  checklistDone?: number;
   commentCount: number;
   /** Committed-attachment count — drives the paperclip chip (Faz 11D). */
   attachmentCount?: number;
@@ -33,7 +36,7 @@ type CardMetaRowProps = {
   now?: number;
 };
 
-/** ≤ 72h away (but still in the future) = "soon" — surfaces an amber dot. */
+/** ≤ 72h away (but still in the future) = "soon" — surfaces an amber chip. */
 const SOON_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 type DueState = 'overdue' | 'soon' | 'normal';
@@ -46,20 +49,42 @@ function dueState(dueAt: Date | string, nowMs: number): DueState {
   return 'normal';
 }
 
+/**
+ * Pano kartında kısa son tarih: cari yılda ise yıl gizlenir ("19 May"); farklı
+ * yıla denk gelen tarihlerde yıl korunur ("19 May 2027") — kullanıcı kart
+ * yüzeyinde "ne zaman" sorusunu hızlıca okurken, yıl atlaması olduğunda da
+ * ayırt edebilsin (Trello pattern). Tooltip her zaman tam tarihi gösterir.
+ */
+const dueShortFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'short',
+});
+
+function formatDueShort(value: Date | string, nowMs: number): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.getFullYear() === new Date(nowMs).getFullYear()
+    ? dueShortFormatter.format(date)
+    : formatDate(date);
+}
+
 /** Up to the last `max` members, shown as a stacked avatar group. */
 const MAX_AVATARS = 3;
 
 /**
- * The compact metadata strip under a card title: due chip (with overdue / soon
- * emphasis), a "has description" marker, checklist progress, comment count and a
- * stacked member-avatar group. Each cell renders only when the matching data
- * exists; the whole row is `null` when there's nothing to show. Tooltips label
- * the icon-only cells for accessibility. Pure presentational — no data fetching.
+ * The compact metadata strip under a card title: due chip (colour communicates
+ * overdue / soon / normal via tone — no separate "GECİKTİ" badge), checklist
+ * progress chip (`☑ done/total`, green when complete), labels / comment /
+ * attachment counts and a stacked member-avatar group. Each cell renders only
+ * when the matching data exists; the whole row is `null` when there's nothing
+ * to show. Tooltips label the icon-only cells for accessibility. Pure
+ * presentational — no data fetching.
  */
 export function CardMetaRow({
-  description,
   dueAt,
   labelCount = 0,
+  checklistTotal = 0,
+  checklistDone = 0,
   commentCount,
   attachmentCount = 0,
   members,
@@ -69,13 +94,13 @@ export function CardMetaRow({
   const copy = strings.board.card;
   const nowMs = now ?? Date.now();
 
-  const hasDescription = description != null && description.trim() !== '';
+  const hasChecklist = checklistTotal > 0;
   const hasLabels = labelCount > 0;
   const hasComments = commentCount > 0;
   const hasAttachments = attachmentCount > 0;
   const hasMembers = members.length > 0;
   const hasDue = dueAt != null;
-  const hasActions = hasDue || hasDescription || hasLabels || hasComments || hasAttachments;
+  const hasActions = hasDue || hasChecklist || hasLabels || hasComments || hasAttachments;
 
   if (!hasActions && !hasMembers) {
     return null;
@@ -84,6 +109,10 @@ export function CardMetaRow({
   // Tamamlanmış kartta teslim tarihi geçmiş olsa bile "gecikti" gösterilmez —
   // bitmiş bir işin gecikme uyarısı yanıltıcı (DEM-174).
   const due = hasDue && !completed ? dueState(dueAt, nowMs) : 'normal';
+  const dueTone =
+    due === 'overdue' ? 'overdue' : due === 'soon' ? 'soon' : 'default';
+
+  const checklistComplete = hasChecklist && checklistDone >= checklistTotal;
 
   return (
     <div data-slot="card-bottom-meta" className="mt-1.5 flex items-center gap-2">
@@ -123,21 +152,13 @@ export function CardMetaRow({
           {hasDue && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1">
+                <span>
                   <MetaChip
-                    icon={<CalendarIcon className="size-3" />}
-                    tone={due === 'overdue' ? 'overdue' : 'default'}
+                    icon={<CalendarIcon className="size-3.5" />}
+                    tone={dueTone}
                   >
-                    {formatDate(dueAt)}
-                    {due === 'overdue' && (
-                      <span className="bg-destructive text-destructive-foreground rounded-sm px-1 text-[9px] font-medium tracking-wide uppercase">
-                        {copy.overdueBadge}
-                      </span>
-                    )}
+                    {formatDueShort(dueAt, nowMs)}
                   </MetaChip>
-                  {due === 'soon' && (
-                    <span className="bg-warning size-1.5 shrink-0 rounded-full" aria-hidden />
-                  )}
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -152,16 +173,23 @@ export function CardMetaRow({
             </Tooltip>
           )}
 
-          {hasDescription && (
+          {hasChecklist && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <MetaChip icon={<AlignLeftIcon className="size-3" aria-hidden />}>
-                    <span className="sr-only">{copy.descriptionTooltip}</span>
+                  <MetaChip
+                    icon={<CheckSquare2Icon className="size-3.5" aria-hidden />}
+                    tone={checklistComplete ? 'complete' : 'default'}
+                  >
+                    <span className="tabular-nums">
+                      {checklistDone}/{checklistTotal}
+                    </span>
                   </MetaChip>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{copy.descriptionTooltip}</TooltipContent>
+              <TooltipContent>
+                {`${copy.checklistTooltip} · ${checklistDone}/${checklistTotal}`}
+              </TooltipContent>
             </Tooltip>
           )}
 
@@ -169,7 +197,7 @@ export function CardMetaRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <MetaChip icon={<TagIcon className="size-3" aria-hidden />}>
+                  <MetaChip icon={<TagIcon className="size-3.5" aria-hidden />}>
                     {labelCount}
                   </MetaChip>
                 </span>
@@ -182,7 +210,7 @@ export function CardMetaRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <MetaChip icon={<MessageSquareIcon className="size-3" aria-hidden />}>
+                  <MetaChip icon={<MessageSquareIcon className="size-3.5" aria-hidden />}>
                     {commentCount}
                   </MetaChip>
                 </span>
@@ -195,7 +223,7 @@ export function CardMetaRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <MetaChip icon={<PaperclipIcon className="size-3" aria-hidden />}>
+                  <MetaChip icon={<PaperclipIcon className="size-3.5" aria-hidden />}>
                     {attachmentCount}
                   </MetaChip>
                 </span>

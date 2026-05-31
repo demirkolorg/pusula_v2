@@ -1,9 +1,11 @@
 import { View, useColorScheme } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { CreateTabButton } from '@/components/create-tab-button';
+import { FloatingPillTabBar } from '@/components/floating-pill-tab-bar';
 import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { PushPermissionPrimer } from '@/components/push-permission-primer';
@@ -58,11 +60,14 @@ export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
   const theme = themeFor(useColorScheme());
   const trpc = useTRPC();
-  // Faz 15E (DEM-305) — tablet'te tab bar header'a taşınır (iPadOS 18 pattern;
-  // Trello/Linear/Asana iPad uyumu). Phone'da alt'ta kalır. React Navigation
-  // 7.16 `screenOptions.tabBarPosition: 'top'` resmi destek (BottomTabBar.js).
-  // Border yönü konuma göre değişir (top'ta `borderBottomColor`); klavye
-  // gizleme top tab bar'ı etkilemediği için tablet'te kapatılır.
+  // Faz 15H (2026-05-31 2. tur) — iPad'de tab bar floating pill bottom nav'a
+  // taşındı (Apple Music iPad / Trello iPad güncel pattern). Phone'da default
+  // `BottomTabBar` (alt full-width). 15E ilk turunda `tabBarPosition: 'top'`
+  // shipped'ti; K4 revize edilince rollback edildi + 15H custom `tabBar` prop'u
+  // ile floating pill devreye girdi. Border yönü conditional kaldırıldı (default
+  // `borderTopColor`); klavye gizleme `true` default'a döndü (composer pill'i
+  // örtmesin). Pill render: `FloatingPillTabBar` — `BottomTabBarProps`'tan
+  // okur, scroll içeriğin üstünde yüzer.
   const isTablet = useIsTablet();
 
   // Top-level hook'lar — kuralı gereği koşulsuz çağrılır. Oturum yokken
@@ -97,16 +102,19 @@ export default function AppLayout() {
           // sürümlerde cold-start tab seçimi üzerinde etkili.
           initialRouteName="(boards)"
           backBehavior="initialRoute"
+          // Faz 15H: tablet'te custom floating pill, phone'da default BottomTabBar.
+          // `FloatingPillTabBar` scroll içeriğin üstünde yüzer; default tab bar
+          // değişmez (phone parite garantisi).
+          tabBar={(props) =>
+            isTablet ? <FloatingPillTabBar {...props} /> : <BottomTabBar {...props} />
+          }
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: theme.primary,
             tabBarInactiveTintColor: theme.mutedForeground,
             tabBarStyle: {
               backgroundColor: theme.card,
-              // Faz 15E: top tab bar'da alt kenar çizgisi, bottom'da üst kenar.
-              ...(isTablet
-                ? { borderBottomColor: theme.border, borderTopColor: 'transparent' }
-                : { borderTopColor: theme.border }),
+              borderTopColor: theme.border,
             },
             // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
             tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
@@ -117,11 +125,10 @@ export default function AppLayout() {
             // çıkar; send butonu dock-içinde olduğundan klavye accessory gibi
             // erişilebilir kalır (DEM-236 2. tur).
             //
-            // Faz 15E: tablet üst nav'da klavye hide etmenin anlamı yok (alt'taki
-            // dock'u örtmüyor) — sürekli görünür kalır.
-            tabBarHideOnKeyboard: !isTablet,
-            // Faz 15E: tablet'te tab bar header'a taşınır (iPadOS 18 pattern).
-            tabBarPosition: isTablet ? 'top' : 'bottom',
+            // Faz 15H: iPad floating pill'i de aynı kuralla gizlenir (composer
+            // pill'in altında kalmamalı — klavye accessory işleyişi tabletde de
+            // doğrudur).
+            tabBarHideOnKeyboard: true,
           }}
         >
           {/*
@@ -155,7 +162,9 @@ export default function AppLayout() {
             name="create"
             options={{
               title: strings.create.buttonLabel,
-              tabBarButton: () => <CreateTabButton />,
+              // Faz 15H: tablet pill içinde kompakt mod — `flex-1` wrap + yükseltme
+              // kaldırılır, buton diğer pill sekmeleriyle eşit boyutta kalır.
+              tabBarButton: () => <CreateTabButton compact={isTablet} />,
             }}
           />
           <Tabs.Screen

@@ -1,0 +1,179 @@
+import { Pressable, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Text } from '@/components/text';
+import { themeFor } from '@/theme/tokens';
+
+/**
+ * Faz 15H — iPad floating pill bottom nav (2026-05-31 2. tur revizyonu).
+ *
+ * `apps/mobile/app/(app)/_layout.tsx` `<Tabs tabBar={…}>` prop'una takılır;
+ * tablet'te (`useIsTablet()`) bu bileşen, phone'da React Navigation default
+ * `BottomTabBar` render edilir. Phone parite garantisi — iPhone'da hiç
+ * çağrılmaz.
+ *
+ * Anatomi (`13-ui-tasarim-dili.md` §13.12.6.1):
+ * - Pozisyon: scroll içeriğin **üstünde** yüzer (Apple Music iPad / Trello
+ *   iPad pattern). `position: absolute`, `alignSelf: 'center'`, `bottom:
+ *   safeArea.bottom + 12`.
+ * - Pill: `rounded-full bg-card border border-border` + gölge (iOS shadow*,
+ *   Android elevation), iç padding `px-2 py-1.5`.
+ * - Sekme: `flex-row items-center gap-1.5 px-3 py-2 rounded-full`, ikon
+ *   (size 20) + label (text-sm). Aktif sekme alt-tone background (`bg-muted`).
+ * - Aktif/inaktif tint: mevcut `tabBarActiveTintColor` / `tabBarInactiveTintColor`
+ *   `screenOptions`'tan alınır (theme `primary` / `mutedForeground`).
+ * - Badge: `options.tabBarBadge` mevcutsa sağ-üst overlay (`bg-destructive`).
+ *
+ * K4 revize gerekçesi → [`docs/architecture/18-ipad-uyarlamasi.md`](../../../docs/architecture/18-ipad-uyarlamasi.md)
+ * §2.4 + revizyon notu. 15E rollback: `tabBarPosition: 'top'` kaldırıldı,
+ * `tabBarHideOnKeyboard: true` default'a döndü.
+ *
+ * Sınırlamalar:
+ * - `pointerEvents="box-none"` ile pill dışındaki area touch'ı geçirir
+ *   (altındaki scroll içeriği etkileşebilir).
+ * - Scroll içeriği pill arkasına geçmemeli — her ekranda
+ *   `useBottomTabBarHeight()` + 24px breath ile `contentContainerStyle.
+ *   paddingBottom` ayarlanması 15F kapsamında smoke test edilir.
+ * - `options.tabBarButton` (CreateTabButton) `compact={isTablet}` ile pill
+ *   içinde küçük (`w-11 h-11`) render olur — `_layout.tsx`'te wiring var.
+ */
+export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const theme = themeFor(useColorScheme());
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        bottom: insets.bottom + 12,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+      }}
+    >
+      <View
+        className="flex-row items-center gap-1 rounded-full border border-border bg-card px-2 py-1.5"
+        style={{
+          // Pill yüzen his — iOS shadow + Android elevation. Border'a ek olarak
+          // gölge "card düzleminin üstünde" hissini güçlendirir.
+          shadowColor: '#000',
+          shadowOpacity: 0.18,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 10,
+        }}
+      >
+        {state.routes.map((route, index) => {
+          // Gizli `index` route'u (cold-start redirect) tab bar'da hiç görünmez —
+          // güvenlik için açıkça skip et (React Navigation `href: null` zaten
+          // gizler, çift güvence).
+          if (route.name === 'index') return null;
+
+          // `descriptors` map'i string indeksli `BottomTabDescriptor | undefined`
+          // döner; `noUncheckedIndexedAccess` aktif olduğundan açık guard gerekir.
+          // `state.routes`'taki her route'un descriptor'ı garanti edilir — undefined
+          // teorik durum için defansif skip.
+          const descriptor = descriptors[route.key];
+          if (!descriptor) return null;
+          const { options } = descriptor;
+          const isFocused = state.index === index;
+
+          // `tabBarButton` (CreateTabButton) — kendi onPress/onLongPress'i var,
+          // descriptor üzerinden çağırıp pill'in `gap` boşluğuna oturt.
+          // CreateTabButton `flex-1` wrap yapmadığı (compact=true) için pill
+          // içinde diğer sekmelerle eşit boyutta kalır. React Navigation v7
+          // `BottomTabBarButtonProps` imzası `children` + 10+ field bekler;
+          // CreateTabButton bunları görmezden geldiği için boş prop seti
+          // güvenli — TS imzasını `unknown` üzerinden gevşetiyoruz.
+          if (options.tabBarButton) {
+            const renderTabBarButton = options.tabBarButton as unknown as (
+              props: Record<string, unknown>,
+            ) => React.ReactNode;
+            return (
+              <View key={route.key} className="mx-0.5">
+                {renderTabBarButton({})}
+              </View>
+            );
+          }
+
+          const labelText =
+            typeof options.title === 'string' && options.title.length > 0
+              ? options.title
+              : route.name;
+          const color = isFocused ? theme.primary : theme.mutedForeground;
+          const accessibilityLabel = options.tabBarAccessibilityLabel ?? labelText;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!isFocused && !event.defaultPrevented) {
+              // React Navigation 7 nested-typed overload'u TS tarafında karışır;
+              // tek-argüman overload `navigate(name)` tab route'ları için yeter
+              // (parametresiz). `as never` ile generic type-arg gevşetilir.
+              navigation.navigate(route.name as never);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: 'tabLongPress',
+              target: route.key,
+            });
+          };
+
+          const badge = options.tabBarBadge;
+
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={isFocused ? { selected: true } : {}}
+              accessibilityLabel={accessibilityLabel}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              className={`flex-row items-center gap-1.5 rounded-full px-3 py-2 ${
+                isFocused ? 'bg-muted' : 'active:opacity-70'
+              }`}
+            >
+              {options.tabBarIcon
+                ? options.tabBarIcon({ focused: isFocused, color, size: 20 })
+                : null}
+              <Text
+                weight={isFocused ? 'semibold' : 'medium'}
+                // Pill içinde label kompakt kalsın — tablet typography auto-scale
+                // (1.125×) burada `text-sm` 14px → 16px yapardı, pill yüksekliği
+                // büyür; opt-out ile sabit 14px.
+                tabletScale={1.0}
+                className="text-sm"
+                style={{ color }}
+              >
+                {labelText}
+              </Text>
+              {badge != null ? (
+                <View
+                  // Badge: pill sekmesinin sağ-üstüne overlay; `absolute` ile
+                  // pill içeriğin akışından çıkar, sekme genişliğini etkilemez.
+                  className="absolute -right-0.5 -top-0.5 min-w-[18px] items-center justify-center rounded-full px-1"
+                  style={{ backgroundColor: theme.destructive }}
+                >
+                  <Text
+                    weight="semibold"
+                    tabletScale={1.0}
+                    className="text-[10px]"
+                    style={{ color: '#ffffff' }}
+                  >
+                    {String(badge)}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}

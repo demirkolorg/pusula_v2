@@ -209,10 +209,12 @@ describe('<CardDetailDialog>', () => {
     expect(screen.getByRole('tab', { name: /Aktivite/ })).toBeInTheDocument();
   });
 
-  it('shows the cover-colour picker when its meta chip is opened', async () => {
+  it('opens the cover-colour picker from the "+ Ekle" popover', async () => {
     const user = userEvent.setup();
     renderDialog();
-    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.coverColor }));
+    // Chip dropdown'ları kalktı; tüm ekleme aksiyonları tek popover'da.
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.addMeta }));
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.addMenuCover }));
     // The picker swatch grid (12 buttons labelled "Kapak rengi: <name>").
     expect(screen.getAllByRole('button', { name: /Kapak rengi:/ }).length).toBe(12);
   });
@@ -238,7 +240,9 @@ describe('<CardDetailDialog>', () => {
   it('rejects oversized cover images before requesting an upload URL', async () => {
     const user = userEvent.setup();
     renderDialog();
-    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.coverColor }));
+    // Cover picker artık "+ Ekle → Kapak" alt-paneli.
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.addMeta }));
+    await user.click(screen.getByRole('button', { name: strings.card.detail.modal.addMenuCover }));
     // The cover picker is now a two-tab control — the upload input lives in the
     // "Kapak görseli" tab (Faz 11D — DEM-150).
     await user.click(screen.getByRole('tab', { name: strings.attachment.cover.tabImage }));

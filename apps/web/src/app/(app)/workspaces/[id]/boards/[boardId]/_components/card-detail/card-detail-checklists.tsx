@@ -55,9 +55,13 @@ export function CardDetailChecklists({
   const done = checklists.reduce((sum, c) => sum + c.items.filter((i) => i.completed).length, 0);
 
   return (
-    <section className="space-y-3">
+    <section className="flex h-full min-h-0 min-w-0 flex-col">
       <SectionHeader
         icon={<CheckSquareIcon className="size-3.5" aria-hidden />}
+        // Panel-card'ın sabit üst kabuğu (FE-2026-05-31-002, revize 2026-05-31)
+        // — scroll'un dışında; bileşen flex-col, body kendi scroll wrapper'ı
+        // içinde. `bg-muted/50 border-b` ile panel-card iç tonundan ayrılır.
+        className="mb-0 shrink-0 border-b bg-muted/50 px-4 py-2.5"
         action={
           <>
             {total > 0 && (
@@ -86,39 +90,41 @@ export function CardDetailChecklists({
         {copy.title}
       </SectionHeader>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <div className="pusula-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {canEdit && addingChecklist && (
-        <AddChecklistFormPanel
-          onSubmit={handlers.onCreateChecklist}
-          onClose={() => setAddingChecklist(false)}
-          pending={pending}
-        />
-      )}
+        {canEdit && addingChecklist && (
+          <AddChecklistFormPanel
+            onSubmit={handlers.onCreateChecklist}
+            onClose={() => setAddingChecklist(false)}
+            pending={pending}
+          />
+        )}
 
-      {checklists.length === 0 ? (
-        !addingChecklist && (
-          <EmptyState icon={<CheckSquareIcon className="size-8" />} message={copy.empty} />
-        )
-      ) : (
-        <div className="space-y-3">
-          {checklists.map((checklist) => (
-            <ChecklistBlock
-              key={checklist.id}
-              checklist={checklist}
-              canEdit={canEdit}
-              pending={pending}
-              handlers={handlers}
-              nameOf={nameOf}
-              imageOf={imageOf}
-            />
-          ))}
-        </div>
-      )}
+        {checklists.length === 0 ? (
+          !addingChecklist && (
+            <EmptyState icon={<CheckSquareIcon className="size-8" />} message={copy.empty} />
+          )
+        ) : (
+          <div className="space-y-3">
+            {checklists.map((checklist) => (
+              <ChecklistBlock
+                key={checklist.id}
+                checklist={checklist}
+                canEdit={canEdit}
+                pending={pending}
+                handlers={handlers}
+                nameOf={nameOf}
+                imageOf={imageOf}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -1,210 +1,142 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { strings } from '@/lib/strings';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-// Hoisted so the mock factories below can reference them; also handed back to tests.
-const h = vi.hoisted(() => ({
-  useQuery: vi.fn(),
-}));
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
-  usePathname: () => '/',
-}));
-
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: h.useQuery,
-}));
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>(
+    '@tanstack/react-query',
+  );
+  return { ...actual, useQuery: vi.fn() };
+});
 
 vi.mock('@/trpc/client', () => ({
   useTRPC: () => ({
-    workspace: {
-      list: { queryOptions: () => ({ key: 'workspace.list' }) },
-    },
+    workspace: { list: { queryOptions: () => ({ queryKey: ['workspace.list'] }) } },
     board: {
-      list: {
-        queryOptions: ({ workspaceId }: { workspaceId: string }) => ({
-          key: `board.list:${workspaceId}`,
-        }),
-      },
+      list: { queryOptions: () => ({ queryKey: ['board.list'] }) },
+      get: { queryOptions: () => ({ queryKey: ['board.get'] }) },
     },
   }),
 }));
 
-// Surface invitations are a separate concern; render an inert marker.
-vi.mock('./_components/pending-invitations', () => ({
-  PendingInvitations: () => <div data-testid="pending-invitations" />,
+vi.mock('@/lib/realtime/use-board-realtime', () => ({
+  useBoardRealtime: () => ({ connected: true, joined: true }),
 }));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(''),
+}));
+
+// Heavy children — sayfanın dallanma davranışını test ettiğimiz için stub'la.
 vi.mock('./_components/onboarding-empty-state', () => ({
-  OnboardingEmptyState: () => <div>{strings.onboarding.title}</div>,
+  OnboardingEmptyState: () => <div>onboarding-empty-state</div>,
 }));
-
-// The home layout components own their own tRPC queries / mutations; stub them
-// so this page test focuses on the branching + workspace selection wiring.
-vi.mock('./_components/home/workspace-rail', () => ({
-  WorkspaceRail: ({
-    workspaces,
-    selectedWorkspaceId,
-    onSelect,
-  }: {
-    workspaces: { id: string; name: string }[];
-    selectedWorkspaceId: string;
-    onSelect: (id: string) => void;
-  }) => (
-    <div data-testid="workspace-rail">
-      {workspaces.map((workspace) => (
-        <button
-          key={workspace.id}
-          type="button"
-          aria-pressed={workspace.id === selectedWorkspaceId}
-          onClick={() => onSelect(workspace.id)}
-        >
-          {workspace.name}
-        </button>
+vi.mock('./_components/pending-invitations', () => ({
+  PendingInvitations: () => <div>pending-invitations</div>,
+}));
+vi.mock('./_components/home/workspaces-column', () => ({
+  WorkspacesColumn: ({ workspaces }: { workspaces: { id: string; name: string }[] }) => (
+    <div data-testid="workspaces-column">
+      {workspaces.map((w) => (
+        <div key={w.id}>{w.name}</div>
       ))}
     </div>
   ),
 }));
-vi.mock('./_components/home/workspace-overview-header', () => ({
-  WorkspaceOverviewHeader: ({ workspace }: { workspace: { name: string } }) => (
-    <h1>{workspace.name}</h1>
-  ),
+vi.mock('./_components/home/boards-column', () => ({
+  BoardsColumn: () => <div data-testid="boards-column" />,
 }));
-vi.mock('./_components/home/workspace-stat-strip', () => ({
-  WorkspaceStatStrip: ({ workspaceId }: { workspaceId: string }) => (
-    <div data-testid="stat-strip">{workspaceId}</div>
-  ),
+vi.mock('./_components/home/lists-column', () => ({
+  ListsColumn: () => <div data-testid="lists-column" />,
 }));
-vi.mock('./_components/home/board-grid', () => ({
-  BoardGrid: ({
-    workspace,
-    boards,
-  }: {
-    workspace: { id: string };
-    boards: { title: string }[];
-  }) => (
-    <div data-testid="board-grid" data-workspace={workspace.id}>
-      {boards.map((board) => (
-        <span key={board.title}>{board.title}</span>
-      ))}
-    </div>
-  ),
+vi.mock('./_components/home/cards-column', () => ({
+  CardsColumn: () => <div data-testid="cards-column" />,
+}));
+vi.mock('./_components/home/home-breadcrumb', () => ({
+  HomeBreadcrumb: () => <div data-testid="home-breadcrumb" />,
 }));
 
-// Imported after the mocks above are registered (vi.mock/vi.hoisted are hoisted).
+import { useQuery } from '@tanstack/react-query';
 import WorkspacesPage from './page';
 
-type QueryStub = {
+const useQueryMock = vi.mocked(useQuery);
+
+type QueryState = Partial<{
+  data: unknown;
   isPending: boolean;
   isError: boolean;
   isSuccess: boolean;
-  data: unknown;
-  error?: { message: string };
-};
+  error: { message: string } | undefined;
+}>;
 
-const queryStub = (over: Partial<QueryStub>): QueryStub => ({
-  isPending: false,
-  isError: false,
-  isSuccess: false,
-  data: undefined,
-  ...over,
-});
-
-/** Wire `useQuery` so `workspace.list` yields `result`; board queries resolve from `boardResults`. */
-function withWorkspaceHome(
-  workspaceResult: QueryStub,
-  boardResults: Record<string, QueryStub> = {},
-) {
-  h.useQuery.mockImplementation((opts: { key?: string }) => {
-    if (opts?.key === 'workspace.list') return workspaceResult;
-    if (opts?.key?.startsWith('board.list:')) {
-      const workspaceId = opts.key.slice('board.list:'.length);
-      return boardResults[workspaceId] ?? queryStub({ isSuccess: true, data: [] });
-    }
-    return queryStub({ isSuccess: true, data: [] });
-  });
+function mkQuery(state: QueryState) {
+  return {
+    data: undefined,
+    isPending: false,
+    isError: false,
+    isSuccess: !state.isPending && !state.isError,
+    error: undefined,
+    ...state,
+  };
 }
 
-const workspace = (id: string, name: string) => ({
-  id,
-  name,
-  slug: name.toLowerCase(),
-  role: 'owner' as const,
-  createdAt: new Date('2026-01-01'),
-  boardCount: 0,
-  memberCount: 1,
-  lastActivityAt: null,
-});
+/**
+ * Tek bir render için 3 ardışık `useQuery` çağrısı yapılır:
+ * 1) workspaces.list, 2) boards.list, 3) board.get. Her teste ihtiyaç duyduğu
+ * yere kadar implementation set'leniyor, gerisi default'a düşer.
+ */
+function setQueries(states: QueryState[]) {
+  states.forEach((s, i) => {
+    if (i === 0) useQueryMock.mockReturnValueOnce(mkQuery(s) as never);
+    else useQueryMock.mockReturnValueOnce(mkQuery(s) as never);
+  });
+  // Kalan ardışık çağrılar default (idle).
+  useQueryMock.mockReturnValue(mkQuery({ isSuccess: false }) as never);
+}
 
-const board = (id: string, title: string) => ({
-  id,
-  title,
-  role: 'admin' as const,
-  archivedAt: null,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-05-01'),
-  openCount: 0,
-  doneCount: 0,
-  members: [],
-  favorited: false,
-  lastActivityAt: null,
-});
-
-describe('<WorkspacesPage> - (app) landing', () => {
+describe('<WorkspacesPage>', () => {
   beforeEach(() => {
-    h.useQuery.mockReset();
-  });
-  afterEach(() => {
-    vi.clearAllMocks();
+    useQueryMock.mockReset();
   });
 
-  it('pending -> shows the loading placeholder', () => {
-    withWorkspaceHome(queryStub({ isPending: true }));
+  it('renders a spinner while workspaces are loading', () => {
+    setQueries([{ isPending: true }]);
     render(<WorkspacesPage />);
-    expect(screen.getByText(strings.workspace.loading)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
-  it('error -> shows the error alert with the server message', () => {
-    withWorkspaceHome(queryStub({ isError: true, error: { message: 'boom' } }));
+  it('renders an error alert when workspace.list fails', () => {
+    setQueries([{ isError: true, error: { message: 'down' } }]);
     render(<WorkspacesPage />);
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent(strings.workspace.loadErrorTitle);
-    expect(alert).toHaveTextContent('boom');
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('down')).toBeInTheDocument();
   });
 
-  it('0 workspaces -> renders the onboarding empty state', () => {
-    withWorkspaceHome(queryStub({ isSuccess: true, data: [] }));
+  it('renders the onboarding empty state when the viewer has no workspaces', () => {
+    setQueries([{ data: [], isSuccess: true }]);
     render(<WorkspacesPage />);
-    expect(screen.getByText(strings.onboarding.title)).toBeInTheDocument();
+    expect(screen.getByText('onboarding-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('pending-invitations')).toBeInTheDocument();
   });
 
-  it('1+ workspaces -> renders the rail, overview header, stat strip and board grid', () => {
-    withWorkspaceHome(queryStub({ isSuccess: true, data: [workspace('w1', 'Solo')] }), {
-      w1: queryStub({ isSuccess: true, data: [board('b1', 'Sprint')] }),
-    });
+  it('renders the 4-column grid when the viewer has workspaces', () => {
+    setQueries([
+      // workspaces.list
+      { data: [{ id: 'w1', name: 'Pazarlama' }], isSuccess: true },
+      // boards.list (workspace seçili, enabled true)
+      { data: [], isSuccess: true },
+      // board.get (board seçili değil)
+      { data: undefined, isSuccess: false },
+    ]);
     render(<WorkspacesPage />);
-    expect(screen.getByTestId('workspace-rail')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Solo' })).toBeInTheDocument();
-    expect(screen.getByTestId('stat-strip')).toHaveTextContent('w1');
-    expect(screen.getByTestId('board-grid')).toHaveTextContent('Sprint');
-  });
-
-  it('selecting another workspace in the rail swaps the overview + boards', async () => {
-    const user = userEvent.setup();
-    withWorkspaceHome(
-      queryStub({ isSuccess: true, data: [workspace('w1', 'Alpha'), workspace('w2', 'Beta')] }),
-      {
-        w1: queryStub({ isSuccess: true, data: [board('b1', 'Backlog')] }),
-        w2: queryStub({ isSuccess: true, data: [board('b3', 'Operations')] }),
-      },
-    );
-    render(<WorkspacesPage />);
-    expect(screen.getByRole('heading', { name: 'Alpha' })).toBeInTheDocument();
-    expect(screen.getByTestId('board-grid')).toHaveTextContent('Backlog');
-
-    await user.click(screen.getByRole('button', { name: 'Beta' }));
-    expect(screen.getByRole('heading', { name: 'Beta' })).toBeInTheDocument();
-    expect(screen.getByTestId('board-grid')).toHaveTextContent('Operations');
+    // lg+ ekran 4 sütunu yan yana, <lg en derin sütunu accordion'da render eder —
+    // her test-id JSDOM'da iki kez bulunur, ikisi de mount olduğu için
+    // getAllByTestId kullanıp uzunluğu doğrula.
+    expect(screen.getAllByTestId('workspaces-column').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('boards-column').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('lists-column').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('cards-column').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Pazarlama').length).toBeGreaterThanOrEqual(1);
   });
 });

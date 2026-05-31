@@ -19,14 +19,20 @@ function SectionHeader({ icon, children, action, className, ...props }: SectionH
   return (
     <div
       data-slot="section-header"
-      className={cn('mb-2 flex items-center justify-between gap-2', className)}
+      className={cn('mb-1 flex items-center justify-between gap-2', className)}
       {...props}
     >
       <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
-        <span className="text-xs font-semibold tracking-wide uppercase">{children}</span>
+        <span className="text-[11px] font-semibold tracking-wide uppercase">{children}</span>
       </div>
-      {action ? <div className="flex items-center gap-1">{action}</div> : null}
+      {/* Action içindeki ghost icon button'lar default `size="icon"` ile 36px
+          oluyor ve header yüksekliğini onlar belirliyor (label sadece ~14px).
+          Descendant selector ile button'ları 28px'e sıkıştırıp başlık çubuğunu
+          gerçekten daraltıyoruz; ikon boyutu (`size-4`) yine rahat oturur. */}
+      {action ? (
+        <div className="flex items-center gap-0.5 [&_button]:size-7">{action}</div>
+      ) : null}
     </div>
   );
 }

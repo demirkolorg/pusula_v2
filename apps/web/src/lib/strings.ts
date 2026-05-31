@@ -35,6 +35,7 @@ export const strings = {
     retry: 'Tekrar dene',
     back: 'Geri',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
+    navigationRail: 'Navigasyon çubuğu',
   },
   entityIcons: {
     'layout-grid': 'Izgara',
@@ -599,68 +600,100 @@ export const strings = {
     },
   },
   /**
-   * Copy for the `(app)` landing page — the workspace-overview layout
-   * (DEM-192 "Anasayfa Variant A"): the workspace rail, the selected
-   * workspace's header, its stat strip and its board grid.
+   * Copy for the `(app)` landing page — 4-sütun "Gezgin" drill-down (§13.11,
+   * karar 2026-06-01). Her alt-namespace tek bir sütuna karşılık gelir; eski
+   * Variant A artıkları (`rail` / `overview` / `stats` / `boards`) component'leri
+   * silindiği için temizlendi.
    */
   home: {
-    rail: {
-      eyebrow: 'Workspaces',
-      count: (count: number) => `${count} çalışma alanı`,
-      addLabel: 'Yeni çalışma alanı ekle',
-      settingsLabel: (name: string) => `${name} ayarları`,
-      createCardTitle: 'Yeni alan kur',
-      createCardDescription: 'Ekibinle ayrı bir çalışma alanı başlat, üyeleri davet et.',
+    /**
+     * Üst 1/3'lük hero alanı (§13.11 — 2026-06-01 layout revizyonu, 4 sütun
+     * altta). Giriş ekranı `signIn.landing` hero'sunun "post-login" varyantı —
+     * marketing değil; günün başlangıcında sıcak karşılama hissi.
+     */
+    hero: {
+      eyebrow: 'Pusula',
+      /**
+       * Başlık iki parça: sade prefix + `--primary` gradient'li accent.
+       * Sayfanın tek `h1`'i.
+       */
+      titlePrefix: 'İşlerin',
+      titleAccent: 'tek pusulada.',
+      /** Erişilebilir tam ad (ekran okuyucu, test). */
+      titleFull: 'İşlerin tek pusulada.',
+      description:
+        'Çalışma alanlarından kartlara — soldan sağa daralan bir gezgin. Bir tıkla istediğin yere.',
     },
-    overview: {
-      roleBadgePrefix: 'Rol ·',
-      boardCount: (count: number) => `${count} pano`,
-      memberCount: (count: number) => `${count} üye`,
+    shell: {
+      back: 'Geri',
+      errorTitle: 'Yüklenemedi',
+    },
+    workspacesColumn: {
+      eyebrow: 'Çalışma alanları',
+      count: (n: number) => `${n} çalışma alanı`,
+      addLabel: 'Yeni çalışma alanı oluştur',
+      settingsLabel: (name: string) => `${name} ayarları`,
+      emptyTitle: 'Çalışma alanı yok',
+      emptyDescription: 'Yeni bir çalışma alanı oluşturarak başla.',
+    },
+    boardsColumn: {
+      eyebrow: 'Panolar',
+      count: (n: number) => `${n} pano`,
+      addLabel: 'Yeni pano oluştur',
+      favoritesGroupTitle: 'Favoriler',
+      othersGroupTitle: 'Tümü',
+      /**
+       * Satır içi eylemler (2026-06-01 — yıldız toggle kaldırıldı, yerine
+       * ayarlar + git eklendi). Favori değiştirme board ekranındaki üst bar'da.
+       * `*Label` ekran okuyucu/aria için uzun bağlamlı; `*Action` butonun
+       * görünen kısa etiketi.
+       */
+      settingsLabel: (title: string) => `"${title}" panosunun ayarları`,
+      openLabel: (title: string) => `"${title}" panosunu aç`,
+      settingsAction: 'Ayarlar',
+      openAction: 'Aç',
+      emptyTitle: 'Pano yok',
+      emptyDescription: 'Bu çalışma alanında henüz pano yok.',
+      selectWorkspaceTitle: 'Çalışma alanı seç',
+      selectWorkspaceDescription: 'Soldan bir çalışma alanı seçtiğinde panolar burada listelenir.',
       lastActivity: (relative: string) => `Son aktivite ${relative}`,
       lastActivityNever: 'Henüz aktivite yok',
-      createBoardButton: 'Pano oluştur',
     },
-    stats: {
-      sectionLabel: 'Çalışma alanı özeti',
-      loadErrorTitle: 'Özet yüklenemedi',
-      openTasks: {
-        label: 'Açık görev',
-        sub: 'Bu çalışma alanında',
-      },
-      completedThisWeek: {
-        label: 'Bu hafta tamamlanan',
-        deltaUp: (count: number) => `Geçen haftaya göre +${count}`,
-        deltaDown: (count: number) => `Geçen haftaya göre −${count}`,
-        deltaSame: 'Geçen haftayla aynı',
-      },
-      overdue: {
-        label: 'Vadesi geçen',
-        sub: 'Hassasiyet ister',
-        subEmpty: 'Geciken görev yok',
-      },
-      assignedToMe: {
-        label: 'Bana atanan',
-        sub: (count: number) =>
-          count === 0 ? 'Bugün vadeli görevin yok' : `Bugün ${count} görev vadeli`,
-      },
+    listsColumn: {
+      eyebrow: 'Listeler',
+      count: (n: number) => `${n} liste`,
+      archivedBadge: 'Arşivli',
+      cardCount: (n: number) => `${n} kart`,
+      emptyTitle: 'Liste yok',
+      emptyDescription: 'Bu panoda henüz liste yok. Pano ekranında oluşturabilirsin.',
+      selectBoardTitle: 'Pano seç',
+      selectBoardDescription: 'Soldan bir pano seçtiğinde listeler burada görünür.',
     },
-    boards: {
-      sectionTitle: 'Panolar',
-      count: (count: number) => `· ${count}`,
-      filterAll: 'Tümü',
-      filterStarred: 'Yıldızlı',
-      filterRecent: 'Son düzenlenen',
-      viewGridLabel: 'Izgara görünümü',
-      viewListLabel: 'Liste görünümü',
-      empty: 'Henüz pano yok — ilkini oluştur.',
-      emptyStarred: 'Yıldızlı pano yok.',
-      newCardTitle: 'Yeni pano',
-      newCardDescription: 'Şablonlardan başla veya boş aç.',
-      taskCounts: (open: number, done: number) => `${open} açık / ${done} bitti`,
-      memberOverflow: (count: number) => `+${count}`,
-      memberStackLabel: (count: number) => `${count} üye`,
-      favoriteAdd: (title: string) => `"${title}" panosunu yıldızla`,
-      favoriteRemove: (title: string) => `"${title}" panosunun yıldızını kaldır`,
+    cardsColumn: {
+      eyebrow: 'Kartlar',
+      count: (n: number) => `${n} kart`,
+      addLabel: 'Yeni kart oluştur',
+      completedToggleLabel: (title: string) => `"${title}" kartını tamamlandı işaretle`,
+      completedUntoggleLabel: (title: string) =>
+        `"${title}" kartının tamamlandı işaretini kaldır`,
+      openInBoard: (title: string) => `"${title}" kartını panoda aç`,
+      dueOverdue: 'Vadesi geçti',
+      dueToday: 'Bugün',
+      dueTomorrow: 'Yarın',
+      dueInDays: (n: number) => `${n} gün sonra`,
+      emptyTitle: 'Kart yok',
+      emptyDescription: 'Bu listede henüz kart yok. Pano ekranından eklenebilir.',
+      selectListTitle: 'Liste seç',
+      selectListDescription: 'Soldan bir liste seçtiğinde kartlar burada görünür.',
+    },
+    breadcrumb: {
+      /** `<nav>` landmark için screen-reader etiketi (W3 düzeltmesi). */
+      navLabel: 'Gezgin breadcrumb',
+      home: 'Anasayfa',
+      separator: '›',
+      selectWorkspace: 'Çalışma alanı seç',
+      selectBoard: 'Pano seç',
+      selectList: 'Liste seç',
     },
   },
   workspace: {
@@ -1411,6 +1444,13 @@ export const strings = {
       descriptionEmptyPrompt: 'Açıklama ekle…',
       descriptionEditAction: 'Düzenle',
       descriptionCancelAction: 'Vazgeç',
+      descriptionCopyAction: 'Kopyala',
+      descriptionCopySuccess: 'Açıklama kopyalandı',
+      descriptionCopyError: 'Kopyalama başarısız',
+      descriptionDownloadAction: 'Word olarak indir',
+      descriptionDownloadPending: 'İndiriliyor…',
+      descriptionDownloadError: 'İndirme başarısız',
+      descriptionDownloadFallbackName: 'aciklama',
       // Card detail modal chrome (Faz 2.7C).
       modal: {
         dialogTitle: 'Kart ayrıntıları',
@@ -1439,6 +1479,23 @@ export const strings = {
         coverImageUploadFailed: 'Kapak fotoğrafı yüklenemedi.',
         coverImageTooLarge: 'Kapak fotoğrafı en fazla 50 MB olabilir.',
         addMeta: 'Ekle',
+        addPopoverTitle: 'Karta ekle',
+        addPopoverBack: 'Geri',
+        addPopoverClose: 'Kapat',
+        addMenuMembers: 'Üyeler',
+        addMenuMembersDescription: 'Karta üye ata.',
+        addMenuLabels: 'Etiketler',
+        addMenuLabelsDescription: 'Organize edin, kategorilere ayırın ve önceliklendirin.',
+        addMenuDue: 'Son tarih',
+        addMenuDueDescription: 'Tarih ve anımsatıcı ayarla.',
+        addMenuCover: 'Kapak',
+        addMenuCoverDescription: 'Renk veya görsel seç.',
+        addMenuAttachment: 'Ek',
+        addMenuAttachmentDescription: 'Bilgisayardan bir dosya ekle.',
+        metaInfoMembers: (count: number) => `${count} üye`,
+        metaInfoLabels: (count: number) => `${count} etiket`,
+        metaInfoAttachments: (count: number) => `${count} ek`,
+        metaInfoCover: 'Kapak',
         membersChip: 'Üye',
         labelsChip: 'Etiket',
         dueChip: 'Son tarih',

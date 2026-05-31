@@ -243,6 +243,10 @@ export const strings = {
     membersTitle: 'Üyeler',
     dueTitle: 'Son tarih',
     checklistsTitle: 'Kontrol listeleri',
+    // Faz 15C.9 (2026-05-31) — iPad'de `DescriptionChecklistTabs`'in üçüncü
+    // (default) sekmesi: açıklama + kontrol listeleri yan-yana. Web kart
+    // modalindeki iki-kolon layout'unun mobil iPad karşılığı.
+    bothTabLabel: 'Tümü',
     commentsTitle: 'Yorumlar',
     noComments: 'Henüz yorum yok.',
     deletedComment: 'Bu yorum silindi.',

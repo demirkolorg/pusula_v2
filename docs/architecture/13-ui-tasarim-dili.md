@@ -746,59 +746,93 @@ Tile'daki "Önizle" tıklanınca açılan dialog (`@pusula/ui` `Dialog` extend, 
 - **Office Online viewer** — gizlilik (public erişim gerektirir); V1 dışı.
 - **Misafir attachment görüntüleme** — Faz 9 paylaşım linki SSR'da `forbidden:guest` flag; misafir attachment **görmez**.
 
-## 13.11 Anasayfa anatomisi (`(app)/page.tsx` — Variant A "Rafine Orijinal")
+## 13.11 Anasayfa anatomisi (`(app)/page.tsx` — 4-sütun Gezgin)
 
-> **DEM-192 (2026-05-17):** Anasayfa (`(app)/` varış yüzeyi) "Variant A — Rafine Orijinal" yapısına geçti. Bu bölüm `(app)/page.tsx`'in **1+ workspace** durumundaki yerleşim/anatomi sözleşmesidir; 0 workspace onboarding boş-durumu §8.1.3'teki gibi kalır. Veri akışı + route davranışı → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.3; "Board favorisi" domain kavramı → [`../domain/01-urun-modeli.md`](../domain/01-urun-modeli.md). Mevcut renkler tümüyle design token (§13.1) üzerinden — ilham mockup'ındaki sabit koyu renkler kullanılmaz; açık + koyu temada (§13.7) çalışır.
+> **2026-06-01:** Anasayfa (`(app)/` varış yüzeyi) DEM-192 "Variant A — Rafine Orijinal" düzenini emekliye aldı; yerini **4-sütun drill-down "Gezgin"** aldı. Anasayfa artık saf bir **navigasyon hızlandırıcısı**dır: Workspace → Board → Liste → Kart sütunlarında soldan sağa daralan seçim. Kart detay modalı **bu ekranda açılmaz**; Sütun 4'te karta tıklamak board route'a `?card=<id>` ile yönlenir (drag-drop felsefesi ve tek-kaynak modal — §13.6 — ile uyumlu kalır). Veri akışı + route davranışı → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) §8.1.3. Karar gerekçesi → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) 2026-06-01 satırı.
 
 ### Yerleşim
 
-- AppShell üst başlığı (§13.8 — workspace switcher + board switcher + user nav) **değişmez**; anasayfa onun altındaki `<main>` içeriğidir.
+- AppShell üst başlığı (§13.8) **değişmez**; anasayfa onun altındaki `<main>` içeriğidir. Header switcher'ları (`workspace-switcher`, `board-switcher`) global Gezgin paneli geçişe sahiplik ettiği için zaten gizli (`apps/web/src/app/(app)/_components/app-shell.tsx` → `SHOW_HEADER_SWITCHERS = false`); drill-down sütunları bu hızlı geçişi anasayfanın içinde sağlar.
 - `/` rotası içeriği **tam genişlikte** akar (`max-w-none px-6` — `<main>` `usePathname()` ile anasayfayı tanır; diğer çocuk route'lar `max-w-5xl` ortalı kalır, board ekranı `fullBleed`). Anasayfa "geniş, sınırsız".
-- **Sayfa hero'su (`HomeHero`):** içeriğin en üstünde, parlayan sparkle marka rozeti + sayfa başlığı. Rozet: `size-14 rounded-2xl`, `--primary` gradient zemin (`from-primary/35 to-primary/5`) + inset `ring-primary/30` + arkasında bulanık `--primary` glow halo; ikon `lucide SparkleIcon`. Yanında `h1` "Workspace'lerin" (`strings.workspace.listTitle`) + alt açıklama (`strings.board.listSectionDescription`). `rounded-xl border bg-card` panel, üst kenarında ince `--primary`-tonlu gradient highlight çizgisi. Sayfanın tek `h1`'i burasıdır — workspace özet başlığı (aşağıda) `h2`'ye iner.
-- İki sütun: solda **workspace rayı** (`lg:w-80`, ~320px, `shrink-0`), sağda **içerik** (`flex-1 min-w-0`). `lg:` altında sütunlar dikey yığılır (ray üstte, içerik altta).
-- **0 workspace** → bu iki-sütun düzeni (ve hero) render edilmez; onboarding empty state + bekleyen davetler gösterilir (§8.1.3, `onboarding-empty-state.tsx` + `PendingInvitations`).
-- **Atmosferik glow:** hero'nun arkasında `--primary` düşük opaklıkta radial gradient (dekoratif, `pointer-events-none`); light/dark token'la tonlanır, sabit renk yok.
+- **0 workspace** → drill-down render edilmez; onboarding empty state + bekleyen davetler gösterilir (§8.1.3, `onboarding-empty-state.tsx` + `PendingInvitations`). Bu davranış Variant A'dan miras kalır.
+- **`lg` ve üstü (≥1024px)**: sayfa dikey iki zone'a bölünür (`grid grid-rows-[1fr_2fr]`, `gap-4`) — **üst 1/3 hero** + **alt 2/3 sütun grid'i**. Sütun grid'i `grid-cols-4` ile **eşit genişlikte** (her sütun `1fr`); aralarında `gap-3`. Eşit genişlik kararı (2026-06-01): kart sütunu da diğerleriyle aynı alanı tutar — satır yoğunluğu farklı olsa bile görsel ritim simetrik kalır. Outer container `h-[calc(100svh-12rem)]` ile viewport'a sabit sığar; AppShell main'in `overflow-y-auto` davranışına rağmen sayfa scroll'lamaz.
+- **Hero (üst 1/3)**: **card değil** — sayfanın arka planına gömülü `isolate overflow-hidden rounded-lg` panel. Border + `bg-card` yok; bunun yerine lokal aurora-vari kompozisyon: iki yumuşak `--primary` blob (`blur-3xl`, sol-üst + sağ-alt) + ince `--border` dot pattern overlay (`22px` grid, opacity 40) + zemin yumuşatan vignette (`color-mix` ile `--background` türevli). Sol blok: `eyebrow` ("Pusula", `--primary` token + `uppercase tracking-[0.22em]`) → büyük `<h1>` iki parça (`titlePrefix` sade `--foreground` + `titleAccent` `--primary`'den `--primary/55`'e gradient `bg-clip-text text-transparent`, `text-4xl lg:text-5xl xl:text-6xl`) → kısa açıklama (`--muted-foreground`). Sağ blok (yalnız `lg+`): cam ring + glow halo'lu kompakt `CompassIcon` rozeti (`bg-card/40 backdrop-blur-md`, ring `--primary/30`). `<h1>` `aria-label` `titleFull` ile tek/kararlı metin taşır; dekoratif öğeler `aria-hidden`. Hero metinleri `strings.home.hero`. `<lg` ekranda **gizlenir** (accordion modunda yalnız sütun görünür).
+- **`lg` altı (<1024px)**: master-detail accordion — yalnızca **en derin seçili sütun** görünür, üstte breadcrumb tıklanabilir geri-navigasyon sağlar; iPad Faz 15 master-detail desenine ([`18-ipad-uyarlamasi.md`](18-ipad-uyarlamasi.md)) akrabalık. Hero bu modda render edilmez.
 
-### Sol workspace rayı
+### URL state — drill-down deep-link
 
-`<aside class="lg:w-80 shrink-0 flex flex-col gap-3">`:
+Drill-down seçimi search param'larında tutulur; refresh + paylaşılan link dayanıklı:
 
-- **Başlık bloğu:** "WORKSPACES" eyebrow (`text-[10px] uppercase tracking-wide text-muted-foreground`) + "N çalışma alanı" (`text-sm text-muted-foreground`) + sağda `+` ikon-buton (`Button variant=ghost size=icon` — yeni workspace → `CreateWorkspaceDialog`).
-- **Workspace satırları:** her satır tıklanabilir (`role="button"` + klavye); içerik: palette avatar (workspace adının baş harfi, `avatarPaletteSolidClass` ile deterministik `--palet-*` zemin) + ad (`font-medium truncate`) + alt satır "N pano · M üye" (`text-xs text-muted-foreground`) + rol rozeti (`Badge` — owner/admin/member/guest; §13.1 token'lı). **Aktif workspace** sol kenarda accent şerit (`data-active` → `--primary` `w-0.5` bar) + accent zemin (`bg-primary/8`); satıra tıklamak sağ içeriği değiştirir, workspace ayar route'una **gitmez** (ayar yalnız satır içindeki ayar ikonundan — §8.1.3 disiplini).
-- **Alt CTA:** rayın sonunda dashed "Yeni alan kur" kartı (`border border-dashed border-border rounded-lg p-3 text-muted-foreground hover:bg-muted/40`) → `CreateWorkspaceDialog` (başlık bloğundaki `+` ile aynı işi yapar; ray boş hissettirmesin diye ek görsel CTA).
+- `/?ws=<workspaceId>` — Sütun 1 seçimi.
+- `/?ws=<workspaceId>&board=<boardId>` — Sütun 1 + 2 seçimi.
+- `/?ws=<workspaceId>&board=<boardId>&list=<listId>` — tam drill-down.
+- Sütun 4'te karta tıklanırsa `router.push('/workspaces/<ws>/boards/<b>?card=<id>')` ile board route'a yönlenir. `?card` board ekranındaki [`card-detail-route.tsx`](../../apps/web/src/app/%28app%29/workspaces/%5Bid%5D/boards/%5BboardId%5D/_components/card-detail/card-detail-route.tsx) tarafından açılır — modal **anasayfada mount edilmez** (tek-kaynak, drag-drop bağlamı korunur).
+- Üst sütunda yeni seçim olursa alt sütun param'ları otomatik düşer: `ws` değişirse `board` + `list` reset, `board` değişirse `list` reset.
+- Param'lar `router.replace` ile yazılır (sütun seçimleri geri-tarihçeyi şişirmez); kart açılışı `router.push` ile board ekranına geçer. Geri tuşu drill-down'a döner.
+- **Auto-select zinciri (2026-06-01):** her sütun ilk verisi geldiğinde URL'de seçim yoksa **ilk öğeyi seçer ve URL'e yazar** — workspaces → boards → lists sırayla. Liste seviyesinde **arşivli listeler atlanır** (hepsi arşivliyse ilk satıra düşer). Cards filtresi otomatik. Sonuç: kullanıcı sayfayı ilk açtığında 4 sütun da dolu gelir; URL paylaşılabilir + refresh dayanıklı. Setter'lar `useCallback` ile stabil, `selection.xxxId` set olur olmaz koşul yanlışlanır → sonsuz döngü yok.
 
-### Sağ içerik
+### Sütun ortak anatomisi
 
-`flex flex-col gap-5` — üç parça:
+Her sütun aynı **glass panel** atomunu paylaşır — hero ile aynı tasarım dili (§13.11 hero):
 
-**(a) Workspace özet başlığı (`WorkspaceSummaryHeader`)** — seçili workspace'in kimlik bandı: solda büyük palette avatar (52px, `avatarPaletteSolidClass`) + ad (`h2`, `text-2xl font-semibold` — sayfa `h1`'i hero'da) + rol rozeti + slug (`text-xs font-mono text-muted-foreground`); altında meta satırı "N pano / M üye / Son aktivite …" (`text-sm text-muted-foreground`, ayraç `·`). Sağda aksiyonlar: "Davet et" (`Button variant=outline` — workspace davet dialog'u, `admin+` gate'li) + "Pano oluştur" (`Button` — `CreateBoardDialog`, `member+` gate'li).
+- **Panel**: `bg-card/60 backdrop-blur-md border border-border/60 rounded-xl shadow-sm`. Üst kenarda ince `--primary` gradient highlight çizgisi (`from-primary/0 via-primary/40 to-primary/0 h-px`) — sayfanın glass tonajıyla uyumlu.
+- **Başlık satırı**: sol blokta **dekoratif ikon rozeti** (sütuna özel `lucide` ikon: Building2 / LayoutGrid / List / CheckSquare; `bg-primary/10 border-primary/20 text-primary size-8 rounded-lg backdrop-blur-sm`) + eyebrow (`text-primary text-[10px] font-bold uppercase tracking-[0.18em]` — hero ile hizalı, primary tonlu) + sayaç ("N adet", `text-muted-foreground text-xs`) + sağda opsiyonel `+` ikon-buton.
+- **Header ayraç**: `border-b border-border/40` (yumuşak).
+- **Boş durum**: küçük ikon + iki satır metin + opsiyonel CTA (gate'li); accordion modunda da aynı.
+- **Yükleniyor**: `AppSpinner` (size sm, `justify-center py-6`).
+- **Hata**: `Alert variant="destructive"` (başlık + mesaj).
+- **Satır listesi**: dikey scroll, satır arası 1px `--border` ayraç.
+- **Aktif satır**: sol kenarda `--primary` `w-0.5` şerit + `bg-primary/8` zemin + `data-active="true"`; klavye `Enter`/tıklama aynı.
+- **Sayfa arka planı**: `(app)/page.tsx` outer'da subtle dot pattern (`24px` grid, opacity 30) + tek `--primary/10` blob (`28rem blur-3xl`) — glass panellerin altında ortak doku.
 
-**(b) Stat strip (`WorkspaceStatStrip`)** — 4 kutu yan yana (`grid grid-cols-2 lg:grid-cols-4 gap-3`); her kutu `rounded-lg border bg-card p-3 flex flex-col gap-1`: ikon rozeti (`size-8 rounded-md` accent zeminli — accent ilgili token) + etiket (`text-xs text-muted-foreground`) + büyük sayı (`text-2xl font-semibold tabular-nums`) + alt metin (`text-[11px] text-muted-foreground`):
+### Sütun 1 — Workspaces
 
-| Kutu                  | Accent token    | Alt metin                                          |
-| --------------------- | --------------- | -------------------------------------------------- |
-| Açık görev            | `--warning`     | (yalnız sayı — haftalık delta veri olmadığından yok) |
-| Bu hafta tamamlanan   | `--success`     | geçen haftaya göre delta ("+N" / "-N" / "—")        |
-| Vadesi geçen          | `--destructive` | (yalnız sayı — haftalık delta yok)                 |
-| Bana atanan           | `--primary`     | "bugün N vadeli"                                   |
+- Eyebrow: "WORKSPACES" + "N çalışma alanı".
+- Satır: palette avatar (`avatarPaletteSolidClass` — §13.4) + ad (`font-medium truncate`) + alt satır "N pano · M üye" (`text-xs text-muted-foreground`) + sağda rol rozeti (`Badge` — owner/admin/member/guest; §13.1).
+- `+` ikon-buton → `CreateWorkspaceDialog`.
+- Veri: `workspace.list` tRPC query'si (mevcut, değişiklik yok).
 
-> **Veri notu:** "Hedef" sayacı ile açık-görev/vadesi-geçen haftalık delta'sı **gösterilmez** — bu metrikler için kaynak veri yok. Yalnız "Bu hafta tamamlanan" kutusu gerçek bir delta alır (`completed_at` haftalık karşılaştırması). Stat verisi `workspace.stats` aggregate tRPC query'sinden gelir (→ [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-17).
+### Sütun 2 — Boards
 
-**(c) Board kart grid'i (`WorkspaceBoardGrid`)** — seçili workspace'in panoları:
+- Eyebrow: "PANOLAR" + "N pano". Sütun 1'de seçim yoksa boş durum: "Soldan bir çalışma alanı seç".
+- Satır: kompakt board ikon rozeti (`boardBackgroundClass` ile boyanan `size-7 rounded-md`) + başlık + alt satır rol rozeti + son aktivite görece zamanı + sağda iki **ikon+metin** chip-buton: **Ayarlar** (`Settings2Icon` + "Ayarlar" → `/workspaces/<ws>/boards/<b>/settings`) ve **Aç** (`ArrowUpRightIcon` + "Aç" → `/workspaces/<ws>/boards/<b>`). Buton kompakt: `h-8 px-2 text-xs gap-1`; `aria-label` uzun bağlamlı ("X panosunun ayarları"), görsel metin kısa ("Ayarlar" / "Aç").
+- Yıldız toggle **anasayfada yok** (2026-06-01 kararı — Sütun 2 satırı kompakt kalsın, favori değiştirme board ekranındaki üst bar'a taşındı). `board.favorited` verisi sıralama için kullanılmaya devam eder.
+- Sıralama: son düzenlenene göre (`updatedAt desc`); yıldızlı board'lar üstte küçük "★ Favoriler" alt başlığı altında gruplanır (Variant A'daki "Tümü/Yıldızlı/Son düzenlenen" sekme grubu **kaldırıldı** — filtre satırı yok).
+- `+` ikon-buton → `CreateBoardDialog` (member+ gate'li).
+- Veri: `board.list({ workspaceId })` tRPC query'si (mevcut).
 
-- **Filtre satırı:** solda "Panolar · N" (`SectionHeader` deseni) + sekme grubu (Tümü / Yıldızlı / Son düzenlenen — `inline-flex rounded-md border bg-secondary p-[3px]`, aktif `bg-card shadow-xs`; "Yıldızlı" board favorisine göre süzer); sağda grid/liste görünüm toggle (`LayoutGridIcon` / `ListIcon` ikon-buton çifti).
-- **Grid:** `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4`.
-- **Board kartı (`BoardCard`):** `rounded-lg border bg-card overflow-hidden hover:shadow-card-hover`:
-  1. **Kapak görseli** — `boardBackgroundClass(board.background)` ile boyanan üst şerit (`h-20`; §13.2 gradient/solid token haritası); sağ üstte **favori yıldız toggle** (`StarIcon`; favori → dolu `text-warning`, değil → `text-muted-foreground/60`; `board.favorites.toggle` — viewer+ herkese açık, kişisel).
-  2. **Gövde** (`p-3 flex flex-col gap-2`): board ikon rozeti + başlık link (`Link` `/workspaces/[ws]/boards/[b]`, `font-medium truncate`); alt satır rol rozeti + son aktivite görece zamanı (`text-xs text-muted-foreground`); "N açık / M bitti" sayaçları (`CheckSquareIcon` + sayı, tamamlanan `text-success`); üye avatar yığını (son ~3 `Avatar size-xs` `-space-x-1` + "+N").
-- **Grid sonu CTA:** dashed "Yeni pano" kartı (`border border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/40 min-h-[8rem]`) → `CreateBoardDialog` (`member+`; viewer'a gösterilmez).
+### Sütun 3 — Lists
+
+- Eyebrow: "LİSTELER" + "N liste". Sütun 2'de seçim yoksa boş durum: "Soldan bir pano seç".
+- Satır: liste ikonu (`board.get` payload'ındaki `lists[i].icon`, varsayılan `ListIcon`; `iconColor` ile boyanır) + başlık + sağda kart sayısı (`text-xs text-muted-foreground tabular-nums`).
+- Arşivli liste: `opacity-60`, başlık öncesi "Arşivli" rozeti.
+- `+` butonu yok — yeni liste yalnız board ekranında oluşturulur; drill-down salt navigasyon.
+- Veri: `board.get({ boardId })` payload'ındaki `lists[]` (yeni endpoint yok — Sütun 3 + 4 tek `board.get` query'sinden beslenir; tek kaynak).
+
+### Sütun 4 — Cards
+
+- Eyebrow: "KARTLAR" + "N kart". Sütun 3'te seçim yoksa boş durum: "Soldan bir liste seç".
+- Satır: solda tamamlandı checkbox (`Checkbox`, `completedAt != null` → işaretli, optimistic toggle `card.toggleComplete` mutation'ı ile) + başlık (`text-sm truncate`; tamamlandıysa `line-through text-muted-foreground`) + sağda due rozeti (varsa) — `dueAt < now` → `--destructive`, `dueAt < now+24h` → `--warning`, geri kalan `text-muted-foreground`. **Etiket / üye avatar / checklist sayısı gösterilmez** — detay için karta tıklayıp board modalına geç.
+- Arşivli kart: gösterilmez (board arşiv sayfasında ayrı görünür).
+- Satıra tıklamak → `router.push('/workspaces/<ws>/boards/<b>?card=<id>')` — board route, modal orada açılır.
+- `+` butonu **yok** — Sütun 3 ile simetrik: kart oluşturma yalnız board ekranında. Drill-down V1 scope kararı (2026-06-01): kart hızlı oluştur ileri fazda member+ gate'li olarak eklenebilir, şimdi sadece nav.
+- Veri: Sütun 3 ile aynı `board.get` payload'ından `cards[]` → `card.listId === selectedListId` filtresi.
+
+### Responsive — accordion modu (`<lg`)
+
+- Yalnızca **bir sütun** ekranda görünür: hangi sütunda en derin seçim varsa o (örn. `?ws=&board=` → Sütun 3 görünür).
+- Üstte breadcrumb: `Workspace adı > Board adı > Liste adı` — her parça `<button>` (clickable), tıklamak ilgili sütuna geri döner (alt param'lar düşer). Yapısı `Breadcrumb` (shadcn/ui) ya da yerel kompakt eşdeğeri.
+- Sütun başlığında `←` ikon-buton: bir üst sütuna geri.
+- Breakpoint: `lg:` (1024px) — web odaklı. iPad portrait (768-1023px) accordion alır; landscape iPad (1024px+) tam 4 sütunu yakalar. Tablet'e özel 2-2 hibrit görünüm ileri faz (gerek görülürse).
 
 ### Token disiplini
 
-- Tüm renkler design token (`--primary` / `--success` / `--warning` / `--destructive` / `--card` / `--muted` / `--border` + `--palet-*` paleti) üzerinden; sabit hex/RGB yok. İlham mockup'ındaki sabit koyu zemin değerleri kullanılmaz — anasayfa light + dark temada (§13.7) hatasız çalışır.
-- Stat kutusu accent rozetleri ilgili semantik token'ın düşük-opaklık zeminini kullanır (`bg-warning/12`, `bg-success/12`, `bg-destructive/12`, `bg-primary/12`); ikon rengi tam token.
-- Avatar zeminleri `avatarPaletteSolidClass` (§13.4 `Avatar` ile aynı deterministik isim→palet hash mantığı).
-- Board kartı kapak şeridi `boardBackgroundClass` ile board ekranıyla **aynı** gradient/solid token haritasını paylaşır (§13.2) — tek kaynak.
+- Tüm renkler design token (`--primary` / `--success` / `--warning` / `--destructive` / `--card` / `--muted` / `--border` + `--palet-*` paleti) üzerinden; sabit hex/RGB yok. Light + dark (§13.7) hatasız çalışır.
+- Aktif satır şeridi `bg-primary` `w-0.5`; zemin `bg-primary/8` (light) / `bg-primary/12` (dark) — §13.1 token mantığı.
+- Avatar zeminleri `avatarPaletteSolidClass` (§13.4 ile birebir deterministik).
+- Board ikon rozetleri `boardBackgroundClass` (§13.2 ile tek kaynak — board ekranıyla aynı gradient/solid haritası).
+
+> **Variant A artık emekli.** `WorkspaceRail`, `WorkspaceOverviewHeader`, `WorkspaceStatStrip`, `WorkspaceBoardGrid`, `HomeHero` component'leri kaldırıldı (yalnız `OnboardingEmptyState` + `PendingInvitations` 0-workspace dalında kalır). Stat strip metrikleri (Açık görev / Bu hafta tamamlanan / Vadesi geçen / Bana atanan) raporlar ekranında daha derin işlenecek (ileri faz).
 
 ## 13.12 Tablet design token (Faz 15 — iPad uyarlaması)
 

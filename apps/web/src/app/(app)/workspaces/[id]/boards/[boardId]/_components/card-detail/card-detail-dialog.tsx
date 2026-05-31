@@ -41,6 +41,7 @@ import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 import type { CoverImage } from '../card-cover-image';
 import { ShortcutHelpDialog } from '../shortcut-help-dialog';
+import { CardAttachmentAddForm } from './card-attachment-add-form';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
 import { CardDetailCoverColor } from './card-detail-cover-color';
 import { CardDetailDescription } from './card-detail-description';
@@ -48,8 +49,9 @@ import { CardDetailDueDate } from './card-detail-due-date';
 import { CardDetailLabels } from './card-detail-labels';
 import { CardDetailMembers } from './card-detail-members';
 import { CardDetailTitle } from './card-detail-title';
+import { CardModalAddPopover, type CardAddView } from './card-modal-add-popover';
 import { CardModalHeader } from './card-modal-header';
-import { CardModalMetaChips, type CardModalMetaMenu } from './card-modal-meta-chips';
+import { CardModalMetaInfo } from './card-modal-meta-info';
 import { CardModalSidebar, type CardSidebarTab } from './card-modal-sidebar';
 
 const cmid = () => crypto.randomUUID();
@@ -103,7 +105,7 @@ export function CardDetailDialog({
   const [coverImageUploadError, setCoverImageUploadError] = useState<string | null>(null);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [titleFocusToken, setTitleFocusToken] = useState(0);
-  const [openMetaMenu, setOpenMetaMenu] = useState<CardModalMetaMenu>(null);
+  const [addMenu, setAddMenu] = useState<CardAddView | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>('comments');
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
@@ -421,21 +423,21 @@ export function CardDetailDialog({
         id: 'card-due',
         match: (event) => event.key === 'd' && !event.ctrlOrMeta && !event.alt,
         run: () => {
-          if (canEdit) setOpenMetaMenu('due');
+          if (canEdit) setAddMenu('due');
         },
       },
       {
         id: 'card-members',
         match: (event) => event.key === 'm' && !event.ctrlOrMeta && !event.alt,
         run: () => {
-          if (canEdit) setOpenMetaMenu('members');
+          if (canEdit) setAddMenu('members');
         },
       },
       {
         id: 'card-labels',
         match: (event) => event.key === 't' && !event.ctrlOrMeta && !event.alt,
         run: () => {
-          if (canEdit) setOpenMetaMenu('labels');
+          if (canEdit) setAddMenu('labels');
         },
       },
       {
@@ -611,20 +613,22 @@ export function CardDetailDialog({
               archived={archived}
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen((value) => !value)}
-              metaChips={
-                <CardModalMetaChips
+              metaInfo={
+                <CardModalMetaInfo
                   memberCount={cardMembers.length}
                   labelCount={(cardLabelsQ.data ?? []).length}
                   dueAt={card.dueAt}
                   coverColor={coverColor}
-                  canEdit={canEdit}
-                  openMenu={openMetaMenu}
-                  onOpenMenuChange={setOpenMetaMenu}
                   attachmentCount={attachmentCount}
-                  onOpenAttachments={() => {
-                    setSidebarTab('attachments');
-                    setSidebarOpen(true);
-                  }}
+                  onColored={coverColor != null && !card.coverImage}
+                />
+              }
+              addAction={
+                <CardModalAddPopover
+                  canEdit={canEdit}
+                  onColored={coverColor != null && !card.coverImage}
+                  view={addMenu}
+                  onViewChange={setAddMenu}
                   membersContent={
                     <CardDetailMembers
                       members={cardMembers}
@@ -703,6 +707,13 @@ export function CardDetailDialog({
                       }
                     />
                   }
+                  attachmentContent={
+                    <CardAttachmentAddForm
+                      cardId={cardId}
+                      canEdit={canEdit}
+                      onSuccess={() => setAddMenu(null)}
+                    />
+                  }
                 />
               }
             />
@@ -770,9 +781,10 @@ export function CardDetailDialog({
                 )}
 
                 <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5">
-                  <div className="pusula-scrollbar min-h-0 min-w-0 overflow-y-auto">
+                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
                     <CardDetailDescription
                       description={card.description}
+                      cardTitle={card.title}
                       canEdit={canEdit}
                       onSave={(description) => updateDescription.mutate({ cardId, description })}
                       pending={updateDescription.isPending}
@@ -780,7 +792,7 @@ export function CardDetailDialog({
                     />
                   </div>
 
-                  <div className="pusula-scrollbar min-h-0 min-w-0 overflow-y-auto">
+                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
                     <CardDetailChecklists
                       checklists={(checklistsQ.data ?? []) as ChecklistView[]}
                       canEdit={canEdit}

@@ -101,10 +101,17 @@ export const plannerEventListInputSchema = z.object({
 
 /**
  * `planner.events.get` input. Etkinliğin Google ID'si — Google response'undan
- * gelen `id` field. Tıklamada `?event=<id>` URL param'a yazılır.
+ * gelen `id` field. Tıklamada `?event=<id>&calendar=<calendarId>` URL
+ * param'a yazılır; `calendarId` taşınmazsa backend `primary`'i sorgular
+ * (eski tek-takvim çağrılarıyla geriye uyumlu).
+ *
+ * Faz 16 hızlı revize (2026-06-01) — çok takvim desteği. `primary` dışındaki
+ * takvimden gelen bir etkinliğin ID'si primary'de bulunmaz, eski şema 404
+ * dönderiyordu (kullanıcı modal'da "Etkinlik yüklenemedi." görüyordu).
  */
 export const plannerEventGetInputSchema = z.object({
   eventId: z.string().min(1),
+  calendarId: z.string().min(1).optional(),
 });
 
 export type PlannerEvent = z.infer<typeof plannerEventSchema>;
