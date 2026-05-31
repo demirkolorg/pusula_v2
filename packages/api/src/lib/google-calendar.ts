@@ -1,5 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import {
+  type PlannerCalendar,
+  plannerCalendarSchema,
   type PlannerEvent,
   plannerEventSchema,
   type PlannerEventListInput,
@@ -107,13 +109,14 @@ async function googleFetch<T>(
 }
 
 /**
- * Google Calendar `events.list` Pusula tipinde. `start`/`end` zamanı RFC3339;
- * `timeZone` Google response'unun nasıl sunulacağı (UI display TZ'i).
+ * Google Calendar `events.list` tek bir takvim için. `start`/`end` zamanı
+ * RFC3339; `timeZone` Google response'unun nasıl sunulacağı (UI display TZ'i).
  * `singleEvents=true` tekrarlı etkinlikleri instance'lara açar; `orderBy=startTime`
- * sıralı döner.
+ * sıralı döner. `calendarId='primary'` → kullanıcının birincil takvimi.
  */
-export async function listPrimaryEvents(
+export async function listEventsForCalendar(
   userId: string,
+  calendarId: string,
   input: PlannerEventListInput,
   deps: GoogleCalendarDeps,
 ): Promise<PlannerEvent[]> {
@@ -125,12 +128,112 @@ export async function listPrimaryEvents(
     maxResults: '250',
     timeZone: input.timeZone,
   });
-  const url = `${CALENDAR_API_BASE}/calendars/primary/events?${params.toString()}`;
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`;
   const data = await googleFetch<{ items?: unknown[] }>(userId, url, deps);
   const items = Array.isArray(data.items) ? data.items : [];
   return items
     .map((raw) => safeMapEvent(raw))
     .filter((event): event is PlannerEvent => event !== null);
+}
+
+/** Eski isim — geriye uyumluluk için (henüz başka yerde kullanılmıyor ama kontrat sabit). */
+export async function listPrimaryEvents(
+  userId: string,
+  input: PlannerEventListInput,
+  deps: GoogleCalendarDeps,
+): Promise<PlannerEvent[]> {
+  return listEventsForCalendar(userId, 'primary', input, deps);
+}
+
+/**
+ * Faz 16 hızlı revize (2026-06-01) — kullanıcının erişebildiği tüm takvimlerin
+ * meta verisi. `minAccessRole=reader` ile yalnız okuma izni olan takvimleri
+ * döndürür (paylaşılan + iş + kişisel). `showHidden=false` Google UI'sında
+ * gizlenmiş takvimleri elemekte (kullanıcı zaten görmek istemiyor).
+ *
+ * Şu an `selected` flag UI tercihi (Google Calendar'da "Takvimlerim" altında
+ * göster) — biz dahil her takvimi çekiyoruz; ileride V2'de kullanıcı seçimi
+ * eklenince bu flag'e bakılabilir.
+ */
+export async function listVisibleCalendars(
+  userId: string,
+  deps: GoogleCalendarDeps,
+): Promise<PlannerCalendar[]> {
+  const params = new URLSearchParams({
+    minAccessRole: 'reader',
+    showHidden: 'false',
+    showDeleted: 'false',
+    maxResults: '250',
+  });
+  const url = `${CALENDAR_API_BASE}/users/me/calendarList?${params.toString()}`;
+  const data = await googleFetch<{ items?: unknown[] }>(userId, url, deps);
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items
+    .map((raw) => safeMapCalendar(raw))
+    .filter((cal): cal is PlannerCalendar => cal !== null);
+}
+
+/**
+ * Faz 16 hızlı revize — kullanıcının okuyabildiği tüm takvimlerden etkinlik
+ * birleşik listesi. Her takvim için `events.list` paralel çağrılır,
+ * `Promise.allSettled` ile bir takvim 403/404 verirse diğerleri çalışmaya
+ * devam eder. Etkinlik üzerine `calendarId`/`calendarSummary`/`calendarColor`
+ * eklenir → UI etkinlik bloğunu o takvimin rengiyle çizebilsin. Sonuç
+ * `start` zamanına göre artan sıralı.
+ *
+ * Bağlantı/yetki hatası (`UNAUTHORIZED`) bu üst seviyede bir kez fırlatılır;
+ * tek bir takvimin geçici hatası sessizce atlanır.
+ */
+export async function listEventsFromAllCalendars(
+  userId: string,
+  input: PlannerEventListInput,
+  deps: GoogleCalendarDeps,
+): Promise<PlannerEvent[]> {
+  const calendars = await listVisibleCalendars(userId, deps);
+
+  const settled = await Promise.allSettled(
+    calendars.map(async (cal) => {
+      const events = await listEventsForCalendar(userId, cal.id, input, deps);
+      return events.map<PlannerEvent>((event) => ({
+        ...event,
+        calendarId: cal.id,
+        calendarSummary: cal.summary,
+        calendarColor: cal.backgroundColor,
+      }));
+    }),
+  );
+
+  // İlk reconnect/auth hatası top-level'da rethrow et; tek-takvim hatası sessiz.
+  const reconnectFail = settled.find(
+    (r): r is PromiseRejectedResult =>
+      r.status === 'rejected' &&
+      r.reason instanceof TRPCError &&
+      (r.reason.message === 'GOOGLE_RECONNECT_REQUIRED' ||
+        r.reason.message === 'GOOGLE_NOT_CONNECTED'),
+  );
+  if (reconnectFail) {
+    throw reconnectFail.reason;
+  }
+
+  const combined: PlannerEvent[] = [];
+  for (const result of settled) {
+    if (result.status === 'fulfilled') combined.push(...result.value);
+  }
+
+  combined.sort((a, b) => sortableInstant(a) - sortableInstant(b));
+  return combined;
+}
+
+function sortableInstant(event: PlannerEvent): number {
+  const raw = event.start.dateTime ?? event.start.date;
+  if (!raw) return Number.MAX_SAFE_INTEGER;
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+}
+
+function safeMapCalendar(raw: unknown): PlannerCalendar | null {
+  const result = plannerCalendarSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }
 
 /**

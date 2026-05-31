@@ -3,7 +3,7 @@ import {
   plannerEventListInputSchema,
 } from '@pusula/domain';
 import { protectedProcedure, router } from '../trpc';
-import { getEvent, listPrimaryEvents } from '../lib/google-calendar';
+import { getEvent, listEventsFromAllCalendars } from '../lib/google-calendar';
 
 /**
  * Faz 16C (DEM-312) — Planlayıcı paneli için Google Calendar API proxy.
@@ -21,8 +21,12 @@ import { getEvent, listPrimaryEvents } from '../lib/google-calendar';
 export const plannerRouter = router({
   events: router({
     /**
-     * Verilen aralıkta primary calendar etkinlik listesi. `staleTime` 5dk +
-     * `refetchOnWindowFocus` panel tarafında uygulanır; cooldown yok.
+     * Verilen aralıkta kullanıcının okuyabildiği TÜM takvimlerden birleşik
+     * etkinlik listesi (2026-06-01 hızlı revize). Tek bir takvim'in geçici
+     * hatası diğerlerini kırmaz; reconnect/auth hatası top-level fırlatır.
+     * Her etkinlik üzerinde `calendarId`/`calendarSummary`/`calendarColor`
+     * gelir → UI etkinlik bloğunu o takvimin rengiyle çizebilsin.
+     * `staleTime` 5dk + `refetchOnWindowFocus` panel tarafında uygulanır.
      */
     list: protectedProcedure
       .input(plannerEventListInputSchema)
@@ -33,7 +37,11 @@ export const plannerRouter = router({
             message: 'GOOGLE_NOT_CONNECTED',
           });
         }
-        return listPrimaryEvents(ctx.session.user.id, input, ctx.googleCalendar);
+        return listEventsFromAllCalendars(
+          ctx.session.user.id,
+          input,
+          ctx.googleCalendar,
+        );
       }),
 
     /**

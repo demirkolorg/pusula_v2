@@ -61,6 +61,32 @@ export const plannerEventSchema = z.object({
   htmlLink: z.string(),
   status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
   attendees: z.array(plannerEventAttendeeSchema).optional(),
+  /**
+   * Faz 16 hızlı revize (2026-06-01) — çok takvim desteği. Backend bu üç
+   * alanı `calendarList.list` + `events.list` birleşiminden doldurur; UI
+   * etkinlik bloğunun rengini `calendarColor` ile, hover tooltip'i
+   * `calendarSummary` ile çizer. Eski tek-takvim çağrılarıyla geriye uyumlu:
+   * üç alan da opsiyonel.
+   */
+  calendarId: z.string().optional(),
+  calendarSummary: z.string().optional(),
+  /** Takvimin Google'daki varsayılan arka plan rengi (hex `#rrggbb`). */
+  calendarColor: z.string().optional(),
+});
+
+/**
+ * Faz 16 hızlı revize (2026-06-01) — kullanıcının okuyabildiği bir takvimin
+ * meta verisi (`/users/me/calendarList` yanıtının alt kümesi). `events.list`
+ * çağrısında `calendarId` olarak `id` kullanılır; UI render'da `summary` +
+ * `backgroundColor` etkinlik blok rengi ve hover etiketi için kullanılır.
+ */
+export const plannerCalendarSchema = z.object({
+  id: z.string(),
+  summary: z.string().optional(),
+  backgroundColor: z.string().optional(),
+  foregroundColor: z.string().optional(),
+  primary: z.boolean().optional(),
+  selected: z.boolean().optional(),
 });
 
 /**
@@ -86,3 +112,4 @@ export type PlannerEventTime = z.infer<typeof plannerEventTimeSchema>;
 export type PlannerEventAttendee = z.infer<typeof plannerEventAttendeeSchema>;
 export type PlannerEventListInput = z.infer<typeof plannerEventListInputSchema>;
 export type PlannerEventGetInput = z.infer<typeof plannerEventGetInputSchema>;
+export type PlannerCalendar = z.infer<typeof plannerCalendarSchema>;

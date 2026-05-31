@@ -18,7 +18,7 @@ type EventsListResult =
 const h = {
   listAccounts: vi.fn(),
   routerReplace: vi.fn(),
-  searchParamsGet: vi.fn(() => null as string | null),
+  searchParamsGet: vi.fn((_key: string) => null as string | null),
   searchParamsToString: vi.fn(() => ''),
   eventsList: vi.fn<() => EventsListResult>(() => ({ ok: true, events: [] })),
 };

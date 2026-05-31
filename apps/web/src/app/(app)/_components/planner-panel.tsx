@@ -330,16 +330,34 @@ function PlannerAllDayBanner({
       <span className="text-muted-foreground self-center text-[10px] font-medium uppercase tracking-wide">
         {allDayLabel}
       </span>
-      {events.map((event) => (
-        <button
-          key={event.id}
-          type="button"
-          onClick={() => onEventClick(event.id)}
-          className="bg-primary/15 hover:bg-primary/25 text-primary inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs"
-        >
-          {eventTitle(event)}
-        </button>
-      ))}
+      {events.map((event) => {
+        const color = event.calendarColor;
+        const titleAttr = event.calendarSummary
+          ? `${eventTitle(event)} — ${event.calendarSummary}`
+          : eventTitle(event);
+        return (
+          <button
+            key={`${event.calendarId ?? 'primary'}-${event.id}`}
+            type="button"
+            onClick={() => onEventClick(event.id)}
+            title={titleAttr}
+            className={cn(
+              'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs transition-colors',
+              !color && 'bg-primary/15 hover:bg-primary/25 text-primary',
+            )}
+            style={
+              color
+                ? {
+                    backgroundColor: hexWithAlpha(color, 0.18),
+                    color,
+                  }
+                : undefined
+            }
+          >
+            {eventTitle(event)}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -411,26 +429,43 @@ function PlannerTimeline({
               style={{ top: `${nowOffsetPx}px` }}
             />
           )}
-          {/* Etkinlik blokları */}
-          {positioned.map((pos) => (
-            <button
-              key={pos.event.id}
-              type="button"
-              onClick={() => onEventClick(pos.event.id)}
-              className="bg-primary/15 hover:bg-primary/25 border-primary absolute left-0 right-1 rounded-md border-l-2 px-2 py-1 text-left text-xs"
-              style={{
-                top: `${pos.top}px`,
-                height: `${Math.max(pos.height, 24)}px`,
-              }}
-            >
-              <div className="text-foreground truncate text-xs font-medium">
-                {eventTitle(pos.event)}
-              </div>
-              <div className="text-muted-foreground truncate text-[10px]">
-                {formatEventTime(pos.event)}
-              </div>
-            </button>
-          ))}
+          {/* Etkinlik blokları — takvim rengi varsa o kullanılır, yoksa primary. */}
+          {positioned.map((pos) => {
+            const color = pos.event.calendarColor;
+            const titleAttr = pos.event.calendarSummary
+              ? `${eventTitle(pos.event)} — ${pos.event.calendarSummary}`
+              : eventTitle(pos.event);
+            const fallback = !color;
+            return (
+              <button
+                key={`${pos.event.calendarId ?? 'primary'}-${pos.event.id}`}
+                type="button"
+                onClick={() => onEventClick(pos.event.id)}
+                title={titleAttr}
+                className={cn(
+                  'absolute left-0 right-1 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-xs transition-colors',
+                  fallback && 'bg-primary/15 hover:bg-primary/25 border-primary',
+                )}
+                style={{
+                  top: `${pos.top}px`,
+                  height: `${Math.max(pos.height, 24)}px`,
+                  ...(color
+                    ? {
+                        backgroundColor: hexWithAlpha(color, 0.18),
+                        borderLeftColor: color,
+                      }
+                    : {}),
+                }}
+              >
+                <div className="text-foreground truncate text-xs font-medium">
+                  {eventTitle(pos.event)}
+                </div>
+                <div className="text-muted-foreground truncate text-[10px]">
+                  {formatEventTime(pos.event)}
+                </div>
+              </button>
+            );
+          })}
           {!loading && positioned.length === 0 && (
             <div className="text-muted-foreground absolute inset-x-0 top-12 text-center text-xs">
               {copy.emptyDay}
@@ -562,4 +597,25 @@ function positionEvent(event: PlannerEvent): PositionedEvent | null {
 
 function hourOffsetToPx(hour: number): number {
   return (hour - TIMELINE_START_HOUR) * HOUR_HEIGHT_PX;
+}
+
+/**
+ * `#rrggbb` veya `#rgb` hex'i alfa kanallı `rgba(...)` string'e çevir. Google
+ * Calendar `calendarList` her takvim için 7-char hex döner; bunu inline style
+ * için kullanabilelim diye soft (`alpha=0.18`) rgba'ya çeviriyoruz.
+ */
+function hexWithAlpha(hex: string, alpha: number): string {
+  let normalized = hex.startsWith('#') ? hex.slice(1) : hex;
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+  if (normalized.length !== 6) return hex;
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
