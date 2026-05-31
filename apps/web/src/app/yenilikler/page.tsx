@@ -32,6 +32,84 @@ interface ChangelogDay {
 
 const CHANGELOG: ChangelogDay[] = [
   {
+    date: '2026-06-01',
+    label: '1 Haziran 2026',
+    entries: [
+      {
+        kind: 'new',
+        text: 'Yeni "Planlayıcı" paneli yayında — sol kenardan açılır, gününüzü Pusula içinden takip edebilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Google Takvim entegrasyonu (ilk sürüm): Google hesabınızı bağlayıp takvim olaylarınızı Pusula içinde görebilirsiniz (salt-okunur).',
+      },
+      {
+        kind: 'new',
+        text: 'Takvim olayına tıklayınca başlık, zaman, açıklama ve katılımcıları gösteren bir detay penceresi açılır.',
+      },
+      {
+        kind: 'new',
+        text: 'Anasayfa baştan tasarlandı: 4 sütunlu "Gezgin" deneyimi ile workspace → pano → liste → kart hiyerarşisinde tek ekrandan drill-down yapabilir, seçimleri URL ile paylaşabilirsiniz.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Artık tek bir takvim yerine Google\'da görünür tüm takvimlerinizdeki olaylar birleşik gösteriliyor (her olay kendi takvim rengiyle).',
+      },
+      {
+        kind: 'improvement',
+        text: 'Gezgin ve Hızlı Notlar açma/kapama düğmeleri sol kenar barına taşındı; anasayfada artık zorla açık değil, tercihiniz hatırlanır.',
+      },
+    ],
+  },
+  {
+    date: '2026-05-31',
+    label: '31 Mayıs 2026',
+    entries: [
+      {
+        kind: 'new',
+        text: 'Mobil uygulama iPad ve büyük tablet desteğine geçti (sürüm 1.1.0) — büyük ekranlarda uygun düzen, yön değişimine duyarlı yerleşim.',
+      },
+      {
+        kind: 'new',
+        text: 'iPad/yatay modda kanban kolon genişlikleri ekrana göre otomatik ayarlanır.',
+      },
+      {
+        kind: 'improvement',
+        text: 'iPad/tablette uzun alt-perdeler (sheet) artık popover olarak açılır — büyük ekranda daha doğal kullanım.',
+      },
+      {
+        kind: 'fix',
+        text: 'Mobil release sürümünde nadir yaşanan açılış çökmesi sorunu giderildi.',
+      },
+      {
+        kind: 'fix',
+        text: 'Görev son tarihi yaklaştığında veya geçtiğinde bazı push bildirimlerinin gönderilmemesi sorunu çözüldü.',
+      },
+    ],
+  },
+  {
+    date: '2026-05-26',
+    label: '26 Mayıs 2026',
+    entries: [
+      {
+        kind: 'new',
+        text: 'Sağ üst kullanıcı menüsüne "Yenilikler" kısayolu eklendi — Pusula\'daki son güncellemelere tek tıkla ulaşabilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Mobil kart detayında Açıklama ve Yapılacaklar artık üstte kompakt sekmeler arasından seçilir.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Kart açıklaması ve yorumlardaki başlık seçimi sade bir "T" menüsünde toplandı — Başlık 1/2/3 ve normal metin arasında tek dokunuşla geçebilirsiniz.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Mobilde uzun kart açıklamaları artık 500 karakterden sonra katlanır ve "Daha fazla göster" ile açılır.',
+      },
+    ],
+  },
+  {
     date: '2026-05-25',
     label: '25 Mayıs 2026',
     entries: [
