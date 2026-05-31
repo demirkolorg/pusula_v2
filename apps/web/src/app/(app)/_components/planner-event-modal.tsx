@@ -51,12 +51,17 @@ type PlannerEventModalProps = {
  *
  * Bkz. `docs/architecture/19-takvim-entegrasyonu.md` §6 + §11.
  */
-export function PlannerEventModal({ eventId, open, onClose }: PlannerEventModalProps) {
+export function PlannerEventModal({
+  eventId,
+  calendarId,
+  open,
+  onClose,
+}: PlannerEventModalProps) {
   const copy = strings.board.planner.event;
   const trpc = useTRPC();
 
   const eventQuery = useQuery({
-    ...trpc.planner.events.get.queryOptions({ eventId }),
+    ...trpc.planner.events.get.queryOptions({ eventId, calendarId }),
     enabled: open,
     staleTime: 5 * 60_000,
     retry: false,
