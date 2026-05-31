@@ -9,7 +9,14 @@ const config: ExpoConfig = {
   name: 'Pusula',
   slug: 'pusula',
   scheme: 'pusula',
-  version: '1.0.0',
+  // Faz 15F (DEM-306) — sürüm v1.1.0 (minor). Faz 15 iPad uyarlamasındaki
+  // native değişiklikler (`supportsTablet: true`, `orientation: 'default'`,
+  // `requireFullScreen: false`, `expo-splash-screen.ios.tabletImage`) OTA ile
+  // dağıtılamaz; yeni `eas build` + `eas submit` zorunlu. `runtimeVersion.policy
+  // = 'appVersion'` olduğundan bu bump aynı zamanda yeni runtime version
+  // demektir — 1.0.0 OTA bundle'ları 1.1.0 client'a düşmez. Sonraki JS-only
+  // fix'ler v1.1.x OTA (`eas update --branch production --platform ios`).
+  version: '1.1.0',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
