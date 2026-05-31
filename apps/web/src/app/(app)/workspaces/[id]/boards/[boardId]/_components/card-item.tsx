@@ -13,6 +13,7 @@ import {
   MoveIcon,
   Share2Icon,
   TagIcon,
+  Trash2Icon,
   UploadIcon,
   UsersIcon,
   XIcon,
@@ -52,6 +53,7 @@ import {
 import {
   applyCardArchive,
   applyCardPatch,
+  applyCardRemove,
   getMutationErrorMessage,
   useOptimisticBoardMutation,
 } from '@/lib/board-cache';
@@ -121,6 +123,13 @@ type CardItemProps = {
   card: BoardCard;
   /** Whether the viewer may edit/archive this card (board `member+`, list & board active). */
   canEdit: boolean;
+  /**
+   * Whether the viewer is a board admin (or workspace owner/admin) on an
+   * active board. Faz 17 — gates `card.delete` (hard delete) in the context
+   * menu; member+ keeps archive but the destructive item is hidden when
+   * false. Default `false`.
+   */
+  isBoardAdmin?: boolean;
   /**
    * The board's lists (active + archived), `position`-sorted - used by the
    * context menu "move to list" picker. Optional so a `CardItem` rendered in
@@ -224,6 +233,7 @@ function CardItemInner({
   boardId,
   card,
   canEdit,
+  isBoardAdmin = false,
   allLists = [],
   boardLabels = [],
   boardMembers = [],
@@ -238,6 +248,7 @@ function CardItemInner({
   const dnd = useBoardDndContext();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
@@ -310,6 +321,19 @@ function CardItemInner({
     onConflict,
     onMutationError,
     onMutationSuccess: () => setArchiveOpen(false),
+  });
+  // Faz 17 (2026-06-01) — kart kalıcı silme. Board admin+ yetki; cascade kartın
+  // çocuklarını (yorum, ek, checklist, etiket bağı) DB seviyesinde temizler.
+  // Optimistic cache `applyCardRemove` ile kartı düşürür; arşivlemenin yanında
+  // ek aksiyon (yerine değil).
+  const deleteCard = useOptimisticBoardMutation({
+    mutationOptions: trpc.card.delete.mutationOptions,
+    boardId,
+    cardId: card.id,
+    apply: (data, vars) => applyCardRemove(data, vars.cardId),
+    onConflict,
+    onMutationError,
+    onMutationSuccess: () => setDeleteOpen(false),
   });
   const completeCard = useOptimisticBoardMutation({
     mutationOptions: trpc.card.complete.mutationOptions,
@@ -602,6 +626,49 @@ function CardItemInner({
     </Dialog>
   );
 
+  // Faz 17 (2026-06-01) — kart kalıcı silme onay diyaloğu. Yalnızca board
+  // admin+ tetikleyebilir; cascade çocuklar (yorum/ek/checklist/etiket bağı)
+  // DB seviyesinde temizlenir.
+  const deleteDialog = (
+    <Dialog
+      open={deleteOpen}
+      onOpenChange={(next) => {
+        if (deleteCard.isPending) return;
+        setDeleteOpen(next);
+        if (!next) deleteCard.reset();
+      }}
+    >
+      <DialogContent closeLabel={strings.common.close} onClick={(event) => event.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
+          <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>
+        </DialogHeader>
+        {deleteCard.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {getMutationErrorMessage(deleteCard) ?? strings.common.unknownError}
+            </AlertDescription>
+          </Alert>
+        )}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={deleteCard.isPending}>
+              {strings.common.cancel}
+            </Button>
+          </DialogClose>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deleteCard.isPending}
+            onClick={() => deleteCard.mutate({ cardId: card.id })}
+          >
+            {deleteCard.isPending ? copy.deleting : copy.deleteConfirm}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (!canEdit) return article;
 
   return (
@@ -828,8 +895,15 @@ function CardItemInner({
             <ArchiveIcon className="size-4" aria-hidden />
             {copy.archive}
           </ContextMenuItem>
+          {isBoardAdmin && (
+            <ContextMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+              <Trash2Icon className="size-4" aria-hidden />
+              {copy.delete}
+            </ContextMenuItem>
+          )}
         </ContextMenuContent>
         {archiveDialog}
+        {deleteDialog}
         {/* Faz 9D (DEM-130) — kart context menüsünden paylaşım yönetimi.
             Kontrollü mod: tetik düğmesi gizli, açma context menü öğesinde.
             Lazy `ShareDialog` yalnız açıkken mount edilir — kapalıyken render

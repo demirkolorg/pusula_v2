@@ -63,8 +63,20 @@ export const archiveListInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * Permanently delete a list (Faz 17 — 2026-06-01). Hard delete; cascades remove
+ * the list's cards and their dependents (members, labels, checklists, comments,
+ * attachments). Server-side gate: only an *empty* list (no cards, active or
+ * archived) may be deleted; board admin+ only. Idempotent on `clientMutationId`.
+ */
+export const deleteListInput = z.object({
+  listId: idSchema,
+  ...withClientMutationId,
+});
+
 export type CreateListInput = z.infer<typeof createListInput>;
 export type RenameListInput = z.infer<typeof renameListInput>;
 export type UpdateListInput = z.infer<typeof updateListInput>;
 export type MoveListInput = z.infer<typeof moveListInput>;
 export type ArchiveListInput = z.infer<typeof archiveListInput>;
+export type DeleteListInput = z.infer<typeof deleteListInput>;

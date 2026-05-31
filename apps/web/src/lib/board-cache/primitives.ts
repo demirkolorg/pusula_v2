@@ -172,6 +172,26 @@ export function applyListArchive<TBoard, TList extends ListLike, TCard extends C
   return { ...data, lists };
 }
 
+/**
+ * Remove a list by id (Faz 17 — `list.delete` kalıcı silme). Unlike
+ * `applyListArchive` (which patches `archivedAt`), the list disappears from
+ * the cache entirely. Server-side gate only permits this for *empty* lists, so
+ * the cards filter is a no-op by contract; kept defensively for the realtime
+ * path (a stale optimistic cache could still hold a card whose list was just
+ * deleted by another client).
+ */
+export function applyListRemove<TBoard, TList extends ListLike, TCard extends CardLike>(
+  data: BoardCacheData<TBoard, TList, TCard>,
+  listId: string,
+): BoardCacheData<TBoard, TList, TCard> {
+  if (!data.lists.some((l) => l.id === listId)) return data;
+  const lists = data.lists.filter((l) => l.id !== listId);
+  const cards = data.cards.some((c) => c.listId === listId)
+    ? data.cards.filter((c) => c.listId !== listId)
+    : data.cards;
+  return { ...data, lists, cards };
+}
+
 /** Patch the `board.*` fields (shallow-merge). */
 export function applyBoardPatch<TBoard, TList extends ListLike, TCard extends CardLike>(
   data: BoardCacheData<TBoard, TList, TCard>,

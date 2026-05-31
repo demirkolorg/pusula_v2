@@ -37,6 +37,14 @@ const CHANGELOG: ChangelogDay[] = [
     entries: [
       {
         kind: 'new',
+        text: 'Liste ve kartlara "Kalıcı sil" eylemi eklendi — context menüden (sağ tık) veya liste başlığındaki ⋮ menüden ulaşabilirsiniz. Yalnızca pano yöneticileri görebilir; geri alınamaz olduğu için onay diyaloğu zorunludur. Arşivleme aynen duruyor (eski yerinde, geri alınabilir).',
+      },
+      {
+        kind: 'improvement',
+        text: 'Listeyi kalıcı silmek için içindeki kartların önce taşınması ya da arşivlenmesi gerekir; menüde "Listeyi sil" pasif görünür ve nedenini bir ipucuyla anlatır.',
+      },
+      {
+        kind: 'new',
         text: 'Yeni "Planlayıcı" paneli yayında — sol kenardan açılır, gününüzü Pusula içinden takip edebilirsiniz.',
       },
       {

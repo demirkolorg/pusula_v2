@@ -1158,6 +1158,187 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(enqueue).toHaveBeenCalledTimes(1);
     expect(enqueue).toHaveBeenCalledWith({ kind: 'board', boardId: board.id });
   });
+
+  // ------------------------------------------------------------------ delete (Faz 17 — 2026-06-01)
+
+  it('delete: a board admin permanently deletes an empty list; list.deleted activity + realtime event written; row removed', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Delete Empty Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Doomed',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const cmid = crypto.randomUUID();
+    const result = await callerFor(ownerId).list.delete({
+      boardId: board.id,
+      listId: list.id,
+      clientMutationId: cmid,
+    });
+    expect(result).toEqual({ id: list.id, changed: true });
+
+    // The row is gone.
+    const stillThere = await db()
+      .select()
+      .from(dbMod.lists)
+      .where(dbMod.eq(dbMod.lists.id, list.id));
+    expect(stillThere).toHaveLength(0);
+
+    // Activity event written with the deleted listId in payload (cardId/listId
+    // FK is `set null` on cascade, but list_deleted carries listId in payload).
+    const acts = (await actsFor(board.id)).filter((a) => a.type === 'list.deleted');
+    expect(acts).toHaveLength(1);
+    expect(acts[0]!.payload).toMatchObject({
+      listId: list.id,
+      title: 'Doomed',
+      clientMutationId: cmid,
+    });
+
+    // Realtime outbox row also written.
+    const rt = await rtEventsFor(board.id);
+    const deletedRt = rt.filter((r) => r.type === 'list.deleted');
+    expect(deletedRt).toHaveLength(1);
+    expect(
+      (deletedRt[0]!.payload as { data: { listId: string } }).data.listId,
+    ).toBe(list.id);
+  });
+
+  it('delete: a board member (workspace member, no admin) is FORBIDDEN', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'No Member Delete',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(memberId).list.delete({
+        boardId,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('delete: a board viewer is FORBIDDEN', async () => {
+    const list = await callerFor(ownerId).list.create({
+      boardId,
+      title: 'No Viewer Delete',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(guestId).list.delete({
+        boardId,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('delete: a non-empty list is BAD_REQUEST; clearing the cards then deleting succeeds', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Delete Non-empty Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Has Card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const card = await callerFor(ownerId).card.create({
+      listId: list.id,
+      title: 'Resident',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.delete({
+        boardId: board.id,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // Archiving the card keeps it in the list — still BAD_REQUEST.
+    await callerFor(ownerId).card.archive({
+      cardId: card.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.delete({
+        boardId: board.id,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // Permanently delete the card → list becomes empty → delete works.
+    await callerFor(ownerId).card.delete({
+      cardId: card.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    const result = await callerFor(ownerId).list.delete({
+      boardId: board.id,
+      listId: list.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(result.changed).toBe(true);
+  });
+
+  it('delete: a list that belongs to another board is BAD_REQUEST; an already-gone listId is an idempotent no-op', async () => {
+    const otherBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Delete Other Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherList = await callerFor(ownerId).list.create({
+      boardId: otherBoard.id,
+      title: 'Their List',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.delete({
+        boardId, // authenticate against *this* board…
+        listId: otherList.id, // …but reference a list in another board
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // Already-gone (a generic non-existent id) → idempotent { changed: false }.
+    const noop = await callerFor(ownerId).list.delete({
+      boardId,
+      listId: 'lst_does_not_exist_12345',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(noop).toEqual({ id: 'lst_does_not_exist_12345', changed: false });
+  });
+
+  it('delete: an archived board is BAD_REQUEST', async () => {
+    const board = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Delete Archived Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(ownerId).list.create({
+      boardId: board.id,
+      title: 'Trapped',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).board.archive({
+      boardId: board.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).list.delete({
+        boardId: board.id,
+        listId: list.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
 });
 
 describe.runIf(dbAvailable)('list router — realtime outbox (Faz 5B / DEM-84)', () => {

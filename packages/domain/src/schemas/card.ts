@@ -92,6 +92,18 @@ export const archiveCardInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * Permanently delete a card (Faz 17 — 2026-06-01). Hard delete; cascades remove
+ * card members / labels / checklists / comments / activity / realtime / search
+ * docs / share-links. Attachment storage objects (MinIO) are enqueued for async
+ * cleanup before the row is dropped. Board admin+ only. Idempotent on
+ * `clientMutationId`.
+ */
+export const deleteCardInput = z.object({
+  cardId: idSchema,
+  ...withClientMutationId,
+});
+
 /** Mark a card complete (Phase 2.7 — DEM-66). Idempotent server-side. */
 export const completeCardInput = z.object({ cardId: idSchema, ...withClientMutationId });
 
@@ -104,6 +116,7 @@ export type MoveCardInput = z.infer<typeof moveCardInput>;
 export type MoveCardToListInput = z.infer<typeof moveCardToListInput>;
 export type CopyCardInput = z.infer<typeof copyCardInput>;
 export type ArchiveCardInput = z.infer<typeof archiveCardInput>;
+export type DeleteCardInput = z.infer<typeof deleteCardInput>;
 export type CompleteCardInput = z.infer<typeof completeCardInput>;
 export type UncompleteCardInput = z.infer<typeof uncompleteCardInput>;
 

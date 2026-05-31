@@ -109,6 +109,14 @@ export const ACTIVITY_EVENT_TYPES = [
   // keep the Postgres enum append-only. See `docs/domain/04-bildirim-kurallari.md`
   // "DEM-154 — board erişim talebi bildirimi".
   'board.access_requested',
+  // Faz 17 (List/Card permanent delete — 2026-06-01). `list.delete` /
+  // `card.delete` board-admin-only hard delete; the row is dropped (cascades
+  // remove children) so `activity_events.card_id` / `list_id` is `null` on
+  // these — the deleted id is preserved in `payload`. Appended to keep the
+  // Postgres enum append-only. See `docs/domain/02-yetkilendirme-kurallari.md`
+  // "Liste/kart kalıcı silme" + `docs/architecture/02-teknoloji-kararlari.md`.
+  'list.deleted',
+  'card.deleted',
 ] as const;
 
 /**

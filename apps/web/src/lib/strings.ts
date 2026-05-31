@@ -1119,6 +1119,19 @@ export const strings = {
       menuRename: 'Yeniden adlandır',
       menuArchive: 'Listeyi arşivle',
       menuRestore: 'Listeyi geri yükle',
+      // Faz 17 (2026-06-01) — liste kalıcı silme; board admin+ yetki, yalnızca
+      // boş liste. Geri alınamaz; arşivlemenin yanına eklenir (alternatif
+      // değil, ek aksiyon).
+      menuDelete: 'Listeyi sil',
+      deleting: 'Siliniyor…',
+      deleteConfirmTitle: 'Liste kalıcı silinsin mi?',
+      deleteConfirmDescription:
+        'Bu liste kalıcı olarak silinir. Bu işlem geri alınamaz; arşivlemenin aksine geri yükleme yapılamaz.',
+      deleteConfirm: 'Kalıcı sil',
+      // İçinde kart olan liste backend'de reddedilir; UI'de menü öğesi
+      // disabled görünür ve tooltip bu metni gösterir.
+      deleteDisabledNotEmpty:
+        'Yalnızca boş liste kalıcı silinebilir. Önce kartları taşıyın ya da arşivleyin.',
     },
     list: {
       colorPicker: {
@@ -1356,6 +1369,15 @@ export const strings = {
       archiveConfirmTitle: 'Kart arşivlensin mi?',
       archiveConfirmDescription: 'Bu kart arşivlenir ve panodan kaldırılır.',
       archiveConfirm: 'Arşivle',
+      // Faz 17 (2026-06-01) — kart kalıcı silme; board admin+ yetki. Yorumlar,
+      // ekler (MinIO), checklist'ler, etiket bağları cascade silinir; geri
+      // alınamaz. Arşivlemenin yanına ek aksiyon.
+      delete: 'Kartı sil',
+      deleting: 'Siliniyor…',
+      deleteConfirmTitle: 'Kart kalıcı silinsin mi?',
+      deleteConfirmDescription:
+        'Bu kart ve içindeki yorumlar, yapılacaklar, ekler ve etiket bağları kalıcı olarak silinir. Bu işlem geri alınamaz.',
+      deleteConfirm: 'Kalıcı sil',
       unnamedLabel: 'Etiket',
       context: {
         coverColor: 'Kapak',

@@ -316,6 +316,13 @@
       "when": 1780050000010,
       "tag": "0044_dem282_audit_log_drop_delete_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1780500000000,
+      "tag": "0045_list_card_deleted_activity",
+      "breakpoints": true
     }
   ]
 }

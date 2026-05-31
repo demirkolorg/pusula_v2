@@ -13,6 +13,7 @@ import {
   PencilIcon,
   PlusIcon,
   StarIcon,
+  Trash2Icon,
 } from 'lucide-react';
 import { LIST_COLORS, listTitleSchema, type ListColor } from '@pusula/domain';
 import {
@@ -52,6 +53,7 @@ import {
 import {
   applyListArchive,
   applyListPatch,
+  applyListRemove,
   getMutationErrorMessage,
   useOptimisticBoardMutation,
 } from '@/lib/board-cache';
@@ -104,6 +106,12 @@ type ListColumnProps = {
    * this is true — handled below.
    */
   canEdit: boolean;
+  /**
+   * Whether the viewer is a board admin (or workspace owner/admin) on an
+   * active board. Faz 17 — gates `list.delete` / `card.delete` (hard delete
+   * is admin+ only); UI hides the menu items when false. Default `false`.
+   */
+  isBoardAdmin?: boolean;
   /**
    * All of the board's lists (active + archived), `position`-sorted — used by
    * the column's ⋮ "move left / right" actions and by each card's ⋮ "move to
@@ -209,6 +217,7 @@ export function ListColumn({
   list,
   cards,
   canEdit,
+  isBoardAdmin = false,
   allLists = [],
   boardLabels = [],
   boardMembers = [],
@@ -234,6 +243,7 @@ export function ListColumn({
   const [renameValue, setRenameValue] = useState(list.title);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const skipRenameCommitRef = useRef(false);
@@ -297,6 +307,19 @@ export function ListColumn({
     onConflict: () => toast(strings.board.conflict.refreshed),
     onMutationError: () => toast.error(strings.board.optimistic.error),
     onMutationSuccess: () => setArchiveOpen(false),
+  });
+
+  // Faz 17 (2026-06-01) — liste kalıcı silme. Backend yalnızca boş listede
+  // çalışır (içeride kart varsa BAD_REQUEST döner); UI menü item'ında
+  // disabled + tooltip uyarısı verir, optimistic cache `applyListRemove` ile
+  // listeyi düşürür. Geri alınamaz; arşivlemeden ayrı bir aksiyon.
+  const deleteList = useOptimisticBoardMutation({
+    mutationOptions: trpc.list.delete.mutationOptions,
+    boardId,
+    apply: (data, vars) => applyListRemove(data, vars.listId),
+    onConflict: () => toast(strings.board.conflict.refreshed),
+    onMutationError: () => toast.error(strings.board.optimistic.error),
+    onMutationSuccess: () => setDeleteOpen(false),
   });
 
   const createCard = useOptimisticBoardMutation({
@@ -474,6 +497,20 @@ export function ListColumn({
         {listArchived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
         {listArchived ? columnCopy.menuRestore : columnCopy.menuArchive}
       </Item>
+      {isBoardAdmin && (
+        <Item
+          variant="destructive"
+          disabled={cards.length > 0}
+          onSelect={() => {
+            if (cards.length > 0) return;
+            setDeleteOpen(true);
+          }}
+          title={cards.length > 0 ? columnCopy.deleteDisabledNotEmpty : undefined}
+        >
+          <Trash2Icon />
+          {columnCopy.menuDelete}
+        </Item>
+      )}
     </>
   );
 
@@ -665,6 +702,7 @@ export function ListColumn({
                     boardId={boardId}
                     card={card}
                     canEdit={listEditable && card.archivedAt == null}
+                    isBoardAdmin={isBoardAdmin}
                     allLists={allLists}
                     boardLabels={boardLabels}
                     boardMembers={boardMembers}
@@ -722,6 +760,51 @@ export function ListColumn({
             </Button>
           )}
         </footer>
+      )}
+
+      {isBoardAdmin && (
+        <Dialog
+          open={deleteOpen}
+          onOpenChange={(next) => {
+            if (deleteList.isPending) return;
+            setDeleteOpen(next);
+            if (!next) deleteList.reset();
+          }}
+        >
+          <DialogContent closeLabel={strings.common.close}>
+            <DialogHeader>
+              <DialogTitle>{columnCopy.deleteConfirmTitle}</DialogTitle>
+              <DialogDescription>{columnCopy.deleteConfirmDescription}</DialogDescription>
+            </DialogHeader>
+            {deleteList.isError && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {getMutationErrorMessage(deleteList) ?? strings.common.unknownError}
+                </AlertDescription>
+              </Alert>
+            )}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={deleteList.isPending}>
+                  {strings.common.cancel}
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleteList.isPending}
+                onClick={() =>
+                  deleteList.mutate({
+                    boardId,
+                    listId: list.id,
+                  })
+                }
+              >
+                {deleteList.isPending ? columnCopy.deleting : columnCopy.deleteConfirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {canEdit && (

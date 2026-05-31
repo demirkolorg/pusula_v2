@@ -63,10 +63,12 @@ import {
 import {
   archiveCardInput,
   canEditBoardContent,
+  canManageBoard,
   canViewBoard,
   completeCardInput,
   copyCardInput,
   createCardInput,
+  deleteCardInput,
   effectiveBoardRole,
   firstPosition,
   moveCardInput,
@@ -77,6 +79,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
+import { maybeEnqueueAttachmentCleanup } from '../lib/attachment-cleanup';
 import { cardCols, createCardInTransaction } from '../lib/card-create';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import {
@@ -86,7 +89,11 @@ import {
 import { COVER_IMAGE_URL_TTL_SECONDS, toCoverImage } from '../lib/object-storage';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
-import { syncSearchDocumentsForCard, upsertSearchDocument } from '../lib/search-indexer';
+import {
+  deleteSearchDocument,
+  syncSearchDocumentsForCard,
+  upsertSearchDocument,
+} from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { type Queryable, resolveBoardAccess } from '../middleware/board-access';
 import { cardProcedure } from '../middleware/card';
@@ -766,6 +773,119 @@ export const cardRouter = router({
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
+  }),
+
+  /**
+   * Permanently delete a card (Faz 17 — 2026-06-01). **Board admin+ only**
+   * (`canManageBoard`). Hard delete; PostgreSQL cascade rules remove
+   * `card_members` / `card_labels` / `checklists` / `checklist_items` /
+   * `comments` / `attachments` / `activity_events` / `notifications` /
+   * `realtime_events` / `share_links` / `search_documents` rows referencing
+   * this card automatically. MinIO blobs for each attachment are enqueued for
+   * async cleanup *before* the row is dropped (so we still have the
+   * `storage_key` to hand off — the 60 min sweeper is the safety net).
+   *
+   * An archived *board* is read-only. Unlike `archive` (idempotent flag flip),
+   * `delete` is destructive: a retry after success hits `NOT_FOUND` from
+   * `cardProcedure` (the row is gone) — which is acceptable for the
+   * optimistic UI client (the cache already removed it). Writes a
+   * `card.deleted` activity event and a `card.deleted` realtime event in the
+   * same transaction; bumps `boards.version`.
+   */
+  delete: cardProcedure.input(deleteCardInput).mutation(async ({ ctx }) => {
+    if (!canManageBoard(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Kartı kalıcı silmek için board yöneticisi olmanız gerekir.',
+      });
+    }
+
+    let realtimeEventId: string | undefined;
+    let attachmentCleanups: Array<{ attachmentId: string; storageKey: string }> = [];
+    const result = await ctx.db.transaction(async (tx) => {
+      const [card] = await tx
+        .select({
+          id: cards.id,
+          boardId: cards.boardId,
+          listId: cards.listId,
+          title: cards.title,
+        })
+        .from(cards)
+        .where(eq(cards.id, ctx.card.id))
+        .limit(1);
+      if (!card) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Kart bulunamadı.' });
+      }
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, card.boardId))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      assertNotArchived('board', board);
+
+      // Snapshot attachments for post-commit MinIO cleanup. The rows themselves
+      // cascade away on `db.delete(cards)`; we just need `storageKey` first.
+      const cardAttachments = await tx
+        .select({ id: attachments.id, storageKey: attachments.storageKey })
+        .from(attachments)
+        .where(eq(attachments.cardId, card.id));
+      attachmentCleanups = cardAttachments.map((a) => ({
+        attachmentId: a.id,
+        storageKey: a.storageKey,
+      }));
+
+      const deletePayload = {
+        cardId: card.id,
+        listId: card.listId,
+        title: card.title,
+        clientMutationId: ctx.clientMutationId,
+      };
+      // The activity row's `card_id` FK is `ON DELETE CASCADE` → inserting it
+      // before deleting the card would cascade-delete itself. We keep the
+      // audit by writing the activity row with `cardId: null` (it's nullable
+      // on `activity_events`), and capture the deleted card's id in `payload`.
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        type: 'card.deleted',
+        payload: deletePayload,
+      });
+
+      const [bumped] = await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, card.boardId))
+        .returning({ version: boards.version });
+
+      // Same FK story as `activity_events`: `realtime_events.card_id` cascades.
+      // Insert the row *without* `cardId`; clients route on `payload.cardId`.
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'card.deleted',
+        workspaceId: ctx.card.workspaceId,
+        boardId: card.boardId,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { cardId: card.id, listId: card.listId },
+      });
+
+      await deleteSearchDocument(tx, { entityType: 'card', entityId: card.id });
+      await tx.delete(cards).where(eq(cards.id, card.id));
+
+      return { id: card.id, changed: true as const };
+    });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    // Best-effort MinIO cleanup — sweeper is the safety net.
+    for (const cleanup of attachmentCleanups) {
+      maybeEnqueueAttachmentCleanup(ctx, cleanup);
+    }
     return result;
   }),
 

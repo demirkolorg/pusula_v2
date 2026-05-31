@@ -19,6 +19,8 @@
  *   - `list.created`    → `{ listId, title, position }` or `{ list }`
  *   - `list.updated`    → `{ listId, patch? }` or `{ listId, fromTitle?, toTitle?, color? }`
  *   - `list.archived`   → `{ listId, archived }`
+ *   - `list.deleted`    → `{ listId }`           (Faz 17 — hard delete)
+ *   - `card.deleted`    → `{ cardId, listId }`   (Faz 17 — hard delete)
  *   - `board.updated`   → `{ patch }`
  *   - `board.archived`  → `{ archived }`
  *
@@ -45,6 +47,7 @@ import {
   applyCardMemberRemove,
   applyCardMove,
   applyCardPatch,
+  applyCardRemove,
   applyChecklistAdd,
   applyChecklistItemAdd,
   applyChecklistItemPatch,
@@ -59,6 +62,7 @@ import {
   applyListArchive,
   applyListMove,
   applyListPatch,
+  applyListRemove,
 } from '@/lib/board-cache/primitives';
 import type { BoardCache, CardCache, ListCache, CardDetailCache } from '@/lib/board-cache/types';
 
@@ -526,6 +530,27 @@ export function dispatchRealtimeEvent(
       const archivedAt = archivedAtFromPayload(payload, envelope);
       if (!listId || archivedAt === undefined) return;
       setBoard(qc, filters, (data) => applyListArchive(data, listId, archivedAt));
+      return;
+    }
+    case 'list.deleted': {
+      // Faz 17 (2026-06-01) — kalıcı silme; arşivlemenin aksine listeyi cache'ten
+      // tamamen düşür. Server boş liste garantisi vermiş; yine de defansif olarak
+      // `applyListRemove` listenin altındaki kartları da temizler (stale optimistic
+      // pencere).
+      const listId = stringField(payload, 'listId');
+      if (!listId) return;
+      setBoard(qc, filters, (data) => applyListRemove(data, listId));
+      return;
+    }
+    case 'card.deleted': {
+      // Faz 17 (2026-06-01) — kart kalıcı silme; arşivlemenin aksine
+      // `card.get({ cardId })` query'sini de invalidate eder (açık modal varsa
+      // 404 / "kart bulunamadı" akışına düşsün). `applyCardRemove` kartı
+      // listeden çıkarır.
+      const cardId = stringField(payload, 'cardId');
+      if (!cardId) return;
+      void qc.invalidateQueries(filters.card(cardId));
+      setBoard(qc, filters, (data) => applyCardRemove(data, cardId));
       return;
     }
     case 'board.updated': {

@@ -25,11 +25,13 @@
  * read-only for `list.update`.
  */
 import { desc, eq, inArray, sql } from '@pusula/db';
-import { activityEvents, boards, lists } from '@pusula/db';
+import { activityEvents, boards, cards, lists } from '@pusula/db';
 import {
   archiveListInput,
   canEditBoardContent,
+  canManageBoard,
   createListInput,
+  deleteListInput,
   firstPosition,
   moveListInput,
   positionBetween,
@@ -40,7 +42,11 @@ import { assertNotArchived } from '../lib/archive-guard';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
-import { syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
+import {
+  deleteSearchDocument,
+  syncSearchDocumentsForScope,
+  upsertSearchDocument,
+} from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { router } from '../trpc';
 
@@ -550,6 +556,102 @@ export const listRouter = router({
     }
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
 
+    return result;
+  }),
+
+  /**
+   * Permanently delete a list (Faz 17 — 2026-06-01). **Board admin+ only**
+   * (`canManageBoard`). The list must be *empty* — no cards (active or
+   * archived). An archived board is read-only. Writes a `list.deleted`
+   * activity event and a `list.deleted` realtime event, removes the list's
+   * search document, then `db.delete(lists)` — cascade is a no-op since the
+   * list has no children. Idempotent on `clientMutationId` at the wire level;
+   * a missing list on retry returns the same shape as the first call (id +
+   * `changed: false`). Different from `archive`: archive sets `archived_at`
+   * and is reversible; `delete` removes the row.
+   */
+  delete: boardProcedure.input(deleteListInput).mutation(async ({ ctx, input }) => {
+    if (!canManageBoard(accessFromBoardRole(ctx.board.role))) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Listeyi kalıcı silmek için board yöneticisi olmanız gerekir.',
+      });
+    }
+
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
+      const [list] = await tx
+        .select({ id: lists.id, boardId: lists.boardId, title: lists.title })
+        .from(lists)
+        .where(eq(lists.id, input.listId))
+        .limit(1);
+      if (!list) {
+        // Idempotent retry: already gone.
+        return { id: input.listId, changed: false as const };
+      }
+      if (list.boardId !== ctx.board.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: "Liste bu board'a ait değil." });
+      }
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, ctx.board.id))
+        .limit(1);
+      if (!board) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      assertNotArchived('board', board);
+
+      // Empty-list gate (active + archived). Cards FK is `ON DELETE CASCADE`
+      // (cards.list_id → lists.id), so the gate is purely a UX safety net:
+      // delete-by-mistake should not silently take a list of cards with it.
+      const [{ count: cardCount } = { count: 0 }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(cards)
+        .where(eq(cards.listId, list.id));
+      if (cardCount > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Liste kalıcı silinemez: içinde kart var. Önce kartları başka bir listeye taşıyın veya arşivleyin.',
+        });
+      }
+
+      await tx.insert(activityEvents).values({
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        type: 'list.deleted',
+        payload: {
+          listId: list.id,
+          title: list.title,
+          clientMutationId: ctx.clientMutationId,
+        },
+      });
+
+      const [bumped] = await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.deleted',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: { listId: list.id },
+      });
+
+      await deleteSearchDocument(tx, { entityType: 'list', entityId: list.id });
+      await tx.delete(lists).where(eq(lists.id, list.id));
+
+      return { id: list.id, changed: true as const };
+    });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
     return result;
   }),
 });

@@ -2020,6 +2020,205 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(copy.position.length).toBeLessThan(POSITION_COMPACTION_MAX_LEN);
     expect(enqueue).not.toHaveBeenCalled();
   });
+
+  // ------------------------------------------------------------------ delete (Faz 17 — 2026-06-01)
+
+  it('delete: a board admin permanently deletes a card; cascade removes children; card.deleted activity is written (cardId=null, payload.cardId carries it)', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Doomed Card',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // Add a member to verify cascade.
+    await callerFor(ownerId).card.members.add({
+      cardId: card.id,
+      userId: memberId,
+      role: 'assignee',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const cmid = crypto.randomUUID();
+    const result = await callerFor(ownerId).card.delete({
+      cardId: card.id,
+      clientMutationId: cmid,
+    });
+    expect(result).toEqual({ id: card.id, changed: true });
+
+    // Card row gone.
+    const stillThere = await db()
+      .select()
+      .from(dbMod.cards)
+      .where(dbMod.eq(dbMod.cards.id, card.id));
+    expect(stillThere).toHaveLength(0);
+
+    // card_members cascade.
+    const stillMember = await db()
+      .select()
+      .from(cardMembers)
+      .where(dbMod.eq(cardMembers.cardId, card.id));
+    expect(stillMember).toHaveLength(0);
+
+    // Activity event written; `cardId` column is null (FK would cascade-erase
+    // the row otherwise), but `payload.cardId` carries the deleted id.
+    const acts = await actsFor(boardId);
+    const deletedActs = acts.filter(
+      (a) =>
+        a.type === 'card.deleted' && (a.payload as { cardId?: string }).cardId === card.id,
+    );
+    expect(deletedActs).toHaveLength(1);
+    expect(deletedActs[0]!.cardId).toBeNull();
+    expect(deletedActs[0]!.payload).toMatchObject({
+      cardId: card.id,
+      listId,
+      title: 'Doomed Card',
+      clientMutationId: cmid,
+    });
+
+    // Re-deleting hits the `cardProcedure` not-found guard (the row is gone).
+    await expect(
+      callerFor(ownerId).card.delete({
+        cardId: card.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('delete: a board member (workspace member, no admin) is FORBIDDEN; a board viewer is FORBIDDEN', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'No Member Delete',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(memberId).card.delete({
+        cardId: card.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      callerFor(guestId).card.delete({
+        cardId: card.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // Cleanup so the parent afterAll doesn't trip on stragglers.
+    await callerFor(ownerId).card.delete({
+      cardId: card.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+  });
+
+  it('delete: an archived board is BAD_REQUEST; an archived card may still be deleted', async () => {
+    // archived board
+    const archBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Delete Archived Board (card)',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const archList = await callerFor(ownerId).list.create({
+      boardId: archBoard.id,
+      title: 'L',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const archCard = await callerFor(ownerId).card.create({
+      listId: archList.id,
+      title: 'Trapped',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).board.archive({
+      boardId: archBoard.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).card.delete({
+        cardId: archCard.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // archived card on an active board → can still be deleted
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Archived but deletable',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(ownerId).card.archive({
+      cardId: card.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    const result = await callerFor(ownerId).card.delete({
+      cardId: card.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(result.changed).toBe(true);
+  });
+
+  it('delete: attachments are enqueued for MinIO cleanup; the rows cascade away from the DB', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Card With Attachments',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // Insert a couple of attachment rows directly — committed (Faz 11B).
+    const att1 = newId('att');
+    const att2 = newId('att');
+    await db().insert(attachments).values([
+      {
+        id: att1,
+        boardId,
+        cardId: card.id,
+        uploaderId: ownerId,
+        fileName: 'a.png',
+        mimeType: 'image/png',
+        size: 100,
+        storageKey: `cards/${card.id}/${att1}-a.png`,
+        committedAt: new Date(),
+      },
+      {
+        id: att2,
+        boardId,
+        cardId: card.id,
+        uploaderId: ownerId,
+        fileName: 'b.png',
+        mimeType: 'image/png',
+        size: 200,
+        storageKey: `cards/${card.id}/${att2}-b.png`,
+        committedAt: new Date(),
+      },
+    ]);
+
+    const enqueueAttachmentCleanup = vi.fn();
+    const create = createCallerFactory(appRouter);
+    const caller = create(
+      createContext({ session: session(ownerId), db: probe!.db, enqueueAttachmentCleanup }),
+    );
+
+    const result = await caller.card.delete({
+      cardId: card.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(result.changed).toBe(true);
+
+    // attachments cascade
+    const stillThere = await db()
+      .select()
+      .from(attachments)
+      .where(dbMod.eq(attachments.cardId, card.id));
+    expect(stillThere).toHaveLength(0);
+
+    // both storage keys handed to the cleanup queue (order may vary).
+    expect(enqueueAttachmentCleanup).toHaveBeenCalledTimes(2);
+    const calledKeys = enqueueAttachmentCleanup.mock.calls
+      .map((args) => (args[0] as { storageKey: string }).storageKey)
+      .sort();
+    expect(calledKeys).toEqual(
+      [`cards/${card.id}/${att1}-a.png`, `cards/${card.id}/${att2}-b.png`].sort(),
+    );
+  });
 });
 
 describe.runIf(dbAvailable)('card router — realtime outbox (Faz 5B / DEM-84)', () => {

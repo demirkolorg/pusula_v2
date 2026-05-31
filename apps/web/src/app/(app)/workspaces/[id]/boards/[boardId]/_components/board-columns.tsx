@@ -119,6 +119,10 @@ export function BoardColumns({
 }: BoardColumnsProps) {
   const boardActive = board.archivedAt == null;
   const canEdit = boardRoleAtLeast(board.role, 'member') && boardActive;
+  // Faz 17 (2026-06-01) — kalıcı silme (`list.delete` / `card.delete`) yalnızca
+  // board admin+ yetkisinde ve aktif board'da görünür. `canEdit` member+'ı
+  // kapsar; silme ayrı bir flag.
+  const isBoardAdmin = boardRoleAtLeast(board.role, 'admin') && boardActive;
 
   const visibleLists = useMemo(
     () => filterVisibleLists(lists, showArchivedLists),
@@ -209,6 +213,7 @@ export function BoardColumns({
                   list={list}
                   cards={cardsByList.get(list.id) ?? (EMPTY_CARDS as BoardCard[])}
                   canEdit={canEdit}
+                  isBoardAdmin={isBoardAdmin}
                   allLists={lists}
                   boardLabels={boardLabels}
                   boardMembers={boardMembers}
