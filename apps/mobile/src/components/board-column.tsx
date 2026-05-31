@@ -8,6 +8,7 @@ import { InlineComposer } from '@/components/inline-composer';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
+import { useDeviceClass, useIsLandscape } from '@/lib/use-device-class';
 import { themeFor } from '@/theme/tokens';
 import { CardRow } from './card-row';
 
@@ -61,6 +62,13 @@ function BoardColumnImpl({
   const [composerOpen, setComposerOpen] = useState(false);
   // Optimistic (henüz sunucuya yazılmamış) liste — ⋮ menüsü açılmaz.
   const listPending = isPendingId(list.id);
+  // Faz 15B (DEM-302) — kolon genişliği cihaz/yönelime göre: phone 288px,
+  // tablet portrait 320px, tablet landscape 384px. NativeWind v4 orientation
+  // media query'sini RN runtime'da değerlendirmediği için hook fallback
+  // (spec §13.12.7 disiplini).
+  const isTablet = useDeviceClass() === 'tablet';
+  const isLandscape = useIsLandscape();
+  const widthClass = isTablet ? (isLandscape ? 'w-96' : 'w-80') : 'w-72';
 
   // Composer / ⋮ callback'leri — `list.id` sabit kaldığı sürece stabil
   // (DEM-226 #3): `FlatList renderItem` ve alt bileşenler bunlara bağlı.
@@ -110,7 +118,7 @@ function BoardColumnImpl({
   );
 
   return (
-    <View className="h-full w-72 overflow-hidden rounded-xl bg-muted">
+    <View className={`h-full ${widthClass} overflow-hidden rounded-xl bg-muted`}>
       {/* Liste rengi şeridi — kolonun üstünde, kenara dayalı ince renk bandı
           (DEM-209). Renk `null` ise şerit çizilmez; kolon nötr kalır. */}
       {accentHex != null ? (

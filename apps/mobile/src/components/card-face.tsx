@@ -82,7 +82,7 @@ function CardFaceImpl({
         <View className="h-2" style={{ backgroundColor: coverColorHex[coverColor] }} />
       ) : null}
 
-      <View className="gap-2 p-3">
+      <View className="gap-2 p-3 md:p-4">
         {card.labels.length > 0 ? (
           <View className="flex-row flex-wrap gap-1">
             {card.labels.map((label) => (

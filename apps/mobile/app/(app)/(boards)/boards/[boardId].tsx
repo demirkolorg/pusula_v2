@@ -306,6 +306,9 @@ export default function BoardScreen() {
           className="flex-1"
           contentContainerClassName="gap-3 p-3"
           showsHorizontalScrollIndicator={false}
+          // Faz 15B (DEM-302): iPad'de safe-area/notch için yatay
+          // contentInset'in orientation değişimlerinde recalc edilmesini sağlar.
+          contentInsetAdjustmentBehavior="automatic"
         >
           {activeLists.map((list) => (
             <BoardColumn

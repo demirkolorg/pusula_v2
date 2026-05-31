@@ -26,3 +26,16 @@ export function useDeviceClass(): DeviceClass {
 export function useIsTablet(): boolean {
   return useDeviceClass() === 'tablet';
 }
+
+/**
+ * Faz 15B (DEM-302) — yatay/dikey yönelim. `width > height` → landscape; eşitse
+ * portrait. NativeWind v4 `@media (orientation: landscape)` media query'sini
+ * RN runtime'da değerlendirmediği için (CSS-to-RN parser yalnız breakpoint /
+ * color-scheme / hover destekler) Tailwind'in `landscape:` variant'ı yerine
+ * bu hook kullanılır — spec §13.12.7 disiplini: "tablet override'ları
+ * NativeWind `md:` VEYA `useDeviceClass()` hook üzerinden".
+ */
+export function useIsLandscape(): boolean {
+  const { width, height } = useWindowDimensions();
+  return width > height;
+}

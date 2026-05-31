@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { TABLET_BREAKPOINT_PX, useDeviceClass, useIsTablet } from '@/lib/use-device-class';
+import {
+  TABLET_BREAKPOINT_PX,
+  useDeviceClass,
+  useIsLandscape,
+  useIsTablet,
+} from '@/lib/use-device-class';
 
 /**
  * Faz 15A (DEM-301) — `useDeviceClass`/`useIsTablet` birim testleri.
@@ -64,5 +69,37 @@ describe('useIsTablet', () => {
     useWindowDimensionsMock.mockReturnValue({ width: 1024, height: 768 });
     const { result } = renderHook(() => useIsTablet());
     expect(result.current).toBe(true);
+  });
+});
+
+describe('useIsLandscape', () => {
+  it('iPad portrait (768×1024) için false döndürür', () => {
+    useWindowDimensionsMock.mockReturnValue({ width: 768, height: 1024 });
+    const { result } = renderHook(() => useIsLandscape());
+    expect(result.current).toBe(false);
+  });
+
+  it('iPad landscape (1024×768) için true döndürür', () => {
+    useWindowDimensionsMock.mockReturnValue({ width: 1024, height: 768 });
+    const { result } = renderHook(() => useIsLandscape());
+    expect(result.current).toBe(true);
+  });
+
+  it('iPad Pro 12.9" portrait (2048×2732) için false döndürür', () => {
+    useWindowDimensionsMock.mockReturnValue({ width: 2048, height: 2732 });
+    const { result } = renderHook(() => useIsLandscape());
+    expect(result.current).toBe(false);
+  });
+
+  it('iPad Pro 12.9" landscape (2732×2048) için true döndürür', () => {
+    useWindowDimensionsMock.mockReturnValue({ width: 2732, height: 2048 });
+    const { result } = renderHook(() => useIsLandscape());
+    expect(result.current).toBe(true);
+  });
+
+  it('kare ekran (width === height) için false döndürür (portrait varsayılır)', () => {
+    useWindowDimensionsMock.mockReturnValue({ width: 1000, height: 1000 });
+    const { result } = renderHook(() => useIsLandscape());
+    expect(result.current).toBe(false);
   });
 });
