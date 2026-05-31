@@ -56,6 +56,16 @@ const envSchema = z.object({
   // `print.requestToken` her zaman UNAUTHORIZED — print akışı kapalı.
   // Bkz. `docs/architecture/16-raporlama-mimarisi.md` §16.8.
   WORKER_SHARED_SECRET: z.string().min(32).optional(),
+  // Faz 16 — Google Takvim entegrasyonu (read-only, "Planlayıcı" paneli).
+  // Better Auth `genericOAuth` plugin ile hesap bağlama — login değil,
+  // yalnız `calendar.events.readonly` scope için. İkisi de boşsa entegrasyon
+  // kapalı (`integrations.google.connect` 503 `SERVICE_UNAVAILABLE`); UI
+  // boş durum CTA'yı "henüz hazır değil" varyantına döndürür. Google Cloud
+  // Console > APIs & Services > Credentials > OAuth 2.0 Client ID > Web
+  // application. Redirect URI: `${API_URL}/api/auth/oauth2/callback/google-calendar`.
+  // Bkz. `docs/architecture/19-takvim-entegrasyonu.md` §4 + §9.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 // Üretim sertleştirme guard'ı: prod'da hiçbir kritik env zayıf/default değere
@@ -88,6 +98,16 @@ function assertProductionHardening(value: z.infer<typeof envSchema>): void {
   // failed` ile retry → sessiz outage. Boot-time'da explicit hata ver.
   if (!value.WORKER_SHARED_SECRET) {
     issues.push('WORKER_SHARED_SECRET must be set (>=32 chars) in production');
+  }
+  // Faz 16A — Google Takvim entegrasyonu env çifti birlikte yaşar: client_id
+  // var ama secret yoksa OAuth callback patlar. Tek başına ikisi de boş olabilir
+  // (entegrasyon kapatılmış olur — `integrations.google.connect` 503 döner) ama
+  // eksik biri prod'da sessiz fail kaynağıdır.
+  if (
+    (value.GOOGLE_CLIENT_ID && !value.GOOGLE_CLIENT_SECRET) ||
+    (value.GOOGLE_CLIENT_SECRET && !value.GOOGLE_CLIENT_ID)
+  ) {
+    issues.push('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together');
   }
   if (issues.length > 0) {
     throw new Error(`Invalid production environment:\n- ${issues.join('\n- ')}`);

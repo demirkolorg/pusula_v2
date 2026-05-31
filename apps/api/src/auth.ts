@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { genericOAuth, type GenericOAuthConfig } from 'better-auth/plugins/generic-oauth';
 import { expo } from '@better-auth/expo';
 import { count, eq, getDb, accounts, sessions, users, verifications, workspaces } from '@pusula/db';
 import { canDeleteOwnAccount, userImageUrlSchema, userNameSchema } from '@pusula/domain';
@@ -38,7 +39,7 @@ export const auth = betterAuth({
   // güvenilir origin olması gerekir. Bkz. `docs/architecture/07-auth.md`
   // (Mobil oturum) + Karar kaydı 2026-05-17 (Faz 7B).
   trustedOrigins: [env.APP_URL, 'pusula://'],
-  plugins: [expo()],
+  plugins: [expo(), ...buildGenericOAuthPlugins()],
   database: drizzleAdapter(getDb(), {
     provider: 'pg',
     schema: { user: users, session: sessions, account: accounts, verification: verifications },
@@ -234,3 +235,50 @@ async function assertCanDeleteAccount(userId: string): Promise<void> {
 }
 
 export type Auth = typeof auth;
+
+/**
+ * Faz 16 (DEM-310) — Google Calendar entegrasyonu için Better Auth
+ * `genericOAuth` plugin'i yalnız env çifti (`GOOGLE_CLIENT_ID` +
+ * `GOOGLE_CLIENT_SECRET`) set edilmişse mount edilir. Yoksa plugin hiç
+ * yüklenmez → `signInWithOAuth2`/`oAuth2Callback`/`oAuth2LinkAccount`
+ * endpoint'leri var olmaz. `integrations.google.connect` 503 döner.
+ *
+ * Bu plugin LOGIN için değil — yalnız hesap bağlama. `socialProviders.google`
+ * eklenmediği için sign-in flow'una dokunmaz; mevcut e-mail/password ana akış
+ * korunur (16A K2 kararı). Bkz. `docs/architecture/19-takvim-entegrasyonu.md`
+ * §4 + Karar kaydı 2026-05-31.
+ */
+function buildGenericOAuthPlugins(): ReturnType<typeof genericOAuth>[] {
+  const configs: GenericOAuthConfig[] = [];
+
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    configs.push({
+      providerId: 'google-calendar',
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      userInfoUrl: 'https://www.googleapis.com/oauth2/v3/userinfo',
+      scopes: [
+        'https://www.googleapis.com/auth/calendar.events.readonly',
+        'https://www.googleapis.com/auth/calendar.readonly',
+        'openid',
+        'email',
+        'profile',
+      ],
+      // `accessType: 'offline'` + `prompt: 'consent'` — refresh token üretimi
+      // için zorunlu. Google ikinci bağlamada `consent` yoksa yalnız access
+      // token döner (refresh token boş); token expire olduğunda kullanıcının
+      // yeniden bağlanması gerekir. Bkz. `19-takvim-entegrasyonu.md` §4.1.
+      accessType: 'offline',
+      prompt: 'consent',
+      // Login değil yalnız hesap bağlama — yeni kullanıcı oluşturulmasını
+      // engelle. Frontend `oAuth2LinkAccount` endpoint'ini çağırır (oturum
+      // zorunlu); `signInWithOAuth2` bu provider için kullanılmaz.
+      disableImplicitSignUp: true,
+      disableSignUp: true,
+    });
+  }
+
+  return configs.length > 0 ? [genericOAuth({ config: configs })] : [];
+}

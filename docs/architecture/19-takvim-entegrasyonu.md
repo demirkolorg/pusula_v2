@@ -181,23 +181,27 @@ async function googleFetch(userId: string, url: string, init?: RequestInit) {
 
 ### 4.5. Bağlantıyı kesme
 
-`integrations.google.disconnect` → Better Auth `auth.api.unlinkAccount({ providerId: 'google-calendar', userId })` → `account` row silinir → bir sonraki `events.list` çağrısı `UNAUTHORIZED` döner → UI boş durum CTA gösterir.
+Frontend `authClient.unlinkAccount({ providerId: 'google-calendar' })` → Better Auth `/api/auth/unlink-account` → `account` row silinir → bir sonraki `events.list` çağrısı `UNAUTHORIZED` döner → UI boş durum CTA gösterir. tRPC katmanı YOK (16A implementasyon notu, bkz. §5.0).
 
-## 5. tRPC API yüzeyi
+## 5. API yüzeyi
 
-### 5.1. `integrations.google.*` router
+### 5.0. Implementation kararı (16A — 2026-05-31)
 
-User-scoped (`protectedProcedure`); workspace/board yetkilendirmesine tabi değil.
+**Bağlama/durum/kesme akışı için tRPC `integrations.google.*` router YOK.** Bunun yerine Better Auth client doğrudan çağrılır — DEM-55 (profil/hesap) + DEM-68 (şifre sıfırlama) ile aynı pattern: "auth-related işler tRPC `user.*`/`integrations.*` üzerinden değil, Better Auth client'a doğrudan gider".
 
-| Procedure | Input | Output | Açıklama |
-|---|---|---|---|
-| `integrations.google.status` | — | `{ connected: boolean; email?: string; connectedAt?: Date; scopes?: string[] }` | Mevcut bağlantı durumu (UI bağla/bağlı kartı için) |
-| `integrations.google.connect` | — | `{ authUrl: string }` | Better Auth'un OAuth authorization URL'i (kullanıcı browser'da bu URL'e gider, callback Better Auth'ta) |
-| `integrations.google.disconnect` | — | `{ success: true }` | Bağlantıyı keser (Better Auth `unlinkAccount`) |
+| Fonksiyon | Yapı | Kullanım |
+|---|---|---|
+| Durum sorgulama | `authClient.listAccounts()` → `accounts: Array<{ providerId, createdAt, scopes }>` | UI `providerId === 'google-calendar'` filtreler, varsa "Bağlı" göster |
+| Bağlama | `authClient.oauth2.link({ providerId: 'google-calendar', callbackURL })` → `{ url }` döner, frontend `window.location.href = url` ile redirect | Better Auth `/api/auth/oauth2/link` endpoint'i; oturum zorunlu (`requireSession`) |
+| Bağlantı kesme | `authClient.unlinkAccount({ providerId: 'google-calendar' })` | Better Auth `/api/auth/unlink-account` endpoint'i |
 
-### 5.2. `planner.events.*` router
+**Neden tRPC YOK:** Better Auth zaten 3 endpoint'i de sağlıyor (`/list-accounts`, `/oauth2/link`, `/unlink-account`); ince bir tRPC sarmalı değer katmaz, `account` tablosu sahipliği tek yerde (Better Auth) kalır. Tutarlılık için `genericOAuthClient` plugin'i `apps/web/src/lib/auth-client.ts`'e mount edilir (oauth2.link namespace'i client'a açar; listAccounts/unlinkAccount Better Auth core'da hep vardı).
 
-User-scoped; takvim verisi kişisel.
+**Backend env-gating:** Env çifti (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`) set edilmemişse `apps/api/src/auth.ts` `genericOAuth` plugin'i hiç mount edilmez → `/api/auth/oauth2/link` 404 → frontend toast hata. Env tek başına biri set edilirse `apps/api/src/env.ts` boot guard durdurur (sessiz fail kaynağı).
+
+### 5.1. `planner.events.*` router (16C)
+
+Etkinlik proxy için tRPC katmanı **kalır**. Google Calendar API çağrısı server-side yapılmalı (CORS + token storage server'da); browser'dan Google API'ye doğrudan istek atmak hem güvenlik hem CORS açısından mümkün değil. User-scoped; takvim verisi kişisel.
 
 | Procedure | Input | Output | Açıklama |
 |---|---|---|---|

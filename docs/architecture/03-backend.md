@@ -538,15 +538,17 @@ GOOGLE_CLIENT_ID: z.string().min(1).optional(),
 GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 ```
 
-`optional` çünkü dev'de Google Cloud Console kurulumu olmayabilir; yoksa `integrations.google.connect` 503 "Integration not configured" döner.
+`optional` çünkü dev'de Google Cloud Console kurulumu olmayabilir; yoksa `genericOAuth` plugin'i hiç mount edilmez ve `/api/auth/oauth2/link` 404 döner (frontend toast hata gösterir).
 
-**`integrations.google.*` router** (user-scoped — workspace/board permission'a tabi değil):
+**`integrations.google.*` router YOK** (16A implementasyon kararı — DEM-55/68 pattern). Bağlama/durum/kesme akışı için tRPC katmanı kullanılmaz; frontend Better Auth client'a doğrudan gider:
 
-| Procedure | Tür | Input | Output | Açıklama |
-|---|---|---|---|---|
-| `integrations.google.status` | query | — | `{ connected: boolean; email?: string; connectedAt?: Date; scopes?: string[] }` | UI bağla/bağlı kartı için |
-| `integrations.google.connect` | mutation | — | `{ authUrl: string }` | Better Auth OAuth authorization URL'i; kullanıcı bu URL'e redirect |
-| `integrations.google.disconnect` | mutation | — | `{ success: true }` | `auth.api.unlinkAccount({ providerId: 'google-calendar', userId })` |
+| Fonksiyon | Yapı | Endpoint |
+|---|---|---|
+| Durum sorgulama | `authClient.listAccounts()` → `accounts: Array<{ providerId, createdAt, scopes }>` | `/api/auth/list-accounts` |
+| Bağlama | `authClient.oauth2.link({ providerId: 'google-calendar', callbackURL })` → `{ url }` → frontend redirect | `/api/auth/oauth2/link` |
+| Bağlantı kesme | `authClient.unlinkAccount({ providerId: 'google-calendar' })` | `/api/auth/unlink-account` |
+
+Frontend için `genericOAuthClient` plugin `apps/web/src/lib/auth-client.ts`'e mount edilir (oauth2.link namespace'i client'a açar). Tutarlılık: DEM-55 (profil/hesap) ve DEM-68 (şifre sıfırlama) ile aynı pattern — auth-related işler tRPC üzerinden değil Better Auth client'a doğrudan gider. Detay → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md) §5.0.
 
 **`planner.events.*` router** (user-scoped):
 

@@ -1583,6 +1583,37 @@ export const strings = {
       profile: 'Profil',
       security: 'Güvenlik',
       notifications: 'Bildirimler',
+      integrations: 'Entegrasyonlar',
+    },
+    integrations: {
+      sectionTitle: 'Entegrasyonlar',
+      sectionDescription:
+        'Pusula\'yı kullandığın diğer servislere bağla. Bağlantılar yalnız sana özeldir; çalışma alanı veya pano üyelerinin görmediği kişisel verilerdir.',
+      loading: 'Bağlantılar yükleniyor…',
+      loadError: 'Bağlantı durumu okunamadı. Sayfayı yenileyip tekrar dene.',
+      google: {
+        title: 'Google Takvim',
+        description:
+          'Takvim etkinliklerini Pusula\'nın Planlayıcı panelinde salt-okunur olarak görürsün. Pusula etkinliklerini değiştirmez veya silmez.',
+        notConnected: 'Bağlı değil',
+        connected: 'Bağlı',
+        connectedAt: '{date} tarihinde bağlandın.',
+        connect: 'Bağla',
+        disconnect: 'Bağlantıyı kes',
+        disconnectConfirmTitle: 'Google Takvim bağlantısı kesilsin mi?',
+        disconnectConfirmBody:
+          'Planlayıcı paneli boş kalır; ihtiyaç olduğunda yeniden bağlayabilirsin. Pusula\'da saklanan takvim verisi yok.',
+        disconnectConfirm: 'Bağlantıyı kes',
+        disconnectCancel: 'Vazgeç',
+        connectError: 'Bağlantı başlatılamadı. Daha sonra tekrar dene.',
+        disconnectError: 'Bağlantı kesilemedi. Daha sonra tekrar dene.',
+        disabled: {
+          title: 'Bu özellik henüz hazır değil',
+          body:
+            'Yönetici Google Takvim entegrasyonunu etkinleştirmemiş. Daha sonra tekrar gel.',
+        },
+        privacy: 'Yalnızca sen görebilirsin.',
+      },
     },
     notifications: {
       loading: 'Bildirim tercihleri yükleniyor…',

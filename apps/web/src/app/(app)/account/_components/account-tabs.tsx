@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
-const ACCOUNT_TABS = ['profile', 'security', 'notifications'] as const;
+const ACCOUNT_TABS = ['profile', 'security', 'notifications', 'integrations'] as const;
 type AccountTab = (typeof ACCOUNT_TABS)[number];
 
 function isAccountTab(value: string | null | undefined): value is AccountTab {
@@ -16,17 +16,18 @@ type AccountTabsProps = {
   profile: ReactNode;
   security: ReactNode;
   notifications: ReactNode;
+  integrations: ReactNode;
 };
 
 /**
- * /account 3-sekme container'ı (Faz 10C / DEM-137). Tab seçimi `?tab=` query
- * parametresinden okunur, değişimde `router.replace` ile URL güncellenir —
- * scroll bozulmaz, browser back/forward çalışır. Geçersiz query değerleri
- * varsayılan `profile` sekmesine düşer. UI primitive'leri için
- * `docs/architecture/15-bildirim-ayar-ekrani.md` §15.1 — i18n için
- * `strings.account.tabs.*`.
+ * /account 4-sekme container'ı (Faz 10C / DEM-137; Faz 16A / DEM-310 ile
+ * "Entegrasyonlar" sekmesi eklendi). Tab seçimi `?tab=` query parametresinden
+ * okunur, değişimde `router.replace` ile URL güncellenir — scroll bozulmaz,
+ * browser back/forward çalışır. Geçersiz query değerleri varsayılan `profile`
+ * sekmesine düşer. UI primitive'leri için `docs/architecture/15-bildirim-ayar-ekrani.md`
+ * §15.1 — i18n için `strings.account.tabs.*`.
  */
-export function AccountTabs({ profile, security, notifications }: AccountTabsProps) {
+export function AccountTabs({ profile, security, notifications, integrations }: AccountTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryTab = searchParams.get('tab');
@@ -45,6 +46,7 @@ export function AccountTabs({ profile, security, notifications }: AccountTabsPro
         <TabsTrigger value="profile">{strings.account.tabs.profile}</TabsTrigger>
         <TabsTrigger value="security">{strings.account.tabs.security}</TabsTrigger>
         <TabsTrigger value="notifications">{strings.account.tabs.notifications}</TabsTrigger>
+        <TabsTrigger value="integrations">{strings.account.tabs.integrations}</TabsTrigger>
       </TabsList>
       <TabsContent value="profile" className="space-y-6">
         {profile}
@@ -54,6 +56,9 @@ export function AccountTabs({ profile, security, notifications }: AccountTabsPro
       </TabsContent>
       <TabsContent value="notifications" className="space-y-6">
         {notifications}
+      </TabsContent>
+      <TabsContent value="integrations" className="space-y-6">
+        {integrations}
       </TabsContent>
     </Tabs>
   );

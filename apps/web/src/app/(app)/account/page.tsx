@@ -13,6 +13,7 @@ import { useTRPC } from '@/trpc/client';
 import { AccountTabs } from './_components/account-tabs';
 import { ChangePasswordForm } from './_components/change-password-form';
 import { DeleteAccountSection } from './_components/delete-account-section';
+import { IntegrationsGoogleCard } from './_components/integrations-google-card';
 import { NotificationsChannelsForm } from './_components/notifications-channels-form';
 import { NotificationsDevicesList } from './_components/notifications-devices-list';
 import { NotificationsDigestForm } from './_components/notifications-digest-form';
@@ -205,6 +206,19 @@ export default function AccountPage() {
             <NotificationsSnoozeList />
             <NotificationsDevicesList />
           </>
+        }
+        integrations={
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">
+                {strings.account.integrations.sectionTitle}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {strings.account.integrations.sectionDescription}
+              </p>
+            </div>
+            <IntegrationsGoogleCard />
+          </div>
         }
       />
     </div>

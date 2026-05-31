@@ -17,6 +17,7 @@ function renderTabs() {
       profile={<div>profile-panel</div>}
       security={<div>security-panel</div>}
       notifications={<div>notifications-panel</div>}
+      integrations={<div>integrations-panel</div>}
     />,
   );
 }
