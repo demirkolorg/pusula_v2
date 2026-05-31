@@ -252,8 +252,8 @@ shadcn `Dialog` (board arkada; `?card=<id>` derin link — Faz 2.5 kararı [DEM-
   - `CardCompleteToggle` (yuvarlak, hep görünür) + başlık inline-edit (`textarea`, `text-lg font-semibold leading-tight`, `field-sizing-content`) + `CardReportsButton` + `ShareDialog`.
   - **Meta chip satırı (`CardModalMetaChips`)** — `flex flex-wrap items-center gap-1`; chip shell `group inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground`: `ShieldIcon`+üye sayısı (→ üye picker `Popover`) · `CalendarIcon`+due (→ date picker; gecikmiş kırmızı + "GECİKTİ" rozeti, soon amber nokta) · `TagIcon`+etiket sayısı (→ etiket picker) · `PaletteIcon`+kapak rengi (→ renk picker) · `+` ekle.
 - **Sabit alert satırı** (`shrink-0 px-4 sm:px-6 pb-2` — yalnız modal-geneli `completeError` / `archiveCard.isError` varsa render).
-- **AÇIKLAMA + KONTROL LİSTESİ — yan yana iki sütun + bağımsız scroll**: kalan alanı `grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5` doldurur (sol sütun AÇIKLAMA, sağ sütun KONTROL LİSTESİ; sidebar açık/kapalı ve viewport boyutundan bağımsız sabit — mobilde de yan yana, kullanıcı kararı). Her grid hücresi `pusula-scrollbar min-h-0 min-w-0 overflow-y-auto` wrapper içinde — sütunlar `items-stretch` (default) ile grid yüksekliğini alır; uzun checklist sağ sütunda scroll yapar, sol sütun yerinde durur. `pusula-scrollbar` utility'si (`theme.css` `@layer utilities`) 6px ince thumb + transparent track + token bazlı (`--scrollbar-thumb`/`--scrollbar-thumb-hover`) renkler ile light/dark teması için yumuşak görünüm sağlar — modal sağ paneldeki `TabsContent` scroll alanı da aynı utility'yi paylaşır. Modal-tamamı için scroll çıkmaz.
-  - **AÇIKLAMA (sol sütun)** — `SectionHeader` (`AlignLeftIcon` + "AÇIKLAMA" + sağda düzenle/iptal): `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` `|` **H1 H2 H3** `|` bullet ordered `|` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
+- **AÇIKLAMA + KONTROL LİSTESİ — yan yana iki sütun + bağımsız scroll**: kalan alanı `grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5` doldurur (sol sütun AÇIKLAMA, sağ sütun KONTROL LİSTESİ; sidebar açık/kapalı ve viewport boyutundan bağımsız sabit — mobilde de yan yana, kullanıcı kararı). Her grid hücresi **panel-card** olarak sarmalanır: dış wrapper `flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30` (iki bölümün "yan yana iki ayrı panel" olduğu görsel olarak ayırt edilsin diye — 2026-05-31). **Panel anatomi (2026-05-31 — FE-2026-05-31-002, revize 2026-05-31):** her panel iki yatay parçaya bölünür — **(a) Sabit üst kabuk** `SectionHeader className="mb-0 shrink-0 border-b bg-muted/50 px-4 py-2.5"` (scroll'un dışında; `bg-muted/50` panel-card iç tonundan vurgulu, `border-b` ile ayrım; `py-2.5` ≈ 42px toplam yükseklik — `sticky top-0 + backdrop-blur` ilk versiyonunun [reddedildi: scroll'dan önce header üst boşluk bırakıyordu + dikey alan harcıyordu — kullanıcı geri bildirimi 2026-05-31] yerine geçti); **(b) Scroll gövde** `<div className="pusula-scrollbar flex min-h-0 flex-1 flex-col gap-* overflow-y-auto p-4">` — kendi içinde scroll yapar, padding kabuğu etkilemez. Sütunlar `items-stretch` ile grid yüksekliğini alır; uzun checklist sağ sütunda gövde içinde scroll yapar, üst kabuk yerinde durur. `pusula-scrollbar` utility'si (`theme.css` `@layer utilities`) 6px ince thumb + transparent track + token bazlı (`--scrollbar-thumb`/`--scrollbar-thumb-hover`) renkler ile light/dark teması için yumuşak görünüm sağlar — modal sağ paneldeki `TabsContent` scroll alanı da aynı utility'yi paylaşır. Modal-tamamı için scroll çıkmaz.
+  - **AÇIKLAMA (sol sütun)** — Sabit üst kabuk: `SectionHeader` `AlignLeftIcon` + "AÇIKLAMA" + **aksiyon slot'u (2026-05-31 — FE-2026-05-31-002):** "Kopyala" (`CopyIcon` ghost icon-button — Tiptap JSON → `renderRichTextToHTML()` → `navigator.clipboard.write([new ClipboardItem({ 'text/html', 'text/plain' })])`; başarıda `toast(descriptionCopySuccess)`, hata `toast.error(descriptionCopyError)`), "Word olarak indir" (`FileTextIcon` ghost icon-button — lucide-react `FileTextIcon` doküman+text metaforu; MS Word resmi logo telif/lisans nedeniyle kullanılmaz, "yalnız lucide" kuralı; Tiptap JSON → `renderRichTextToHTML()` → **dynamic import** `html-docx-js-typescript` `asBlob()` → `<a download="{kart-slug}.docx">` indirme; pending'de `Loader2Icon animate-spin`, hata `toast.error(descriptionDownloadError)`), "Düzenle"/"Vazgeç" (`PencilIcon`/`PlusIcon` mevcut). Boşken (`hasContent === false`) kopyala+indir render edilmez; edit modundayken aksiyon slot'u tamamen gizlenir, yalnız gövdedeki Vazgeç + toolbar görünür. Gövde scroll: `RichTextEditor` (Tiptap — §13.5; toolbar sticky `border-b px-1 py-1 bg-background`: **B I S** `<>` `|` **H1 H2 H3** `|` bullet ordered `|` link). Boşken `bg-muted/40 rounded-md p-3 text-muted-foreground` "Açıklama ekle…".
   - **KONTROL LİSTESİ (sağ sütun)** — `SectionHeader` (`CheckSquareIcon` + "KONTROL LİSTESİ" + sağda toplam `Progress` mini-bar `w-20` + `x/y` `text-primary text-[11px] font-semibold` + "+ Liste ekle" `Button variant=outline size=sm border-dashed`): her checklist `border rounded-md p-3 space-y-1.5` — başlık (inline edit) + `x/y` + `Progress` (`h-1`, dolu → `bg-success`) + maddeler (`flex items-center gap-2`: `Checkbox` yuvarlak + madde metni inline-edit [tamsa `line-through text-muted-foreground`] + sağda atanan `Avatar size-xs` + chip "Ad S." `text-[10px] text-muted-foreground` + sil ikonu hover) + "+ Madde ekle" ghost.
 
 **Sağ panel (`CardModalSidebar`)** — `bg-muted/40 backdrop-blur border-t md:border-t-0 md:border-l overflow-y-auto flex flex-col`:
@@ -861,17 +861,254 @@ Faz 15 ([DEM-299](https://linear.app/demirkol/issue/DEM-299)) ile `apps/mobile` 
 - Prop: `anchor?: RefObject<View>` — verilmezse viewport center
 - İstisna: `attachment-image-viewer.tsx` `<Modal>` (1 yer) — iPad'de full-screen kalır (image viewer için doğru)
 
-### 13.12.6 Tab bar konumu
+### 13.12.6 Tab bar konumu — floating pill bottom nav (Faz 15H, revize 2026-05-31)
 
-`apps/mobile/app/(app)/_layout.tsx` (Faz 15E):
+> **Revizyon notu:** 2026-05-31 ilk turunda K4 "üst nav (iPadOS 18 pattern)" olarak alındı ve **15E `Done`** ile shipped (`tabBarPosition: 'top'`). Aynı gün ikinci turunda kullanıcı kararıyla revize edildi → üst nav reddedildi, **floating pill bottom** benimsendi. **15E rollback edildi**; yeniden shipping **15H** alt işinde yapılır. Mimari gerekçe → [`18-ipad-uyarlamasi.md`](18-ipad-uyarlamasi.md) §2.4 Karar 4.
 
-- Tablet: tab bar header'a taşınır (iPadOS 18 pattern) — Expo Router 4 `<Tabs>` `screenOptions.tabBarPosition: 'top'` (resmi destek varsa) veya custom header layout
-- Phone: alt'ta kalır (mevcut)
-- 4 tab icon + merkezi "+" buton tablet'te header layout'a uyumlu
+`apps/mobile/app/(app)/_layout.tsx` + `apps/mobile/src/components/floating-pill-tab-bar.tsx` (Faz 15H, YENİ):
 
-### 13.12.7 Disiplin
+- **Tablet (≥ 768px):** custom `FloatingPillTabBar` — tab bar alt-ortada floating pill (Apple Music iPad / Trello iPad pattern). Pill içeriğinin **üstüne** geçer (scroll altından akar).
+- **Phone (< 768px):** `BottomTabBar` (`@react-navigation/bottom-tabs`) default — değişmez.
+- 4 tab icon + label + merkezi "+" buton pill içinde aynı düzene oturur.
+
+#### 13.12.6.1 Floating pill nav anatomy
+
+| Token | Değer | Not |
+|---|---|---|
+| Pozisyon | `position: absolute`, `alignSelf: 'center'` | Scroll içeriğin altında değil, üstünde |
+| Alt boşluk | `bottom: safeArea.bottom + 12` | Home indicator çakışmaz |
+| Padding (dış) | `px-2 py-1.5` | Pill iç sekmeleri için breath |
+| Background | `bg-card` | Tema rengi (light/dark uyumlu) |
+| Border | `border border-border` | Tema kenarı |
+| Shadow | `shadow-lg` (RN equiv. `elevation: 8` Android; iOS `shadow*`) | Yüzen his |
+| Radius | `rounded-full` | Pill (kapsül) şekli |
+| Tab item | `flex-row items-center gap-1.5 px-3 py-2 rounded-full` | Her sekme küçük kapsül |
+| Tab içerik | `Icon (size 20)` + `Text (text-sm, weight medium)` | İkon + etiket (kullanıcı kararı 2026-05-31 — sadece ikon değil) |
+| Aktif highlight | Pill içinde **alt-tone background** = `bg-muted` veya `bg-primary/10` | Mevcut segmented control pattern'iyle uyumlu (bkz. [`description-checklist-tabs.tsx`](../../apps/mobile/src/components/card-detail/description-checklist-tabs.tsx) `bg-card shadow-sm` aktif state) |
+| Aktif tint | `tabBarActiveTintColor` (mevcut tema `primary`) | İkon + label rengi |
+| Inactive tint | `tabBarInactiveTintColor` (mevcut tema `mutedForeground`) | İkon + label rengi |
+| Badge | Bildirim sekmesi `tabBarBadge` overlay sağ-üst | Mevcut `<Tabs.Screen>` `tabBarBadge` prop'unu okur |
+
+#### 13.12.6.2 Scroll content padding (her ekranda uygula)
+
+Floating pill içeriğin üstünde durduğundan, scroll içeriği pill arkasına geçmemeli:
+
+```tsx
+const isTablet = useIsTablet();
+const tabBarHeight = useBottomTabBarHeight(); // React Navigation
+const padBottom = isTablet ? tabBarHeight + 24 : 0; // phone'da default zaten safe
+
+<ScrollView contentContainerStyle={{ paddingBottom: padBottom }}>
+```
+
+Phone'da default davranış değişmez — sadece tablet'te ekstra pad. `useBottomTabBarHeight` custom tab bar'da çağrıldığında React Navigation height context'i sağlar; FloatingPillTabBar `safeAreaInsets.bottom + 12 + pillHeight` döndürür.
+
+#### 13.12.6.3 Klavye davranışı
+
+- `tabBarHideOnKeyboard: true` (default) — composer focus'unda pill gizlenir, klavye accessory'sini örtmez.
+- 15E revizyonunda `tabBarHideOnKeyboard: !isTablet` → `true` (eski default'a dönüş).
+
+### 13.12.7 Kart detay split anatomy (Faz 15C scope içinde, 2026-05-31 eklendi)
+
+iPad'de kart detayında [`DescriptionChecklistTabs`](../../apps/mobile/src/components/card-detail/description-checklist-tabs.tsx) **3 sekmeli** olur — varsayılan "yan-yana" (web kart modali paritesi).
+
+#### 13.12.7.1 Sekme sırası ve default
+
+| Cihaz | Sekmeler | Default |
+|---|---|---|
+| Phone | `[Açıklama] [Yapılacaklar]` | `description` (mevcut, değişmez) |
+| Tablet | `[Yan-yana] [Açıklama] [Yapılacaklar]` | **`both`** |
+
+#### 13.12.7.2 `both` modu layout
+
+```tsx
+// Tablet sadece — phone'da `both` sekmesi yok
+<View className="flex-row gap-3">
+  <View className="flex-1"><DescriptionEditor … /></View>
+  <View className="flex-1"><ChecklistSection … /></View>
+</View>
+```
+
+| Token | Değer | Not |
+|---|---|---|
+| Kapsayıcı yüzey | `bg-card border border-border rounded-xl p-3.5` | Mevcut tab kapsayıcısı (değişmez) |
+| Kolon ayırıcı | `gap-3` (12px) | Web modalindeki `gap-[22px]` mobilde daha sıkı |
+| Kolon genişlik | `flex-1` her ikisi | Eşit, içerik scroll ederek genişler |
+| iPad mini portrait (768px) | Sıkı kalır ama kabul edilir | Kullanıcı tek-sütun sekmelere geçebilir |
+| iPad Pro 12.9" landscape | Bol alan | Tiptap toolbar + checklist item rahat |
+
+#### 13.12.7.3 Tab bar style (aynı pill pattern'i)
+
+`<TabButton>` mevcut `min-h-9 rounded-full bg-card shadow-sm` (aktif) — değişmez. Üç sekme genişliği `flex-1` ile dağılır.
+
+### 13.12.8 Disiplin
 
 - Yeni renk token YOK — mevcut tema sistemi (light/dark + `--palet-*` paleti) iPad'de aynı çalışır
 - Hardcode width/height YOK — tüm tablet override'ları NativeWind `md:` veya `useDeviceClass()` hook üzerinden
 - `<Text tabletScale={1.0}>` opt-out yalnız metadata için; varsayılan auto-apply
 - iPad asset varyantı — yalnız **splash** (`splash-icon~ipad.png`) `app.config.ts` `plugins.expo-splash-screen.ios.tabletImage` ile bağlanır (Faz 15E ✅). iOS app icon tarafında Expo SDK 54 `ios.icon` (`IOSIcons`) yalnız `light`/`dark`/`tinted` kabul ediyor — iPad-spesifik varyant **yok**. 1024×1024 ana ikon iOS asset catalog üzerinden iPad boyutlarına otomatik türetilir; ayrı `icon~ipad.png` eklemeye gerek yok.
+
+## 13.13 Planlayıcı paneli (Faz 16 — Google Takvim read-only)
+
+Sol kenarda 3. global panel; Trello "Planlayıcı" bölmesi referans. Mevcut Gezgin + Hızlı Notlar paneli anatomi/disiplinleri birebir paylaşılır. Tam mimari → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md).
+
+### 13.13.1 Panel kapsayıcısı (mevcut panel pattern'ı)
+
+- Genişlik: `w-[320px]` — Hızlı Notlar paneliyle birebir aynı; Gezgin biraz daha geniş (`w-[300px]` board için, anasayfa için `w-[360px]`)
+- Yüksek: `h-full` (app-shell row akışında); `<lg`'da overlay sheet `inset-y-0 left-0`
+- Border: `border-r` (sağ kenar); `lg+`'da `rounded-xl border` (Trello "windowed" görünümü)
+- Background: `bg-card` (mevcut Hızlı Notlar paneli)
+- Açılma animasyonu: motion.div `width 0↔auto + opacity 0↔1`, `duration 0.22, ease [0.32, 0.72, 0, 1]` (mevcut Gezgin/Hızlı Notlar paterni)
+
+### 13.13.2 Header (52px sticky)
+
+Trello'nun planlayıcı bölmesi anatomisi birebir:
+
+```
+┌──────────────────────────────────┐
+│ 📅 May ▾   ◀  Bugün  ▶      ⋯ 🔄 │   ← 52px, sticky top, bg-card border-b
+├──────────────────────────────────┤
+```
+
+- **Sol grup:** Ay seçici dropdown (`shadcn DropdownMenu` — ay grid'i; mevcut "May" deseni `Calendar` icon küçük + ay adı + chevron `ChevronDown`)
+- **Orta grup:** Gün gezinme — sol ok (`ChevronLeft`) + "Bugün" buton (`Button variant="ghost" size="sm"`) + sağ ok (`ChevronRight`). "Bugün" görünen güne göre `disabled` (görünen gün bugünse).
+- **Sağ grup:** ⋯ menü (`DropdownMenu` — Ayarlar, Bağlantıyı kes), yenile butonu (`Button variant="ghost" size="icon"` + `RefreshCw` icon; refetch sırasında `animate-spin`)
+
+### 13.13.3 Tüm-gün banner (varsa, 28px)
+
+Tüm gün etkinlikleri yatay strip — saat şeridinin üstünde sabit; etkinlik blokları küçük renkli pill (`bg-palet-{X} text-palet-{X}-foreground rounded-full px-2 py-0.5 text-xs`). Boşsa banner render edilmez.
+
+### 13.13.4 Timeline (kalan boşluk, scroll)
+
+Trello'nun anatomy:
+
+```
+        │  
+   9 am ├─────────────────────────
+        │  
+  10 am ├─────────────────────────
+        │  ┌─────────────────────┐
+        │  │ Toplantı            │  ← etkinlik bloğu
+  11 am ├──│ 10:30 — 11:30       │
+        │  └─────────────────────┘
+        │
+  12 pm ├─────────────────────────
+```
+
+- **Sol şerit:** ~48px genişlik, dikey saat etiketleri (9am, 10am, ..., 9pm) — `text-xs text-muted-foreground`, `pr-2 text-right`; aralık 60px/saat (ayarlanabilir)
+- **Sağ alan:** yatay saat çizgileri (`border-t border-border/40`); etkinlik blokları absolute positioned (top = saat * 60px; height = süre * 60px); blok stili `rounded-md border-l-2 bg-palet-{X}/15 border-palet-{X} px-2 py-1`; içerik: ilk satır başlık (`font-medium text-sm truncate`), ikinci satır saat aralığı (`text-xs text-muted-foreground`)
+- **Renk:** Google `colorId` (1-11) → `--palet-*` paletine eşle (en yakın renge map). Yoksa varsayılan `--palet-blue`.
+- **Çakışan etkinlikler:** yan yana split (50% / 50% width); 3+ çakışma → `flex-col` (sıkıştırılmış)
+- **Bugün marker:** geçerli zamanı kırmızı yatay çizgi (`border-t-2 border-destructive`) — mevcut günü görüntülerken aktif
+- **Scroll:** dikey scroll (overflow-y-auto); 9am'de değil görüntülenen ilk etkinlik üzerinde başlangıç pozisyonu (scroll-to)
+
+### 13.13.5 Boş durum CTA (bağlı değilken)
+
+Trello'nun "Hesap bağlayın" deseni birebir:
+
+```
+┌──────────────────────────────────┐
+│ 📅 May ▾   ◀  Bugün  ▶      ⋯ 🔄 │
+├──────────────────────────────────┤
+│                                  │
+│      [📅 ikon, büyük, soluk]     │
+│                                  │
+│           Planlayıcı             │
+│                                  │
+│  Planlayıcıyı ve yapılacak       │
+│  işlerinizi yan yana görüntü-    │
+│  lemek için takvimlerinizi       │
+│  bağlayın.                       │
+│                                  │
+│       [🔗 Hesap bağlayın]        │   ← primary button, /account/integrations
+│                                  │
+│  🔒 Planlayıcınızı yalnızca       │
+│      siz görebilirsiniz.          │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- İkon: `Calendar` lucide, `size-12 text-muted-foreground/40`
+- Başlık: `text-base font-semibold`
+- Body: `text-sm text-muted-foreground text-balance text-center max-w-[240px]`
+- CTA: `Button` link `<Link href="/account/integrations">`, primary varyant
+- Alt ipucu: `text-xs text-muted-foreground flex items-center gap-1.5` + `Lock` icon
+
+### 13.13.6 Loading / hata durumları
+
+- **Loading:** etkinlik fetch sırasında skeleton blokları (3-5 random-yükseklik `bg-muted/50 rounded-md animate-pulse`)
+- **Boş gün (bağlı, etkinlik yok):** "Bu gün için etkinlik yok." `text-sm text-muted-foreground text-center mt-12`
+- **Reconnect gerekiyor:** `UNAUTHORIZED GOOGLE_RECONNECT_REQUIRED` → `Alert` kart "Bağlantı süresi doldu. Yeniden bağlayın." + buton `/account/integrations`
+- **Sunucu hatası:** `Alert destructive` + manuel yenile butonu
+
+### 13.13.7 Etkinlik modal anatomisi (`PlannerEventModal`)
+
+shadcn `Dialog`, `w-[min(560px,92vw)] sm:max-w-none`:
+
+```
+┌──────────────────────────────────────────┐
+│  Toplantı Başlığı                     ✕  │   ← DialogTitle h3 font-semibold
+├──────────────────────────────────────────┤
+│  📅 31 Mayıs Cumartesi · 10:30 — 11:30    │   ← tarih + saat aralığı
+│  📍 Pusula Ofis, Ankara                   │   ← location (varsa)
+│                                          │
+│  Açıklama                                │   ← SectionHeader
+│  Sprint planlama toplantısı. Faz 16'yı    │
+│  konuşacağız: planlayıcı paneli +        │
+│  Google Takvim entegrasyonu.             │
+│                                          │
+│  Katılımcılar (3)                        │   ← SectionHeader + count
+│  ● Abdullah Demirkol         ✓ Katılıyor │
+│  ● Mehmet Yılmaz             ? Belki     │
+│  ● Ali Yıldız                ⏳ Bekleniyor│
+│                                          │
+├──────────────────────────────────────────┤
+│                  [↗ Google'da aç]        │   ← right-aligned link
+└──────────────────────────────────────────┘
+```
+
+- Tarih satırı: `text-sm` + `Calendar` icon
+- Konum satırı: `text-sm text-muted-foreground` + `MapPin` icon (yalnız varsa)
+- Açıklama: `prose prose-sm max-w-none whitespace-pre-wrap` (Google plain text döner, HTML değil)
+- Katılımcı satırı: `Avatar` + isim + RSVP rozeti renkli (`accepted` = success, `declined` = destructive, `tentative` = warning, `needsAction` = muted)
+- Footer link: `Button variant="link" asChild` → `<a href={event.htmlLink} target="_blank">Google'da aç</a>` + `ExternalLink` icon
+
+### 13.13.8 Ayarlar > Entegrasyonlar — Google Takvim kartı
+
+`/account/integrations` veya `/account` mevcut sayfada yeni `Tabs` sekmesi:
+
+```
+┌──────────────────────────────────────────┐
+│ 🔌 Google Takvim                         │   ← kart başlık
+│                                          │
+│ Takvim etkinliklerinizi Pusula           │
+│ Planlayıcı panelinde görün.              │
+│                                          │
+│ Bağlı değil                              │
+│        [🔗 Bağla]                        │   ← bağlı değilken
+└──────────────────────────────────────────┘
+
+────────── VEYA ──────────
+
+┌──────────────────────────────────────────┐
+│ 🔌 Google Takvim         ● Bağlı         │
+│                                          │
+│ user@gmail.com hesabıyla bağlı           │
+│ 31 Mayıs 2026 tarihinde bağlandı         │
+│                                          │
+│        [Bağlantıyı kes]                  │   ← destructive variant
+└──────────────────────────────────────────┘
+```
+
+- Bağlı rozet: `Badge` `bg-success/20 text-success` + `Circle` filled icon
+- "Bağlantıyı kes" → confirm dialog "Bağlantı kesilsin mi? Planlayıcı paneli boş kalır; istediğin zaman yeniden bağlayabilirsin." → `integrations.google.disconnect`
+
+### 13.13.9 Disiplin
+
+- **3-panel pattern reuse** — Gezgin + Hızlı Notlar mevcut motion/AnimatePresence/localStorage/mutex deseni birebir kopyalanır, asimetri yok
+- **Renk paleti reuse** — yeni renk token YOK; Google `colorId` mevcut 12-renk `--palet-*` paletine eşlenir
+- **Hardcode metin YOK** — tüm metinler `strings.planner.*` + `strings.integrations.google.*` (TR; ileride i18n)
+- **shadcn-only** — `Dialog`/`DropdownMenu`/`Tabs`/`Alert`/`Button`/`Badge`/`Avatar` mevcut; yeni shadcn primitive eklemiyor
+- **Tüm gün etkinlik banner zorunlu değil** — boşsa render edilmez (DOM şişirme yok)
+- **Etkinlik bloğu min height 36px** — kısa etkinlik (15dk) bile başlık + saat sığsın diye min-height clamp
+- **Read-only — düzenleme/sil/oluştur YOK** — V1 disiplini; UI'da bu aksiyonlar yer almaz

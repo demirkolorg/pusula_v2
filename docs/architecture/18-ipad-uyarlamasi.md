@@ -1,6 +1,6 @@
 ---
 title: '18 — iPad Uyarlaması'
-description: 'Pusula mobil uygulamasının iPad-native uyarlaması (Faz 15): supportsTablet, breakpoint, master-detail, landscape, üst nav tab bar, sheet→popover, asset varyantları, App Store geçişi.'
+description: 'Pusula mobil uygulamasının iPad-native uyarlaması (Faz 15): supportsTablet, breakpoint, master-detail (kart detayı yan-yana açıklama+kontrol dahil), landscape, floating pill bottom nav, sheet→popover, asset varyantları, App Store geçişi.'
 aliases:
   - 'iPad Uyarlaması'
   - 'Tablet Layout'
@@ -20,7 +20,7 @@ related:
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
   - '[[docs/process/02-mvp-faz-plani|02 — MVP Faz Planı]]'
 updated: 2026-05-31
-implementation: 'Faz 15 (DEM-299 epic) — 15.0/15A/15B/15C/15D/15E/15F alt işleri; ~9-11 iş günü, sürüm v1.1.0'
+implementation: 'Faz 15 (DEM-299 epic) — 15.0/15A/15B/15C/15D/15E (revize)/15F/15H alt işleri; ~9-11 iş günü, sürüm v1.1.0'
 ---
 
 # 18 — iPad Uyarlaması
@@ -35,9 +35,9 @@ Faz 7 (Mobil) [`08-web-ve-mobil.md`](08-web-ve-mobil.md) altında dokümante edi
 
 iPad uyarlaması bu varsayımları kıran bir layer:
 
-- Tek-kolonlu stack → **master-detail** (tablet'te yan yana sidebar + main)
+- Tek-kolonlu stack → **master-detail** (tablet'te yan yana sidebar + main; kart detayında açıklama+kontrol listeleri yan-yana, web modali pariteli)
 - Portrait-only → **default orientation** (landscape açık)
-- Bottom tab bar → **üst nav** (iPadOS 18 pattern)
+- Tüm-genişlik bottom tab bar → **floating pill bottom nav** (içeriğin üstünde, ortada, sadece kapladığı kadar yer; Apple Music iPad / Trello iPad güncel pattern)
 - ~288px sabit kolon → **breakpoint-aware** kolon genişliği
 - Bottom sheet → **anchor-based popover** (iPad branch)
 
@@ -73,13 +73,25 @@ Reddedilen alternatifler: (a) "sadece board" — karma rotation davranışı gar
 
 iOS `requireFullScreen: false` (Split View V2 hazırlığı — Faz 15'te aktif değil ama refactor sırasında engellemez).
 
-### Karar 4 — Tab bar konumu: üst nav (iPadOS 18 pattern)
+### Karar 4 — Tab bar konumu: floating pill bottom nav (revize 2026-05-31)
 
-iPad'de tab bar header'a taşınır; phone'da alt'ta kalır. Trello/Linear/Asana iPad pattern'iyle uyumlu.
+iPad'de tab bar alt-ortada **floating pill** olarak yerleştirilir — tüm satırı kaplamaz, sadece içerdiği sekmeler kadar yer kapsar, scroll içeriğinin **üstünde** durur (Apple Music iPad / Trello iPad güncel pattern). Phone'da mevcut alt full-width tab bar aynen korunur.
 
-Reddedilen alternatifler: (a) "alt'ta kalır" — Apple kabul eder ama iPad-native his vermez; (b) "sidebar/drawer" — navigation modeli refactor scope çok büyük (L → XL).
+> **Revizyon notu:** 2026-05-31 ilk turunda K4 "üst nav (iPadOS 18 pattern)" olarak alındı, **15E `Done`** ile shipped (`tabBarPosition: 'top'`). Aynı gün ikinci turunda kullanıcı kararıyla revize edildi → üst nav reddedildi, floating pill bottom benimsendi. Gerekçe: top nav'ın iPad-native hissi açık navigation pattern'lerle (Apple Music, Trello iPad güncel) örtüşmüyor; minimal/yüzen kapsül daha "iPad-app" hissi veriyor ve kart detayında **yan-yana açıklama+kontrol** (web kart modali paritesi) kullanım alanını sıkıştırmaz. **15E rollback edildi** (`tabBarPosition: 'top'` revert); yeniden shipping **15H** alt işinde yapılır.
 
-Teknik: Expo Router 4 `<Tabs>` `screenOptions.tabBarPosition: 'top'` — resmi destek varsa kullanılır, yoksa custom header layout (effort +0.5 gün — risk Faz 15E'de doğrulanır).
+Reddedilen alternatifler (revize sonrası):
+- "Üst nav (iPadOS 18 pattern)" — Trello/Linear/Asana iPad pattern'iyle uyumlu olsa da bu üründe alt+floating daha iPad-native his veriyor; başlık alanı kart detay yan-yana panel için daha sade kalsın.
+- "Alt'ta kalır (full-width)" — iPad-native his vermez, "büyütülmüş iPhone" izlenimi.
+- "Sidebar/drawer" — navigation modeli refactor scope çok büyük (L → XL).
+- "Centered bottom bar (kendi şeridinde, full-row)" — minimal hissini vermez, scroll içerik nav'ın üzerine binmez ama görsel hafiflik az.
+
+Teknik:
+- Expo Router 4 + React Navigation 7 `<Tabs tabBar={(props) => …}>` — custom render. Phone'da `BottomTabBar` (`@react-navigation/bottom-tabs`) default'a fallback; tablet'te custom `FloatingPillTabBar`.
+- Pill anatomi: `position: absolute`, `bottom: safeInset + 12px`, `alignSelf: 'center'`, `flex-row gap-1.5`, `rounded-full`, `bg-card` `border border-border` `shadow-lg`, içerde her sekme `px-3 py-2` ikon + label.
+- Aktif sekme highlight: pill içinde **alt-tone background** (mevcut segmented control pattern'iyle uyumlu — bkz. `description-checklist-tabs`'da `bg-card shadow-sm`).
+- Scroll içeriği nav'ın **altına geçer** (içeriğin üstünde durur) — `ScrollView`/`Animated.ScrollView` `contentContainerStyle.paddingBottom` = pill yüksekliği + safe inset + breath (≥ 80px) ile içerik son satırı pill arkasında saklanmaz.
+- Klavye davranışı: `tabBarHideOnKeyboard: true` (default) — composer focus'unda pill gizlenir (zaten phone'da olan davranış; iPad'de de mantıklı çünkü floating pill klavye accessory'sini örter).
+- Bkz. [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.12 "Tablet design token" → "Floating pill nav anatomy".
 
 ## 3. Tablet design language
 
@@ -151,6 +163,21 @@ iPad'de board ekranı **en büyük tasarım meydan okuması**:
 - "Geri" tuşu / ESC: sağ main → kanban'a döner
 
 Route refactor: `cards/[cardId].tsx` tablet'te dışarıdan açılsa bile (deep link, notification) sağ panel'e yerleşir. Phone'da yine full-screen stack push.
+
+### 4.3 Kart detayında açıklama + kontrol listeleri yan-yana (15C scope içinde)
+
+Mevcut kart detayında ([`cards/[cardId].tsx`](../../apps/mobile/app/(app)/(boards)/cards/[cardId].tsx)) `DescriptionChecklistTabs` segmented control altında "Açıklama" ve "Yapılacaklar" iki sekme — varsayılan `description`. Bu pattern phone'da doğru ama iPad genişliğinde dar kalıyor; web kart modali ([`card-detail-dialog.tsx:772`](../../apps/web/src/app/(app)/workspaces/%5Bid%5D/boards/%5BboardId%5D/_components/card-detail/card-detail-dialog.tsx#L772)) iki bölümü `grid-cols-[minmax(0,1fr)_minmax(0,1fr)]` ile yan yana gösteriyor.
+
+15C kapsamında **3-sekmeli iPad varyantı** eklenir; phone değişmez:
+
+| Mod | Phone | Tablet (default) | Tablet alternatif |
+|---|---|---|---|
+| Sekme sırası | `[Açıklama] [Yapılacaklar]` | `[Yan-yana] [Açıklama] [Yapılacaklar]` | aynı |
+| Varsayılan | `description` | **`both`** (yan-yana) | kullanıcı `description` veya `checklist`'i de seçebilir |
+| Layout (`both`) | yok | `flex-row gap-3` — sol açıklama `flex-1`, sağ kontrol listeleri `flex-1`, tek `bg-card` yüzeyde | — |
+| iPad mini portrait | yan-yana 768px → sıkı; kabul edilir (iPad mini en küçük tablet hedef) | aynı | kullanıcı dilerse tek-sütun sekmeye geçer |
+
+`DescriptionChecklistTabs` props imzası genişler: `Tab = 'both' | 'description' | 'checklist'`; `useIsTablet()` ile default seçilir. Alt bileşenler (`DescriptionEditor`, `ChecklistSection`) değişmez — sadece kapsayıcı layout farklılaşır. Web paritesi: bu pattern web modal'ın iki kolonlu yapısının iPad karşılığı.
 
 ### 4.3 Diğer ekranlar
 
@@ -228,7 +255,9 @@ Memory referansı: [`faz7o-ios-yayin-sureci`](../../../C:/Users/asya/.claude/pro
 |---|---|---|
 | Realtime collision iPad'de daha sık | Multi-device edit bozulur | Faz 8 sertleştirme kapsamında — Faz 15 dışı; smoke'da gözlenir |
 | `useWindowDimensions` orientation cache (Expo) | Rotate sonrası kolon genişliği güncel değil | Expo 54+ test edildi OK; 15A unit test + 15F manuel rotate smoke |
-| Expo Router 4 `tabBarPosition: 'top'` | Resmi destek belirsizse custom header gerekli | 15E ilk gün doğrulanır; yoksa custom header (+0.5 gün) |
+| Floating pill nav scroll padding hesabı | İçeriğin son satırı pill arkasında saklanır | 15H `useBottomTabBarHeight` + safe-inset + 16px breath; her ekran scroll'unda `contentContainerStyle.paddingBottom` ya da `automaticallyAdjustsScrollIndicatorInsets` |
+| Floating pill nav klavye + composer | Pill klavye accessory'sini örter | `tabBarHideOnKeyboard: true` default; composer focus'unda pill gizlenir |
+| Yan-yana açıklama+kontrol iPad mini portrait | 768px'te iki kolon sıkı kalır (Tiptap toolbar + checklist item satırı) | `'both'` modu kullanıcı tercihiyle 1 sütuna düşürülebilir; default kalır; 15F manuel iPad mini smoke |
 | Apple "iPad-specific value" reddi | Yayın gecikir | Master-detail TÜM ekran ile ret riski düşük; screenshot ↔ UI uyum kritik (Faz 7O DEM-191 Guideline 2.3.1 dersi) |
 | Phone↔tablet runtime geçişi | iPad mini portrait/landscape arası nadir state loss | 15F orientation smoke; state Zustand/atom'da, refetch trigger değilse korunur |
 | Stack history davranışı (master-detail) | "Geri" tuşu beklenmedik route'a gider | 15C `Stack.Screen` `presentation` ayarları; 15F manuel test |
@@ -250,9 +279,10 @@ Memory referansı: [`faz7o-ios-yayin-sureci`](../../../C:/Users/asya/.claude/pro
 15A Foundation (DEM-301, kod tab'ı) — app.config.ts + useDeviceClass + responsive utility
   ↓
 {15B Kanban responsive (DEM-302) ∥
- 15C Master-detail (DEM-303) ∥
+ 15C Master-detail + kart detayı yan-yana açıklama+kontrol (DEM-303) ∥
  15D Sheet→popover (DEM-304) ∥
- 15E Üst nav + typography + asset (DEM-305)}
+ 15E (revize) Üst nav rollback + typography + asset (DEM-305) ∥
+ 15H Floating pill bottom nav — yeniden shipping (yeni Linear)}
   ↓
 15F Test + App Store + production build v1.1.0 submit (DEM-306)
 ```
@@ -262,12 +292,13 @@ Memory referansı: [`faz7o-ios-yayin-sureci`](../../../C:/Users/asya/.claude/pro
 | 15.0 | Kontrol odası | 0.5 gün | [DEM-300](https://linear.app/demirkol/issue/DEM-300) |
 | 15A | Kod | 1 gün | [DEM-301](https://linear.app/demirkol/issue/DEM-301) |
 | 15B | Kod | 1-1.5 gün | [DEM-302](https://linear.app/demirkol/issue/DEM-302) |
-| 15C | Kod | 3-4 gün | [DEM-303](https://linear.app/demirkol/issue/DEM-303) |
+| 15C | Kod | 3-4 gün (+ yan-yana açıklama+kontrol +0.5g) | [DEM-303](https://linear.app/demirkol/issue/DEM-303) |
 | 15D | Kod | 1 gün | [DEM-304](https://linear.app/demirkol/issue/DEM-304) |
-| 15E | Kod | 1.5 gün | [DEM-305](https://linear.app/demirkol/issue/DEM-305) |
+| 15E (revize) | Kod | 0.5 gün (rollback) | [DEM-305](https://linear.app/demirkol/issue/DEM-305) |
+| **15H** (yeni) | Kontrol odası → Kod | 1 gün | yeni DEM-3xx (Pre-Dev'de açılacak) |
 | 15F | Kod + op | 1 gün (+ Apple inceleme) | [DEM-306](https://linear.app/demirkol/issue/DEM-306) |
 
-**Toplam:** ~9-11 iş günü (Apple inceleme hariç).
+**Toplam:** ~9-11 iş günü (Apple inceleme hariç) — 15E rollback 1.5g → 0.5g düştü, 15H +1g geldi, 15C +0.5g eklendi → net ≈ değişmedi.
 
 ## 12. Referanslar
 

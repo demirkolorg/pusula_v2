@@ -499,6 +499,74 @@ DEM-86 (Faz 5D) kapanış notunda belgelenmiş açık: `apps/api/src/index.ts`'d
 
 Domain edge case envanteri tam liste: [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md).
 
+### Faz 16 — Planlayıcı + Google Takvim entegrasyonu (DEM-308 epic)
+
+**Faz 12 ([DEM-159](https://linear.app/demirkol/issue/DEM-159)) yerine.** Faz 16, Better Auth `genericOAuth` plugin ile Google hesabı bağlama + read-only Google Calendar API proxy + sol panel "Planlayıcı" entegrasyonunu sağlar. Tam mimari plan → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md).
+
+**Better Auth `genericOAuth` plugin** (`apps/api/src/auth.ts`):
+
+```ts
+import { genericOAuth } from 'better-auth/plugins';
+
+genericOAuth({
+  config: [{
+    providerId: 'google-calendar',
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    userInfoUrl: 'https://www.googleapis.com/oauth2/v3/userinfo',
+    scopes: [
+      'https://www.googleapis.com/auth/calendar.events.readonly',
+      'https://www.googleapis.com/auth/calendar.readonly',
+      'openid', 'email', 'profile',
+    ],
+    accessType: 'offline',  // refresh token için kritik
+    prompt: 'consent',      // her bağlamada yeni refresh token
+  }],
+}),
+```
+
+**Login vs bağlama ayrımı:** `socialProviders.google` (login için) eklenmez — bu Better Auth login akışını etkiler ve mevcut e-mail/password hesaplarıyla merge sorunu çıkarır. `genericOAuth` plugin yalnız **hesap bağlama** (account linking) için kullanılır; callback `/api/auth/oauth2/callback/google-calendar` Better Auth tarafından otomatik mount edilir.
+
+**Token storage:** mevcut Better Auth `account` tablosu (`providerId='google-calendar'`, `accessToken` + `refreshToken` encrypted at-rest); yeni migration **yok**. Token yenileme: `auth.api.getAccessToken({ providerId: 'google-calendar', userId })` — otomatik refresh, sunucu tarafı.
+
+**Env şeması** (`apps/api/src/env.ts` Zod):
+
+```ts
+GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+```
+
+`optional` çünkü dev'de Google Cloud Console kurulumu olmayabilir; yoksa `integrations.google.connect` 503 "Integration not configured" döner.
+
+**`integrations.google.*` router** (user-scoped — workspace/board permission'a tabi değil):
+
+| Procedure | Tür | Input | Output | Açıklama |
+|---|---|---|---|---|
+| `integrations.google.status` | query | — | `{ connected: boolean; email?: string; connectedAt?: Date; scopes?: string[] }` | UI bağla/bağlı kartı için |
+| `integrations.google.connect` | mutation | — | `{ authUrl: string }` | Better Auth OAuth authorization URL'i; kullanıcı bu URL'e redirect |
+| `integrations.google.disconnect` | mutation | — | `{ success: true }` | `auth.api.unlinkAccount({ providerId: 'google-calendar', userId })` |
+
+**`planner.events.*` router** (user-scoped):
+
+| Procedure | Tür | Input | Output | Açıklama |
+|---|---|---|---|---|
+| `planner.events.list` | query | `{ start, end, timeZone }` ISO + IANA TZ | `PlannerEvent[]` | Primary calendar etkinlik listesi (verilen aralık) |
+| `planner.events.get` | query | `{ eventId }` | `PlannerEventDetail` | Tek etkinlik detayı (modal için) |
+
+Her iki procedure `packages/api/src/lib/google-calendar.ts` üzerinden Google Calendar API'a proxy yapar — etkinlik DB'ye yazılmaz (request-time fetch). Implementation detayı + Google API endpoint + Zod şemalar → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md) §5 ve §8.
+
+**Hata tipleri:**
+
+- `UNAUTHORIZED` `code: 'GOOGLE_NOT_CONNECTED'` — kullanıcı hiç bağlamamış (account row yok) → UI boş durum CTA gösterir
+- `UNAUTHORIZED` `code: 'GOOGLE_RECONNECT_REQUIRED'` — `getAccessToken` 401 / refresh fail → UI "Yeniden bağlayın" CTA
+- `INTERNAL_SERVER_ERROR` — Google API 5xx → UI "Bir sorun oluştu" + manuel yenile
+
+**Yetki ve gizlilik:** kullanıcı-özel — bir kullanıcının takvimi başka kullanıcıya görünmez. Workspace/board permission helper'larına (`@pusula/domain/permissions`) bağlanmaz; kişisel hesap verisi olarak işlem görür. `disconnect` tüm token siler — DB'de hiç takvim verisi tutulmaz, "right to be forgotten" basit.
+
+**Yeni paket:** yok (Better Auth `genericOAuth` plugin Better Auth ile gelir; Google Calendar API hafif `fetch` wrapper ile).
+
 ## Worker (background job)
 
 `apps/worker` ayrı uygulama (API ile aynı image, farklı command olabilir; ama ayrı process):

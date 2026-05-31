@@ -897,3 +897,83 @@ Faz 7O (2026-05-21) iPhone-only kararı (`supportsTablet: false`) Faz 15 ile **r
 **Alt iş zinciri (7 issue):** 15.0 önce-belge ([DEM-300](https://linear.app/demirkol/issue/DEM-300), kontrol odası) → 15A Foundation ([DEM-301](https://linear.app/demirkol/issue/DEM-301)) → {15B Kanban responsive ([DEM-302](https://linear.app/demirkol/issue/DEM-302)) ∥ 15C Master-detail ([DEM-303](https://linear.app/demirkol/issue/DEM-303)) ∥ 15D Sheet→popover ([DEM-304](https://linear.app/demirkol/issue/DEM-304)) ∥ 15E Üst nav + typography + asset ([DEM-305](https://linear.app/demirkol/issue/DEM-305))} → 15F Test + App Store + v1.1.0 submit ([DEM-306](https://linear.app/demirkol/issue/DEM-306)). Tahmini efor ~9-11 iş günü (1 dev).
 
 **Kapsam dışı (V2'ye):** Stage Manager / external display, Apple Pencil, keyboard shortcut tam set, mobile drag-drop (Faz 3 web-only kararı korunur), Split View iPadOS multi-app.
+
+### Faz 16 — Planlayıcı paneli + Google Takvim (read-only) — DEM-308 epic (planlandı)
+
+**Faz 12 ([DEM-159](https://linear.app/demirkol/issue/DEM-159)) iptal edildi**, yerine geçer. Trello'nun planlayıcı bölmesi referans — Gezgin + Hızlı Notlar paneline `apps/web` sol kenarda **3. global panel "Planlayıcı"** eklenir. V1 web-only, read-only Google Takvim entegrasyonu. Tam mimari plan → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md); Linear: DEM-308 epic → DEM-309..313 alt issue.
+
+#### 3-panel global pattern'ı
+
+Mevcut iki panel (Gezgin, Hızlı Notlar) ile Planlayıcı **tamamen aynı app-shell pattern'ını** paylaşır:
+
+- **`LeftRail`** (`apps/web/src/app/(app)/_components/left-rail.tsx`) — sol dikey rail (VS Code "Activity Bar" deseni). Şu an 2 toggle (Gezgin = `Compass`, Hızlı Notlar = `StickyNote`); **3. toggle** eklenir: Planlayıcı = lucide `Calendar`. Her toggle açık iken `data-active="true"` + `bg-accent`. Toggle etiketi `aria-label` Türkçe (`strings.planner.toggleLabel`).
+- **`AppShell`** (`apps/web/src/app/(app)/_components/app-shell.tsx`) — mevcut iki panel için iki `AnimatePresence` bloğu + iki `localStorage` key (`pusula:navigator-panel-open`, `pusula:quick-notes-panel-open`). **3. blok eklenir:** Planlayıcı için ayrı `AnimatePresence` + backdrop + motion.div (Gezgin/Hızlı Notlar birebir kopyası) + `pusula:planner-panel-open` localStorage key.
+- **Mobil mutex genişler** — şu an iki helper (`setNavigatorOpen` açarken Hızlı Notlar'ı kapatır, ve tersi). **3 panel için yeniden yazılır:** `setPlannerOpen` açarken Gezgin + Hızlı Notlar'ı kapatır; `setNavigatorOpen`/`setQuickNotesOpen` da Planlayıcı'yı kapatır. Mevcut iki-yönlü mutex → üç-yönlü.
+- **Desktop'ta üçü yan yana açık** olabilir (mevcut row flexbox); toplam genişlik > viewport olursa içerik shrink (mevcut davranış değişmez).
+- **localStorage persistence** — her panelin durumu bağımsız hatırlanır (Gezgin/Hızlı Notlar pattern'ı birebir). İstisna: Planlayıcı **anasayfa istisnası YOK** (Gezgin anasayfada her ziyarette default açık; Planlayıcı her zaman localStorage tercihini izler).
+
+#### Konum: sol panel, **board ekranı dışında da**
+
+Hızlı Notlar paneli yalnız board ekranında ([`08-web-ve-mobil.md`](08-web-ve-mobil.md) "Web Hızlı Notlar paneli" §700) — kart-sürükleme ihtiyacı nedeniyle. Planlayıcı **kart-sürükleme YOK (V1 read-only)** → her sayfada görünür (anasayfa, workspace, account, board — tam app-shell genelinde). Bu, mevcut Gezgin pattern'ıyla uyumlu.
+
+#### `PlannerPanel` component
+
+`apps/web/src/app/(app)/_components/planner-panel.tsx` **YENİ**:
+
+```tsx
+function PlannerPanel({ onClose, onNavigate }: Props) {
+  return (
+    <aside className="flex h-full w-[320px] flex-col border-r bg-card lg:rounded-xl lg:border">
+      <PlannerHeader />        {/* Ay dropdown + ◀ Bugün ▶ + ⋯ + yenile */}
+      <PlannerAllDayBanner />   {/* Tüm-gün etkinlikler (varsa) */}
+      <PlannerTimeline />       {/* Dikey saat şeridi 9am-9pm + etkinlik blokları */}
+      <PlannerEmptyState />     {/* Bağlı değilse CTA */}
+    </aside>
+  );
+}
+```
+
+UI anatomisi tam detayı → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.13 (yeni eklenecek bölüm).
+
+#### Etkinlik tıklama → `PlannerEventModal`
+
+`apps/web/src/app/(app)/_components/planner-event-modal.tsx` **YENİ** — shadcn `Dialog`, read-only. Alanlar: başlık, tarih+saat, konum, açıklama, katılımcılar (avatar+isim+RSVP), "Google'da aç" link (`event.htmlLink` yeni sekme). Etkinlik mevcut UI'larla benzer hissetsin diye `card-detail-dialog.tsx`'den anatomi parçaları reuse edilir (ama display-only; düzenleme yok).
+
+#### Ayarlar > Entegrasyonlar (bağla/bağlı/kopar)
+
+Mevcut `/account` ekranına yeni sekme veya `/account/integrations` route. Kart desen: "Google Takvim"
+- Bağlı değil: "Bağla" butonu → `integrations.google.connect` → `authUrl`'e `window.location.href` redirect
+- Bağlı: "Bağlı (`user@gmail.com`, 2026-05-31'de bağlandı)" + "Bağlantıyı kes" butonu + onaylı dialog
+
+#### TanStack Query — polling refresh
+
+```ts
+const eventsQuery = useQuery({
+  ...trpc.planner.events.list.queryOptions({
+    start: startOfDay(viewDate).toISOString(),
+    end: endOfDay(viewDate).toISOString(),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }),
+  enabled: connectionQuery.data?.connected === true,
+  staleTime: 5 * 60_000,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+});
+```
+
+Manuel yenile butonu → `eventsQuery.refetch()` + toast "Etkinlikler güncellendi" (1.5s).
+
+#### i18n / strings
+
+`apps/web/src/lib/strings.ts` `planner.*` + `integrations.google.*` namespace'i eklenir (tam liste → [`19-takvim-entegrasyonu.md`](19-takvim-entegrasyonu.md) §6.6).
+
+#### Test (Faz 16D)
+
+- RTL: `planner-panel.tsx` (boş durum CTA, loading skeleton, etkinlik render, etkinlik tıklama → modal, gün gezinme query key değişimi); `left-rail.tsx` 3 toggle + mutex (mobil simülasyonu); `planner-event-modal.tsx` (alanlar + Google link + ESC)
+- Playwright: bağlama flow (Better Auth `genericOAuth` mock); bağlı panel açılış + etkinlik fetch + modal; window focus refetch; 3-panel mutex `<lg` viewport
+
+**Kapsam dışı (V2'ye):** çok takvim seçimi, hafta görünümü, kart → event drag, mobil panel, Google Push Notifications webhook, çoklu Google hesabı, hatırlatma.
+
+**Bağımlılık & çakışma:** Faz 15 (iPad, `apps/mobile`) ile çakışmaz — `apps/web` scope. Faz 8 (Sertleştirme) ile çakışmaz — yeni dosyalar + mevcut paneller pattern'ı reuse.
+
+**Alt iş zinciri (5 issue):** 16.0 önce-belge (DEM-309, kontrol odası) → 16A OAuth altyapısı + Ayarlar UI (DEM-310) → {16B Panel UI + LeftRail 3. toggle (DEM-311) ∥ 16C Calendar API + read-only modal (DEM-312)} → 16D Test/QA (DEM-313). Tahmini efor 4-6 iş günü (1 dev), paralel ekiple ~3-4g.
