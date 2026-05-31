@@ -10,7 +10,11 @@ const config: ExpoConfig = {
   slug: 'pusula',
   scheme: 'pusula',
   version: '1.0.0',
-  orientation: 'portrait',
+  // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
+  // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
+  // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
+  // Karar: `13-ui-tasarim-dili.md` §13.12 + `18-ipad-uyarlamasi.md` §2.
+  orientation: 'default',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -27,13 +31,14 @@ const config: ExpoConfig = {
     policy: 'appVersion',
   },
   ios: {
-    // Faz 7O — ilk App Store sürümü **iPhone-only** (kullanıcı kararı
-    // 2026-05-21): uygulama iPad-optimize değil; `supportsTablet: false` ile
-    // App Store iPad ekran görüntüsü + iPad inceleme zorunluluğu kalkar. iPad
-    // desteği ileride düzgün optimizasyonla ayrı sürümde açılır. Bu kararla
-    // MOB-2026-05-20-001'in iPad orientation override'ı (`~ipad`) işlevsiz
-    // kaldığından kaldırıldı.
-    supportsTablet: false,
+    // Faz 15A (DEM-301, 2026-05-31) — Faz 7O `supportsTablet: false` kararı
+    // (2026-05-21) revize edildi. iPad-native uyarlama (Faz 15) ile sürüm
+    // v1.1.0 hedefli; master-detail layout, 768px breakpoint, üst nav tab bar
+    // ve landscape orientation eklenir. `requireFullScreen: false` Split View
+    // V2 hazırlığı (Faz 15'te aktif değil ama refactor engellemez). Karar
+    // detayı: `18-ipad-uyarlamasi.md` §2 + `08-web-ve-mobil.md` Faz 15 notu.
+    supportsTablet: true,
+    requireFullScreen: false,
     bundleIdentifier: 'com.pusula.app',
     // App Store gönderiminde "ihracat uyumu / şifreleme" sorusunu otomatik
     // yanıtlar: uygulama yalnız standart HTTPS/TLS kullanıyor (muaf) — her
