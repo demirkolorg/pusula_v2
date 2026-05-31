@@ -11,11 +11,16 @@ import { strings } from '@/lib/strings';
  * Auth + tRPC + Next router tamamen mock'lu.
  */
 
+type EventsListResult =
+  | { ok: true; events: unknown[] }
+  | { ok: false; error: Error };
+
 const h = {
   listAccounts: vi.fn(),
   routerReplace: vi.fn(),
   searchParamsGet: vi.fn(() => null as string | null),
   searchParamsToString: vi.fn(() => ''),
+  eventsList: vi.fn<() => EventsListResult>(() => ({ ok: true, events: [] })),
 };
 
 vi.mock('@/lib/auth-client', () => ({
@@ -39,7 +44,11 @@ vi.mock('@/trpc/client', () => ({
         list: {
           queryOptions: (input: unknown) => ({
             queryKey: ['planner.events.list', input],
-            queryFn: async () => [],
+            queryFn: async () => {
+              const result = h.eventsList();
+              if (result.ok) return result.events;
+              throw result.error;
+            },
           }),
         },
         get: {
@@ -72,7 +81,13 @@ describe('<PlannerPanel>', () => {
     h.searchParamsGet.mockReturnValue(null);
     h.searchParamsToString.mockReset();
     h.searchParamsToString.mockReturnValue('');
+    h.eventsList.mockReset();
+    h.eventsList.mockReturnValue({ ok: true, events: [] });
   });
+
+  function connectedAccountFixture() {
+    return [{ providerId: 'google-calendar', createdAt: new Date().toISOString() }];
+  }
 
   it('renders the not-connected CTA when no google-calendar account exists', async () => {
     h.listAccounts.mockResolvedValue({ data: [], error: null });
@@ -137,5 +152,117 @@ describe('<PlannerPanel>', () => {
     const refreshButton = await screen.findByRole('button', { name: copy.refresh });
     await user.click(refreshButton);
     await waitFor(() => expect(h.listAccounts).toHaveBeenCalledTimes(2));
+  });
+
+  it('renders a timed event block with title + time and an opens-modal URL update on click', async () => {
+    const user = userEvent.setup();
+    h.listAccounts.mockResolvedValue({
+      data: connectedAccountFixture(),
+      error: null,
+    });
+    // Bugün'ün 10:00-11:00 saatleri arasında "Sprint planlama" etkinliği —
+    // local TZ kullanılır; viewDate de startOfDay(today).
+    const today = new Date();
+    today.setHours(10, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(11, 0, 0, 0);
+    h.eventsList.mockReturnValue({
+      ok: true,
+      events: [
+        {
+          id: 'evt-1',
+          summary: 'Sprint planlama',
+          start: { dateTime: today.toISOString() },
+          end: { dateTime: end.toISOString() },
+          htmlLink: 'https://calendar.google.com/event?eid=evt-1',
+          status: 'confirmed',
+        },
+      ],
+    });
+
+    render(<PlannerPanel onClose={vi.fn()} />, { wrapper: makeWrapper() });
+
+    const blockButton = await screen.findByRole('button', { name: /Sprint planlama/ });
+    expect(blockButton).toBeInTheDocument();
+    expect(screen.queryByText(copy.emptyDay)).not.toBeInTheDocument();
+
+    await user.click(blockButton);
+    await waitFor(() =>
+      expect(h.routerReplace).toHaveBeenCalledWith(
+        expect.stringContaining('event=evt-1'),
+        expect.objectContaining({ scroll: false }),
+      ),
+    );
+  });
+
+  it('renders all-day events in a horizontal banner above the timeline', async () => {
+    h.listAccounts.mockResolvedValue({
+      data: connectedAccountFixture(),
+      error: null,
+    });
+    h.eventsList.mockReturnValue({
+      ok: true,
+      events: [
+        {
+          id: 'evt-all-day',
+          summary: 'Resmi tatil',
+          start: { date: '2099-01-01' },
+          end: { date: '2099-01-02' },
+          htmlLink: 'https://calendar.google.com/event?eid=evt-all-day',
+          status: 'confirmed',
+        },
+      ],
+    });
+
+    render(<PlannerPanel onClose={vi.fn()} />, { wrapper: makeWrapper() });
+
+    expect(
+      await screen.findByRole('button', { name: 'Resmi tatil' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(copy.allDayLabel)).toBeInTheDocument();
+  });
+
+  it('shows the reconnect CTA when planner.events.list throws GOOGLE_RECONNECT_REQUIRED', async () => {
+    h.listAccounts.mockResolvedValue({
+      data: connectedAccountFixture(),
+      error: null,
+    });
+    h.eventsList.mockReturnValue({
+      ok: false,
+      error: new Error('GOOGLE_RECONNECT_REQUIRED'),
+    });
+
+    render(<PlannerPanel onClose={vi.fn()} />, { wrapper: makeWrapper() });
+
+    expect(await screen.findByText(copy.reconnectTitle)).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: copy.reconnectCta });
+    expect(cta).toHaveAttribute('href', '/account?tab=integrations');
+    expect(screen.queryByText(copy.emptyDay)).not.toBeInTheDocument();
+  });
+
+  it('shows a generic refresh error (and keeps the timeline) on a non-reconnect error', async () => {
+    h.listAccounts.mockResolvedValue({
+      data: connectedAccountFixture(),
+      error: null,
+    });
+    h.eventsList.mockReturnValue({ ok: false, error: new Error('boom') });
+
+    render(<PlannerPanel onClose={vi.fn()} />, { wrapper: makeWrapper() });
+
+    expect(await screen.findByText(copy.refreshError)).toBeInTheDocument();
+    expect(screen.queryByText(copy.reconnectTitle)).not.toBeInTheDocument();
+  });
+
+  it('renders 13 hour labels covering the 09:00-21:00 timeline', async () => {
+    h.listAccounts.mockResolvedValue({
+      data: connectedAccountFixture(),
+      error: null,
+    });
+    render(<PlannerPanel onClose={vi.fn()} />, { wrapper: makeWrapper() });
+
+    await screen.findByText(copy.emptyDay);
+    for (const hour of [9, 12, 15, 18, 21]) {
+      expect(screen.getByText(`${hour.toString().padStart(2, '0')}:00`)).toBeInTheDocument();
+    }
   });
 });
