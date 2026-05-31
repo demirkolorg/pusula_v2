@@ -18,7 +18,7 @@ related:
   - '[[docs/process/05-is-kayit-defteri|İş Kayıt Defteri]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
   - '[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]'
-updated: 2026-05-24
+updated: 2026-05-31
 ---
 
 # Kontrol Odası — Süreç Hakemliği Tab'ı
@@ -109,11 +109,13 @@ Bu tab'da kullanabileceğin adlandırılmış işlemler. Adını yazınca bu tab
 
 **`celiski <istek>`** — Gelen yeni istek/karar mevcut `docs/` (architecture / domain / process + kök `CLAUDE.md` + `.claude/skills/kontrol/SKILL.md`) ile çakışıyor mu kontrol eder. Çakışıyorsa işe başlamadan "belgeyi mi güncelleyelim, koda mı sadık kalalım?" diye netleştirir, alınan kararı kaydeder. (Kök `CLAUDE.md` §5 "Çelişki" kuralının aracı.)
 
-## 5. Paralel tab haritası (anlık — 2026-05-24, Faz 8B Done)
+## 5. Paralel tab haritası (anlık — 2026-05-31, Faz 14 Done + Faz 15 açıldı)
 
 | Tab | İş | Durum / Linear | Dokunduğu yerler |
 | --- | --- | --- | --- |
-| Faz 7 — Mobil | Expo mobil uygulama (epic DEM-30) | `In Progress` — ~%94; 7A–7N + 7P `Done`, tek kalan **7O (DEM-191)** `In Progress` (App Store SUBMIT 2026-05-21; Apple incelemesi bekleniyor) | `apps/mobile/**`, EAS/App Store yapılandırması |
+| Faz 7 — Mobil | Expo mobil uygulama (epic DEM-30) | ✅ **Done** — 7A–7P + 7O hepsi `Done`; App Store'da **YAYINDA** v1.0.0 build 6 (2026-05-25; Apple onayı + "Manually release"); follow-up'lar [DEM-234](https://linear.app/demirkol/issue/DEM-234) (Sentry tam kurulum) + [DEM-232](https://linear.app/demirkol/issue/DEM-232) (iOS Share Extension) | `apps/mobile/**`, EAS/App Store yapılandırması |
+| Faz 14 — Klasik Pano PDF | DEM-290 epic + 7 alt iş | ✅ **Done** (2026-05-25) — `@react-pdf/renderer` server-side JSX → PDF buffer; `GET /api/boards/[boardId]/report`; mobil parite (FileSystem.downloadAsync + Sharing.shareAsync); web 34/34 + e2e PASS | (kapandı) |
+| **Faz 15 — iPad Uyarlaması** | [DEM-299](https://linear.app/demirkol/issue/DEM-299) epic + 7 alt iş (DEM-300..306) | 🚧 **In Progress** — 15.0 önce-belge `In Progress` (5 docs); **15A `Done`** (commit `f3f3ca6`); **15B `Done`** (commit `bd257ab`, kanban responsive + `useIsLandscape`); **15C `In Progress`** (kod tab'ı, master-detail); **15D `Todo`** (bu tab istisna); **15E `Done`** (2026-05-31, bu tab istisna — üst nav tab bar + `tabletScale` + splash `tabletImage` + iOS app icon iPad varyantı yok kararı); 15F `Sonraki Faz`. Sürüm v1.1.0 (native). Tahmini ~9-11g (1 dev) | `docs/architecture/{18-ipad-uyarlamasi.md,08-web-ve-mobil.md,13-ui-tasarim-dili.md,02-teknoloji-kararlari.md,README.md}`, `docs/process/{02-mvp-faz-plani.md,05-is-kayit-defteri.md}`; 15E için `apps/mobile/{app.config.ts,app/(app)/_layout.tsx,src/components/text.tsx,src/components/__tests__/text.test.tsx,assets/splash-icon~ipad.png}`; 15D için `apps/mobile/src/components/sheet.tsx` + ~15 kullanım yeri |
 | Faz 8.X — board görsel arka plan | DEM-202 split (8.X.A/B/C/D) | Önce-belge `Done`; implementasyon **`Todo`** — DEM-243/244/245/246 henüz başlamadı; kod tab'ı açılmayı bekliyor | `apps/web`, `apps/mobile`, `packages/api`, `packages/db`, `packages/domain` |
 | Faz 8B — Realtime fix | [DEM-278](https://linear.app/demirkol/issue/DEM-278) (`setupSocketServer` await + `waitForSocketJoin` kaldır — DEM-86 follow-up) | ✅ `Done` (2026-05-24, commit `3d0be5c`) — Playwright 6/6 PASS lokal docker stack; **8A E2E artık açılabilir.** | (kapandı) |
 | Faz 8E — Audit log (kod tab'ı) | [DEM-282](https://linear.app/demirkol/issue/DEM-282) (`audit_log` tablo + helper + `audit.*` router + ~15 mutation entegrasyonu) | `Todo` — 8.0 Done sonrası açıldı; mimari [`../architecture/17-audit-log-mimarisi.md`](../architecture/17-audit-log-mimarisi.md) hazır | `packages/db` (migration 0028 + Drizzle schema + triggers), `packages/domain` (`AUDIT_ACTIONS` enum + Zod), `packages/api` (helper + router + 15 mutation), Vitest |
@@ -126,7 +128,7 @@ Bu tab'da kullanabileceğin adlandırılmış işlemler. Adını yazınca bu tab
 | DEM-232 — iOS Share Extension | Mobilden paylaşım entegrasyonu | `Backlog` — önce-belge hazır | `apps/mobile` |
 | Faz 12 — Google Takvim | DEM-159 takvim entegrasyonu | `Backlog` — beklemede | (ileri faz) |
 | Faz 13 — Raporlama (kod tab'ı) | DEM-256 epic — 12/20 alt iş Done; 13R/13S/13T `Todo` | `In Progress` (~%60) — son commit 13M-13Q için bekleniyor; uncommitted `apps/web/.../use-report-i18n.ts` + `e2e/fixtures/{e2e-data,seed,reports.fixture}.ts` + `e2e/reports.spec.ts` + `playwright.config.ts` | `apps/**`, `packages/**`, `e2e/reports.spec.ts` |
-| Bu tab (kontrol odası) | Süreç projeksiyonu + `docs/` + Linear senkronu | **Faz 8 yazım turu tamam** — bu oturumda: `panorama` + DEM-207/208 senkron + `faz-bol 8` + `faz-baslat 8` (Aşama 1+2) + DEM-277 Done + §5 güncelleme. **Sıradaki kontrol odası işleri:** kod tab'larından gelen kapanış Linear+defter senkronları; `bosluk-tara`/`doc-denetim` istek üzerine. Kod kapasitesi: yok — bu tab kod yazmaz. | `docs/**`, `docs/process/05-is-kayit-defteri.md`, Linear |
+| Bu tab (kontrol odası + 15D/15E istisna) | Süreç projeksiyonu + `docs/` + Linear senkronu + **15D + 15E implementasyon** | **Faz 15E `Done` 2026-05-31** (kullanıcı kararı: "bu tabda kod yazmaya başla"): `text.tsx` `tabletScale` 1.125× (opt-out destekli, `StyleSheet.flatten` + 6 yeni test), `app/(app)/_layout.tsx` tablet `tabBarPosition: 'top'` + border yönü + keyboard-hide off, `app.config.ts` `ios.tabletImage` + `splash-icon~ipad.png` placeholder, iOS app icon iPad varyantı **yok** kararı (Expo SDK 54 sınırlaması, `13-ui-tasarim-dili.md` §13.12.7 + `18-ipad-uyarlamasi.md` §6 revize). Kalite: vitest 531/531, eslint 0, tsc 15E touched dosyalar temiz. **15D devam ediyor** (sheet.tsx envanterı + `useIsTablet()` branch + popover variant + 15+ kullanım yeri smoke). **İstisna kararı (kullanıcı, 2026-05-31):** README §3 "kod yazmaz" kuralı 15D + 15E işlerinde tek seferlik gevşetildi — kural değişmedi, sonraki işlerde geri geçerli. Faz 14/13 kapanış sonrası `linear-senkron`; `bosluk-tara`/`doc-denetim` istek üzerine. | `docs/**`, `docs/process/05-is-kayit-defteri.md`, Linear; **15E için `apps/mobile/{app.config.ts,app/(app)/_layout.tsx,src/components/text.tsx,src/components/__tests__/text.test.tsx,assets/splash-icon~ipad.png}` ✅** + **15D için `apps/mobile/src/components/sheet.tsx` + bağlı dosyalar** |
 
 > Bu tablo "anlık" bir snapshot'tır; durum değiştikçe güncellenir. Faz/iş gerçekleri için kanonik kaynak [`../process/02-mvp-faz-plani.md`](../process/02-mvp-faz-plani.md) ve [`../process/05-is-kayit-defteri.md`](../process/05-is-kayit-defteri.md).
 

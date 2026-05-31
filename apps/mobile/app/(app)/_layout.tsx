@@ -9,6 +9,7 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { PushPermissionPrimer } from '@/components/push-permission-primer';
 import { QuickNoteDraftProvider } from '@/lib/quick-note-draft';
 import { useForegroundNotificationRefresh } from '@/lib/use-foreground-notification-refresh';
+import { useIsTablet } from '@/lib/use-device-class';
 import { useNotificationDeepLink } from '@/lib/use-notification-deep-link';
 import { useTRPC } from '@/trpc/provider';
 import { strings } from '@/lib/strings';
@@ -57,6 +58,12 @@ export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
   const theme = themeFor(useColorScheme());
   const trpc = useTRPC();
+  // Faz 15E (DEM-305) — tablet'te tab bar header'a taşınır (iPadOS 18 pattern;
+  // Trello/Linear/Asana iPad uyumu). Phone'da alt'ta kalır. React Navigation
+  // 7.16 `screenOptions.tabBarPosition: 'top'` resmi destek (BottomTabBar.js).
+  // Border yönü konuma göre değişir (top'ta `borderBottomColor`); klavye
+  // gizleme top tab bar'ı etkilemediği için tablet'te kapatılır.
+  const isTablet = useIsTablet();
 
   // Top-level hook'lar — kuralı gereği koşulsuz çağrılır. Oturum yokken
   // navigate çağrıları authenticated route'a yönlendirse bile auth-redirect
@@ -94,7 +101,13 @@ export default function AppLayout() {
             headerShown: false,
             tabBarActiveTintColor: theme.primary,
             tabBarInactiveTintColor: theme.mutedForeground,
-            tabBarStyle: { backgroundColor: theme.card, borderTopColor: theme.border },
+            tabBarStyle: {
+              backgroundColor: theme.card,
+              // Faz 15E: top tab bar'da alt kenar çizgisi, bottom'da üst kenar.
+              ...(isTablet
+                ? { borderBottomColor: theme.border, borderTopColor: 'transparent' }
+                : { borderTopColor: theme.border }),
+            },
             // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
             tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
             // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
@@ -103,7 +116,12 @@ export default function AppLayout() {
             // dock'un kendi keyboard listener'ı dock'u doğrudan klavyenin üstüne
             // çıkar; send butonu dock-içinde olduğundan klavye accessory gibi
             // erişilebilir kalır (DEM-236 2. tur).
-            tabBarHideOnKeyboard: true,
+            //
+            // Faz 15E: tablet üst nav'da klavye hide etmenin anlamı yok (alt'taki
+            // dock'u örtmüyor) — sürekli görünür kalır.
+            tabBarHideOnKeyboard: !isTablet,
+            // Faz 15E: tablet'te tab bar header'a taşınır (iPadOS 18 pattern).
+            tabBarPosition: isTablet ? 'top' : 'bottom',
           }}
         >
           {/*

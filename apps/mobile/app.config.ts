@@ -88,6 +88,17 @@ const config: ExpoConfig = {
         dark: {
           backgroundColor: '#1d2125',
         },
+        // Faz 15E (DEM-305) — iPad splash varyantı. `IOSSplashConfig.tabletImage`
+        // resmi destek (`@expo/prebuild-config` getIosSplashConfig). iPhone
+        // splash'iyle aynı kompozisyon — kullanılan dosya şu an birebir kopya
+        // (`splash-icon~ipad.png`); ileride iPad'e özel daha geniş canvas
+        // sanatı gelirse aynı yolda swap edilir, config değişmez. iOS app icon
+        // tarafında Expo SDK 54 `ios.icon` (`IOSIcons`) yalnız light/dark/tinted
+        // kabul ediyor — iPad varyantı yok, 1024×1024 ana ikon iOS asset
+        // catalog tarafından otomatik iPad boyutlarına türetilir (Apple HIG).
+        ios: {
+          tabletImage: './assets/splash-icon~ipad.png',
+        },
       },
     ],
     // Sentry native config (crash reporting + source map / debug symbol upload).

@@ -12,7 +12,7 @@ type: 'moc'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/README|Pusula Belgeleri]]'
-updated: 2026-05-25
+updated: 2026-05-31
 ---
 
 # Pusula — Tasarım / Teknik Mimari (`docs/architecture/`)
@@ -49,6 +49,7 @@ Kararlar yerleşik kabul edilir; kullanıcı açıkça istemedikçe yeniden açm
 | 15  | [`15-bildirim-ayar-ekrani.md`](15-bildirim-ayar-ekrani.md)       | Bildirim ayar ekranı (Faz 10): `/account` Tabs içinde "Bildirimler" sekmesi, 4 section anatomi (genel kanallar + tip×kanal matrisi + scope override ağacı + push token cihazları), gelişmiş özellikler iskeleti (quiet hours / digest / snooze), shadcn primitive ihtiyaçları (Switch + RadioGroup), i18n namespace, a11y                                                                                                                          |
 | 16  | [`16-raporlama-mimarisi.md`](16-raporlama-mimarisi.md)           | Raporlama mimarisi: **Faz 13** (preset şablon registry + universal micro-report + scope adapter + 4 yeni DB tablosu + tRPC `report.*` router + on-demand SQL + Redis kısa-TTL cache + outbox-driven invalidation + Puppeteer PDF pipeline + Excel/PNG export + 3-tier persistence + Resend scheduled email + MinIO retention 90g + i18n + comparison delta + stale rozeti + restricted scope) ve **Faz 14 — Klasik Pano PDF** (§16.18; bağımsız ikinci PDF subsystem — `@react-pdf/renderer` server-side JSX → buffer, senkron `GET /api/boards/[boardId]/report`, Puppeteer/worker/MinIO yok, eski Pusula v2.2 tek-tık PDF özelliğinin v2'ye birebir uyarlaması). Domain → [`../domain/09-raporlama-kurallari.md`](../domain/09-raporlama-kurallari.md); süreç → [`../process/07-faz-13-raporlama-plani.md`](../process/07-faz-13-raporlama-plani.md) + [`../process/08-faz-14-klasik-pdf-plani.md`](../process/08-faz-14-klasik-pdf-plani.md). |
 | 17  | [`17-audit-log-mimarisi.md`](17-audit-log-mimarisi.md)           | Audit log (Faz 8E): `audit_log` tablosu (append-only trigger), `AUDIT_ACTIONS` enum (~12 kritik action — delete/role_change/share), `appendAudit` helper, `audit.list` tRPC procedure (yalnız workspace owner), tx-içi insert (worker outbox YOK), süresiz retention. Forensic/compliance odaklı; `activity_events` ile dublike değil. Domain edge case + permission kuralları → [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md). |
+| 18  | [`18-ipad-uyarlamasi.md`](18-ipad-uyarlamasi.md)                 | iPad uyarlaması (Faz 15 — post-MVP epic): `supportsTablet: true` + orientation `default` + 768px tablet breakpoint (iPad mini dahil) + tüm ekranlarda master-detail pattern (board/workspace/account/settings) + iPadOS 18 üst nav tab bar + sheet→popover dönüşümü (iPad branch) + tablet typography 1.125× scale + iPad asset varyantları (`~ipad`) + App Store Connect iPad device family geçişi + production build v1.1.0 submit. Faz 7O `supportsTablet: false` (2026-05-21) kararı revize. Domain → değişmez; UI tasarım dili → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) tablet design token bölümü; mobil temel → [`08-web-ve-mobil.md`](08-web-ve-mobil.md) iPad alt bölümü. |
 
 ## Kaçınılması gerekenler (teknik)
 

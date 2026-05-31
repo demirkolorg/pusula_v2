@@ -167,6 +167,10 @@ export const strings = {
     loadError: 'Çalışma alanları yüklenemedi.',
     boardCountSuffix: 'pano',
     memberCountSuffix: 'üye',
+    // Faz 15C (DEM-303) — tablet master-detail sağ pane: kullanıcı henüz
+    // workspace seçmediğinde gösterilen ipucu.
+    detailEmptyTitle: 'Bir çalışma alanı seç',
+    detailEmptyDescription: 'Soldaki listeden bir çalışma alanı seçerek panolarını gör.',
   },
   boards: {
     loadError: 'Panolar yüklenemedi.',
@@ -714,6 +718,9 @@ export const strings = {
     aboutTitle: 'Hakkında',
     versionRow: 'Sürüm',
     privacyPolicyRow: 'Gizlilik Politikası',
+    // Faz 15C (DEM-303) — tablet master-detail sağ pane empty state.
+    detailEmptyTitle: 'Bir ayar seç',
+    detailEmptyDescription: 'Soldaki listeden bir ayar başlığına dokunarak detayını aç.',
   },
   // Profil düzenleme ekranı (DEM-208 + DEM-212 avatar).
   profileEdit: {

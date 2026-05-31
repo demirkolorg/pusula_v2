@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-25
+updated: 2026-05-31
 ---
 
 # 13 — UI Tasarım Dili
@@ -799,3 +799,79 @@ Tile'daki "Önizle" tıklanınca açılan dialog (`@pusula/ui` `Dialog` extend, 
 - Stat kutusu accent rozetleri ilgili semantik token'ın düşük-opaklık zeminini kullanır (`bg-warning/12`, `bg-success/12`, `bg-destructive/12`, `bg-primary/12`); ikon rengi tam token.
 - Avatar zeminleri `avatarPaletteSolidClass` (§13.4 `Avatar` ile aynı deterministik isim→palet hash mantığı).
 - Board kartı kapak şeridi `boardBackgroundClass` ile board ekranıyla **aynı** gradient/solid token haritasını paylaşır (§13.2) — tek kaynak.
+
+## 13.12 Tablet design token (Faz 15 — iPad uyarlaması)
+
+Faz 15 ([DEM-299](https://linear.app/demirkol/issue/DEM-299)) ile `apps/mobile` iPad-native uyarlama açılır. Tablet (>= 768px) için spacing, typography ve sizing token override'ları. Mimari bütün → [`18-ipad-uyarlamasi.md`](18-ipad-uyarlamasi.md); buradaki tablo design language sözleşmesidir.
+
+### 13.12.1 Breakpoint
+
+- **Tek eşik = 768px** — NativeWind `md:` standart Tailwind breakpoint (kullanıcı kararı 2026-05-31). iPad mini 8.3" (768×1024) **dahil** tablet branch'i alır.
+- Custom alias yok (`tablet` ≡ `md`).
+- Reddedilen alternatifler: 1024px (iPad mini'de tutarsız "phone layout"), iki seviye 768+1024 (düşük ROI).
+
+### 13.12.2 Spacing & sizing override
+
+| Token | Phone | Tablet (md:) | Tablet landscape (md:landscape:) |
+|---|---|---|---|
+| Board kolon genişliği | `w-72` (288px) | `md:w-80` (320px) | `md:landscape:w-96` (384px) |
+| Kart padding | `p-3` (12px) | `md:p-4` (16px) | — |
+| Tap target min | `h-12` (48px) | `md:min-h-[44px]` (HIG iPad) | — |
+| Sidebar (master-detail) | — | `md:w-80` ~ `md:w-96` (320-400px) | — |
+| Header height | `h-14` (56px) | `md:h-16` (64px) | — |
+| Modal max-width (auth) | `max-w-sm` (384px) | `md:max-w-md` (448px) | — |
+
+### 13.12.3 Typography scale
+
+`useDeviceClass()` hook (`apps/mobile/src/lib/use-device-class.ts`, Faz 15A) tabanlı auto-apply, opt-out prop'u var:
+
+| Class | Phone | Tablet (1.125×) |
+|---|---|---|
+| `text-sm` | 14px | 16px |
+| `text-base` | 16px | 18px |
+| `text-lg` | 18px | 20px |
+| `text-xl` (board title) | 20px | 24px (`text-2xl`) |
+| `text-2xl` (section header) | 24px | 28px (`text-3xl`) |
+
+`<Text tabletScale={1.0}>` ile override (örn. metadata satırlarında küçük kalmalı: `MetaChip`, `LabelChip`, footer timestamp).
+
+### 13.12.4 Master-detail primitive
+
+`apps/mobile/src/components/master-detail-layout.tsx` (Faz 15C, YENİ):
+
+```tsx
+<MasterDetailLayout
+  master={<BoardSidebar ... />}
+  detail={<BoardKanban ... />}
+  selectedDetail={cardId}
+  fallback="master"
+/>
+```
+
+- Tablet: `flex-row` (sidebar sabit `md:w-80` ~ `md:w-96` + main `flex-1`)
+- Phone: tek view — `selectedDetail` varsa detail, yoksa master (history stack ile geri)
+- SafeAreaInsets + landscape padding `md:landscape:px-6`
+
+### 13.12.5 Sheet → popover branch
+
+`apps/mobile/src/components/sheet.tsx` (Faz 15D):
+
+- Phone: bottom sheet (mevcut)
+- Tablet: anchor-based popover (modal overlay, dim background, tap-outside-to-close, ESC kapama)
+- Prop: `anchor?: RefObject<View>` — verilmezse viewport center
+- İstisna: `attachment-image-viewer.tsx` `<Modal>` (1 yer) — iPad'de full-screen kalır (image viewer için doğru)
+
+### 13.12.6 Tab bar konumu
+
+`apps/mobile/app/(app)/_layout.tsx` (Faz 15E):
+
+- Tablet: tab bar header'a taşınır (iPadOS 18 pattern) — Expo Router 4 `<Tabs>` `screenOptions.tabBarPosition: 'top'` (resmi destek varsa) veya custom header layout
+- Phone: alt'ta kalır (mevcut)
+- 4 tab icon + merkezi "+" buton tablet'te header layout'a uyumlu
+
+### 13.12.7 Disiplin
+
+- Yeni renk token YOK — mevcut tema sistemi (light/dark + `--palet-*` paleti) iPad'de aynı çalışır
+- Hardcode width/height YOK — tüm tablet override'ları NativeWind `md:` veya `useDeviceClass()` hook üzerinden
+- `<Text tabletScale={1.0}>` opt-out yalnız metadata için; varsayılan auto-apply
+- iPad asset varyantı — yalnız **splash** (`splash-icon~ipad.png`) `app.config.ts` `plugins.expo-splash-screen.ios.tabletImage` ile bağlanır (Faz 15E ✅). iOS app icon tarafında Expo SDK 54 `ios.icon` (`IOSIcons`) yalnız `light`/`dark`/`tinted` kabul ediyor — iPad-spesifik varyant **yok**. 1024×1024 ana ikon iOS asset catalog üzerinden iPad boyutlarına otomatik türetilir; ayrı `icon~ipad.png` eklemeye gerek yok.

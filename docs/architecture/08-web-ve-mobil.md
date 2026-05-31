@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-24
+updated: 2026-05-31
 ---
 
 # 08 — Web ve Mobil
@@ -865,3 +865,35 @@ DEM-202 epic'i `faz-bol` ile beş alt işe bölündü (önce-belge + dört imple
 **Kapsam dışı (V2):** native chart render (Skia/Victory), mobilde oluştur/zamanla (composer + ScheduleDialog), Excel/PNG/SVG export, offline PDF cache (SQLite).
 
 **Bağımlılık:** 13H (workspace `/reports` merkez + detay route) ✅ + 13J (schedule cron + Resend) ✅ + 13Q (i18n — web tarafı reports.json) ✅. Sonra: 13T (production deploy + smoke).
+
+### Faz 15 — iPad uyarlaması ([DEM-299](https://linear.app/demirkol/issue/DEM-299), planlandı)
+
+Faz 7O (2026-05-21) iPhone-only kararı (`supportsTablet: false`) Faz 15 ile **revize edilir** → `apps/mobile` iPad-native uyarlaması (sürüm v1.1.0). Mimari detay tek dosyada: [`18-ipad-uyarlamasi.md`](18-ipad-uyarlamasi.md) — buradaki not yalnızca mobil cephe ile bağlantıyı sabitler.
+
+**Dört ana karar (kullanıcı seçimi 2026-05-31, `AskUserQuestion`):**
+
+1. **Master-detail kapsamı = TÜM ekranlar** — board (sidebar liste/kart + main detay) + workspace (sidebar liste + main detay) + account (sidebar sekme + main) + notification-settings (sidebar kategori + main); auth route'ları hariç.
+2. **Tablet breakpoint = 768px** (NativeWind `md:` — iPad mini 8.3" dahil).
+3. **Landscape orientation = TÜM ekranlar** (`app.config.ts` `orientation: 'default'`).
+4. **Tab bar konumu = üst nav** (iPadOS 18 pattern; phone'da alt'ta kalır).
+
+**Mobil cephe etkileri:**
+
+- `app.config.ts` `ios.supportsTablet: true` + `orientation: 'default'` + `ios.requireFullScreen: false` (Split View V2 hazırlığı).
+- Yeni hook `apps/mobile/src/lib/use-device-class.ts` — `useDeviceClass(): 'phone' | 'tablet'` ve `useIsTablet()` shorthand; `useWindowDimensions` reactive (rotation'a duyarlı).
+- Yeni primitive `apps/mobile/src/components/master-detail-layout.tsx` — tablet'te yan yana sidebar (320-400px) + `flex-1` main, phone'da tek view (history stack).
+- `apps/mobile/src/components/sheet.tsx` — `useIsTablet()` branch'i: tablet'te anchor-based popover, phone'da bottom sheet (mevcut).
+- `apps/mobile/src/components/text.tsx` — `tabletScale={1.0 | 1.125 | 1.25}` prop (default tablet 1.125×; opt-out).
+- `apps/mobile/src/components/board-column.tsx` — `w-72 md:w-80 md:landscape:w-96` (kolon genişliği responsive).
+- `apps/mobile/app/(app)/_layout.tsx` — Expo Router 4 `tabBarPosition: 'top'` (resmi destek yoksa custom header layout).
+- `apps/mobile/assets/icon~ipad.png` + `splash-icon~ipad.png` (iOS otomatik yükler).
+
+**Bağımlılık & çakışma:** Faz 13 (raporlama, `apps/web`) ile çakışmaz. [DEM-234](https://linear.app/demirkol/issue/DEM-234) (mobil Sentry tam kurulum) paralel ilerleyebilir.
+
+**Sürüm:** v1.1.0 (native değişiklik — `supportsTablet` + orientation + asset; OTA değil). Sonraki JS-only fix'ler `eas update --branch production --platform ios` ile v1.1.x OTA.
+
+**App Store geçişi:** App Store Connect → App Information → "iPad" device family eklenir + iPad Pro 12.9" (2048×2732) 5 screenshot + App Privacy form taşınır (yeni veri kategorisi yok) + "What's New" Türkçe + `eas build/submit` + Apple inceleme ≤48h.
+
+**Alt iş zinciri (7 issue):** 15.0 önce-belge ([DEM-300](https://linear.app/demirkol/issue/DEM-300), kontrol odası) → 15A Foundation ([DEM-301](https://linear.app/demirkol/issue/DEM-301)) → {15B Kanban responsive ([DEM-302](https://linear.app/demirkol/issue/DEM-302)) ∥ 15C Master-detail ([DEM-303](https://linear.app/demirkol/issue/DEM-303)) ∥ 15D Sheet→popover ([DEM-304](https://linear.app/demirkol/issue/DEM-304)) ∥ 15E Üst nav + typography + asset ([DEM-305](https://linear.app/demirkol/issue/DEM-305))} → 15F Test + App Store + v1.1.0 submit ([DEM-306](https://linear.app/demirkol/issue/DEM-306)). Tahmini efor ~9-11 iş günü (1 dev).
+
+**Kapsam dışı (V2'ye):** Stage Manager / external display, Apple Pencil, keyboard shortcut tam set, mobile drag-drop (Faz 3 web-only kararı korunur), Split View iPadOS multi-app.

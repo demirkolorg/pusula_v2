@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -7,14 +13,17 @@ import * as WebBrowser from 'expo-web-browser';
 import { useMutation } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
+import { EmptyState } from '@/components/empty-state';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { FormMessage } from '@/components/form-message';
 import { Icon } from '@/components/icon';
+import { MasterDetailLayout } from '@/components/master-detail-layout';
 import { Text } from '@/components/text';
 import { SettingsGroup } from '@/components/settings/settings-group';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { clearRegisteredPushToken, getRegisteredPushToken } from '@/lib/push-token-store';
 import { strings } from '@/lib/strings';
+import { useIsTablet } from '@/lib/use-device-class';
 import type { ThemePreference } from '@/theme/theme-preference';
 import { useThemePreference } from '@/theme/theme-provider';
 import { themeFor } from '@/theme/tokens';
@@ -45,6 +54,14 @@ export default function AccountScreen() {
   const revokeToken = useMutation(trpc.push.tokens.revoke.mutationOptions());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Faz 15C (DEM-303) — tablet'te hesap ekranı master-detail vibe'ı: sol
+  // sidebar mevcut ayarlar listesi (push'lar korunur — sub-route'lar tam
+  // genişlik açılır), sağ pane "Bir ayar seç" empty state. Sub-route
+  // içeriklerini detail pane'e taşıyan extract (`ProfileEditView` vs.)
+  // V2'ye — şimdilik mevcut Stack push akışı tablet'te de korunur.
+  const isTablet = useIsTablet();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
 
   const displayName = session?.user.name || session?.user.email || '';
   const email = session?.user.email ?? '';
@@ -73,12 +90,11 @@ export default function AccountScreen() {
     }
   };
 
-  return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-muted">
-      <ScrollView contentContainerClassName="gap-5 p-4">
-        <Text weight="semibold" className="text-2xl text-foreground">
-          {strings.account.title}
-        </Text>
+  const settingsBody = (
+    <ScrollView contentContainerClassName="gap-5 p-4">
+      <Text weight="semibold" className="text-2xl text-foreground">
+        {strings.account.title}
+      </Text>
 
         {/* Profil — avatar + ad + e-posta; dokununca düzenleme ekranı. */}
         <SettingsGroup>
@@ -160,20 +176,49 @@ export default function AccountScreen() {
           />
         </SettingsGroup>
 
-        {error ? <FormMessage>{error}</FormMessage> : null}
+      {error ? <FormMessage>{error}</FormMessage> : null}
 
-        {/* Çıkış. */}
-        <SettingsGroup>
-          <SettingsRow
-            icon="log-out"
-            label={strings.auth.signOut}
-            destructive
-            hideChevron
-            pending={pending}
-            onPress={handleSignOut}
-          />
-        </SettingsGroup>
-      </ScrollView>
+      {/* Çıkış. */}
+      <SettingsGroup>
+        <SettingsRow
+          icon="log-out"
+          label={strings.auth.signOut}
+          destructive
+          hideChevron
+          pending={pending}
+          onPress={handleSignOut}
+        />
+      </SettingsGroup>
+    </ScrollView>
+  );
+
+  // Tablet: sol sidebar mevcut ayarlar gövdesi + sağ "Bir ayar seç" empty
+  // state. Sub-route push'lar (profil-düzenle, şifre değiştir, hesap sil,
+  // bildirim ayarları) tablet'te de Stack üzerinden tam-genişlik açılır
+  // (V2: sub-route içeriklerini detail pane'e taşıma — `ProfileEditView` /
+  // `ChangePasswordView` / `DeleteAccountView` extract'i). Phone'da değişmez.
+  if (isTablet) {
+    return (
+      <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+        <MasterDetailLayout
+          master={settingsBody}
+          detail={
+            <EmptyState
+              icon="settings"
+              title={strings.account.detailEmptyTitle}
+              description={strings.account.detailEmptyDescription}
+            />
+          }
+          sidebarWidth={sidebarWidth}
+          testID="account-master-detail"
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+      {settingsBody}
     </SafeAreaView>
   );
 }

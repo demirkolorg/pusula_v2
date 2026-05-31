@@ -1,11 +1,19 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { BoardActionsSheet } from '@/components/board-actions-sheet';
 import { BoardColumn } from '@/components/board-column';
 import { BoardListView } from '@/components/board-list-view';
+import { BoardSidebar } from '@/components/board-sidebar';
 import { BoardViewToggle } from '@/components/board-view-toggle';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
@@ -14,6 +22,7 @@ import { LabelFilterSheet } from '@/components/label-filter-sheet';
 import { ListActionsSheet } from '@/components/list-actions-sheet';
 import { ListAddColumn } from '@/components/list-add-column';
 import { LoadingScreen } from '@/components/loading-screen';
+import { MasterDetailLayout } from '@/components/master-detail-layout';
 import { MoveToListSheet } from '@/components/move-to-list-sheet';
 import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
@@ -24,6 +33,7 @@ import { strings } from '@/lib/strings';
 import { useBoardMutations } from '@/lib/use-board-mutations';
 import { useBoardViewMode } from '@/lib/use-board-view-mode';
 import { useDownloadBoardReport } from '@/lib/use-download-board-report';
+import { useIsTablet } from '@/lib/use-device-class';
 import { themeFor } from '@/theme/tokens';
 
 /**
@@ -50,6 +60,14 @@ export default function BoardScreen() {
   const trpc = useTRPC();
   const router = useRouter();
   const theme = themeFor(useColorScheme());
+  // Faz 15C (DEM-303) — tablet'te board ekranı master-detail: sol BoardSidebar
+  // + sağ kanban/listview. Phone'da değişmez (mevcut tek-kolonlu akış).
+  // Sidebar genişliği `13-ui-tasarim-dili.md` §13.12.1: portrait `w-80` (320),
+  // landscape `w-96` (384). `useWindowDimensions` rotation duyarlı; rotate
+  // sonrası genişlik tek render'da güncellenir.
+  const isTablet = useIsTablet();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
   const query = useQuery(
     trpc.board.get.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
   );
@@ -297,47 +315,67 @@ export default function BoardScreen() {
     );
   }
 
+  // Sağ pane / phone içeriği — kanban kolonları veya dikey liste görünümü.
+  // Master-detail tablet branch'i bu içeriği sağ pane'de gösterir; phone'da
+  // ekranın tamamını kaplar.
+  const mainContent =
+    viewMode === 'kanban' ? (
+      <ScrollView
+        horizontal
+        className="flex-1"
+        contentContainerClassName="gap-3 p-3"
+        showsHorizontalScrollIndicator={false}
+        // Faz 15B (DEM-302): iPad'de safe-area/notch için yatay
+        // contentInset'in orientation değişimlerinde recalc edilmesini sağlar.
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        {activeLists.map((list) => (
+          <BoardColumn
+            key={list.id}
+            list={list}
+            cards={cardsByList.get(list.id) ?? EMPTY_CARDS}
+            canEdit={canEdit}
+            onCreateCard={handleCreateCard}
+            onOpenListActions={handleOpenListActions}
+            onMoveCard={handleMoveCard}
+            refreshing={query.isFetching}
+            onRefresh={handleRefresh}
+          />
+        ))}
+        {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}
+      </ScrollView>
+    ) : (
+      <BoardListView
+        lists={activeLists}
+        cardsByList={cardsByList}
+        canEdit={canEdit}
+        onCreateCard={handleCreateCard}
+        onCreateList={mutations.createList}
+        onOpenListActions={handleOpenListActions}
+        onMoveCard={handleMoveCard}
+        refreshing={query.isFetching}
+        onRefresh={handleRefresh}
+      />
+    );
+
+  // Tablet master-detail: sol BoardSidebar + sağ `mainContent`. Phone'da
+  // sidebar render edilmez — wrapper'ı atlayıp `mainContent`'i doğrudan
+  // çizeriz (görünmeyen master pane'i mount etmemek için; DEM-303 15C.2).
+  const body = isTablet ? (
+    <MasterDetailLayout
+      master={<BoardSidebar lists={activeLists} cardsByList={cardsByList} />}
+      detail={mainContent}
+      sidebarWidth={sidebarWidth}
+      testID="board-master-detail"
+    />
+  ) : (
+    mainContent
+  );
+
   return (
     <>
       {header}
-      {viewMode === 'kanban' ? (
-        <ScrollView
-          horizontal
-          className="flex-1"
-          contentContainerClassName="gap-3 p-3"
-          showsHorizontalScrollIndicator={false}
-          // Faz 15B (DEM-302): iPad'de safe-area/notch için yatay
-          // contentInset'in orientation değişimlerinde recalc edilmesini sağlar.
-          contentInsetAdjustmentBehavior="automatic"
-        >
-          {activeLists.map((list) => (
-            <BoardColumn
-              key={list.id}
-              list={list}
-              cards={cardsByList.get(list.id) ?? EMPTY_CARDS}
-              canEdit={canEdit}
-              onCreateCard={handleCreateCard}
-              onOpenListActions={handleOpenListActions}
-              onMoveCard={handleMoveCard}
-              refreshing={query.isFetching}
-              onRefresh={handleRefresh}
-            />
-          ))}
-          {canEdit ? <ListAddColumn onCreate={mutations.createList} /> : null}
-        </ScrollView>
-      ) : (
-        <BoardListView
-          lists={activeLists}
-          cardsByList={cardsByList}
-          canEdit={canEdit}
-          onCreateCard={handleCreateCard}
-          onCreateList={mutations.createList}
-          onOpenListActions={handleOpenListActions}
-          onMoveCard={handleMoveCard}
-          refreshing={query.isFetching}
-          onRefresh={handleRefresh}
-        />
-      )}
+      {body}
 
       <MoveToListSheet
         visible={moveTarget != null}
