@@ -88,8 +88,17 @@ async function fetchReportPayload(
     return null;
   }
 
+  // Server Component server-side fetch yapar — internal Docker network'ü
+  // (`http://api:3001`) public domain'e göre hem hızlı hem reverse-proxy
+  // bağımsız. `INTERNAL_API_URL` worker tarafıyla simetrik (bkz.
+  // `apps/worker/src/jobs/report-render.ts` `deps.internalApiUrl`). Set
+  // edilmemişse `NEXT_PUBLIC_API_URL` fallback — dev'de localhost'a düşer,
+  // prod'da `INTERNAL_API_URL` runtime env zorunlu (yoksa env.ts default'u
+  // `http://localhost:3001` Puppeteer print fetch'ini ECONNREFUSED'a sürer,
+  // → notFound() → `window.__reportReady` set olmaz → `pdf_render_failed`).
+  const apiBase = process.env.INTERNAL_API_URL ?? env.NEXT_PUBLIC_API_URL;
   const url = new URL(
-    `${env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/trpc/report.print.verifyToken`,
+    `${apiBase.replace(/\/$/, '')}/trpc/report.print.verifyToken`,
   );
   url.searchParams.set('input', encodeTrpcInput({ renderId, token }));
 

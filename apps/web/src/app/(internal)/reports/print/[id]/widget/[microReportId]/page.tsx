@@ -45,8 +45,13 @@ async function fetchWidgetPayload(
 ): Promise<WidgetPayload | null> {
   if (!RENDER_ID_REGEX.test(renderId)) return null;
   if (!TOKEN_REGEX.test(token)) return null;
+  // Server-side fetch — `INTERNAL_API_URL` öncelikli (Docker network içi);
+  // yoksa `NEXT_PUBLIC_API_URL`'a düş. Tam akış için
+  // `apps/web/src/app/(internal)/reports/print/[id]/page.tsx`'teki uzun
+  // yorum bloğuna bakın (DEM-276 root cause + fix).
+  const apiBase = process.env.INTERNAL_API_URL ?? env.NEXT_PUBLIC_API_URL;
   const url = new URL(
-    `${env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/trpc/report.print.verifyToken`,
+    `${apiBase.replace(/\/$/, '')}/trpc/report.print.verifyToken`,
   );
   url.searchParams.set('input', encodeTrpcInput({ renderId, token }));
   let res: Response;
