@@ -1223,6 +1223,27 @@ export const strings = {
         cta: 'Hesap bağla',
         hint: 'Planlayıcını yalnızca sen görürsün.',
       },
+      // Etkinlik modal'ı (Faz 16C / DEM-312) — etkinliğe tıklanınca açılan
+      // Pusula-içi read-only detay modali. Düzenleme/silme YOK; "Google'da
+      // aç" link ile Google Calendar UI'sına yönlendirir.
+      event: {
+        modalTitle: 'Etkinlik',
+        untitled: '(Başlıksız)',
+        loadError: 'Etkinlik yüklenemedi.',
+        close: 'Kapat',
+        openInGoogle: 'Google\'da aç',
+        location: 'Konum',
+        description: 'Açıklama',
+        attendees: 'Katılımcılar',
+        attendeesCount: (count: number) => `${count} katılımcı`,
+        statusCancelled: 'İptal edildi',
+        rsvp: {
+          accepted: 'Katılıyor',
+          declined: 'Katılmıyor',
+          tentative: 'Belki',
+          needsAction: 'Yanıt bekliyor',
+        },
+      },
     },
     // Hızlı Notlar paneli (DEM-205) — pano ekranında açılıp kapanan kişisel
     // "Gelen Kutusu" paneli; bir not listeye sürüklenince karta dönüşür.

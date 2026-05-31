@@ -2,6 +2,7 @@ import { getDb, type Database } from '@pusula/db';
 import type { RealtimeEventEnvelope } from '@pusula/domain';
 import type { EnqueueAttachmentCleanup } from './lib/attachment-cleanup';
 import type { EnqueueCompaction } from './lib/compaction';
+import type { GoogleCalendarDeps } from './lib/google-calendar';
 import type { EnqueueNotificationPublish } from './lib/notification-outbox';
 import type { ObjectStorage } from './lib/object-storage';
 import type { EnqueueRealtimePublish } from './lib/realtime-publish';
@@ -117,6 +118,12 @@ export interface CreateContextOptions {
    * §16.8.
    */
   workerSharedSecret?: string;
+  /**
+   * Faz 16C (DEM-312) — Google Calendar API helper bağımlılıkları (host
+   * tarafından enjekte; opsiyonel, omit → planner endpoint'leri
+   * UNAUTHORIZED). Bkz. `lib/google-calendar.ts`.
+   */
+  googleCalendar?: GoogleCalendarDeps;
 }
 
 export interface Context {
@@ -143,6 +150,13 @@ export interface Context {
   reportCache?: ReportCache;
   /** See `CreateContextOptions.workerSharedSecret`. `undefined` ⇒ print akışı kapalı. */
   workerSharedSecret?: string;
+  /**
+   * Faz 16C (DEM-312) — Google Calendar API çağrı bağımlılıkları. Host
+   * (`apps/api`) Better Auth `auth.api.getAccessToken`'i sarıp enjekte
+   * eder; test / Next route handler omit ederse `planner.events.*`
+   * `UNAUTHORIZED GOOGLE_NOT_CONNECTED` döner. See `lib/google-calendar.ts`.
+   */
+  googleCalendar?: GoogleCalendarDeps;
   /**
    * Phase 4A (DEM-78) — collaborative mutations may carry a client-generated
    * `clientMutationId` (UUID v4 via `crypto.randomUUID()`) on the input. The
@@ -174,6 +188,7 @@ export function createContext(opts: CreateContextOptions): Context {
     enqueueReportRender: opts.enqueueReportRender,
     reportCache: opts.reportCache,
     workerSharedSecret: opts.workerSharedSecret,
+    googleCalendar: opts.googleCalendar,
     // The `enforceClientMutationId` middleware overwrites this for every
     // protected procedure call; explicit default keeps the shape stable for
     // call sites that read `ctx.clientMutationId` before the middleware runs

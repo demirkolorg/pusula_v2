@@ -87,5 +87,24 @@ export async function buildTrpcContext(
     // Yukarıda `x-worker-secret` header'ı `env.WORKER_SHARED_SECRET` ile
     // eşleşirse set edilir; eşleşmezse undefined → procedure UNAUTHORIZED.
     workerSharedSecret,
+    // Faz 16C (DEM-312) — Google Calendar API çağrılarında token üretimi.
+    // Better Auth `auth.api.getAccessToken` sarmalı; `accountId` opsiyonel —
+    // bir kullanıcının yalnız bir `google-calendar` bağlantısı olduğundan
+    // omit ediyoruz (Better Auth providerId+userId üzerinden tek match döner).
+    // Token yoksa (account row eksik) Better Auth `null` döndürür → wrapper
+    // `UNAUTHORIZED GOOGLE_NOT_CONNECTED` mapper.
+    googleCalendar: {
+      getAccessToken: async ({ providerId, userId }) => {
+        try {
+          const result = await auth.api.getAccessToken({
+            body: { providerId, userId },
+            headers,
+          });
+          return result?.accessToken ?? null;
+        } catch {
+          return null;
+        }
+      },
+    },
   });
 }
