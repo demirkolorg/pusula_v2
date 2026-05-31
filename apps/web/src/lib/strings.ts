@@ -1194,6 +1194,36 @@ export const strings = {
         'Hızlı not kaldırıldı. Karta çevirmek için bir listeye bırakın.',
       announceDropped: 'Bırakıldı.',
     },
+    // Planlayıcı paneli (Faz 16B / DEM-311) — sol kenarda 3. global panel.
+    // Google Takvim etkinliklerini tek-gün dikey timeline'da gösterir
+    // (Trello "Planlayıcı" pattern'ı). Bağlama Ayarlar > Entegrasyonlar'da
+    // yapılır; panel salt-okunur (V1).
+    planner: {
+      panelTitle: 'Planlayıcı',
+      toggle: 'Planlayıcı',
+      open: 'Planlayıcıyı aç',
+      close: 'Planlayıcıyı kapat',
+      today: 'Bugün',
+      prevDay: 'Önceki gün',
+      nextDay: 'Sonraki gün',
+      refresh: 'Yenile',
+      refreshing: 'Yenileniyor…',
+      refreshSuccess: 'Etkinlikler güncellendi.',
+      refreshError: 'Etkinlikler yüklenemedi. Tekrar dene.',
+      loading: 'Etkinlikler yükleniyor…',
+      emptyDay: 'Bu gün için etkinlik yok.',
+      allDayLabel: 'Tüm gün',
+      reconnectTitle: 'Bağlantı süresi doldu',
+      reconnectBody: 'Google Takvim bağlantın yenilenmeli. Ayarlar > Entegrasyonlar üzerinden tekrar bağla.',
+      reconnectCta: 'Bağlantıyı yenile',
+      notConnected: {
+        title: 'Planlayıcı',
+        body:
+          'Planlayıcıyı ve yapılacak işlerini yan yana görüntülemek için takvimini bağla.',
+        cta: 'Hesap bağla',
+        hint: 'Planlayıcını yalnızca sen görürsün.',
+      },
+    },
     // Hızlı Notlar paneli (DEM-205) — pano ekranında açılıp kapanan kişisel
     // "Gelen Kutusu" paneli; bir not listeye sürüklenince karta dönüşür.
     quickNotes: {

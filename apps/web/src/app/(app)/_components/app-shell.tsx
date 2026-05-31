@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'motion/react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { Separator, boardBackgroundClass, cn } from '@pusula/ui';
 import { BrandLogoAnimated } from '@/components/brand-logo-animated';
@@ -14,11 +15,11 @@ import { BoardSwitcher } from './board-switcher';
 import { ColorThemeToggle } from './color-theme-toggle';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { FontToggle } from './font-toggle';
+import { LeftRail } from './left-rail';
 import { NavigatorPanel } from './navigator-panel';
-import { NavigatorToggle } from './navigator-toggle';
 import { NotificationBell } from './notification-bell';
+import { PlannerPanel } from './planner-panel';
 import { QuickNotesPanel } from './quick-notes-panel';
-import { QuickNotesToggle } from './quick-notes-toggle';
 import { SearchDialog } from './search-dialog';
 import { ThemeToggle } from './theme-toggle';
 import { UserNavMenu } from './user-nav-menu';
@@ -28,6 +29,12 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 const NAVIGATOR_PANEL_KEY = 'pusula:navigator-panel-open';
 /** `localStorage` key for the global "Hızlı Notlar" panel open state. */
 const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
+/**
+ * `localStorage` key for the global "Planlayıcı" panel open state
+ * (Faz 16B / DEM-311). Gezgin/Hızlı Notlar key'leriyle birebir pattern;
+ * anasayfa istisnası YOK (her zaman localStorage tercihini izler).
+ */
+const PLANNER_PANEL_KEY = 'pusula:planner-panel-open';
 /** Tailwind `lg` breakpoint (1024px); altında panel overlay sheet gibi davranır. */
 const LG_QUERY = '(max-width: 1023px)';
 
@@ -113,6 +120,9 @@ export function AppShell({
   // localStorage davranışı korunur (kullanıcı tercihi hatırlanır).
   const [navigatorOpen, setNavigatorOpenState] = useState(false);
   const [quickNotesOpen, setQuickNotesOpenState] = useState(false);
+  // Faz 16B (DEM-311) — Planlayıcı 3. global panel. Mevcut iki panelle
+  // birebir pattern: localStorage'da persistent, mobilde mutex.
+  const [plannerOpen, setPlannerOpenState] = useState(false);
   useEffect(() => {
     if (isHome) {
       setNavigatorOpenState(true);
@@ -120,6 +130,7 @@ export function AppShell({
       setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
     }
     setQuickNotesOpenState(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
+    setPlannerOpenState(window.localStorage.getItem(PLANNER_PANEL_KEY) === 'true');
   }, [isHome, pathname]);
   useEffect(() => {
     if (isHome) return;
@@ -128,24 +139,46 @@ export function AppShell({
   useEffect(() => {
     window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
   }, [quickNotesOpen]);
+  useEffect(() => {
+    // Planlayıcı için anasayfa istisnası YOK — her zaman localStorage tercihini izle.
+    window.localStorage.setItem(PLANNER_PANEL_KEY, String(plannerOpen));
+  }, [plannerOpen]);
 
-  // Mutex-aware setter'lar: mobilde birini açarken diğeri kapanır; desktop'ta
-  // dokunmaz (her ikisi yan yana persistent kalabilir).
+  // Mutex-aware setter'lar: mobilde 3 panelden biri açılırken diğer ikisi
+  // kapanır (overlay üst üste binmesin); desktop'ta dokunmaz (üçü yan yana
+  // persistent kalabilir, content shrink eder).
   const setNavigatorOpen = useCallback((value: boolean) => {
     setNavigatorOpenState(value);
-    if (value && isMobileViewport()) setQuickNotesOpenState(false);
+    if (value && isMobileViewport()) {
+      setQuickNotesOpenState(false);
+      setPlannerOpenState(false);
+    }
   }, []);
   const setQuickNotesOpen = useCallback((value: boolean) => {
     setQuickNotesOpenState(value);
-    if (value && isMobileViewport()) setNavigatorOpenState(false);
+    if (value && isMobileViewport()) {
+      setNavigatorOpenState(false);
+      setPlannerOpenState(false);
+    }
+  }, []);
+  const setPlannerOpen = useCallback((value: boolean) => {
+    setPlannerOpenState(value);
+    if (value && isMobileViewport()) {
+      setNavigatorOpenState(false);
+      setQuickNotesOpenState(false);
+    }
   }, []);
   const closeNavigator = useCallback(() => setNavigatorOpenState(false), []);
   const closeQuickNotes = useCallback(() => setQuickNotesOpenState(false), []);
+  const closePlanner = useCallback(() => setPlannerOpenState(false), []);
   const closeNavigatorOnMobile = useCallback(() => {
     if (isMobileViewport()) setNavigatorOpenState(false);
   }, []);
   const closeQuickNotesOnMobile = useCallback(() => {
     if (isMobileViewport()) setQuickNotesOpenState(false);
+  }, []);
+  const closePlannerOnMobile = useCallback(() => {
+    if (isMobileViewport()) setPlannerOpenState(false);
   }, []);
 
   const activeBoard = useQuery({
@@ -184,9 +217,9 @@ export function AppShell({
         // bu header'ı kaldırır.
         data-app-chrome="header"
         className={cn(
-          'sticky top-0 z-20 border-b',
+          'sticky top-0 z-20',
           fullBleed
-            ? 'border-board-shell bg-board-shell text-[color:var(--board-chrome-fg)]'
+            ? 'bg-board-shell text-[color:var(--board-chrome-fg)]'
             : 'bg-card shadow-card',
         )}
       >
@@ -225,14 +258,6 @@ export function AppShell({
             />
           </div>
           <div className="flex flex-1 shrink-0 items-center justify-end gap-1">
-            <NavigatorToggle
-              open={navigatorOpen}
-              onToggle={() => setNavigatorOpen(!navigatorOpen)}
-            />
-            <QuickNotesToggle
-              open={quickNotesOpen}
-              onToggle={() => setQuickNotesOpen(!quickNotesOpen)}
-            />
             <ThemeToggle />
             <ColorThemeToggle />
             <FontToggle />
@@ -253,42 +278,125 @@ export function AppShell({
           fullBleed ? 'bg-board-shell' : 'lg:bg-muted/50',
         )}
       >
+        {/* Sol dikey rail (Activity Bar) — Gezgin + Hızlı Notlar toggle'ları.
+            Header'da değil burada duruyor; panel sol kenarda açıldığı için
+            açma noktası ile açılan yer aynı tarafta kalsın diye (DEM uyarlaması). */}
+        <LeftRail
+          navigatorOpen={navigatorOpen}
+          quickNotesOpen={quickNotesOpen}
+          plannerOpen={plannerOpen}
+          onNavigatorToggle={() => setNavigatorOpen(!navigatorOpen)}
+          onQuickNotesToggle={() => setQuickNotesOpen(!quickNotesOpen)}
+          onPlannerToggle={() => setPlannerOpen(!plannerOpen)}
+          fullBleed={fullBleed}
+        />
+
         {/* Gezgin paneli — `lg+`: row akışında shrink-0 (içeriği iter, yuvarlak
-            kart); `<lg`: fixed overlay + backdrop, link tıklamasında kapanır. */}
-        {navigatorOpen && (
-          <>
-            <button
+            kart); `<lg`: fixed overlay + backdrop, link tıklamasında kapanır.
+            Açılıp kapanma animasyonu: backdrop fade + panel width 0↔auto +
+            opacity (motion/AnimatePresence ile). Mobil overlay'de fixed
+            wrapper soldan sağa doğru genişlediği için slide-in efekti verir;
+            desktop'ta row akışında smooth pushed-content. */}
+        <AnimatePresence initial={false}>
+          {navigatorOpen && (
+            <motion.button
+              key="navigator-backdrop"
               type="button"
               aria-label={strings.board.navigator.close}
               onClick={closeNavigator}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
             />
-            <div className="fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:self-stretch">
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {navigatorOpen && (
+            <motion.div
+              key="navigator-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
               <NavigatorPanel onClose={closeNavigator} onNavigate={closeNavigatorOnMobile} />
-            </div>
-          </>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Hızlı Notlar paneli — Gezgin ile birebir aynı davranış. Mobilde
             mutex (setQuickNotesOpen helper'ı diğer paneli kapatır), desktop'ta
             ikisi yan yana açık olabilir. */}
-        {quickNotesOpen && (
-          <>
-            <button
+        <AnimatePresence initial={false}>
+          {quickNotesOpen && (
+            <motion.button
+              key="quick-notes-backdrop"
               type="button"
               aria-label={strings.board.quickNotes.close}
               onClick={closeQuickNotes}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
             />
-            <div className="fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:self-stretch">
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {quickNotesOpen && (
+            <motion.div
+              key="quick-notes-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
               <QuickNotesPanel
                 canConvert={canConvertQuickNote}
                 onClose={closeQuickNotes}
                 onNavigate={closeQuickNotesOnMobile}
               />
-            </div>
-          </>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Planlayıcı paneli (Faz 16B / DEM-311) — Gezgin/Hızlı Notlar ile
+            birebir aynı pattern: lg+ persistent shrink-0, <lg overlay sheet.
+            Mobil mutex 3-panel arası (setPlannerOpen helper'ı diğer ikisini
+            kapatır); desktop'ta üçü yan yana açık olabilir. */}
+        <AnimatePresence initial={false}>
+          {plannerOpen && (
+            <motion.button
+              key="planner-backdrop"
+              type="button"
+              aria-label={strings.board.planner.close}
+              onClick={closePlanner}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {plannerOpen && (
+            <motion.div
+              key="planner-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
+              <PlannerPanel onClose={closePlanner} onNavigate={closePlannerOnMobile} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {fullBleed ? (
           // Board sayfası: main bir flex sarmalayıcı; BoardDetailPage kendi
