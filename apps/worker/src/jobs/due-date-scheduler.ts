@@ -102,12 +102,17 @@ export async function runDueDateScheduler(
     // `notification_outbox.event_id` FKs to `activity_events.id` — there's no
     // activity row for a scheduler-fired reminder, so we leave `event_id`
     // NULL and dedupe via the payload key `dedupeKey` (one row per
-    // `(card, tier)` regardless of channel). The UNIQUE partial index
+    // `(card, tier, channel)`). The UNIQUE partial index
     // `notification_outbox_scheduler_dedupe_uq` (migration 0011) makes the
     // dedupe race-safe — the per-channel inserts below use
     // `ON CONFLICT DO NOTHING` and rely on Postgres to enforce uniqueness
-    // on `(payload->>'dedupeKey') WHERE event_id IS NULL`.
-    const dedupeKey = `due:${tier}:${card.id}`;
+    // on `(payload->>'dedupeKey') WHERE event_id IS NULL`. DEM-307 (bağımsız
+    // bug fix, 2026-05-31): dedupeKey'e `:${channel}` eklendi — eskiden
+    // channel-bağımsızdı ve loop'ta `in_app` yazıldıktan sonra `push`
+    // satırı `onConflictDoNothing` ile silent atlanıyor, scheduler kaynaklı
+    // `due_*` push'ları hiç gönderilmiyordu. Migration yok (index expression
+    // değişmedi, value channel-aware oldu; eski stale key'ler conflict
+    // çıkarmaz).
 
     // Fan out per card member, per channel. Skips members without effective
     // board access (the simpler permission check than the rule engine's —
@@ -154,7 +159,7 @@ export async function runDueDateScheduler(
                 workspaceId: card.workspaceId,
                 dueAt: card.dueAt,
                 reminderTier: tier,
-                dedupeKey,
+                dedupeKey: `due:${tier}:${card.id}:${channel}`,
               },
             })
             .onConflictDoNothing()

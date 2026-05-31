@@ -96,7 +96,7 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
     return cardId;
   }
 
-  it('classifies due-overdue and writes one outbox row per (card, tier)', async () => {
+  it('classifies due-overdue and writes one outbox row per (card, tier, channel) including push (DEM-307)', async () => {
     const now = new Date('2026-05-13T10:00:00Z');
     const overdueAt = new Date(now.getTime() - 60_000);
     const cardId = await seedCard(overdueAt, 'a0');
@@ -114,28 +114,41 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
       // Scheduler batches every fresh row under a single sentinel job.
       expect(enqueued).toContain('scheduler:tick');
 
-      // Outbox row: keyed by payload.dedupeKey (event_id is NULL — no
-      // activity_events row for a scheduler-fired reminder).
+      // Outbox rows: keyed by payload.dedupeKey (event_id is NULL — no
+      // activity_events row for a scheduler-fired reminder). DEM-307: dedupeKey
+      // is now `due:<tier>:<cardId>:<channel>` (channel-aware), so use LIKE
+      // pattern to match all channels for this (card, tier).
       const rows = await db()
         .select({ type: notificationOutbox.type, channel: notificationOutbox.channel })
         .from(notificationOutbox)
         .where(
-          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`,
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_overdue:${cardId}:%`}`,
         );
       expect(rows.length).toBeGreaterThanOrEqual(1);
       expect(rows.every((r) => r.type === 'due_overdue')).toBe(true);
+      // DEM-307 regression guard: scheduler MUST write a push channel row when
+      // the recipient has no preference override (push_enabled defaults true).
+      // Before the fix, the channel-agnostic dedupeKey caused the push insert
+      // to be silently swallowed by ON CONFLICT DO NOTHING after the in_app
+      // row claimed the unique slot.
+      const channelsSeen = new Set(rows.map((r) => r.channel));
+      expect(channelsSeen.has('in_app')).toBe(true);
+      expect(channelsSeen.has('push')).toBe(true);
+      // due_overdue also opts into email by default — guards the rule engine
+      // wiring for the heavy-touch tier.
+      expect(channelsSeen.has('email')).toBe(true);
     } finally {
       await db()
         .delete(notificationOutbox)
         .where(
-          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_overdue:${cardId}`}`,
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_overdue:${cardId}:%`}`,
         );
       await db().delete(cardMembers).where(dbMod.eq(cardMembers.cardId, cardId));
       await db().delete(cards).where(dbMod.eq(cards.id, cardId));
     }
   });
 
-  it('dedupes — a second tick on the same (card, tier) does nothing', async () => {
+  it('dedupes — a second tick on the same (card, tier, channel) does nothing', async () => {
     const now = new Date('2026-05-13T10:00:00Z');
     const dueIn30Min = new Date(now.getTime() + 30 * 60_000);
     const cardId = await seedCard(dueIn30Min, 'a1');
@@ -143,14 +156,16 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
       const first = await runDueDateScheduler(db(), async () => {}, now);
       expect(first.written).toBeGreaterThanOrEqual(1);
       const second = await runDueDateScheduler(db(), async () => {}, now);
-      // No new card/tier combos → written must drop to 0 (existing rows already
-      // marked the (card, 1h) tier).
+      // No new card/tier/channel combos → written must drop to 0 (existing rows
+      // already claimed every (card, 1h, channel) slot). DEM-307: the per-channel
+      // dedupeKey still enforces idempotency, the only difference is that the
+      // race-safe slot is now per-channel instead of channel-agnostic.
       expect(second.written).toBe(0);
     } finally {
       await db()
         .delete(notificationOutbox)
         .where(
-          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' = ${`due:due_reminder_1h:${cardId}`}`,
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_reminder_1h:${cardId}:%`}`,
         );
       await db().delete(cardMembers).where(dbMod.eq(cardMembers.cardId, cardId));
       await db().delete(cards).where(dbMod.eq(cards.id, cardId));

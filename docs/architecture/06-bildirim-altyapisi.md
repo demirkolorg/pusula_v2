@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-16
+updated: 2026-05-31
 ---
 
 # 06 — Bildirim Altyapısı (Outbox + Worker)
@@ -179,7 +179,7 @@ Yaklaşan/geçmiş due tarihler için periyodik bildirim üretimi.
   - `due_reminder_1d` — `due_at < NOW() + INTERVAL '24 hours' AND due_at > NOW() + INTERVAL '1 hour'` (24 saat içinde, henüz 1 saat eşiğine değil) + henüz aynı kart için bu tip notification gönderilmemiş.
   - `due_reminder_1h` — `due_at < NOW() + INTERVAL '1 hour' AND due_at > NOW()` (1 saat içinde) + henüz aynı kart için gönderilmemiş.
   - `due_overdue` — `due_at < NOW()` (geçmiş) + henüz aynı kart için gönderilmemiş.
-- **Dedupe:** `notification_outbox` `WHERE event_id = card_id AND type = 'due_reminder_*'` ile aynı kart + aynı tip için 2 kez bildirim gitmez. Reminder tipleri sıralı: 1d → 1h → overdue (her tip yalnız bir kez).
+- **Dedupe:** Scheduler kaynaklı satırlar `event_id IS NULL` (activity_events satırı yok); UNIQUE partial index `notification_outbox_scheduler_dedupe_uq` (`(payload->>'dedupeKey') WHERE event_id IS NULL`, migration `0011`) `(card, tier, channel)` üçlüsü için race-safe. **DEM-307 (2026-05-31 bağımsız bug fix):** `dedupeKey` formatı `due:<tier>:<cardId>:<channel>` — eskiden channel'dan bağımsızdı (`due:<tier>:<cardId>`) ve `for (channel of channels)` loop'unda `in_app` insert'i başarılı olduktan sonra `push`/`email` satırları `ON CONFLICT DO NOTHING` ile silent atlanıyor, scheduler kaynaklı `due_*` push/email teslimi gerçekleşmiyordu. Migration gerekmedi (index expression değişmedi, payload value channel-aware oldu; eski stale key'ler hiçbir conflict çıkarmaz). Reminder tipleri sıralı: 1d → 1h → overdue (her tip yalnız bir kez, her channel için bir satır).
 - **Recipient hesabı:** Kart üyeleri (`card_members` — assignee + watcher; `notification-rules.ts`'in `due_reminder_*` kuralı).
 - **Cron sıklığı:** 5dk — daha sık scheduler load'u artırır, daha seyrek precision düşer (1h reminder 5dk gecikmeli gidebilir, kabul edilebilir).
 - **Faz kapsamı:** Faz 6A. Recurring task'lar (tekrarlayan kartlar) sonraki tur.
