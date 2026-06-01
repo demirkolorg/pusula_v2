@@ -1,4 +1,5 @@
 import { router } from './trpc';
+import { activityRouter } from './routers/activity';
 import { authRouter } from './routers/auth';
 import { attachmentRouter } from './routers/attachment';
 import { auditRouter } from './routers/audit';
@@ -9,6 +10,7 @@ import { commentRouter } from './routers/comment';
 import { healthRouter } from './routers/health';
 import { labelRouter } from './routers/label';
 import { listRouter } from './routers/list';
+import { myTasksRouter } from './routers/my-tasks';
 import { navRouter } from './routers/nav';
 import { notificationsRouter } from './routers/notifications';
 import { plannerRouter } from './routers/planner';
@@ -24,6 +26,7 @@ export const appRouter = router({
   health: healthRouter,
   auth: authRouter,
   user: userRouter,
+  activity: activityRouter,
   attachment: attachmentRouter,
   audit: auditRouter,
   workspace: workspaceRouter,
@@ -34,6 +37,7 @@ export const appRouter = router({
   comment: commentRouter,
   checklist: checklistRouter,
   label: labelRouter,
+  myTasks: myTasksRouter,
   notifications: notificationsRouter,
   planner: plannerRouter,
   push: pushRouter,

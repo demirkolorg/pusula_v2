@@ -8,14 +8,17 @@ import { AnimatePresence, motion } from 'motion/react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { Separator, boardBackgroundClass, cn } from '@pusula/ui';
 import { BrandLogoAnimated } from '@/components/brand-logo-animated';
+import { useReportRenderGlobal } from '@/lib/realtime/use-report-render-global';
 import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
+import { ActivityFeedPanel } from './activity-feed-panel';
 import { BoardSwitcher } from './board-switcher';
 import { ColorThemeToggle } from './color-theme-toggle';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { FontToggle } from './font-toggle';
 import { LeftRail } from './left-rail';
+import { MyTasksPanel } from './my-tasks-panel';
 import { NavigatorPanel } from './navigator-panel';
 import { NotificationBell } from './notification-bell';
 import { PlannerPanel } from './planner-panel';
@@ -35,6 +38,10 @@ const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
  * anasayfa istisnası YOK (her zaman localStorage tercihini izler).
  */
 const PLANNER_PANEL_KEY = 'pusula:planner-panel-open';
+/** Faz 17 — "Görevlerim" panel açık durumu için localStorage anahtarı. */
+const MY_TASKS_PANEL_KEY = 'pusula:my-tasks-panel-open';
+/** Faz 17 — "Aktivite Akışı" panel açık durumu için localStorage anahtarı. */
+const ACTIVITY_FEED_PANEL_KEY = 'pusula:activity-feed-panel-open';
 /** Tailwind `lg` breakpoint (1024px); altında panel overlay sheet gibi davranır. */
 const LG_QUERY = '(max-width: 1023px)';
 
@@ -102,29 +109,37 @@ export function AppShell({
   const params = useParams<{ boardId?: string }>();
   const trpc = useTRPC();
   useUserRealtime();
+  // Faz 13T (DEM-276) follow-up — rapor render bittiğinde her sayfadan
+  // auto-download + persistent toast. Raporlar sayfası dışında da çalışır.
+  useReportRenderGlobal();
 
   const fullBleed = BOARD_ROUTE.test(pathname);
   const isHome = pathname === HOME_ROUTE;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
 
-  // Global yan paneller (Gezgin + Hızlı Notlar + Planlayıcı) — SSR/first render
-  // için kapalı başla, mount'ta localStorage tercihi adopt edilir. `lg+` (≥1024px)
-  // ekranda persistent sidebar (içeriği sağa iter); `<lg` ekranda overlay sheet
-  // (fixed + backdrop) olarak açılır, link/aksiyon sonrası kendini kapatır.
-  // Mobilde mutex: üçü aynı anda overlay olamaz (üst üste binme önlenir);
-  // desktop'ta üçü yan yana açılabilir.
+  // Global yan paneller (Gezgin + Hızlı Notlar + Planlayıcı + Görevlerim +
+  // Aktivite Akışı — 5 panel) — SSR/first render için kapalı başla, mount'ta
+  // localStorage tercihi adopt edilir. `lg+` (≥1024px) ekranda persistent
+  // sidebar (içeriği sağa iter); `<lg` ekranda overlay sheet (fixed +
+  // backdrop) olarak açılır, link/aksiyon sonrası kendini kapatır. Mobilde
+  // mutex: beşi aynı anda overlay olamaz (üst üste binme önlenir);
+  // desktop'ta beşi yan yana açılabilir (her panel shrink-0 column).
   //
-  // Üç panel de aynı davranır: kullanıcı tercihi localStorage'da hatırlanır,
+  // Beş panel de aynı davranır: kullanıcı tercihi localStorage'da hatırlanır,
   // varsayılan kapalı, her sayfada (anasayfa dahil) toggle ile açılır.
   const [navigatorOpen, setNavigatorOpenState] = useState(false);
   const [quickNotesOpen, setQuickNotesOpenState] = useState(false);
-  // Faz 16B (DEM-311) — Planlayıcı 3. global panel. Mevcut iki panelle
-  // birebir pattern: localStorage'da persistent, mobilde mutex.
+  // Faz 16B (DEM-311) — Planlayıcı 3. global panel.
   const [plannerOpen, setPlannerOpenState] = useState(false);
+  // Faz 17 — Görevlerim (4.) + Aktivite Akışı (5.) global paneller.
+  const [myTasksOpen, setMyTasksOpenState] = useState(false);
+  const [activityFeedOpen, setActivityFeedOpenState] = useState(false);
   useEffect(() => {
     setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
     setQuickNotesOpenState(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
     setPlannerOpenState(window.localStorage.getItem(PLANNER_PANEL_KEY) === 'true');
+    setMyTasksOpenState(window.localStorage.getItem(MY_TASKS_PANEL_KEY) === 'true');
+    setActivityFeedOpenState(window.localStorage.getItem(ACTIVITY_FEED_PANEL_KEY) === 'true');
   }, [pathname]);
   useEffect(() => {
     window.localStorage.setItem(NAVIGATOR_PANEL_KEY, String(navigatorOpen));
@@ -135,15 +150,23 @@ export function AppShell({
   useEffect(() => {
     window.localStorage.setItem(PLANNER_PANEL_KEY, String(plannerOpen));
   }, [plannerOpen]);
+  useEffect(() => {
+    window.localStorage.setItem(MY_TASKS_PANEL_KEY, String(myTasksOpen));
+  }, [myTasksOpen]);
+  useEffect(() => {
+    window.localStorage.setItem(ACTIVITY_FEED_PANEL_KEY, String(activityFeedOpen));
+  }, [activityFeedOpen]);
 
-  // Mutex-aware setter'lar: mobilde 3 panelden biri açılırken diğer ikisi
-  // kapanır (overlay üst üste binmesin); desktop'ta dokunmaz (üçü yan yana
+  // Mutex-aware setter'lar: mobilde 5 panelden biri açılırken diğer dördü
+  // kapanır (overlay üst üste binmesin); desktop'ta dokunmaz (beşi yan yana
   // persistent kalabilir, content shrink eder).
   const setNavigatorOpen = useCallback((value: boolean) => {
     setNavigatorOpenState(value);
     if (value && isMobileViewport()) {
       setQuickNotesOpenState(false);
       setPlannerOpenState(false);
+      setMyTasksOpenState(false);
+      setActivityFeedOpenState(false);
     }
   }, []);
   const setQuickNotesOpen = useCallback((value: boolean) => {
@@ -151,6 +174,8 @@ export function AppShell({
     if (value && isMobileViewport()) {
       setNavigatorOpenState(false);
       setPlannerOpenState(false);
+      setMyTasksOpenState(false);
+      setActivityFeedOpenState(false);
     }
   }, []);
   const setPlannerOpen = useCallback((value: boolean) => {
@@ -158,11 +183,33 @@ export function AppShell({
     if (value && isMobileViewport()) {
       setNavigatorOpenState(false);
       setQuickNotesOpenState(false);
+      setMyTasksOpenState(false);
+      setActivityFeedOpenState(false);
+    }
+  }, []);
+  const setMyTasksOpen = useCallback((value: boolean) => {
+    setMyTasksOpenState(value);
+    if (value && isMobileViewport()) {
+      setNavigatorOpenState(false);
+      setQuickNotesOpenState(false);
+      setPlannerOpenState(false);
+      setActivityFeedOpenState(false);
+    }
+  }, []);
+  const setActivityFeedOpen = useCallback((value: boolean) => {
+    setActivityFeedOpenState(value);
+    if (value && isMobileViewport()) {
+      setNavigatorOpenState(false);
+      setQuickNotesOpenState(false);
+      setPlannerOpenState(false);
+      setMyTasksOpenState(false);
     }
   }, []);
   const closeNavigator = useCallback(() => setNavigatorOpenState(false), []);
   const closeQuickNotes = useCallback(() => setQuickNotesOpenState(false), []);
   const closePlanner = useCallback(() => setPlannerOpenState(false), []);
+  const closeMyTasks = useCallback(() => setMyTasksOpenState(false), []);
+  const closeActivityFeed = useCallback(() => setActivityFeedOpenState(false), []);
   const closeNavigatorOnMobile = useCallback(() => {
     if (isMobileViewport()) setNavigatorOpenState(false);
   }, []);
@@ -171,6 +218,12 @@ export function AppShell({
   }, []);
   const closePlannerOnMobile = useCallback(() => {
     if (isMobileViewport()) setPlannerOpenState(false);
+  }, []);
+  const closeMyTasksOnMobile = useCallback(() => {
+    if (isMobileViewport()) setMyTasksOpenState(false);
+  }, []);
+  const closeActivityFeedOnMobile = useCallback(() => {
+    if (isMobileViewport()) setActivityFeedOpenState(false);
   }, []);
 
   const activeBoard = useQuery({
@@ -280,9 +333,13 @@ export function AppShell({
           navigatorOpen={navigatorOpen}
           quickNotesOpen={quickNotesOpen}
           plannerOpen={plannerOpen}
+          myTasksOpen={myTasksOpen}
+          activityFeedOpen={activityFeedOpen}
           onNavigatorToggle={() => setNavigatorOpen(!navigatorOpen)}
           onQuickNotesToggle={() => setQuickNotesOpen(!quickNotesOpen)}
           onPlannerToggle={() => setPlannerOpen(!plannerOpen)}
+          onMyTasksToggle={() => setMyTasksOpen(!myTasksOpen)}
+          onActivityFeedToggle={() => setActivityFeedOpen(!activityFeedOpen)}
           fullBleed={fullBleed}
         />
 
@@ -389,6 +446,75 @@ export function AppShell({
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <PlannerPanel onClose={closePlanner} onNavigate={closePlannerOnMobile} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Görevlerim paneli (Faz 17) — diğer 4 panel ile birebir aynı
+            davranış. lg+ persistent shrink-0, <lg overlay sheet. Mobil mutex
+            5-panel arası `setMyTasksOpen` helper'ında yönetilir. */}
+        <AnimatePresence initial={false}>
+          {myTasksOpen && (
+            <motion.button
+              key="my-tasks-backdrop"
+              type="button"
+              aria-label={strings.board.myTasks.close}
+              onClick={closeMyTasks}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {myTasksOpen && (
+            <motion.div
+              key="my-tasks-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
+              <MyTasksPanel onClose={closeMyTasks} onNavigate={closeMyTasksOnMobile} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Aktivite Akışı paneli (Faz 17) — diğer 4 panel ile birebir aynı
+            davranış. lg+ persistent shrink-0, <lg overlay sheet. Mobil mutex
+            5-panel arası `setActivityFeedOpen` helper'ında yönetilir. */}
+        <AnimatePresence initial={false}>
+          {activityFeedOpen && (
+            <motion.button
+              key="activity-feed-backdrop"
+              type="button"
+              aria-label={strings.board.activityFeed.close}
+              onClick={closeActivityFeed}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {activityFeedOpen && (
+            <motion.div
+              key="activity-feed-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
+              <ActivityFeedPanel
+                onClose={closeActivityFeed}
+                onNavigate={closeActivityFeedOnMobile}
+              />
             </motion.div>
           )}
         </AnimatePresence>

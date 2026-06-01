@@ -1,6 +1,12 @@
 'use client';
 
-import { CalendarIcon, CompassIcon, InboxIcon } from 'lucide-react';
+import {
+  ActivityIcon,
+  CalendarIcon,
+  CompassIcon,
+  InboxIcon,
+  ListChecksIcon,
+} from 'lucide-react';
 import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
@@ -9,10 +15,18 @@ type LeftRailProps = {
   quickNotesOpen: boolean;
   /** Faz 16B (DEM-311) — Planlayıcı paneli açık mı? */
   plannerOpen: boolean;
+  /** Faz 17 — Görevlerim paneli açık mı? */
+  myTasksOpen: boolean;
+  /** Faz 17 — Aktivite Akışı paneli açık mı? */
+  activityFeedOpen: boolean;
   onNavigatorToggle: () => void;
   onQuickNotesToggle: () => void;
   /** Faz 16B (DEM-311) — Planlayıcı toggle callback. */
   onPlannerToggle: () => void;
+  /** Faz 17 — Görevlerim toggle callback. */
+  onMyTasksToggle: () => void;
+  /** Faz 17 — Aktivite Akışı toggle callback. */
+  onActivityFeedToggle: () => void;
   /**
    * `true` ise board ekranındayız — rail kart yerine board chrome (`bg-board-shell`)
    * üzerinde dursun (yuvarlak kart efekti yok, panel/main ile aynı kabuk rengi).
@@ -21,25 +35,29 @@ type LeftRailProps = {
 };
 
 /**
- * Sol dikey rail — Gezgin + Hızlı Notlar + Planlayıcı toggle'larını barındırır.
- * VSCode/Linear/Slack tarzı Activity Bar: ince (48px) dikey kolon, icon-only,
- * hover'da tooltip label sağda görünür. Açık olan toggle hafif vurgulu
- * (`bg-accent/40`).
+ * Sol dikey rail — Gezgin + Hızlı Notlar + Planlayıcı + Görevlerim + Aktivite
+ * Akışı toggle'larını barındırır. VSCode/Linear/Slack tarzı Activity Bar: ince
+ * (48px) dikey kolon, icon-only, hover'da tooltip label sağda görünür. Açık
+ * olan toggle hafif vurgulu (`bg-accent/40`).
  *
  * `lg+`: panellerin solunda persistent kart (header altında, "windowed" gövde
  * içinde yuvarlak köşeli). `<lg` (mobil): aynı yerde, kenarsız/köşesiz —
  * mobilde panel overlay olarak rail'in üzerine açılır (rail görünür kalır).
  *
- * Faz 16B (DEM-311): 3. toggle (Planlayıcı = `CalendarIcon`) eklendi.
- * Mobil mutex (3-panel arası) `AppShell`'de yönetilir.
+ * Faz 17: 4. ve 5. toggle (Görevlerim = `ListChecksIcon`, Aktivite Akışı =
+ * `ActivityIcon`) eklendi. Mobil mutex (5-panel arası) `AppShell`'de yönetilir.
  */
 export function LeftRail({
   navigatorOpen,
   quickNotesOpen,
   plannerOpen,
+  myTasksOpen,
+  activityFeedOpen,
   onNavigatorToggle,
   onQuickNotesToggle,
   onPlannerToggle,
+  onMyTasksToggle,
+  onActivityFeedToggle,
   fullBleed,
 }: LeftRailProps) {
   return (
@@ -99,6 +117,38 @@ export function LeftRail({
           </Button>
         </TooltipTrigger>
         <TooltipContent side="right">{strings.board.planner.toggle}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-pressed={myTasksOpen}
+            aria-label={strings.board.myTasks.toggle}
+            onClick={onMyTasksToggle}
+            className={cn('size-8', myTasksOpen && 'bg-accent/40')}
+          >
+            <ListChecksIcon className="size-4" aria-hidden />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{strings.board.myTasks.toggle}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-pressed={activityFeedOpen}
+            aria-label={strings.board.activityFeed.toggle}
+            onClick={onActivityFeedToggle}
+            className={cn('size-8', activityFeedOpen && 'bg-accent/40')}
+          >
+            <ActivityIcon className="size-4" aria-hidden />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{strings.board.activityFeed.toggle}</TooltipContent>
       </Tooltip>
     </nav>
   );

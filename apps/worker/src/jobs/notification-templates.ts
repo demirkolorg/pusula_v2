@@ -104,13 +104,16 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
       // DEM-175 — board'a doğrudan eklenme: "X seni Y panosuna ekledi".
       return renderBoardMemberAdded(ctx);
     case 'report_scheduled_ready':
+    case 'report_render_completed':
+    case 'report_render_failed':
       // DEM-275 (Faz 13S) — bu tipte email kanalı outbox'a YAZILMAZ
       // (`sendScheduledReportEmail` Faz 13J ile zaten kendine ait özel
       // template'i göndermiş olur). Rule engine de bu tipi tetiklemez —
       // outbox doğrudan worker `onCompleted` hook'u tarafından insert
       // edilir, `channel` daima `in_app` veya `push`. Exhaustiveness için
       // case tutuldu; ulaşırsa generic fallback boş içeriği döner
-      // (`renderGeneric` yeterince güvenli).
+      // (`renderGeneric` yeterince güvenli). Faz 13U'da eklenen
+      // `report_render_completed`/`failed` da aynı kanal disiplinine tabi.
       return renderGeneric(ctx);
     default: {
       // Exhaustiveness check — every new NotificationType must be wired here.
@@ -369,6 +372,17 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         title: 'Raporunuz hazır',
         body: `"${reportTitle}" raporu indirilebilir.`,
         data: reportData,
+      };
+    }
+    case 'report_render_completed':
+    case 'report_render_failed': {
+      // Faz 13U follow-up — bu iki tip email kanalı için outbox satırı
+      // yazmaz (worker doğrudan in_app + push insert eder). Exhaustiveness
+      // için defansif fallback.
+      return {
+        title: 'Rapor güncellemesi',
+        body: "Pusula'da bir rapor güncellemesi var.",
+        data,
       };
     }
     default: {
@@ -859,9 +873,12 @@ function digestGroupBaseTitle(type: NotificationType): string {
     case 'board_member_added':
       return 'Panoya eklenmeler';
     case 'report_scheduled_ready':
+    case 'report_render_completed':
+    case 'report_render_failed':
       // DEM-275 (Faz 13S) — e-posta kanalı bu tipte outbox satırı yazmaz
       // (`sendScheduledReportEmail` özel template ile gönderir); digest hiç
-      // toplamaz. Exhaustiveness için tam tutulur.
+      // toplamaz. Exhaustiveness için tam tutulur. `report_render_*` Faz 13U
+      // follow-up; aynı kanal disiplini.
       return 'Hazırlanan raporlar';
     default: {
       const _exhaustive: never = type;
@@ -957,9 +974,12 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       return `${actor} → "${subject}" rolünü değiştirdi`;
     case 'board_access_requested':
       return `${actor} → "${subject}" panosuna erişim istedi`;
-    case 'report_scheduled_ready': {
+    case 'report_scheduled_ready':
+    case 'report_render_completed':
+    case 'report_render_failed': {
       // DEM-275 (Faz 13S) — digest yolu bu tipte hiç tetiklenmez (email kanalı
       // outbox satırı yazmaz); satır metni defansif tutulur, exhaustiveness.
+      // `report_render_*` Faz 13U follow-up; aynı disiplin.
       const reportTitle = stringOr(item.payload, 'reportTitle', 'Rapor');
       return `"${reportTitle}" raporu hazır`;
     }
