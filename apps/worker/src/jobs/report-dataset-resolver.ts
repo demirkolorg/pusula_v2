@@ -49,9 +49,13 @@ export const defaultReportDatasetResolver: ReportDatasetResolver = async ({
   internalApiUrl,
 }) => {
   const url = new URL('/trpc/report.print.verifyToken', internalApiUrl);
+  // `URLSearchParams.set()` URL encoding yapar; manuel encodeURIComponent
+  // çağrılırsa `%` karakterleri tekrar encode edilir → `%7B` → `%257B`,
+  // API parse fail → 400 Bad Request → `xlsx_render_failed`.
+  // (Web tarafında simetrik düzeltme — DEM-276 post-mortem 2026-06-01.)
   url.searchParams.set(
     'input',
-    encodeURIComponent(JSON.stringify({ json: { renderId, token } })),
+    JSON.stringify({ json: { renderId, token } }),
   );
   const response = await fetch(url.toString(), {
     method: 'GET',
