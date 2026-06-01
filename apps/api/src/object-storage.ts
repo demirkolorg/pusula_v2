@@ -106,7 +106,13 @@ export function resolveObjectStorage(requestHost?: string): ObjectStorage {
     },
 
     async createPresignedGetUrl(input) {
-      const command = new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: input.key });
+      // Faz 13T (DEM-276) follow-up — `bucket` opsiyonel; default
+      // `env.S3_BUCKET` (attachments/avatars). Rapor asset'leri için
+      // `report.getRender` `asset.s3Bucket` (`pusula-reports`) geçirir.
+      const command = new GetObjectCommand({
+        Bucket: input.bucket ?? env.S3_BUCKET,
+        Key: input.key,
+      });
       // Varsayılan TTL 10 dk (tek-seferlik indirme / lightbox); `expiresIn`
       // verilirse onun kadar — kart kapak görseli URL'leri (DEM-227) 1 saat
       // ister, `board.get` client cache penceresinde URL ölmesin.

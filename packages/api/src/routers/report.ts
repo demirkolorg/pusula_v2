@@ -596,6 +596,9 @@ const getRenderRouter = protectedProcedure
         }
         try {
           const url = await ctx.objectStorage.createPresignedGetUrl({
+            // DEM-276 follow-up — asset'in kendi bucket'ı (`pusula-reports`)
+            // geçilmezse default `S3_BUCKET=pusula`'ya gider → NoSuchKey 404.
+            bucket: asset.s3Bucket,
             key: asset.s3Key,
             // 5 dk yeterli — kullanıcı butona basıp indirir.
             expiresIn: 5 * 60,

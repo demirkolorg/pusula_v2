@@ -9,8 +9,18 @@ export interface ObjectStorage {
    * default TTL — used by `board.get` / `card.get` cover-image URLs (DEM-227),
    * which must outlive the board query's client cache window (`staleTime` 5 min)
    * so a persisted projection doesn't carry an already-expired URL.
+   *
+   * `bucket` opsiyonel (Faz 13T DEM-276 follow-up 2026-06-01): default
+   * `S3_BUCKET` (attachments/avatars). Rapor render asset'leri
+   * `S3_REPORTS_BUCKET=pusula-reports` ayrı bucket'ında durduğu için
+   * `report.getRender` bu parametreyi `asset.s3Bucket` ile geçirir; aksi
+   * halde URL yanlış bucket'a işaret eder → MinIO NoSuchKey 404.
    */
-  createPresignedGetUrl(input: { key: string; expiresIn?: number }): Promise<string>;
+  createPresignedGetUrl(input: {
+    key: string;
+    bucket?: string;
+    expiresIn?: number;
+  }): Promise<string>;
   /**
    * Stable, unsigned public URL for an object stored under a public-read
    * prefix (DEM-160 — `avatars/*`). Unlike presigned GET URLs this never
