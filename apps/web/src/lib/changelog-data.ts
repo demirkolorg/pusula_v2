@@ -55,6 +55,18 @@ export const CHANGELOG: ChangelogDay[] = [
     entries: [
       {
         kind: 'new',
+        text: 'Anasayfa karşılama bandına hafif bir hareket dokusu eklendi: arka planda yavaşça kayan aurora ışıkları, başlıkta yumuşak gradient parıltı, "Son yenilik" rozetinde ışıltı ve sağdaki Pusula logosunda kısa dönüş. Açılışta metinler kademeli olarak yumuşakça belirir; sistem tercihinizde "Hareketi azalt" açıksa tüm animasyonlar otomatik durur.',
+      },
+      {
+        kind: 'new',
+        text: 'Anasayfa 4 sütunlu gezgininde satıra sağ tıklayınca hızlı eylem menüsü açılır: yetkinize göre çalışma alanı, pano, liste ve kart için "Yeniden adlandır" ile "Arşivle", panolar için ayrıca "Sabitle / Sabitlemeyi kaldır", kartlar için "Kopyala" eylemleri tek menüde toplandı.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Anasayfa gezgin satırları artık daha yoğun bilgi taşıyor: çalışma alanlarında "şu kadar önce aktif" notu, panolarda "{açık} açık · {bitti} bitti" özeti ve sağda üye avatar yığını (en fazla 3 + "+N"), listelerde "{tamamlanan}/{toplam}" sayacı ve vadesi geçmiş kart için kırmızı uyarı rozeti.',
+      },
+      {
+        kind: 'new',
         text: 'Yeni "Yenilikler" sol paneli ve anasayfa "Son yenilik" rozeti eklendi — Pusula\'daki en son güncellemeleri tek tıkla görür, tam sayfaya (/yenilikler) geçebilirsiniz.',
       },
       {
