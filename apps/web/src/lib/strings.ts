@@ -41,6 +41,12 @@ export const strings = {
       closeOthers: 'Diğer panelleri kapat',
       closeThis: 'Bu paneli kapat',
       closeBackdrop: 'Paneli kapat',
+      /**
+       * Sol global panel header'ındaki X butonu için hover tooltip metni —
+       * Esc kısayolunu da gösterir. Aria-label sade "Kapat" kalır
+       * (`board.<panel>.close`); tooltip kullanıcıya kısayolu hatırlatır.
+       */
+      closeShortcut: 'Kapat (Esc)',
     },
   },
   entityIcons: {
@@ -1453,25 +1459,12 @@ export const strings = {
       toggle: 'Gezgin',
       open: 'Gezgin panelini aç',
       close: 'Gezgin panelini kapat',
-      filterTitle: 'Göster',
-      filterSelectAll: 'Tümünü seç',
-      filterClearAll: 'Tümünü kaldır',
-      filterWorkspaces: 'Çalışma alanları',
-      filterBoards: 'Panolar',
-      filterLists: 'Listeler',
-      filterCards: 'Kartlar',
-      expandAll: 'Tümünü genişlet',
-      collapseAll: 'Tümünü daralt',
       refresh: 'Yenile',
-      searchPlaceholder: 'Filtrele…',
-      emptyTitle: 'Hiçbir şey görünmüyor',
-      emptyDescription:
-        'Erişebildiğiniz bir çalışma alanı yok ya da filtreler tüm öğeleri gizliyor.',
-      emptyBoards: 'Bu çalışma alanında pano yok.',
-      emptyLists: 'Bu panoda liste yok.',
-      emptyCards: 'Bu listede kart yok.',
+      searchPlaceholder: 'Kart ara…',
+      emptyTitle: 'Hiç kart yok',
+      emptyDescription: 'Erişebildiğiniz bir kart henüz yok.',
+      emptySearchDescription: 'Aramana uyan kart yok.',
       loadErrorTitle: 'Gezgin yüklenemedi',
-      countSummary: (count: number) => `${count} öğe`,
     },
     // Phase 4 optimistic UI — shared destructive / neutral toast copy used by every
     // board/list/card collaborative mutation (08-web-ve-mobil.md §8.1.9, 05-board-mekanigi.md §5.2).

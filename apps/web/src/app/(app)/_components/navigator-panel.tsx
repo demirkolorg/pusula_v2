@@ -1,41 +1,31 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
-  CheckCheckIcon,
   CheckCircle2Icon,
-  ChevronDownIcon,
   ChevronRightIcon,
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
   CircleIcon,
   CompassIcon,
-  ListIcon,
   RefreshCwIcon,
   SearchIcon,
-  SlidersHorizontalIcon,
   XIcon,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
   Input,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   cn,
 } from '@pusula/ui';
-import { EntityIconGlyph } from '@/components/entity-icon';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
 
@@ -54,105 +44,44 @@ type NavigatorPanelProps = {
   onNavigate?: () => void;
 };
 
-type EntityKind = 'workspaces' | 'boards' | 'lists' | 'cards';
-
 type TreeData = RouterOutputs['nav']['tree'];
 type RawWorkspace = TreeData['workspaces'][number];
-type RawBoard = RawWorkspace['boards'][number];
-type RawList = RawBoard['lists'][number];
-type RawCard = RawList['cards'][number];
+type RawCard = RawWorkspace['boards'][number]['lists'][number]['cards'][number];
+
+type FlatCard = {
+  workspaceId: string;
+  boardId: string;
+  boardTitle: string;
+  listTitle: string;
+  card: RawCard;
+};
 
 /**
- * Global "Gezgin" paneli — uygulamanın her ekranında erişilebilen, kullanıcının
- * görebildiği tüm workspace / pano / liste / kart hiyerarşisini gösteren sol
- * panel. Steam'in sol kütüphane panelinin mantığı.
+ * Global "Gezgin" paneli — uygulamanın her ekranında erişilebilen sade düz
+ * kart listesi. Workspace/pano/liste hiyerarşisi düzleştirilip her satırda
+ * kart başlığı + altında "Pano › Liste" breadcrumb gösterilir.
  *
- * - `nav.tree` tek çağrıyla yüklenir; `staleTime: 5dk` + manuel refresh butonu.
- * - Sistem temasını kullanır (`bg-background`, `text-foreground`).
- * - `lg+`: persistent sidebar (`AppShell` içinde flex row), içeriği sağa iter.
- * - `<lg`: parent overlay sheet olarak render eder; `onNavigate` ile panel
- *   kendini kapatır.
- * - Aktif route highlight: `useParams` ile workspace/board id'leri okunur.
+ * - `nav.tree` tek çağrıyla yüklenir; `staleTime: 5dk` + manuel refresh.
+ * - Arama yalnızca kart başlığında çalışır; pano/liste adı süzme dışı.
+ * - Sıra `nav.tree`'nin doğal (pano → liste → kart) sırası — aynı panonun
+ *   kartları yan yana, breadcrumb tekrarı görsel gruplama hissi verir.
+ * - Aktif highlight: URL'deki `?card=<id>` query param'ı.
  */
 export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
   const trpc = useTRPC();
   const tree = useQuery(trpc.nav.tree.queryOptions(undefined, { staleTime: NAV_TREE_STALE_MS }));
   const copy = strings.board.navigator;
 
-  // Filtreler — hepsi default açık (Steam: 'hepsi seçili' davranışı).
-  const [visible, setVisible] = useState<Set<EntityKind>>(
-    () => new Set<EntityKind>(['workspaces', 'boards', 'lists', 'cards']),
-  );
-  const toggleKind = (kind: EntityKind) =>
-    setVisible((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
-  const selectAllKinds = () =>
-    setVisible(new Set<EntityKind>(['workspaces', 'boards', 'lists', 'cards']));
-  const clearAllKinds = () => setVisible(new Set<EntityKind>());
-
-  // Genişletme durumu — workspace + board + list seviyeleri.
-  const [openWorkspaces, setOpenWorkspaces] = useState<Set<string>>(() => new Set());
-  const [openBoards, setOpenBoards] = useState<Set<string>>(() => new Set());
-  const [openLists, setOpenLists] = useState<Set<string>>(() => new Set());
-
-  // İlk veri geldiğinde TÜM seviyeler (workspace + board + list) açık —
-  // kullanıcı için "her şey görünür, kartlara kadar" beklentisi.
-  const initialisedRef = useRef(false);
-  useEffect(() => {
-    if (!tree.data || initialisedRef.current) return;
-    initialisedRef.current = true;
-    if (tree.data.workspaces.length === 0) return;
-    setOpenWorkspaces(new Set(tree.data.workspaces.map((w) => w.id)));
-    setOpenBoards(
-      new Set(tree.data.workspaces.flatMap((w) => w.boards.map((b) => b.id))),
-    );
-    setOpenLists(
-      new Set(
-        tree.data.workspaces.flatMap((w) =>
-          w.boards.flatMap((b) => b.lists.map((l) => l.id)),
-        ),
-      ),
-    );
-  }, [tree.data]);
-
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase('tr');
 
-  const filtered = useMemo(() => {
+  const cards = useMemo<FlatCard[]>(() => {
     if (!tree.data) return [];
-    return filterTree(tree.data.workspaces, normalizedQuery, visible);
-  }, [tree.data, normalizedQuery, visible]);
+    return flattenCards(tree.data.workspaces, normalizedQuery);
+  }, [tree.data, normalizedQuery]);
 
-  const params = useParams<{ id?: string; boardId?: string }>();
-  const activeBoardId = params?.boardId ?? null;
-  const activeWorkspaceId = params?.id ?? null;
-
-  const anyExpanded =
-    openWorkspaces.size > 0 || openBoards.size > 0 || openLists.size > 0;
-  const toggleAll = () => {
-    if (anyExpanded) {
-      setOpenWorkspaces(new Set());
-      setOpenBoards(new Set());
-      setOpenLists(new Set());
-      return;
-    }
-    if (!tree.data) return;
-    setOpenWorkspaces(new Set(tree.data.workspaces.map((w) => w.id)));
-    setOpenBoards(
-      new Set(tree.data.workspaces.flatMap((w) => w.boards.map((b) => b.id))),
-    );
-    setOpenLists(
-      new Set(
-        tree.data.workspaces.flatMap((w) =>
-          w.boards.flatMap((b) => b.lists.map((l) => l.id)),
-        ),
-      ),
-    );
-  };
+  const searchParams = useSearchParams();
+  const activeCardId = searchParams?.get('card') ?? null;
 
   return (
     <aside
@@ -162,23 +91,36 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
       // sheet — full-bleed (köşesiz, kenarsız) daha doğal.
       className="bg-background text-foreground border-border flex h-full w-80 shrink-0 flex-col overflow-hidden lg:w-96 lg:rounded-xl lg:border"
     >
-      <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
-        <CompassIcon aria-hidden className="size-4 opacity-70" />
-        <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={copy.close}
-          onClick={onClose}
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </header>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
+            <CompassIcon aria-hidden className="size-4 opacity-70" />
+            <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={copy.close}
+                  onClick={onClose}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{strings.common.panels.closeShortcut}</TooltipContent>
+            </Tooltip>
+          </header>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={onClose}>{strings.common.panels.closeThis}</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3">
-        {/* Tek satırda kontroller — arama, daralt/genişlet toggle, yenile, filtre. */}
+        {/* Tek satırda kontroller — arama + yenile. Hiyerarşi olmadığı için
+            genişlet/daralt ve tip filtresi yok. */}
         <div className="flex shrink-0 items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <SearchIcon
@@ -210,28 +152,6 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label={anyExpanded ? copy.collapseAll : copy.expandAll}
-                onClick={toggleAll}
-                className="bg-card size-8 shrink-0"
-              >
-                {anyExpanded ? (
-                  <ChevronsDownUpIcon className="size-4" />
-                ) : (
-                  <ChevronsUpDownIcon className="size-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {anyExpanded ? copy.collapseAll : copy.expandAll}
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
                 aria-label={copy.refresh}
                 onClick={() => tree.refetch()}
                 disabled={tree.isFetching}
@@ -244,98 +164,6 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
             </TooltipTrigger>
             <TooltipContent>{copy.refresh}</TooltipContent>
           </Tooltip>
-
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label={copy.filterTitle}
-                    className={cn(
-                      'bg-card relative size-8 shrink-0',
-                      visible.size < 4 && 'border-primary text-primary',
-                    )}
-                  >
-                    <SlidersHorizontalIcon className="size-4" />
-                    {visible.size < 4 && (
-                      <span
-                        aria-hidden
-                        className="bg-primary absolute right-1 top-1 size-1.5 rounded-full"
-                      />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{copy.filterTitle}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex items-center justify-between gap-2 text-xs">
-                <span>{copy.filterTitle}</span>
-                <span className="flex items-center gap-0.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={selectAllKinds}
-                        aria-label={copy.filterSelectAll}
-                        disabled={visible.size === 4}
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-6 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <CheckCheckIcon className="size-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{copy.filterSelectAll}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={clearAllKinds}
-                        aria-label={copy.filterClearAll}
-                        disabled={visible.size === 0}
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-6 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <XIcon className="size-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{copy.filterClearAll}</TooltipContent>
-                  </Tooltip>
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={visible.has('workspaces')}
-                onCheckedChange={() => toggleKind('workspaces')}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {copy.filterWorkspaces}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visible.has('boards')}
-                onCheckedChange={() => toggleKind('boards')}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {copy.filterBoards}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visible.has('lists')}
-                onCheckedChange={() => toggleKind('lists')}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {copy.filterLists}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visible.has('cards')}
-                onCheckedChange={() => toggleKind('cards')}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {copy.filterCards}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <div className="pusula-scrollbar min-h-0 flex-1 overflow-y-auto">
@@ -355,27 +183,21 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
                 {strings.common.retry}
               </Button>
             </div>
-          ) : filtered.length === 0 ? (
+          ) : cards.length === 0 ? (
             <div className="flex flex-col items-center gap-1.5 py-8 text-center">
               <CompassIcon aria-hidden className="text-muted-foreground size-7" />
               <p className="text-foreground text-sm font-medium">{copy.emptyTitle}</p>
-              <p className="text-muted-foreground text-xs">{copy.emptyDescription}</p>
+              <p className="text-muted-foreground text-xs">
+                {normalizedQuery ? copy.emptySearchDescription : copy.emptyDescription}
+              </p>
             </div>
           ) : (
-            <ul role="tree" className="space-y-0.5">
-              {filtered.map((workspace) => (
-                <WorkspaceRow
-                  key={workspace.id}
-                  workspace={workspace}
-                  visible={visible}
-                  openWorkspaces={openWorkspaces}
-                  setOpenWorkspaces={setOpenWorkspaces}
-                  openBoards={openBoards}
-                  setOpenBoards={setOpenBoards}
-                  openLists={openLists}
-                  setOpenLists={setOpenLists}
-                  activeBoardId={activeBoardId}
-                  activeWorkspaceId={activeWorkspaceId}
+            <ul role="list" className="space-y-0.5">
+              {cards.map((entry) => (
+                <CardRow
+                  key={entry.card.id}
+                  entry={entry}
+                  active={entry.card.id === activeCardId}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -389,405 +211,73 @@ export function NavigatorPanel({ onClose, onNavigate }: NavigatorPanelProps) {
 
 // --- alt bileşenler ---------------------------------------------------------
 
-function WorkspaceRow({
-  workspace,
-  visible,
-  openWorkspaces,
-  setOpenWorkspaces,
-  openBoards,
-  setOpenBoards,
-  openLists,
-  setOpenLists,
-  activeBoardId,
-  activeWorkspaceId,
-  onNavigate,
-}: {
-  workspace: RawWorkspace;
-  visible: ReadonlySet<EntityKind>;
-  openWorkspaces: Set<string>;
-  setOpenWorkspaces: (next: Set<string>) => void;
-  openBoards: Set<string>;
-  setOpenBoards: (next: Set<string>) => void;
-  openLists: Set<string>;
-  setOpenLists: (next: Set<string>) => void;
-  activeBoardId: string | null;
-  activeWorkspaceId: string | null;
-  onNavigate?: () => void;
-}) {
-  const showWorkspaces = visible.has('workspaces');
-  const showBoards = visible.has('boards');
-  const showLists = visible.has('lists');
-  const showCards = visible.has('cards');
-  // Başlık gizliyken (showWorkspaces=false) her zaman expanded — alt seviyeler
-  // flatten görünür.
-  const expanded = showWorkspaces ? openWorkspaces.has(workspace.id) : true;
-  // Child ul'u render etmek için en az bir alt seviye seçili olmalı.
-  const renderChildren = showBoards || showLists || showCards;
-  const childDepth = showWorkspaces ? 1 : 0;
-  const copy = strings.board.navigator;
-  // Aktif workspace highlight'ı yalnız board ekranında değilken — board ekranındaysa
-  // board row vurgusu daha bilgi verici, workspace satırını sade bırak.
-  const isActive = !activeBoardId && workspace.id === activeWorkspaceId;
-
-  const toggle = () => {
-    const next = new Set(openWorkspaces);
-    if (next.has(workspace.id)) next.delete(workspace.id);
-    else next.add(workspace.id);
-    setOpenWorkspaces(next);
-  };
-
-  return (
-    <li role="treeitem" aria-expanded={expanded}>
-      {showWorkspaces && (
-        <TreeRow
-          depth={0}
-          chevron={
-            workspace.boards.length > 0 ? (expanded ? 'down' : 'right') : 'none'
-          }
-          onChevronClick={toggle}
-          href={`/workspaces/${workspace.id}`}
-          icon={<EntityIconGlyph icon={workspace.icon} className="size-3.5" />}
-          label={workspace.name}
-          active={isActive}
-          onNavigate={onNavigate}
-        />
-      )}
-      {expanded && renderChildren && (
-        <ul role="group" className="space-y-0.5">
-          {workspace.boards.length === 0 ? (
-            showWorkspaces ? <EmptyRow depth={childDepth} text={copy.emptyBoards} /> : null
-          ) : (
-            workspace.boards.map((board) => (
-              <BoardRow
-                key={board.id}
-                workspaceId={workspace.id}
-                board={board}
-                depth={childDepth}
-                visible={visible}
-                openBoards={openBoards}
-                setOpenBoards={setOpenBoards}
-                openLists={openLists}
-                setOpenLists={setOpenLists}
-                isActive={board.id === activeBoardId}
-                onNavigate={onNavigate}
-              />
-            ))
-          )}
-        </ul>
-      )}
-    </li>
-  );
-}
-
-function BoardRow({
-  workspaceId,
-  board,
-  depth,
-  visible,
-  openBoards,
-  setOpenBoards,
-  openLists,
-  setOpenLists,
-  isActive,
-  onNavigate,
-}: {
-  workspaceId: string;
-  board: RawBoard;
-  depth: number;
-  visible: ReadonlySet<EntityKind>;
-  openBoards: Set<string>;
-  setOpenBoards: (next: Set<string>) => void;
-  openLists: Set<string>;
-  setOpenLists: (next: Set<string>) => void;
-  isActive: boolean;
-  onNavigate?: () => void;
-}) {
-  const showBoards = visible.has('boards');
-  const showLists = visible.has('lists');
-  const showCards = visible.has('cards');
-  // Başlık gizliyken (showBoards=false) her zaman expanded — child seviyeler
-  // flatten görünür; kullanıcının tıklayabileceği bir chevron yok zaten.
-  const expanded = showBoards ? openBoards.has(board.id) : true;
-  // Child ul'u render etmek için en az bir alt seviye seçili olmalı.
-  const renderChildren = showLists || showCards;
-  const childDepth = showBoards ? depth + 1 : depth;
-  const copy = strings.board.navigator;
-
-  const toggle = () => {
-    const next = new Set(openBoards);
-    if (next.has(board.id)) next.delete(board.id);
-    else next.add(board.id);
-    setOpenBoards(next);
-  };
-
-  return (
-    <li role="treeitem" aria-expanded={expanded}>
-      {showBoards && (
-        <TreeRow
-          depth={depth}
-          chevron={board.lists.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
-          onChevronClick={toggle}
-          href={`/workspaces/${workspaceId}/boards/${board.id}`}
-          icon={<EntityIconGlyph icon={board.icon} className="size-3.5" />}
-          label={board.title}
-          active={isActive}
-          onNavigate={onNavigate}
-        />
-      )}
-      {expanded && renderChildren && (
-        <ul role="group" className="space-y-0.5">
-          {board.lists.length === 0 ? (
-            showBoards ? <EmptyRow depth={childDepth} text={copy.emptyLists} /> : null
-          ) : (
-            board.lists.map((list) => (
-              <ListRow
-                key={list.id}
-                workspaceId={workspaceId}
-                boardId={board.id}
-                list={list}
-                depth={childDepth}
-                visible={visible}
-                openLists={openLists}
-                setOpenLists={setOpenLists}
-                onNavigate={onNavigate}
-              />
-            ))
-          )}
-        </ul>
-      )}
-    </li>
-  );
-}
-
-function ListRow({
-  workspaceId,
-  boardId,
-  list,
-  depth,
-  visible,
-  openLists,
-  setOpenLists,
-  onNavigate,
-}: {
-  workspaceId: string;
-  boardId: string;
-  list: RawList;
-  depth: number;
-  visible: ReadonlySet<EntityKind>;
-  openLists: Set<string>;
-  setOpenLists: (next: Set<string>) => void;
-  onNavigate?: () => void;
-}) {
-  const showLists = visible.has('lists');
-  const showCards = visible.has('cards');
-  // Başlık gizliyken (showLists=false) her zaman expanded — kartlar flatten görünür.
-  const expanded = showLists ? openLists.has(list.id) : true;
-  const childDepth = showLists ? depth + 1 : depth;
-  const copy = strings.board.navigator;
-
-  const toggle = () => {
-    const next = new Set(openLists);
-    if (next.has(list.id)) next.delete(list.id);
-    else next.add(list.id);
-    setOpenLists(next);
-  };
-
-  return (
-    <li role="treeitem" aria-expanded={expanded}>
-      {showLists && (
-        <TreeRow
-          depth={depth}
-          chevron={list.cards.length > 0 ? (expanded ? 'down' : 'right') : 'none'}
-          onChevronClick={toggle}
-          href={`/workspaces/${workspaceId}/boards/${boardId}`}
-          icon={<ListIcon className="size-3.5 opacity-70" aria-hidden />}
-          label={list.title}
-          onNavigate={onNavigate}
-        />
-      )}
-      {expanded && showCards && (
-        <ul role="group" className="space-y-0.5">
-          {list.cards.length === 0 ? (
-            showLists ? <EmptyRow depth={childDepth} text={copy.emptyCards} /> : null
-          ) : (
-            list.cards.map((card) => (
-              <CardRow
-                key={card.id}
-                workspaceId={workspaceId}
-                boardId={boardId}
-                card={card}
-                depth={childDepth}
-                onNavigate={onNavigate}
-              />
-            ))
-          )}
-        </ul>
-      )}
-    </li>
-  );
-}
-
 function CardRow({
-  workspaceId,
-  boardId,
-  card,
-  depth,
-  onNavigate,
-}: {
-  workspaceId: string;
-  boardId: string;
-  card: RawCard;
-  depth: number;
-  onNavigate?: () => void;
-}) {
-  return (
-    <li role="treeitem">
-      <TreeRow
-        depth={depth}
-        chevron="none"
-        href={`/workspaces/${workspaceId}/boards/${boardId}?card=${card.id}`}
-        icon={
-          // Tamamlanma durumunu soluk renk + line-through ile göstermek göz
-          // yoruyordu; bunun yerine farklı bir ikon ile ayırt ediyoruz.
-          // Tamamlanmış: tikli yuvarlak; tamamlanmamış: boş yuvarlak.
-          // Metin rengine dokunmuyoruz (normal foreground kalıyor).
-          card.completed ? (
-            <CheckCircle2Icon className="size-3.5 opacity-70" aria-hidden />
-          ) : (
-            <CircleIcon className="size-3.5 opacity-70" aria-hidden />
-          )
-        }
-        label={card.title}
-        onNavigate={onNavigate}
-      />
-    </li>
-  );
-}
-
-function TreeRow({
-  depth,
-  chevron,
-  onChevronClick,
-  href,
-  icon,
-  label,
+  entry,
   active,
   onNavigate,
 }: {
-  depth: number;
-  chevron: 'down' | 'right' | 'none';
-  onChevronClick?: () => void;
-  href: string;
-  icon: ReactNode;
-  label: string;
-  active?: boolean;
+  entry: FlatCard;
+  active: boolean;
   onNavigate?: () => void;
 }) {
-  const indentPx = depth * 14;
+  const { workspaceId, boardId, boardTitle, listTitle, card } = entry;
   return (
-    <div
-      className={cn(
-        'group flex items-center rounded-md text-sm',
-        'hover:bg-accent/60',
-        active && 'bg-accent text-accent-foreground',
-      )}
-      style={{ paddingLeft: indentPx }}
-    >
-      {chevron === 'none' ? (
-        <span className="inline-block size-5 shrink-0" aria-hidden />
-      ) : (
-        <button
-          type="button"
-          onClick={onChevronClick}
-          aria-label={chevron === 'down' ? 'Daralt' : 'Genişlet'}
-          className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-5 shrink-0 items-center justify-center rounded"
-        >
-          {chevron === 'down' ? (
-            <ChevronDownIcon className="size-3.5" />
-          ) : (
-            <ChevronRightIcon className="size-3.5" />
-          )}
-        </button>
-      )}
+    <li>
       <Link
-        href={href}
+        href={`/workspaces/${workspaceId}/boards/${boardId}?card=${card.id}`}
         onClick={onNavigate}
         className={cn(
-          'text-foreground flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1',
+          'group flex items-start gap-2 rounded-md px-2 py-1.5 text-sm',
+          'hover:bg-accent/60',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+          active && 'bg-accent text-accent-foreground',
         )}
       >
-        <span className="shrink-0">{icon}</span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="mt-0.5 shrink-0">
+          {/* Tamamlanma durumu yalnızca ikon farkı — metne dokunmuyoruz. */}
+          {card.completed ? (
+            <CheckCircle2Icon className="size-3.5 opacity-70" aria-hidden />
+          ) : (
+            <CircleIcon className="size-3.5 opacity-70" aria-hidden />
+          )}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-foreground truncate">{card.title}</span>
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+            <span className="truncate">{boardTitle}</span>
+            <ChevronRightIcon aria-hidden className="size-3 shrink-0 opacity-60" />
+            <span className="truncate">{listTitle}</span>
+          </span>
+        </span>
       </Link>
-    </div>
-  );
-}
-
-function EmptyRow({ depth, text }: { depth: number; text: string }) {
-  return (
-    <li
-      role="none"
-      className="text-muted-foreground py-1 text-xs italic"
-      style={{ paddingLeft: depth * 14 + 24 }}
-    >
-      {text}
     </li>
   );
 }
 
 // --- yardımcılar -------------------------------------------------------------
 
-/** Recursive filter: query string ve görünür-tipler maskesine göre ağacı sadeleştirir.
- *  Filtreler "şu seviyeleri ağaçta göster" anlamına gelir; bir alt seviye seçiliyse
- *  üst seviye gizli olsa bile yüklenir (gizli başlık render aşamasında atlanır,
- *  alt seviyeler flatten görünür). */
-function filterTree(
+/** Tüm workspace ağacını düz kart listesine çevirir; arama sadece kart
+ *  başlığında uygulanır. Sıra: pano → liste → kart (doğal). */
+function flattenCards(
   workspaces: ReadonlyArray<RawWorkspace>,
   q: string,
-  visible: ReadonlySet<EntityKind>,
-): RawWorkspace[] {
-  const showCards = visible.has('cards');
-  const showLists = visible.has('lists');
-  const showBoards = visible.has('boards');
-  const showWorkspaces = visible.has('workspaces');
-  // Alt seviye seçiliyse üst seviye yine yüklenmeli (parent path olarak render'da
-  // atlanabilir ama veriyi taşıyıcı kalır). Sadece kendi seviyesi seçiliyse de
-  // yüklenir — yani her bayrak hem "kendisi" hem de "alt seviyeyi taşımak için"
-  // ile kapsanır.
-  const includeBoards = showBoards || showLists || showCards;
-  const includeLists = showLists || showCards;
-  const includeCards = showCards;
-  const includeWorkspaces = showWorkspaces || includeBoards;
-
-  return workspaces
-    .map((w) => {
-      const boards: RawBoard[] = includeBoards
-        ? w.boards
-            .map((b) => {
-              const lists: RawList[] = includeLists
-                ? b.lists
-                    .map((l) => {
-                      const cards: RawCard[] = includeCards
-                        ? l.cards.filter((c) => matches(c.title, q))
-                        : [];
-                      const listVisible = matches(l.title, q) || cards.length > 0;
-                      return listVisible ? { ...l, cards } : null;
-                    })
-                    .filter((l): l is RawList => l !== null)
-                : [];
-              const boardVisible = matches(b.title, q) || lists.length > 0;
-              return boardVisible ? { ...b, lists } : null;
-            })
-            .filter((b): b is RawBoard => b !== null)
-        : [];
-      const workspaceVisible = includeWorkspaces && (matches(w.name, q) || boards.length > 0);
-      return workspaceVisible ? { ...w, boards } : null;
-    })
-    .filter((w): w is RawWorkspace => w !== null);
-}
-
-function matches(text: string, q: string): boolean {
-  if (!q) return true;
-  return text.toLocaleLowerCase('tr').includes(q);
+): FlatCard[] {
+  const out: FlatCard[] = [];
+  for (const workspace of workspaces) {
+    for (const board of workspace.boards) {
+      for (const list of board.lists) {
+        for (const card of list.cards) {
+          if (q && !card.title.toLocaleLowerCase('tr').includes(q)) continue;
+          out.push({
+            workspaceId: workspace.id,
+            boardId: board.id,
+            boardTitle: board.title,
+            listTitle: list.title,
+            card,
+          });
+        }
+      }
+    }
+  }
+  return out;
 }
