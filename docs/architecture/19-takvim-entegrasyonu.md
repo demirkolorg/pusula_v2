@@ -498,8 +498,8 @@ GOOGLE_CLIENT_SECRET=...
 4. **Credentials > Create credentials > OAuth client ID**:
    - Application type: Web application
    - Name: "Pusula Web (prod)" / "Pusula Web (dev)"
-   - Authorized redirect URIs:
-     - `https://pusulaportal.com/api/auth/oauth2/callback/google-calendar` (prod)
+   - Authorized redirect URIs (**API subdomain — web kök değil**; Better Auth `baseURL: env.API_URL` üzerinden üretiyor — bkz. `apps/api/src/auth.ts`):
+     - `https://api.pusulaportal.com/api/auth/oauth2/callback/google-calendar` (prod)
      - `http://localhost:3001/api/auth/oauth2/callback/google-calendar` (dev)
 5. **Client ID + Secret** Dokploy env'e (prod) ve `.env.local`'e (dev) yazılır.
 6. **Production yayını için Google doğrulama**: `calendar.events.readonly` sensitive scope → Google "OAuth verification" başvurusu (homepage URL, privacy policy URL, demo video gerekir, 4-6 hafta sürebilir).
