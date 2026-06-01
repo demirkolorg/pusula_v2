@@ -87,6 +87,12 @@ export async function buildTrpcContext(
     // Yukarıda `x-worker-secret` header'ı `env.WORKER_SHARED_SECRET` ile
     // eşleşirse set edilir; eşleşmezse undefined → procedure UNAUTHORIZED.
     workerSharedSecret,
+    // Faz 13T (DEM-276) — `report.print.verifyToken` public route'tur
+    // (Server Component fetch, web container'da secret yoktur — anti-pattern
+    // taşımak). Secret header check'siz, doğrudan env'den; HMAC-imzalı token
+    // sahiplikten bağımsız doğrulanır. `workerSharedSecret` (header-protected,
+    // `requestToken` için) ile farklı: orada worker authentication zorunlu.
+    printVerifyTokenSecret: env.WORKER_SHARED_SECRET || undefined,
     // Faz 16C (DEM-312) — Google Calendar API çağrılarında token üretimi.
     // Better Auth `auth.api.getAccessToken` sarmalı; `accountId` opsiyonel —
     // bir kullanıcının yalnız bir `google-calendar` bağlantısı olduğundan

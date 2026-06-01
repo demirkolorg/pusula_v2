@@ -971,7 +971,14 @@ const printRequestTokenRouter = publicProcedure
 const printVerifyTokenRouter = publicProcedure
   .input(z.object({ renderId: idSchema, token: z.string().min(1) }))
   .query(async ({ ctx, input }) => {
-    const secret = ctx.workerSharedSecret;
+    // Faz 13T (DEM-276) — verifyToken **public** route'tur. Server Component
+    // (`apps/web/.../reports/print/[id]/page.tsx`) web container'ından
+    // çağırır; web'de WORKER_SHARED_SECRET yoktur (anti-pattern taşımak).
+    // `ctx.printVerifyTokenSecret` env'den header check'siz set edilir
+    // (`apps/api/src/trpc.ts`); HMAC-imzalı token sahiplikten bağımsız
+    // doğrulanır. `workerSharedSecret` (header-protected) `requestToken`
+    // için ayrı kullanılır.
+    const secret = ctx.printVerifyTokenSecret;
     if (!secret) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',

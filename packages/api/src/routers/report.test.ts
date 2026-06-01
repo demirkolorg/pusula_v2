@@ -45,7 +45,12 @@ const session = (id: string) => ({ user: { id, email: `${id}@example.test`, name
 
 function callerFor(
   userId: string,
-  opts?: { workerSharedSecret?: string; enqueueReportRender?: (i: { renderId: string }) => void },
+  opts?: {
+    workerSharedSecret?: string;
+    /** DEM-276 — verifyToken yeni alan; omit ⇒ workerSharedSecret'a eşitlenir. */
+    printVerifyTokenSecret?: string;
+    enqueueReportRender?: (i: { renderId: string }) => void;
+  },
 ) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
@@ -54,12 +59,17 @@ function callerFor(
       session: session(userId),
       db: probe.db,
       workerSharedSecret: opts?.workerSharedSecret,
+      printVerifyTokenSecret: opts?.printVerifyTokenSecret ?? opts?.workerSharedSecret,
       enqueueReportRender: opts?.enqueueReportRender,
     }),
   );
 }
 
-function callerAnonymous(opts?: { workerSharedSecret?: string }) {
+function callerAnonymous(opts?: {
+  workerSharedSecret?: string;
+  /** DEM-276 — verifyToken yeni alan; omit ⇒ workerSharedSecret'a eşitlenir. */
+  printVerifyTokenSecret?: string;
+}) {
   if (!probe) throw new Error('db not initialised');
   const create = createCallerFactory(appRouter);
   return create(
@@ -67,6 +77,7 @@ function callerAnonymous(opts?: { workerSharedSecret?: string }) {
       session: null,
       db: probe.db,
       workerSharedSecret: opts?.workerSharedSecret,
+      printVerifyTokenSecret: opts?.printVerifyTokenSecret ?? opts?.workerSharedSecret,
     }),
   );
 }

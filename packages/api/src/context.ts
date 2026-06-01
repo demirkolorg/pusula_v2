@@ -116,8 +116,21 @@ export interface CreateContextOptions {
    * `print.requestToken` çağrıları UNAUTHORIZED (akış kapalı). Bkz.
    * `lib/report-print-token.ts` + `docs/architecture/16-raporlama-mimarisi.md`
    * §16.8.
+   *
+   * **`x-worker-secret` header'a bağlı** — host context build'i header
+   * eşleşirse set eder, eşleşmezse undefined → procedure UNAUTHORIZED.
+   * Header-protected; worker → api iç ağında kullanılır.
    */
   workerSharedSecret?: string;
+  /**
+   * Faz 13T (DEM-276) — `report.print.verifyToken` HMAC verify secret'i.
+   * `workerSharedSecret` ile aynı env değer, AMA header check'siz: verify
+   * akışı **public** (Server Component fetch eder, web container'da
+   * secret yoktur). Token'in HMAC imzası secret ile doğrulanır; sahiplik
+   * (token verene) ek auth gerekmez. `undefined` ise verifyToken
+   * UNAUTHORIZED (env'de WORKER_SHARED_SECRET tanımsız → print akışı kapalı).
+   */
+  printVerifyTokenSecret?: string;
   /**
    * Faz 16C (DEM-312) — Google Calendar API helper bağımlılıkları (host
    * tarafından enjekte; opsiyonel, omit → planner endpoint'leri
@@ -150,6 +163,8 @@ export interface Context {
   reportCache?: ReportCache;
   /** See `CreateContextOptions.workerSharedSecret`. `undefined` ⇒ print akışı kapalı. */
   workerSharedSecret?: string;
+  /** See `CreateContextOptions.printVerifyTokenSecret`. `undefined` ⇒ verifyToken UNAUTHORIZED. */
+  printVerifyTokenSecret?: string;
   /**
    * Faz 16C (DEM-312) — Google Calendar API çağrı bağımlılıkları. Host
    * (`apps/api`) Better Auth `auth.api.getAccessToken`'i sarıp enjekte
@@ -188,6 +203,7 @@ export function createContext(opts: CreateContextOptions): Context {
     enqueueReportRender: opts.enqueueReportRender,
     reportCache: opts.reportCache,
     workerSharedSecret: opts.workerSharedSecret,
+    printVerifyTokenSecret: opts.printVerifyTokenSecret,
     googleCalendar: opts.googleCalendar,
     // The `enforceClientMutationId` middleware overwrites this for every
     // protected procedure call; explicit default keeps the shape stable for
