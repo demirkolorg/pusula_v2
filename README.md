@@ -112,9 +112,7 @@ Compose proje adı `pusula_v2` ve bu portlar, v1 projesiyle (`D:\projects\pusula
 | `pnpm db:seed`                 | Seed verisi                                          |
 | `pnpm infra:up` / `infra:down` | Docker altyapısını başlat / durdur                   |
 
-## Yol haritası (özet)
+## Yol haritası
 
-Detay: [`docs/process/02-mvp-faz-plani.md`](docs/process/02-mvp-faz-plani.md). **Faz 0 (temel altyapı)**
-tamam: monorepo, paketler, web/api/worker uygulamaları, Drizzle şema iskeleti, Better Auth
-bağlantısı, docker-compose. Sıradaki adımlar: Faz 1 (auth + workspace), Faz 2 (board/list/card
-CRUD), Faz 3 (drag-drop) ...
+İş takibi ve faz planı 2026-06-01'de kaldırıldı. Mevcut/sonraki işler doğrudan kullanıcı ile
+konuşulur; `git log` ve `docs/architecture/*` koddaki güncel durumun kaynağıdır.

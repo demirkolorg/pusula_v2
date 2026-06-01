@@ -13,7 +13,7 @@ type: 'skill'
 axis: 'process'
 status: 'active'
 parent: '[[CLAUDE|Çalışma Protokolü]]'
-updated: 2026-05-12
+updated: 2026-06-01
 ---
 
 # Pusula Project (skill: `kontrol`)
@@ -30,9 +30,9 @@ The full rules are in `docs/`, split by axis — never mix design and business r
 
 - **Design / technical** (`docs/architecture/`) — _how we build it_: stack, monorepo, patterns (optimistic UI, outbox, transactions), infra, transport, deployment, observability, testing. Index: `docs/architecture/README.md`.
 - **Business / domain** (`docs/domain/`) — _what the product does, who can do what, what triggers what_: domain model & invariants, authorization rules, ranking/notification/activity/search/attachment rules. Index: `docs/domain/README.md`.
-- **Process** (`docs/process/`) — _how we work_: default start guide, Linear workflow, automatic docs ↔ Linear sync protocol, work register, MVP phase plan. Index: `docs/process/README.md`.
+- **Process** (`docs/process/`) — _how we work_: default start guide and Markdown/Obsidian writing standard. Index: `docs/process/README.md`.
 
-Top-level index: `docs/README.md`. Working protocol: `CLAUDE.md`. Default start guide for every new task/session: `docs/process/00-calisma-baslangic-rehberi.md`. Automatic workflow protocol: `docs/process/04-otomatik-is-akisi-protokolu.md`; repo-side work register: `docs/process/05-is-kayit-defteri.md`. This skill is the condensed contract; when a task needs detail, open the matching `docs/` file (and update it before writing code — design rule → `docs/architecture/`, business rule → `docs/domain/`, process rule → `docs/process/`).
+Top-level index: `docs/README.md`. Working protocol: `CLAUDE.md`. Default start guide for every new task/session: `docs/process/00-calisma-baslangic-rehberi.md`. This skill is the condensed contract; when a task needs detail, open the matching `docs/` file (and update it before writing code — design rule → `docs/architecture/`, business rule → `docs/domain/`, process rule → `docs/process/`).
 
 The repo is also an Obsidian vault. Keep Markdown docs compatible with `docs/process/06-obsidian-dokumantasyon-kurallari.md`: frontmatter properties, aliases, tags, parent/related links, and MOC/README entries must stay current for every new or intentionally updated `.md` file.
 
@@ -350,16 +350,12 @@ Use Vitest (domain/unit), React Testing Library (component behavior), Playwright
 
 Always test: permission edge cases, position/ranking calculations, optimistic rollback, realtime reconciliation, notification outbox generation, duplicate mutation/idempotency behavior, drag-drop same-list and cross-list moves.
 
-## Workflow Sync Requirements
+## Workflow Requirements
 
-- Before non-trivial development, create or reuse a Linear MCP issue and mirror it in `docs/process/05-is-kayit-defteri.md`.
-- Open the Linear MCP (and other connectors) **only** at issue create/reuse and at closeout — or when the user explicitly asks. Between those, track status in the work register (`docs/process/05-is-kayit-defteri.md`); Linear catches up in batch at the next Linear touch. No Linear API calls on intermediate turns.
-- Start from `docs/process/00-calisma-baslangic-rehberi.md` for task selection and source priority; use `docs/process/03-faz-0-devir-notu.md` only as Phase 0 historical handoff context.
-- Keep status values in sync across Linear and the work register: `Todo`, `In Progress`, `Blocked`, `Review`, `Done`, `Canceled`.
-- If Linear MCP is not reachable, record `MCP bekliyor` in the work register and state the sync debt in the final response.
-- Update affected `docs/architecture/*`, `docs/domain/*`, or `docs/process/*` before code when the task changes decisions, rules, schemas, procedures, or workflow.
+- Start from `docs/process/00-calisma-baslangic-rehberi.md` for task selection and source priority.
+- Update affected `docs/architecture/*`, `docs/domain/*`, or `docs/process/*` **before** code when the task changes decisions, rules, schemas, procedures, or workflow ("önce belge").
 - For Markdown changes, preserve the Obsidian vault standard: frontmatter, tags, aliases, parent/related links, `updated`, and parent MOC entries.
-- At closeout, comment on the Linear issue with summary, updated docs, verification result, and follow-up risk; then update the work register in the same status.
+- Linear, issue tracker and the repo-side work register were **removed** on 2026-06-01. Do not open Linear MCP, do not maintain a work register or phase plan. Operational task tracking is the user conversation + commit messages + `git log`.
 
 ## Avoid
 
@@ -381,15 +377,4 @@ Always test: permission edge cases, position/ranking calculations, optimistic ro
 
 ## Implementation Order
 
-Default start guide: `docs/process/00-calisma-baslangic-rehberi.md`. Source of truth for phase status: `docs/process/02-mvp-faz-plani.md`. Source for task-level workflow sync: `docs/process/04-otomatik-is-akisi-protokolu.md` + `docs/process/05-is-kayit-defteri.md`. Phase 0 (monorepo, packages, web/api/worker skeletons, Drizzle schema, Better Auth wiring, docker-compose) is **done**. Continue:
-
-1. ✅ Monorepo, tooling, local Docker Compose for PostgreSQL/Redis/MinIO.
-2. Better Auth sign-in/up/out flows, session handling, workspace model + member model, permission helpers wired into procedures.
-3. Board/list/card CRUD via tRPC + Drizzle.
-4. Pragmatic Drag and Drop for web board interactions.
-5. TanStack Query optimistic mutations and rollback.
-6. Socket.IO board rooms, user rooms, event envelope, reconciliation.
-7. Activity events, notification outbox, worker processors, in-app notifications.
-8. Expo mobile basics and push notifications.
-9. PostgreSQL full-text search and MinIO attachments.
-10. Dokploy deployment hardening, observability, backups, e2e coverage.
+Default start guide: `docs/process/00-calisma-baslangic-rehberi.md`. Phase planning and a written-down sequence are no longer tracked in `docs/` (Linear / phase plan / work register removed 2026-06-01). Work priorities come from the user; consult `git log` and existing code for what has shipped.

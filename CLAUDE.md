@@ -14,9 +14,8 @@ status: 'active'
 parent: '[[docs/README|Pusula Belgeleri]]'
 related:
   - '[[docs/process/00-calisma-baslangic-rehberi|Çalışma Başlangıç Rehberi]]'
-  - '[[docs/process/04-otomatik-is-akisi-protokolu|Otomatik İş Akışı Protokolü]]'
   - '[[docs/process/06-obsidian-dokumantasyon-kurallari|Obsidian Dokümantasyon Kuralları]]'
-updated: 2026-05-13
+updated: 2026-06-01
 ---
 
 # Pusula — Çalışma Protokolü (Claude Code)
@@ -31,11 +30,11 @@ yönlendirici**dir; ayrıntılı kurallar `docs/` altında, eksenlerine ve katma
 Pusula belgeleri üç eksende ayrılmıştır. Yeni bir kural eklerken **doğru eksene** yaz;
 aynı dosyada tasarım + iş kuralı karıştırma.
 
-| Eksen                                       | "Sorduğu soru"                       | Nerede                                                                                                  | Örnek                                                  |
-| ------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **Tasarım / teknik** (`docs/architecture/`) | _Nasıl inşa ediyoruz?_               | stack, monorepo, pattern, altyapı, transport, deployment                                                | "Realtime için Socket.IO + Redis adapter"              |
-| **İş / domain** (`docs/domain/`)            | _Ürün ne yapıyor, kim ne yapabilir?_ | domain modeli, invariant'lar, yetkilendirme, bildirim/sıralama/aktivite kuralları                       | "Bir kart aynı anda tek bir listeye aittir"            |
-| **Süreç** (`docs/process/`)                 | _Nasıl çalışıyoruz?_                 | Çalışma başlangıç rehberi, Linear iş akışı, otomatik senkron protokolü, iş kayıt defteri, MVP faz planı | "Yeni işe `00-calisma-baslangic-rehberi.md` ile başla" |
+| Eksen                                       | "Sorduğu soru"                       | Nerede                                                                            | Örnek                                                  |
+| ------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Tasarım / teknik** (`docs/architecture/`) | _Nasıl inşa ediyoruz?_               | stack, monorepo, pattern, altyapı, transport, deployment                          | "Realtime için Socket.IO + Redis adapter"              |
+| **İş / domain** (`docs/domain/`)            | _Ürün ne yapıyor, kim ne yapabilir?_ | domain modeli, invariant'lar, yetkilendirme, bildirim/sıralama/aktivite kuralları | "Bir kart aynı anda tek bir listeye aittir"            |
+| **Süreç** (`docs/process/`)                 | _Nasıl çalışıyoruz?_                 | Çalışma başlangıç rehberi ve dokümantasyon yazım kuralları                        | "Yeni işe `00-calisma-baslangic-rehberi.md` ile başla" |
 
 Giriş noktaları: [`docs/README.md`](docs/README.md) · [`docs/architecture/README.md`](docs/architecture/README.md) · [`docs/domain/README.md`](docs/domain/README.md) · [`docs/process/README.md`](docs/process/README.md)
 Yeni iş/oturum başlangıcı: [`docs/process/00-calisma-baslangic-rehberi.md`](docs/process/00-calisma-baslangic-rehberi.md)
@@ -48,10 +47,10 @@ Bir özellik / refactor / bug fix isteği geldiğinde, **işin dokunduğu ekseni
 
 - Stack / kod organizasyonu / pattern → `docs/architecture/README.md` → ilgili numaralı dosya
 - Domain modeli / yetki / bildirim / sıralama kuralı → `docs/domain/README.md` → ilgili numaralı dosya
-- Yeni iş başlangıcı / Linear / faz → `docs/process/00-calisma-baslangic-rehberi.md` (Faz 0 devir notu yalnızca kurulum geçmişi gerekirse)
+- Yeni iş başlangıcı → `docs/process/00-calisma-baslangic-rehberi.md`
 - Doküman ekleme/değiştirme → `docs/process/06-obsidian-dokumantasyon-kurallari.md`
 
-Soğuk/uzun dosyaları (`docs/architecture/12-deployment-runbook.md`, `docs/process/03-faz-0-devir-notu.md`) yalnızca o konuya doğrudan dokunan işte aç; aksi halde README satırı yeterli.
+Soğuk/uzun dosyaları (örn. `docs/architecture/12-deployment-runbook.md`) yalnızca o konuya doğrudan dokunan işte aç; aksi halde README satırı yeterli.
 
 ## 2. Vazgeçilmez kurallar (özet — gerekçeler `docs/`'ta)
 
@@ -87,25 +86,16 @@ Monorepo `apps/*` ve `packages/*` ile Turborepo üzerinde koşar. Bir kod parça
 
 Çekirdek invariant: bir kart aynı anda tek listeye, bir liste tek board'a aittir; kart, listesiyle aynı board'tadır; arşivli liste aktif kart taşıması almaz; permission her procedure'de server-side; activity + outbox + realtime event + domain mutasyonu mümkünse aynı transaction'da. Ayrıntı: `docs/domain/01-urun-modeli.md`.
 
-## 4. Linear İş Akışı ve Otomatik Senkronizasyon
+## 4. Belge ↔ kod senkronizasyonu
 
-- Ayrıntılı protokol: `docs/process/04-otomatik-is-akisi-protokolu.md`.
-- Repo içi takip aynası: `docs/process/05-is-kayit-defteri.md` — **birincil/her-tur** takip burası (repo içi, ücretsiz).
-- **Linear MCP yalnızca gerektiğinde aç:** Linear MCP'yi (ve diğer connector'ları) ara turlarda kullanma; sadece Pre-Dev (issue oluştur/eşle), Post-Dev (kapanış) adımlarında veya kullanıcı açıkça isteyince aç. Ara turlarda Linear API çağrısı yapma.
-- **Pre-Dev:** Geliştirmeye başlamadan Linear MCP ile isteğe uygun issue oluştur veya mevcut issue ile eşle — başlık kısa, açıklamaya teknik gereksinimleri yaz, durum "In Progress", bana ata. Hangi `docs/` dosyalarının etkilendiğini açıklamaya not düş ve aynı işi iş kayıt defterine yaz.
-- **During-Dev:** Durum/alt iş değişikliklerini **önce iş kayıt defterine** yaz (her tur, repo içi); Linear issue ara turlarda güncellenmez — bir sonraki Linear teması (kapanış veya kullanıcı talebi) toplu yansıtır. Yeni bağımsız alt iş çıkarsa defterde yeni satır; Linear'a kapanışta/temasta taşınır.
-- **Post-Dev:** Kodlama bitince ilgili issue'ya değişiklik özeti, güncellenen `docs/` dosyaları ve test/verification sonucunu yorum olarak ekle. Onay bekliyorsa durumu "Review", onaylandıysa "Done" yap; iş kayıt defteri aynı durumu taşımalı.
-
-Ayrıntı ve şablon: `docs/process/01-linear-is-akisi.md`. MVP faz planı: `docs/process/02-mvp-faz-plani.md` (Faz 0 tamam).
-
-## 5. Belge ↔ kod ↔ Linear senkronizasyonu
-
-`docs/` teknik/domain kararlarında "source of truth"tur; iş durumunda Linear operasyonel kaynak,
-`docs/process/05-is-kayit-defteri.md` repo içi takip aynasıdır. Kod, belge ve Linear paralel tutulur.
+`docs/` teknik/domain kararlarında "source of truth"tur. Kod ve belge paralel tutulur.
 
 - **Önce belge:** Yeni tRPC procedure, Drizzle şema değişikliği veya yeni teknoloji kararında **önce `docs/`'taki ilgili dosyayı** (doğru eksen!) güncelle, sonra kodu yaz.
-- **Karar kaydı:** Teknoloji kararı eklendi/değiştiyse `docs/architecture/02-teknoloji-kararlari.md`'deki "Karar kaydı"na tarihli satır ekle (hafif ADR). Faz statüsü değiştiyse `docs/process/02-mvp-faz-plani.md`'yi güncelle.
-- **İş kaydı:** Her anlamlı özellik/refactor/bug fix için Linear issue ile iş kayıt defterinde tek satır eşleşir. Durumlar `Todo`, `In Progress`, `Blocked`, `Review`, `Done`, `Canceled` setinden seçilir.
+- **Karar kaydı:** Teknoloji kararı eklendi/değiştiyse `docs/architecture/02-teknoloji-kararlari.md`'deki "Karar kaydı"na tarihli satır ekle (hafif ADR).
 - **Obsidian düzeni:** Her yeni veya bilinçli güncellenen `.md` dosyası frontmatter, `aliases`, `tags`, `parent`/gerekirse `related`, `updated` alanları ve ilgili MOC/README bağlantılarıyla Obsidian kasasına uygun kalmalı.
 - **Çelişki:** Gelen istek mevcut belge (`docs/`, `.claude/skills/kontrol/SKILL.md`) ile çelişiyorsa, işe başlamadan bana bildir ve "Belgeyi mi güncelleyelim, koda mı sadık kalalım?" diye sor.
 - **İnce tut:** Kök CLAUDE.md ve `.claude/skills/kontrol/SKILL.md` ince kalsın — ayrıntı `docs/`'a, buraya sadece özet + pointer. README + skill, `docs/` yapısıyla tutarlı kalmalı.
+
+## 5. İş takibi yok
+
+Bu projede Linear, issue tracker ve repo içi iş kayıt defteri **tutulmaz**. Faz planı, iş kayıt defteri, otomatik senkron protokolü ve kontrol odası tab'ı 2026-06-01'de kaldırıldı. İş öncelikleri ve sıradaki adım doğrudan kullanıcı ile konuşulur; commit mesajı + `git log` operasyonel takibin kaynağıdır.

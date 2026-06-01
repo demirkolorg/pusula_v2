@@ -12,7 +12,7 @@ type: 'process'
 axis: 'process'
 status: 'active'
 parent: '[[docs/process/README|Süreç]]'
-updated: 2026-05-12
+updated: 2026-06-01
 ---
 
 # 06 — Obsidian Dokümantasyon Kuralları
@@ -90,4 +90,3 @@ Alan kuralları:
 5. İlgili MOC/README tablosuna dosyayı ekle.
 6. İlgili mevcut notlara link ver; yetim belge bırakma.
 7. Kod bloğu varsa dil etiketi kullan (`ts`, `bash`, `txt`, `yaml`).
-8. Karar, domain kuralı veya süreç değiştiyse [`04-otomatik-is-akisi-protokolu.md`](04-otomatik-is-akisi-protokolu.md) ve [`05-is-kayit-defteri.md`](05-is-kayit-defteri.md) kurallarına göre senkronu tamamla.
