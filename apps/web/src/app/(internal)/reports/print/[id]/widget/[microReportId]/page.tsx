@@ -23,8 +23,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// URLSearchParams.set() URL encoding yapar; manuel encodeURIComponent
+// çağrılırsa double encoded → 400. Detay: page.tsx aynı helper'ı.
 function encodeTrpcInput(input: unknown): string {
-  return encodeURIComponent(JSON.stringify({ json: input }));
+  return JSON.stringify({ json: input });
 }
 
 const TOKEN_REGEX = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;

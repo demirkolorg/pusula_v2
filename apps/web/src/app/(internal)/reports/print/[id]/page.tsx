@@ -33,14 +33,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * tRPC v11 + superjson GET çağrısı için input encoding helper'ı.
- * URL: `/trpc/<procedure>?input=<urlencoded({"json": <input>})>`.
- * Web tarafı `apps/web/src/trpc/client.tsx` aynı transformer kuralını
- * kullandığı için server-side fetch'te aynı formatı manuel kuruyoruz
- * (worker tarafıyla simetrik — `report-render.ts` `defaultPrintTokenResolver`).
+ * tRPC v11 + superjson GET çağrısı için input shape helper'ı. tRPC GET
+ * adapter'ı `input` query param'ını `{"json": <input>}` superjson
+ * envelope'una sarar; URL encoding'i `URLSearchParams.set()` yapar (manuel
+ * `encodeURIComponent` çağırılırsa `%` karakterleri tekrar encode edilir
+ * → `%7B` → `%257B` → API JSON parse fail → 400 Bad Request, bkz. DEM-276
+ * post-mortem 2026-06-01).
  */
 function encodeTrpcInput(input: unknown): string {
-  return encodeURIComponent(JSON.stringify({ json: input }));
+  return JSON.stringify({ json: input });
 }
 
 /**
