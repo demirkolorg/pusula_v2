@@ -50,18 +50,29 @@ services:
     volumes:
       - pusula_v2_minio:/data
 
-  # Creates the default bucket + the public-read avatars/ prefix, then exits.
+  # Bootstrap'lar (her startup'ta idempotent):
+  #   - `pusula` bucket'ı (attachments + avatars) + public-read `avatars/`
+  #   - `pusula-reports` bucket'ı (Faz 13I rapor render asset'leri — DEM-276
+  #     follow-up; ilk deploy'da elle yapılmıştı, otomasyona alındı)
+  #   - `pusula-app` policy (her iki bucket'a RW + List) — `infra/minio/policies/
+  #     pusula-app.json`'dan okur. Dev'de service account zaten root (`minioadmin`)
+  #     ile çalışıyor; policy create yine de yapılır ki dev'de service account
+  #     oluşturmak istenirse template hazır olur ve dev↔prod simetri korunur.
   minio-setup:
     image: minio/mc:latest
     depends_on:
       - minio
+    volumes:
+      - ./infra/minio/policies:/policies:ro
     entrypoint:
       - /bin/sh
       - -c
       - >
         until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
         mc mb --ignore-existing local/pusula;
+        mc mb --ignore-existing local/pusula-reports;
         mc anonymous set download local/pusula/avatars;
+        mc admin policy create local pusula-app /policies/pusula-app.json || mc admin policy update local pusula-app /policies/pusula-app.json;
         exit 0;
 
 volumes:

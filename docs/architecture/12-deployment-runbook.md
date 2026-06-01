@@ -381,41 +381,22 @@ DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olar
 1. Dokploy compose servisinde **Deploy**'a bas. Build logunu izle (web + api/worker image'ları build edilir).
 2. Sıra: `postgres` healthy → `migrate` koşar ve `service_completed_successfully` olur → `api`/`worker` başlar → `web` başlar.
    `migrate` fail ederse logdan bak (`DATABASE_URL` yanlış / şema sorunu); düzelt, redeploy.
-3. **MinIO bucket'ı oluştur + avatar prefix'ini aç** (bir kerelik): MinIO konsoluna gir (geçici port-forward veya konsol subdomain'i)
-   ya da `mc` ile:
-   `mc alias set local http://<vds>:... <key> <secret> && mc mb local/pusula && mc anonymous set download local/pusula/avatars`.
-   Son komut `avatars/` prefix'ini anonim okumaya açar (DEM-160 — yüklenen avatarlar kalıcı public URL olarak çözülür); bucket'ın geri kalanı (kart ekleri) private kalır. (İleride init container'a alınabilir.)
+3. **MinIO bucket + policy bootstrap'ı `minio-setup` servisi otomatik yapar** (compose'da; her deploy'da idempotent koşar — DEM-276 follow-up 2026-06-01):
+   - **Yapılanlar (otomatik):**
+     - `mc mb --ignore-existing local/pusula` — attachments + avatars bucket'ı
+     - `mc mb --ignore-existing local/pusula-reports` — Faz 13I rapor render asset'leri (`S3_REPORTS_BUCKET`)
+     - `mc anonymous set download local/pusula/avatars` — DEM-160 public-read avatar prefix'i
+     - `mc admin policy create local pusula-app /policies/pusula-app.json` — service account policy (iki bucket'a RW + List); modern mc'de aynı isim overwrite eder. Policy kaynak dosyası: `infra/minio/policies/pusula-app.json` (volume mount `:ro`).
+   - **Manuel kalan tek adım — service account oluşturma** (`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` ilk üretimi):
+     ```sh
+     mc admin user svcacct add local <MINIO_ROOT_USER> \
+       --access-key <ACCESS_KEY> \
+       --secret-key <SECRET> \
+       --policy pusula-app
+     ```
+     Üretilen credentials'i Dokploy `web`/`api`/`worker` Environment'ına ekle. Bu adım secret üretimi içerir, bootstrap'a girmez. Service account bir kez kurulur; sonraki deploy'larda policy üzerinden bucket erişimi senkron kalır (yeni bucket eklenirse `policies/pusula-app.json` güncellenir, bir sonraki deploy uygular).
    - **Opsiyonel — bucket CORS (`Access-Control-Allow-Origin`):** Web `app.${ROOT_DOMAIN}` origin'inden kart kapağı görselinin baskın rengini canvas örneklemesiyle çıkarıp modal banner arkaplanına uygulamak için (`apps/web` `card-cover-image.tsx` → `onDominantColor`), MinIO bucket'ına `https://app.${ROOT_DOMAIN}` origin'i için CORS izni eklenmelidir. CORS yoksa modal kapak banner'ı sessizce `bg-muted` fallback'inde kalır — kapak görseli yine yüklenir, sadece dominant renk uygulanmaz. `mc` ile: bucket için bir CORS JSON (`AllowedOrigins: ["https://app.${ROOT_DOMAIN}"]`, `AllowedMethods: ["GET"]`, `AllowedHeaders: ["*"]`) hazırlanıp `mc anonymous set-json` benzeri politika veya MinIO konsolundan **Buckets → pusula → Configure → CORS** üzerinden tanımlanır.
-   - **Rapor bucket'ı (Faz 13I sonrası ZORUNLU — DEM-276 post-mortem 2026-06-01):**
-     ```
-     mc mb local/pusula-reports
-     ```
-     `S3_REPORTS_BUCKET` env'i bu bucket'a işaret eder (worker `pusula-reports`'a PDF/XLSX yazar). Bu adımın atlanması Faz 13T deploy'unda PDF render'ın 1 hafta `storage_upload_failed` ile fail olmasına sebep oldu (üstteki diğer 4 bug katmanı maskeledi — Linear DEM-276 yorumu).
-
-   - **Service account policy — `pusula-app` (Faz 13I sonrası ZORUNLU):** `pusula-app` service account default'ta yalnız `pusula` bucket'ında RW yetkilidir; `pusula-reports`'a erişim yok → worker `s3:PutObject` → AccessDenied. Policy'ye iki bucket'lık resource listesi eklenmeli:
-     ```json
-     {
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-           "Resource": ["arn:aws:s3:::pusula/*", "arn:aws:s3:::pusula-reports/*"]
-         },
-         {
-           "Effect": "Allow",
-           "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
-           "Resource": ["arn:aws:s3:::pusula", "arn:aws:s3:::pusula-reports"]
-         }
-       ]
-     }
-     ```
-     `mc` ile uygulamak:
-     ```
-     mc admin policy create local pusula-app /tmp/pusula-app-policy.json
-     ```
-     (Modern mc'de `create` overwrites — backup almak istersen önce `mc admin policy info local pusula-app > backup.json`.)
-   - **Otomasyon takip:** Yukarıdaki iki adım (`mb pusula-reports` + policy create) yeni deploy'larda **manuel** kalmamalı — `docker-compose.yml`'daki `minio-setup` servisi genişletilip idempotent yapılacak (açık takip işi DEM-276 follow-up).
+   - **Yeni bucket eklerken:** `infra/minio/policies/pusula-app.json` resource listesine `arn:aws:s3:::<bucket>` + `arn:aws:s3:::<bucket>/*` ekle, `docker-compose.yml` + `compose.prod.yml` `minio-setup` entrypoint'ine `mc mb --ignore-existing local/<bucket>` satırı ekle, commit + deploy. Sonraki deploy `minio-setup` yeni bucket'ı + güncel policy'yi uygular.
 4. **Doğrulama:** `docker ps` — `pusula-api`, `pusula-worker`, `pusula-web`, `pusula-postgres`, `pusula-redis`, `pusula-minio` ayakta, healthcheck'ler `healthy`; `migrate` `Exited (0)`.
 
 ---

@@ -275,12 +275,45 @@ services:
     # No healthcheck — the minio/minio image ships neither `mc` nor `curl`, so
     # the runbook template's `mc ready local` check cannot run. No service
     # depends on minio with `service_healthy`; the API/worker S3 client retries
-    # until MinIO is up. The default bucket (`S3_BUCKET`) is created once
-    # during the first deploy (runbook §12.7) — that same step also opens the
-    # `avatars/` prefix to anonymous download (`mc anonymous set download`,
-    # DEM-160) so uploaded avatars resolve as stable public URLs. Expose the
-    # console on its own subdomain via Traefik labels (`...server.port=9001`)
-    # only if needed.
+    # until MinIO is up. Bucket'lar + policy artık `minio-setup` servisi
+    # tarafından her deploy'da idempotent bootstrap edilir (DEM-276 follow-up
+    # 2026-06-01 — manuel runbook adımı 4 günlük incident'in kanıt katmanıydı).
+    # Expose the console on its own subdomain via Traefik labels
+    # (`...server.port=9001`) only if needed.
+
+  # --- MinIO bootstrap (one-off, idempotent) -----------------------------
+  # Her deploy'da çalışır, `pusula` + `pusula-reports` bucket'larını oluşturur,
+  # `avatars/` prefix'ini anonim okumaya açar, `pusula-app` service account
+  # policy'sini `infra/minio/policies/pusula-app.json`'dan günceller.
+  # `mc admin policy create` modern mc'de aynı isimde policy varsa
+  # overwrite eder; eski mc fallback'i `update` ile dener. Service account'un
+  # KENDISI prod'da elle oluşturulur (`mc admin user svcacct add ...`) —
+  # secret üretimi bootstrap'a girmez; policy template hazır olduğu için
+  # service account oluşturulurken `--policy pusula-app` ile bağlanır.
+  # DEM-276 follow-up: ilk deploy'da `pusula-reports` bucket'ı + policy
+  # adımı manuel kaldı, atlandı, 4 gün incident'e sebep oldu — artık otomatik.
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    volumes:
+      - ./infra/minio/policies:/policies:ro
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done;
+        mc mb --ignore-existing local/pusula;
+        mc mb --ignore-existing local/pusula-reports;
+        mc anonymous set download local/pusula/avatars;
+        mc admin policy create local pusula-app /policies/pusula-app.json || mc admin policy update local pusula-app /policies/pusula-app.json;
+        exit 0;
+    restart: 'no'
+    networks:
+      - default
 
 volumes:
   pg_data:
