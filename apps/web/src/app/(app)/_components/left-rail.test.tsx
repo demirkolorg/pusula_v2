@@ -5,52 +5,31 @@ import { strings } from '@/lib/strings';
 import { LeftRail } from './left-rail';
 
 /**
- * Faz 16B (DEM-311) + Faz 17 — LeftRail için RTL test seti. 5 toggle (Gezgin
- * / Hızlı Notlar / Planlayıcı / Görevlerim / Aktivite Akışı) render edilir,
- * açık olan `aria-pressed=true` olur ve tıklama parent'a yansır.
+ * LeftRail için RTL test seti. 6 toggle (Gezgin / Hızlı Notlar / Planlayıcı /
+ * Görevlerim / Aktivite Akışı / Yenilikler) render edilir, `activePanel` ile
+ * aktif olanın `aria-pressed=true` olur ve tıklama parent'a yansır. Tek panel
+ * ilkesi: `activePanel` aynı anda yalnız bir id taşıyabilir; aktif butona
+ * tekrar tıklamak parent'ta `togglePanel` çağrılır (parent state'i `null`
+ * yapar).
  */
 
 function renderRail(
   overrides: Partial<React.ComponentProps<typeof LeftRail>> = {},
-): {
-  onNavigatorToggle: () => void;
-  onQuickNotesToggle: () => void;
-  onPlannerToggle: () => void;
-  onMyTasksToggle: () => void;
-  onActivityFeedToggle: () => void;
-} {
-  const onNavigatorToggle = vi.fn();
-  const onQuickNotesToggle = vi.fn();
-  const onPlannerToggle = vi.fn();
-  const onMyTasksToggle = vi.fn();
-  const onActivityFeedToggle = vi.fn();
+): { onTogglePanel: ReturnType<typeof vi.fn> } {
+  const onTogglePanel = vi.fn();
   render(
     <LeftRail
-      navigatorOpen={false}
-      quickNotesOpen={false}
-      plannerOpen={false}
-      myTasksOpen={false}
-      activityFeedOpen={false}
-      onNavigatorToggle={onNavigatorToggle}
-      onQuickNotesToggle={onQuickNotesToggle}
-      onPlannerToggle={onPlannerToggle}
-      onMyTasksToggle={onMyTasksToggle}
-      onActivityFeedToggle={onActivityFeedToggle}
+      activePanel={null}
+      onTogglePanel={onTogglePanel}
       fullBleed={false}
       {...overrides}
     />,
   );
-  return {
-    onNavigatorToggle,
-    onQuickNotesToggle,
-    onPlannerToggle,
-    onMyTasksToggle,
-    onActivityFeedToggle,
-  };
+  return { onTogglePanel };
 }
 
 describe('<LeftRail>', () => {
-  it('renders all five toggles with localized aria labels', () => {
+  it('renders all six toggles with localized aria labels', () => {
     renderRail();
     expect(
       screen.getByRole('button', { name: strings.board.navigator.toggle }),
@@ -67,48 +46,74 @@ describe('<LeftRail>', () => {
     expect(
       screen.getByRole('button', { name: strings.board.activityFeed.toggle }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.board.whatsNew.toggle }),
+    ).toBeInTheDocument();
   });
 
-  it('reflects open state through aria-pressed', () => {
-    renderRail({ plannerOpen: true, myTasksOpen: true });
+  it('reflects activePanel through aria-pressed (only one button pressed at a time)', () => {
+    renderRail({ activePanel: 'planner' });
     expect(
       screen.getByRole('button', { name: strings.board.planner.toggle }),
-    ).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      screen.getByRole('button', { name: strings.board.myTasks.toggle }),
     ).toHaveAttribute('aria-pressed', 'true');
     expect(
       screen.getByRole('button', { name: strings.board.navigator.toggle }),
     ).toHaveAttribute('aria-pressed', 'false');
     expect(
+      screen.getByRole('button', { name: strings.board.myTasks.toggle }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    expect(
       screen.getByRole('button', { name: strings.board.activityFeed.toggle }),
     ).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('invokes onPlannerToggle when the Planlayıcı button is clicked', async () => {
+  it('invokes onTogglePanel with "planner" when the Planlayıcı button is clicked', async () => {
     const user = userEvent.setup();
-    const { onPlannerToggle } = renderRail();
+    const { onTogglePanel } = renderRail();
     await user.click(
       screen.getByRole('button', { name: strings.board.planner.toggle }),
     );
-    expect(onPlannerToggle).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledWith('planner');
   });
 
-  it('invokes onMyTasksToggle when the Görevlerim button is clicked', async () => {
+  it('invokes onTogglePanel with "myTasks" when the Görevlerim button is clicked', async () => {
     const user = userEvent.setup();
-    const { onMyTasksToggle } = renderRail();
+    const { onTogglePanel } = renderRail();
     await user.click(
       screen.getByRole('button', { name: strings.board.myTasks.toggle }),
     );
-    expect(onMyTasksToggle).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledWith('myTasks');
   });
 
-  it('invokes onActivityFeedToggle when the Aktivite Akışı button is clicked', async () => {
+  it('invokes onTogglePanel with "activityFeed" when the Aktivite Akışı button is clicked', async () => {
     const user = userEvent.setup();
-    const { onActivityFeedToggle } = renderRail();
+    const { onTogglePanel } = renderRail();
     await user.click(
       screen.getByRole('button', { name: strings.board.activityFeed.toggle }),
     );
-    expect(onActivityFeedToggle).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledWith('activityFeed');
+  });
+
+  it('invokes onTogglePanel with "whatsNew" when the Yenilikler button is clicked', async () => {
+    const user = userEvent.setup();
+    const { onTogglePanel } = renderRail();
+    await user.click(
+      screen.getByRole('button', { name: strings.board.whatsNew.toggle }),
+    );
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledWith('whatsNew');
+  });
+
+  it('invokes onTogglePanel with the active panel id when the active button is clicked again (toggle off)', async () => {
+    const user = userEvent.setup();
+    const { onTogglePanel } = renderRail({ activePanel: 'quickNotes' });
+    await user.click(
+      screen.getByRole('button', { name: strings.board.quickNotes.toggle }),
+    );
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledWith('quickNotes');
   });
 });

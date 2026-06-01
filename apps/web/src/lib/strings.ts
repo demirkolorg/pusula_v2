@@ -34,6 +34,13 @@ export const strings = {
     close: 'Kapat',
     retry: 'Tekrar dene',
     back: 'Geri',
+    /**
+     * Anonim ziyaretçi-yüzeylerinde (örn. `/yenilikler` public chrome) sağ
+     * üstteki "Giriş yap" CTA için ortak metin. `strings.signIn.submit` ile
+     * çakışmasın: o form action'ı (`<button type=submit>`), bu chrome
+     * navigasyon link'i.
+     */
+    signIn: 'Giriş yap',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
     navigationRail: 'Navigasyon çubuğu',
     panels: {
@@ -641,6 +648,18 @@ export const strings = {
       titleFull: 'İşlerin tek pusulada.',
       description:
         'Çalışma alanlarından kartlara — soldan sağa daralan bir gezgin. Bir tıkla istediğin yere.',
+      /**
+       * Hero description'ın altındaki kompakt "Son yenilik" pill'i (§13.11) —
+       * tıklayınca sol `WhatsNewPanel`'i açar (2026-06-01). Veri kaynağı
+       * `@/lib/changelog-data`.
+       */
+      latestNews: {
+        label: 'Son yenilik',
+        countSuffix: (n: number) =>
+          n === 1 ? '1 güncelleme' : `${n} güncelleme`,
+        ariaLabel: (dayLabel: string, n: number) =>
+          `Son yenilik — ${dayLabel}, ${n === 1 ? '1 güncelleme' : `${n} güncelleme`}. Yenilikler panelini aç.`,
+      },
     },
     shell: {
       back: 'Geri',
@@ -1451,6 +1470,20 @@ export const strings = {
         'workspace.invitation_revoked': 'çalışma alanı davetini iptal etti',
       } satisfies Record<string, string>,
       typeFallback: 'bir aksiyon yaptı',
+    },
+    // Yenilikler paneli (2026-06-01 — DEM follow-up) — sol kenarda 6. global
+    // panel. `/yenilikler` sayfasının kompakt embed'i; aynı `CHANGELOG`
+    // verisini render eder (tek kaynak). Hero pill'inden ve sidebar rail'dan
+    // açılır; sayfa SEO/deep-link için ayakta kalmaya devam eder.
+    whatsNew: {
+      panelTitle: 'Yenilikler',
+      toggle: 'Yenilikler',
+      open: 'Yenilikler panelini aç',
+      close: 'Yenilikler panelini kapat',
+      description:
+        'Pusula\'da çıkan yeni özellikler, iyileştirmeler ve güvenlik güncellemeleri.',
+      /** Panelin altındaki "Tam sayfayı aç" linki (`/yenilikler`'e gider). */
+      openFullPage: 'Tam sayfada aç',
     },
     // Gezgin paneli — pano ekranında açılıp kapanan, kullanıcının erişebildiği
     // tüm workspace / pano / liste / kart hiyerarşisini gösteren sol panel.

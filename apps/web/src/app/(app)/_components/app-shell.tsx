@@ -17,6 +17,12 @@ import { BoardSwitcher } from './board-switcher';
 import { ColorThemeToggle } from './color-theme-toggle';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { FontToggle } from './font-toggle';
+import {
+  isLeftPanelId,
+  LEFT_PANEL_IDS,
+  LeftPanelProvider,
+  type LeftPanelId,
+} from './left-panel-context';
 import { LeftRail } from './left-rail';
 import { MyTasksPanel } from './my-tasks-panel';
 import { NavigatorPanel } from './navigator-panel';
@@ -26,30 +32,38 @@ import { QuickNotesPanel } from './quick-notes-panel';
 import { SearchDialog } from './search-dialog';
 import { ThemeToggle } from './theme-toggle';
 import { UserNavMenu } from './user-nav-menu';
+import { WhatsNewPanel } from './whats-new-panel';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
-/** `localStorage` key for the global "Gezgin" panel open state. */
-const NAVIGATOR_PANEL_KEY = 'pusula:navigator-panel-open';
-/** `localStorage` key for the global "Hızlı Notlar" panel open state. */
-const QUICK_NOTES_PANEL_KEY = 'pusula:quick-notes-panel-open';
 /**
- * `localStorage` key for the global "Planlayıcı" panel open state
- * (Faz 16B / DEM-311). Gezgin/Hızlı Notlar key'leriyle birebir pattern;
- * anasayfa istisnası YOK (her zaman localStorage tercihini izler).
+ * Aktif sol global panel id'si — tek panel ilkesi (mutually exclusive):
+ * aynı anda yalnız 1 panel açık olabilir. Yeni bir panel açılınca öncekisi
+ * otomatik kapanır, aynı panele tekrar tıklamak onu kapatır. Mevcut 5 ayrı
+ * boolean state + 5 localStorage key tek değere indirgendi (DEM follow-up).
+ *
+ * Tip + sabit `./left-panel-context` içinde; rail butonları + HomeHero pill
+ * context'i de oradan tüketir (drift yok).
  */
-const PLANNER_PANEL_KEY = 'pusula:planner-panel-open';
-/** Faz 17 — "Görevlerim" panel açık durumu için localStorage anahtarı. */
-const MY_TASKS_PANEL_KEY = 'pusula:my-tasks-panel-open';
-/** Faz 17 — "Aktivite Akışı" panel açık durumu için localStorage anahtarı. */
-const ACTIVITY_FEED_PANEL_KEY = 'pusula:activity-feed-panel-open';
-/** Tailwind `lg` breakpoint (1024px); altında panel overlay sheet gibi davranır. */
-const LG_QUERY = '(max-width: 1023px)';
 
-/** `<lg` ekranda iki panel çakışmaması için mobilde mutex helper. */
-function isMobileViewport(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia(LG_QUERY).matches;
-}
+/** Aktif sol panel id'sini tutan tek localStorage key (eski 5 key'in yerine). */
+const ACTIVE_LEFT_PANEL_KEY = 'pusula:active-left-panel';
+
+/**
+ * Eski (Faz 16B/17 öncesi) per-panel açık/kapalı key'leri. İlk mount'ta
+ * hepsi temizlenir; eğer yeni key boşsa ve eskilerden biri `true` ise o panel
+ * aktif olarak migrate edilir (kullanıcı tercihi kaybolmasın).
+ *
+ * `whatsNew` 2026-06-01'de eklendiği için legacy boolean key'i yok — record
+ * olarak `null` taşır (migrate look-up'ta atlanır).
+ */
+const LEGACY_PANEL_KEYS: Record<LeftPanelId, string | null> = {
+  navigator: 'pusula:navigator-panel-open',
+  quickNotes: 'pusula:quick-notes-panel-open',
+  planner: 'pusula:planner-panel-open',
+  myTasks: 'pusula:my-tasks-panel-open',
+  activityFeed: 'pusula:activity-feed-panel-open',
+  whatsNew: null,
+};
 
 /**
  * Header'daki klasik `WorkspaceSwitcher` + `BoardSwitcher` görünürlüğü.
@@ -117,114 +131,111 @@ export function AppShell({
   const isHome = pathname === HOME_ROUTE;
   const boardId = typeof params.boardId === 'string' ? params.boardId : undefined;
 
-  // Global yan paneller (Gezgin + Hızlı Notlar + Planlayıcı + Görevlerim +
-  // Aktivite Akışı — 5 panel) — SSR/first render için kapalı başla, mount'ta
-  // localStorage tercihi adopt edilir. `lg+` (≥1024px) ekranda persistent
-  // sidebar (içeriği sağa iter); `<lg` ekranda overlay sheet (fixed +
-  // backdrop) olarak açılır, link/aksiyon sonrası kendini kapatır. Mobilde
-  // mutex: beşi aynı anda overlay olamaz (üst üste binme önlenir);
-  // desktop'ta beşi yan yana açılabilir (her panel shrink-0 column).
+  // Sol global panel sistemi — tek panel ilkesi (mutually exclusive):
+  // 5 panelden (Gezgin / Hızlı Notlar / Planlayıcı / Görevlerim / Aktivite
+  // Akışı) yalnız biri açık olabilir. Yeni panel açılınca öncekisi otomatik
+  // kapanır; aynı butona tekrar basmak aktif paneli kapatır. Mobil/desktop
+  // farkı YOK — her ekran boyutunda aynı tek panel davranışı (mobile mutex
+  // zaten otomatik). `lg+`'da panel row akışına shrink-0 column olarak girer
+  // (içeriği sağa iter), `<lg`'de fixed overlay sheet olarak açılır.
   //
-  // Beş panel de aynı davranır: kullanıcı tercihi localStorage'da hatırlanır,
-  // varsayılan kapalı, her sayfada (anasayfa dahil) toggle ile açılır.
-  const [navigatorOpen, setNavigatorOpenState] = useState(false);
-  const [quickNotesOpen, setQuickNotesOpenState] = useState(false);
-  // Faz 16B (DEM-311) — Planlayıcı 3. global panel.
-  const [plannerOpen, setPlannerOpenState] = useState(false);
-  // Faz 17 — Görevlerim (4.) + Aktivite Akışı (5.) global paneller.
-  const [myTasksOpen, setMyTasksOpenState] = useState(false);
-  const [activityFeedOpen, setActivityFeedOpenState] = useState(false);
-  useEffect(() => {
-    setNavigatorOpenState(window.localStorage.getItem(NAVIGATOR_PANEL_KEY) === 'true');
-    setQuickNotesOpenState(window.localStorage.getItem(QUICK_NOTES_PANEL_KEY) === 'true');
-    setPlannerOpenState(window.localStorage.getItem(PLANNER_PANEL_KEY) === 'true');
-    setMyTasksOpenState(window.localStorage.getItem(MY_TASKS_PANEL_KEY) === 'true');
-    setActivityFeedOpenState(window.localStorage.getItem(ACTIVITY_FEED_PANEL_KEY) === 'true');
-  }, [pathname]);
-  useEffect(() => {
-    window.localStorage.setItem(NAVIGATOR_PANEL_KEY, String(navigatorOpen));
-  }, [navigatorOpen]);
-  useEffect(() => {
-    window.localStorage.setItem(QUICK_NOTES_PANEL_KEY, String(quickNotesOpen));
-  }, [quickNotesOpen]);
-  useEffect(() => {
-    window.localStorage.setItem(PLANNER_PANEL_KEY, String(plannerOpen));
-  }, [plannerOpen]);
-  useEffect(() => {
-    window.localStorage.setItem(MY_TASKS_PANEL_KEY, String(myTasksOpen));
-  }, [myTasksOpen]);
-  useEffect(() => {
-    window.localStorage.setItem(ACTIVITY_FEED_PANEL_KEY, String(activityFeedOpen));
-  }, [activityFeedOpen]);
+  // SSR/first render kapalı (`null`); mount'ta localStorage'dan adopt edilir.
+  // Eski (Faz 16B/17 öncesi) 5 ayrı boolean key'i temizlenir; eğer yeni key
+  // boşsa ve eskilerden biri `true` ise o panel migrate edilir.
+  const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>(null);
 
-  // Mutex-aware setter'lar: mobilde 5 panelden biri açılırken diğer dördü
-  // kapanır (overlay üst üste binmesin); desktop'ta dokunmaz (beşi yan yana
-  // persistent kalabilir, content shrink eder).
-  const setNavigatorOpen = useCallback((value: boolean) => {
-    setNavigatorOpenState(value);
-    if (value && isMobileViewport()) {
-      setQuickNotesOpenState(false);
-      setPlannerOpenState(false);
-      setMyTasksOpenState(false);
-      setActivityFeedOpenState(false);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(ACTIVE_LEFT_PANEL_KEY);
+    if (isLeftPanelId(stored)) {
+      setActiveLeftPanel(stored);
+    } else {
+      // Migration: yeni key boş — eski boolean key'lerden ilk `true` olanı al.
+      // Öncelik sırası `LEFT_PANEL_IDS` ile aynı (Gezgin > Hızlı Notlar > ...).
+      // `whatsNew` legacy key'i yok (2026-06-01'de eklendi); `null` döner ve
+      // look-up'ta atlanır.
+      const migrated = LEFT_PANEL_IDS.find((id) => {
+        const legacyKey = LEGACY_PANEL_KEYS[id];
+        return legacyKey != null && window.localStorage.getItem(legacyKey) === 'true';
+      });
+      if (migrated) setActiveLeftPanel(migrated);
     }
-  }, []);
-  const setQuickNotesOpen = useCallback((value: boolean) => {
-    setQuickNotesOpenState(value);
-    if (value && isMobileViewport()) {
-      setNavigatorOpenState(false);
-      setPlannerOpenState(false);
-      setMyTasksOpenState(false);
-      setActivityFeedOpenState(false);
+    // Eski key'leri her durumda temizle (artık kullanılmıyor). `whatsNew`'in
+    // legacy key'i `null`; o adım atlanır.
+    for (const id of LEFT_PANEL_IDS) {
+      const legacyKey = LEGACY_PANEL_KEYS[id];
+      if (legacyKey != null) window.localStorage.removeItem(legacyKey);
     }
-  }, []);
-  const setPlannerOpen = useCallback((value: boolean) => {
-    setPlannerOpenState(value);
-    if (value && isMobileViewport()) {
-      setNavigatorOpenState(false);
-      setQuickNotesOpenState(false);
-      setMyTasksOpenState(false);
-      setActivityFeedOpenState(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (activeLeftPanel === null) {
+      window.localStorage.removeItem(ACTIVE_LEFT_PANEL_KEY);
+    } else {
+      window.localStorage.setItem(ACTIVE_LEFT_PANEL_KEY, activeLeftPanel);
     }
+  }, [activeLeftPanel]);
+
+  // Aktif panele tıklamak kapatır; başka panele tıklamak ona geçer (öncekisi
+  // aynı tick'te kapanır, AnimatePresence sync mode ile A daralırken B genişler
+  // → smooth slide).
+  const togglePanel = useCallback((id: LeftPanelId) => {
+    setActiveLeftPanel((prev) => (prev === id ? null : id));
   }, []);
-  const setMyTasksOpen = useCallback((value: boolean) => {
-    setMyTasksOpenState(value);
-    if (value && isMobileViewport()) {
-      setNavigatorOpenState(false);
-      setQuickNotesOpenState(false);
-      setPlannerOpenState(false);
-      setActivityFeedOpenState(false);
-    }
+
+  const closePanel = useCallback(() => {
+    setActiveLeftPanel(null);
   }, []);
-  const setActivityFeedOpen = useCallback((value: boolean) => {
-    setActivityFeedOpenState(value);
-    if (value && isMobileViewport()) {
-      setNavigatorOpenState(false);
-      setQuickNotesOpenState(false);
-      setPlannerOpenState(false);
-      setMyTasksOpenState(false);
-    }
+
+  /**
+   * `LeftPanelContext` aracılığıyla `AppShell` dışından (örn. anasayfa
+   * HomeHero pill'i) çağrılır. "Aç" semantiği taşır: zaten açıksa aynen
+   * kalır, kapalıysa açar. `togglePanel`'den farkı bu — aynı id ile çağrılsa
+   * bile kapanmaz.
+   */
+  const openPanel = useCallback((id: LeftPanelId) => {
+    setActiveLeftPanel((prev) => (prev === id ? prev : id));
   }, []);
-  const closeNavigator = useCallback(() => setNavigatorOpenState(false), []);
-  const closeQuickNotes = useCallback(() => setQuickNotesOpenState(false), []);
-  const closePlanner = useCallback(() => setPlannerOpenState(false), []);
-  const closeMyTasks = useCallback(() => setMyTasksOpenState(false), []);
-  const closeActivityFeed = useCallback(() => setActivityFeedOpenState(false), []);
-  const closeNavigatorOnMobile = useCallback(() => {
-    if (isMobileViewport()) setNavigatorOpenState(false);
-  }, []);
-  const closeQuickNotesOnMobile = useCallback(() => {
-    if (isMobileViewport()) setQuickNotesOpenState(false);
-  }, []);
-  const closePlannerOnMobile = useCallback(() => {
-    if (isMobileViewport()) setPlannerOpenState(false);
-  }, []);
-  const closeMyTasksOnMobile = useCallback(() => {
-    if (isMobileViewport()) setMyTasksOpenState(false);
-  }, []);
-  const closeActivityFeedOnMobile = useCallback(() => {
-    if (isMobileViewport()) setActivityFeedOpenState(false);
-  }, []);
+
+  // Derived booleans — JSX'in mevcut yapısı (5 ayrı AnimatePresence) bu
+  // değerleri kullanır; state tek string ama render tarafı değişmedi.
+  const navigatorOpen = activeLeftPanel === 'navigator';
+  const quickNotesOpen = activeLeftPanel === 'quickNotes';
+  const plannerOpen = activeLeftPanel === 'planner';
+  const myTasksOpen = activeLeftPanel === 'myTasks';
+  const activityFeedOpen = activeLeftPanel === 'activityFeed';
+  const whatsNewOpen = activeLeftPanel === 'whatsNew';
+  const anyPanelOpen = activeLeftPanel !== null;
+
+  // Esc kısayolu — herhangi bir panel açıkken Esc'e basınca aktif panel
+  // kapanır. Input/textarea/contentEditable focus'ta veya modal/dialog
+  // açıkken tetiklenmez (Radix dialog `aria-modal="true"` attr'ı ile
+  // işaretlenir), böylece dialog'un kendi Esc davranışı öncelikli kalır.
+  useEffect(() => {
+    if (!anyPanelOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      )
+        return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      closePanel();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [anyPanelOpen, closePanel]);
+
+  // `onNavigate` callback'i: mobile'da overlay panel açıkken kullanıcı bir
+  // link/aksiyon tetikleyince panel kapanır. Tek panel ilkesinde ekran boyutu
+  // farkı yok — her aksiyon paneli kapatır (kullanıcı zaten aktif paneli
+  // izliyor, content alanına geçmek istiyor).
+  const closeOnNavigate = closePanel;
 
   const activeBoard = useQuery({
     ...trpc.board.get.queryOptions({ boardId: boardId ?? '__none__' }),
@@ -245,6 +256,7 @@ export function AppShell({
     !activeBoardArchived;
 
   return (
+    <LeftPanelProvider openPanel={openPanel}>
     <div
       className={cn(
         'flex h-svh flex-col overflow-hidden',
@@ -326,36 +338,25 @@ export function AppShell({
           fullBleed ? 'bg-board-shell' : 'lg:bg-muted/50',
         )}
       >
-        {/* Sol dikey rail (Activity Bar) — Gezgin + Hızlı Notlar toggle'ları.
-            Header'da değil burada duruyor; panel sol kenarda açıldığı için
-            açma noktası ile açılan yer aynı tarafta kalsın diye (DEM uyarlaması). */}
+        {/* Sol dikey rail (Activity Bar) — 5 panelin toggle'ları. Tek panel
+            ilkesi: aktif panele tıklamak onu kapatır, başka panele tıklamak
+            ona geçer. */}
         <LeftRail
-          navigatorOpen={navigatorOpen}
-          quickNotesOpen={quickNotesOpen}
-          plannerOpen={plannerOpen}
-          myTasksOpen={myTasksOpen}
-          activityFeedOpen={activityFeedOpen}
-          onNavigatorToggle={() => setNavigatorOpen(!navigatorOpen)}
-          onQuickNotesToggle={() => setQuickNotesOpen(!quickNotesOpen)}
-          onPlannerToggle={() => setPlannerOpen(!plannerOpen)}
-          onMyTasksToggle={() => setMyTasksOpen(!myTasksOpen)}
-          onActivityFeedToggle={() => setActivityFeedOpen(!activityFeedOpen)}
+          activePanel={activeLeftPanel}
+          onTogglePanel={togglePanel}
           fullBleed={fullBleed}
         />
 
-        {/* Gezgin paneli — `lg+`: row akışında shrink-0 (içeriği iter, yuvarlak
-            kart); `<lg`: fixed overlay + backdrop, link tıklamasında kapanır.
-            Açılıp kapanma animasyonu: backdrop fade + panel width 0↔auto +
-            opacity (motion/AnimatePresence ile). Mobil overlay'de fixed
-            wrapper soldan sağa doğru genişlediği için slide-in efekti verir;
-            desktop'ta row akışında smooth pushed-content. */}
+        {/* Ortak backdrop — herhangi bir panel açıkken (`<lg` overlay modunda)
+            görünür; tıklayınca aktif paneli kapatır. 5 ayrı backdrop yerine
+            tek AnimatePresence (görsel olarak hepsi aynı). */}
         <AnimatePresence initial={false}>
-          {navigatorOpen && (
+          {anyPanelOpen && (
             <motion.button
-              key="navigator-backdrop"
+              key="left-panel-backdrop"
               type="button"
-              aria-label={strings.board.navigator.close}
-              onClick={closeNavigator}
+              aria-label={strings.common.panels.closeBackdrop}
+              onClick={closePanel}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -364,6 +365,12 @@ export function AppShell({
             />
           )}
         </AnimatePresence>
+
+        {/* 5 sol global panel — `lg+`: row akışında shrink-0 column (içeriği
+            sağa iter, yuvarlak kart); `<lg`: fixed overlay sheet. Animasyon:
+            width 0↔auto + opacity (smooth slide). Tek panel ilkesi sayesinde
+            A→B geçişinde A daralırken B aynı tick'te genişler (AnimatePresence
+            sync mode default). */}
         <AnimatePresence initial={false}>
           {navigatorOpen && (
             <motion.div
@@ -374,27 +381,11 @@ export function AppShell({
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
-              <NavigatorPanel onClose={closeNavigator} onNavigate={closeNavigatorOnMobile} />
+              <NavigatorPanel
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
+              />
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Hızlı Notlar paneli — Gezgin ile birebir aynı davranış. Mobilde
-            mutex (setQuickNotesOpen helper'ı diğer paneli kapatır), desktop'ta
-            ikisi yan yana açık olabilir. */}
-        <AnimatePresence initial={false}>
-          {quickNotesOpen && (
-            <motion.button
-              key="quick-notes-backdrop"
-              type="button"
-              aria-label={strings.board.quickNotes.close}
-              onClick={closeQuickNotes}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
-            />
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
@@ -409,30 +400,10 @@ export function AppShell({
             >
               <QuickNotesPanel
                 canConvert={canConvertQuickNote}
-                onClose={closeQuickNotes}
-                onNavigate={closeQuickNotesOnMobile}
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
               />
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Planlayıcı paneli (Faz 16B / DEM-311) — Gezgin/Hızlı Notlar ile
-            birebir aynı pattern: lg+ persistent shrink-0, <lg overlay sheet.
-            Mobil mutex 3-panel arası (setPlannerOpen helper'ı diğer ikisini
-            kapatır); desktop'ta üçü yan yana açık olabilir. */}
-        <AnimatePresence initial={false}>
-          {plannerOpen && (
-            <motion.button
-              key="planner-backdrop"
-              type="button"
-              aria-label={strings.board.planner.close}
-              onClick={closePlanner}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
-            />
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
@@ -445,27 +416,11 @@ export function AppShell({
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
-              <PlannerPanel onClose={closePlanner} onNavigate={closePlannerOnMobile} />
+              <PlannerPanel
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
+              />
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Görevlerim paneli (Faz 17) — diğer 4 panel ile birebir aynı
-            davranış. lg+ persistent shrink-0, <lg overlay sheet. Mobil mutex
-            5-panel arası `setMyTasksOpen` helper'ında yönetilir. */}
-        <AnimatePresence initial={false}>
-          {myTasksOpen && (
-            <motion.button
-              key="my-tasks-backdrop"
-              type="button"
-              aria-label={strings.board.myTasks.close}
-              onClick={closeMyTasks}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
-            />
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
@@ -478,27 +433,11 @@ export function AppShell({
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
-              <MyTasksPanel onClose={closeMyTasks} onNavigate={closeMyTasksOnMobile} />
+              <MyTasksPanel
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
+              />
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Aktivite Akışı paneli (Faz 17) — diğer 4 panel ile birebir aynı
-            davranış. lg+ persistent shrink-0, <lg overlay sheet. Mobil mutex
-            5-panel arası `setActivityFeedOpen` helper'ında yönetilir. */}
-        <AnimatePresence initial={false}>
-          {activityFeedOpen && (
-            <motion.button
-              key="activity-feed-backdrop"
-              type="button"
-              aria-label={strings.board.activityFeed.close}
-              onClick={closeActivityFeed}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
-            />
           )}
         </AnimatePresence>
         <AnimatePresence initial={false}>
@@ -512,8 +451,25 @@ export function AppShell({
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <ActivityFeedPanel
-                onClose={closeActivityFeed}
-                onNavigate={closeActivityFeedOnMobile}
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+          {whatsNewOpen && (
+            <motion.div
+              key="whats-new-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
+            >
+              <WhatsNewPanel
+                onClose={closePanel}
+                onNavigate={closeOnNavigate}
               />
             </motion.div>
           )}
@@ -546,5 +502,6 @@ export function AppShell({
         )}
       </div>
     </div>
+    </LeftPanelProvider>
   );
 }

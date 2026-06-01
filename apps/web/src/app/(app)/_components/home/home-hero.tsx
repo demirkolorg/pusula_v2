@@ -1,7 +1,9 @@
 'use client';
 
-import { CompassIcon } from 'lucide-react';
+import { CompassIcon, SparklesIcon } from 'lucide-react';
 import { cn } from '@pusula/ui';
+import { useLeftPanel } from '@/app/(app)/_components/left-panel-context';
+import { getLatestChangelogDay } from '@/lib/changelog-data';
 import { strings } from '@/lib/strings';
 
 type HomeHeroProps = {
@@ -15,8 +17,11 @@ type HomeHeroProps = {
  *
  * Tipografi: `eyebrow` (`--primary` token, küçük + tracking-wide) → `<h1>`
  * iki parça (`titlePrefix` sade `--foreground` + `titleAccent` `--primary`
- * tonlarında gradient text) → `description` (`--muted-foreground`). Sağda
- * dekoratif `CompassIcon` rozeti — ring + blur halo, sadece `lg+`'da.
+ * tonlarında gradient text) → `description` (`--muted-foreground`) → kompakt
+ * **"Son yenilik" pill'i** (§13.11 — 2026-06-01). Pill tıklanınca sol
+ * `WhatsNewPanel`'i açar (`useLeftPanel().openPanel('whatsNew')`); `/yenilikler`
+ * sayfası ayakta kalmaya devam eder (SEO + landing footer için), panel ek yol.
+ * Sağda dekoratif `CompassIcon` rozeti — ring + blur halo, sadece `lg+`'da.
  *
  * Erişilebilirlik: `<h1>` gerçek metin olarak `titleFull`'u taşır; ekran
  * okuyucu için tek, kararlı metin. Dekoratif arka plan + ikon `aria-hidden`.
@@ -26,6 +31,8 @@ type HomeHeroProps = {
  */
 export function HomeHero({ className }: HomeHeroProps) {
   const copy = strings.home.hero;
+  const latest = getLatestChangelogDay();
+  const { openPanel } = useLeftPanel();
   return (
     <section
       aria-label={copy.titleFull}
@@ -67,6 +74,36 @@ export function HomeHero({ className }: HomeHeroProps) {
           <p className="text-muted-foreground mt-4 max-w-xl text-balance text-sm lg:text-base">
             {copy.description}
           </p>
+          {latest ? (
+            <button
+              type="button"
+              onClick={() => openPanel('whatsNew')}
+              aria-label={copy.latestNews.ariaLabel(
+                latest.label,
+                latest.entries.length,
+              )}
+              className="border-primary/20 bg-card/40 text-foreground hover:border-primary/40 hover:bg-card/60 focus-visible:ring-ring mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs backdrop-blur-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0"
+            >
+              <SparklesIcon
+                className="text-primary size-3.5"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span className="font-medium">{copy.latestNews.label}</span>
+              <span className="text-muted-foreground" aria-hidden>
+                ·
+              </span>
+              <time dateTime={latest.date} className="text-muted-foreground">
+                {latest.label}
+              </time>
+              <span className="text-muted-foreground" aria-hidden>
+                ·
+              </span>
+              <span className="text-primary font-medium">
+                {copy.latestNews.countSuffix(latest.entries.length)}
+              </span>
+            </button>
+          ) : null}
         </div>
 
         {/* Sağ dekoratif blok — kompakt cam ring + glow halo. */}
