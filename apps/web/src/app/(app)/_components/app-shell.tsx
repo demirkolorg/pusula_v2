@@ -221,7 +221,11 @@ export function AppShell({
               href="/"
               aria-label={strings.common.appName}
               className={cn(
-                'inline-flex shrink-0 items-center gap-2 rounded-md text-lg font-semibold tracking-tight text-primary',
+                'inline-flex shrink-0 items-center gap-2 rounded-md text-lg font-semibold tracking-tight',
+                // Board (fullBleed) chrome'u koyu/renkli olduğu için logo + yazı
+                // tamamen chrome-fg (beyaz) ile renklendirilir; warm board'larda
+                // dahi maksimum kontrast.
+                fullBleed ? 'text-[color:var(--board-chrome-fg)]' : 'text-primary',
                 'outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
               )}
             >
