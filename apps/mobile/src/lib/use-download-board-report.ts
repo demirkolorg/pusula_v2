@@ -2,13 +2,15 @@
  * Faz 14F (DEM-296) — mobile klasik pano PDF indirme akışı.
  *
  * 14A karar 10 (mobil parite) + Faz 13S `FileSystem.downloadAsync` +
- * `Sharing.shareAsync` altyapısı reuse. Endpoint: `apps/web` route handler
- * (`GET /api/boards/[boardId]/report`) — web ile aynı; mobile için tam URL
- * `env.EXPO_PUBLIC_WEB_URL` üzerinden.
+ * `Sharing.shareAsync` altyapısı reuse. Endpoint: `apps/api` Hono raw route
+ * (`GET ${EXPO_PUBLIC_API_URL}/api/boards/:boardId/report`); 2026-06-01
+ * prod-fix'iyle web Next.js route handler'dan API'ye taşındı (web'de cookie
+ * subdomain scope nedeniyle session forward edilemiyordu).
  *
  * Better Auth Expo plugin SecureStore cookie tutar; `authClient.getCookie()`
- * `Cookie` başlığını döndürür. `FileSystem.downloadAsync` `headers` opsiyonunu
- * destekler — tRPC provider'daki cookie forwarding paterniyle simetrik.
+ * API cookie'sini döndürür. `FileSystem.downloadAsync` `headers` opsiyonu ile
+ * `Cookie` başlığı manuel yollanır — tRPC provider'daki cookie forwarding
+ * paterniyle simetrik.
  */
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
@@ -49,7 +51,7 @@ export function useDownloadBoardReport(
     setIsDownloading(true);
     try {
       const cookie = authClient.getCookie();
-      const url = `${env.EXPO_PUBLIC_WEB_URL}/api/boards/${encodeURIComponent(boardId)}/report`;
+      const url = `${env.EXPO_PUBLIC_API_URL}/api/boards/${encodeURIComponent(boardId)}/report`;
       const fallbackName = safeCacheFileName(`${boardTitle || 'pano'}-raporu.pdf`);
       const destination = `${FileSystem.cacheDirectory}${fallbackName}`;
 

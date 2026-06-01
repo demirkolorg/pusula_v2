@@ -23,7 +23,7 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { BoardReportData, ClassicReportCard } from '@pusula/api';
 
-import { registerReportFonts } from '@/lib/pdf/fonts';
+import { registerReportFonts } from './fonts';
 
 registerReportFonts();
 

@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/node';
 import { appRouter, type RealtimeEmit } from '@pusula/api';
 import { auth } from './auth';
 import { env } from './env';
+import { boardReportRoute } from './routes/board-report';
 import { shareRoute } from './routes/share';
 import { buildTrpcContext } from './trpc';
 
@@ -63,6 +64,12 @@ app.use(
     credentials: true,
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // Klasik pano PDF route'u (`/api/boards/:id/report`) attachment filename'i
+    // `Content-Disposition` header'ında döner; browser bu header'ı sadece CORS
+    // expose listesine eklenmişse JavaScript'e açar. Liste eklenmezse
+    // `response.headers.get('Content-Disposition')` `null` döner ve dosya adı
+    // fallback'a düşer.
+    exposeHeaders: ['Content-Disposition'],
   }),
 );
 
@@ -88,6 +95,12 @@ app.get('/health', (c) => {
 // origin (üstte set edildi) + paydaşın kendi mail/uygulamasından açabilmesi
 // için `origin: '*'` opsiyonu V2 için bırakıldı. ---
 app.route('/share', shareRoute);
+
+// --- Klasik pano PDF (Faz 14E prod-fix 2026-06-01): browser web subdomain
+// üzerinden geçerken Better Auth cookie'sini taşıyamadığı için endpoint
+// `apps/api`'ye taşındı. `GET /api/boards/:boardId/report` → senkron PDF
+// render + attachment stream. Bkz. `src/routes/board-report.ts`. ---
+app.route('/api/boards', boardReportRoute);
 
 // --- Better Auth: owns /api/auth/* (sign-up / sign-in / session / ...) ---
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));

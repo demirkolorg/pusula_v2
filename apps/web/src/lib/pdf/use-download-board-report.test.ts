@@ -87,8 +87,12 @@ describe('useDownloadBoardReport', () => {
       await result.current.download();
     });
 
+    // 2026-06-01 prod-fix — endpoint apps/api Hono raw route'a taşındı; fetch
+    // artık `${NEXT_PUBLIC_API_URL}/api/boards/.../report` çağırır. `env.ts`
+    // default'u `http://localhost:3001` (test runtime'da NEXT_PUBLIC_API_URL
+    // override edilmiyor).
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/boards/b1/report',
+      'http://localhost:3001/api/boards/b1/report',
       expect.objectContaining({ method: 'GET', credentials: 'include', cache: 'no-store' }),
     );
     expect(toastSuccess).toHaveBeenCalledTimes(1);

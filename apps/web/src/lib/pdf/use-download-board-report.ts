@@ -1,21 +1,25 @@
 /**
  * Faz 14F — Klasik pano PDF indirme hook'u (DEM-296, web).
  *
- * `GET /api/boards/[boardId]/report` (14E) çağırır; blob → `<a download>`
- * trick'i; toast (sonner). `isDownloading` aynı kart üzerinde paralel ikinci
- * tıklamayı yutar. Eski Pusula `handleDownloadReport` (`projeler/[id]/page.tsx:629-680`)
- * pattern adaptasyonu.
+ * `GET ${NEXT_PUBLIC_API_URL}/api/boards/:boardId/report` (Hono — apps/api)
+ * çağırır; blob → `<a download>` trick'i; toast (sonner). `isDownloading` aynı
+ * kart üzerinde paralel ikinci tıklamayı yutar.
+ *
+ * **2026-06-01 prod-fix:** Endpoint apps/web route handler'dan apps/api Hono raw
+ * route'a taşındı. Önceki same-origin `/api/boards/:id/report` çağrısı browser
+ * cookie scope'u nedeniyle Better Auth session'ını forward edemiyordu (cookie
+ * `api.pusulaportal.com` host-only). Artık doğrudan API origin'ine
+ * `credentials: 'include'` ile gider.
  *
  * i18n: TR sabit metinler `strings.board.topBar.report*` namespace'inden gelir
- * (`apps/web/src/lib/strings.ts`). Lint custom kuralı `pusula/no-hardcoded-text-in-reports`
- * yalnız `components/reports/` altını gözettiği için `lib/pdf/` altında string
- * literal tetiklemez; `strings.*` zaten Pusula web'in standart i18n yüzeyi.
+ * (`apps/web/src/lib/strings.ts`).
  */
 'use client';
 
 import { useCallback, useState } from 'react';
 import { toast } from '@pusula/ui';
 
+import { env } from '@/env';
 import { strings } from '@/lib/strings';
 
 const FILENAME_PATTERN = /filename="([^"]+)"/;
@@ -60,11 +64,14 @@ export function useDownloadBoardReport({
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      const response = await fetch(`/api/boards/${boardId}/report`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `${env.NEXT_PUBLIC_API_URL}/api/boards/${encodeURIComponent(boardId)}/report`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        },
+      );
       if (!response.ok) {
         throw new Error(`Report download failed (${response.status})`);
       }

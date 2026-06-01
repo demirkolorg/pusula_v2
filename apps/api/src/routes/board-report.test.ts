@@ -1,23 +1,23 @@
 /**
- * Faz 14E route handler unit tests (DEM-295) — `GET /api/boards/[boardId]/report`.
+ * Klasik pano PDF Hono route unit testleri (Faz 14E prod-fix 2026-06-01).
  *
- * Live PG ve gerçek Better Auth çağrısı YERINE bağımlılıklar mock'lanır:
- *   - `@pusula/db` `getDb` → in-memory fake query builder (board + workspace + board members)
+ * Live DB ve gerçek Better Auth çağrısı YERINE bağımlılıklar mock'lanır:
+ *   - `@pusula/db` `getDb` → in-memory fake query builder
  *   - `@pusula/api` `loadBoardForClassicReport` → fixture döner
- *   - `@react-pdf/renderer` `pdf` → fake `.toBuffer()`
- *   - global `fetch` → Better Auth session response stub
+ *   - `@react-pdf/renderer` `renderToBuffer` → fake `%PDF-` byte stream
+ *   - `../auth` `auth.api.getSession` → session stub
  *
- * E2E `pdf().toBuffer()` doğrulaması Faz 14G (DEM-297) Playwright suite'inde.
+ * Önceki ortak (route.test.ts apps/web altında) testlerin Hono request flow'una
+ * adaptasyonu; permission matrix kapsamı korundu.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const fetchMock = vi.fn();
-vi.stubGlobal('fetch', fetchMock);
-
-vi.mock('@/env', () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: 'http://api.test',
-    NEXT_PUBLIC_SENTRY_DSN: undefined,
+const getSessionMock = vi.fn();
+vi.mock('../auth', () => ({
+  auth: {
+    api: {
+      getSession: (...args: unknown[]) => getSessionMock(...args),
+    },
   },
 }));
 
@@ -58,7 +58,8 @@ function fakeDb() {
           limit: async () => {
             callIndex += 1;
             if (callIndex === 1) return queryState.board ? [queryState.board] : [];
-            if (callIndex === 2) return queryState.workspaceMember ? [queryState.workspaceMember] : [];
+            if (callIndex === 2)
+              return queryState.workspaceMember ? [queryState.workspaceMember] : [];
             if (callIndex === 3) return queryState.boardMember ? [queryState.boardMember] : [];
             return [];
           },
@@ -76,70 +77,60 @@ vi.mock('@pusula/db', async (importOriginal) => {
   };
 });
 
-import { GET } from './route';
+import { boardReportRoute } from './board-report';
 
-function makeRequest(cookie?: string) {
-  return {
-    headers: {
-      get: (name: string) =>
-        name.toLowerCase() === 'cookie' ? (cookie ?? null) : null,
-    },
-  } as unknown as Parameters<typeof GET>[0];
-}
-
-function sessionResponse(userId: string | null) {
-  return {
-    ok: userId !== null,
-    json: async () => (userId ? { user: { id: userId } } : null),
-  } as unknown as Response;
+function request(boardId: string, init?: { cookie?: string }) {
+  const headers = new Headers();
+  if (init?.cookie) headers.set('cookie', init.cookie);
+  return boardReportRoute.request(`/${boardId}/report`, { method: 'GET', headers });
 }
 
 beforeEach(() => {
-  fetchMock.mockReset();
+  getSessionMock.mockReset();
   loadBoardForClassicReport.mockReset();
   queryState.board = boardRow;
   queryState.workspaceMember = { role: 'member' };
   queryState.boardMember = null;
 });
 
-describe('GET /api/boards/[boardId]/report', () => {
-  it('cookie yok → 401', async () => {
-    const res = await GET(makeRequest(undefined), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+describe('GET /api/boards/:boardId/report (Hono)', () => {
+  it('session yok → 401', async () => {
+    getSessionMock.mockResolvedValueOnce(null);
+    const res = await request('b1');
     expect(res.status).toBe(401);
   });
 
-  it('apps/api session resolve fail → 401', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse(null));
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+  it('getSession throw → 401', async () => {
+    getSessionMock.mockRejectedValueOnce(new Error('cookie corrupted'));
+    const res = await request('b1', { cookie: 'session=garbage' });
     expect(res.status).toBe(401);
   });
 
   it('pano yok (board lookup boş) → 404', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     queryState.board = null;
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'missing' }),
-    });
+    const res = await request('missing', { cookie: 'session=ok' });
     expect(res.status).toBe(404);
   });
 
-  it('workspace üyesi değil → 403 (canPerformReportAction not_workspace_member)', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+  it('workspace üyesi değil → 403', async () => {
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     queryState.workspaceMember = null;
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(403);
   });
 
-  it('happy path: workspace member → 200 + Content-Type application/pdf + filename header', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+  it('happy path: workspace member → 200 + Content-Type + filename header', async () => {
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     loadBoardForClassicReport.mockResolvedValueOnce({
-      board: { id: 'b1', title: 'Test Board', description: null, icon: 'i', createdAt: new Date().toISOString(), archivedAt: null },
+      board: {
+        id: 'b1',
+        title: 'Test Board',
+        description: null,
+        icon: 'i',
+        createdAt: new Date().toISOString(),
+        archivedAt: null,
+      },
       workspace: { id: 'w1', name: 'WS' },
       members: [],
       lists: [],
@@ -147,9 +138,7 @@ describe('GET /api/boards/[boardId]/report', () => {
       generatedAt: new Date().toISOString(),
     });
 
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('application/pdf');
     const disposition = res.headers.get('Content-Disposition') ?? '';
@@ -160,71 +149,72 @@ describe('GET /api/boards/[boardId]/report', () => {
     expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
   });
 
-  it('loadBoardForClassicReport null döner (race: lookup sonrası silinmiş) → 404', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+  it('loadBoardForClassicReport null → 404', async () => {
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     loadBoardForClassicReport.mockResolvedValueOnce(null);
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(404);
   });
 
   it('loadBoardForClassicReport throw → 500', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     loadBoardForClassicReport.mockRejectedValueOnce(new Error('DB fail'));
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(500);
   });
 
-  // Faz 14G — 14A karar 6 permission matrix (board scope `render`).
-  // §9.5: workspace member + board viewer/member/admin → ALLOW; workspace
-  // guest + board üyeliği yok → DENY (effective board rolü null).
-
+  // Permission matrix (canPerformReportAction board scope `render`)
   it('permission matrix — board viewer (workspace member + board viewer) → 200', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     queryState.workspaceMember = { role: 'member' };
     queryState.boardMember = { role: 'viewer' };
     loadBoardForClassicReport.mockResolvedValueOnce({
-      board: { id: 'b1', title: 'Viewer Board', description: null, icon: 'i', createdAt: new Date().toISOString(), archivedAt: null },
+      board: {
+        id: 'b1',
+        title: 'Viewer Board',
+        description: null,
+        icon: 'i',
+        createdAt: new Date().toISOString(),
+        archivedAt: null,
+      },
       workspace: { id: 'w1', name: 'WS' },
       members: [],
       lists: [],
       stats: { totalCards: 0, completedCards: 0, openCards: 0, progressPercent: 0 },
       generatedAt: new Date().toISOString(),
     });
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(200);
   });
 
   it('permission matrix — board admin (workspace owner inherit) → 200', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     queryState.workspaceMember = { role: 'owner' };
-    queryState.boardMember = null; // owner workspace → inherited admin board
+    queryState.boardMember = null;
     loadBoardForClassicReport.mockResolvedValueOnce({
-      board: { id: 'b1', title: 'Admin Board', description: null, icon: 'i', createdAt: new Date().toISOString(), archivedAt: null },
+      board: {
+        id: 'b1',
+        title: 'Admin Board',
+        description: null,
+        icon: 'i',
+        createdAt: new Date().toISOString(),
+        archivedAt: null,
+      },
       workspace: { id: 'w1', name: 'WS' },
       members: [],
       lists: [],
       stats: { totalCards: 0, completedCards: 0, openCards: 0, progressPercent: 0 },
       generatedAt: new Date().toISOString(),
     });
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(200);
   });
 
-  it('permission matrix — workspace guest + board üyeliği yok → 403 (effective board null)', async () => {
-    fetchMock.mockResolvedValueOnce(sessionResponse('u1'));
+  it('permission matrix — workspace guest + board üyeliği yok → 403', async () => {
+    getSessionMock.mockResolvedValueOnce({ user: { id: 'u1' } });
     queryState.workspaceMember = { role: 'guest' };
     queryState.boardMember = null;
-    const res = await GET(makeRequest('cookie-val'), {
-      params: Promise.resolve({ boardId: 'b1' }),
-    });
+    const res = await request('b1', { cookie: 'session=ok' });
     expect(res.status).toBe(403);
   });
 });
