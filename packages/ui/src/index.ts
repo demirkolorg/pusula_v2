@@ -11,6 +11,7 @@ export {
 export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Input } from './components/input';
 export { Calendar, type CalendarProps } from './components/calendar';
+export { tr as trDayPickerLocale } from 'react-day-picker/locale';
 export { DatePickerInput, type DatePickerInputProps } from './components/date-picker-input';
 export { Label } from './components/label';
 export {

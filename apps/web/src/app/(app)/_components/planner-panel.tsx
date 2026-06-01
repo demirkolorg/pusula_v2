@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CalendarIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
@@ -14,7 +15,23 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { PlannerEvent } from '@pusula/domain';
-import { Alert, AlertDescription, Button, buttonVariants, cn } from '@pusula/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Calendar,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  buttonVariants,
+  cn,
+  trDayPickerLocale,
+} from '@pusula/ui';
 import { authClient } from '@/lib/auth-client';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
@@ -22,12 +39,18 @@ import { PlannerEventModal } from './planner-event-modal';
 
 const GOOGLE_PROVIDER_ID = 'google-calendar';
 
-/** Timeline başlangıç saati (sabit; Trello-vari 09:00 başlangıç). */
-const TIMELINE_START_HOUR = 9;
-/** Timeline bitiş saati (kapalı aralık: 9pm dahil → 21). */
-const TIMELINE_END_HOUR = 21;
+/** Timeline default başlangıç saati — boş günde Trello-vari 09:00 başlangıç. */
+const DEFAULT_START_HOUR = 9;
+/** Timeline default bitiş saati (kapalı aralık: 21:00 label'ı dahil → 21:00-22:00 segmenti). */
+const DEFAULT_END_HOUR = 21;
+/** Alt sınır — etkinlikler 00:00'a kadar düşebilir. */
+const MIN_START_HOUR = 0;
+/** Üst sınır — son label 23:00 (23:00-24:00 segmenti). */
+const MAX_END_HOUR = 23;
 /** Bir saat çizgisinin görsel yüksekliği (px). Etkinlik blok pozisyonu bu çarpana göre hesaplanır. */
 const HOUR_HEIGHT_PX = 64;
+/** Çakışan kolonlar arası yatay boşluk (px). */
+const COLUMN_GAP_PX = 4;
 
 type PlannerPanelProps = {
   /** Panel'in kendini kapatması için global toggle'a sinyal. */
@@ -64,6 +87,7 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
   const calendarIdFromUrl = searchParams.get('calendar');
 
   const [viewDate, setViewDate] = useState<Date>(() => startOfDay(new Date()));
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // 16A pattern'ı — bağlı durum sorgusu.
   const accountsQuery = useQuery({
@@ -180,12 +204,40 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
         >
           {copy.today}
         </Button>
-        <div
-          className="flex-1 truncate px-1 text-center text-sm font-medium"
-          aria-live="polite"
-        >
-          {dateLabel}
-        </div>
+        {/* Tarih başlığı — tıklanır; Calendar popover ile uzak tarihlere
+            tek tıkla atlama. ◀/▶ butonları tek-gün ince ayarı için kalır. */}
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-0 flex-1 justify-center gap-1 px-1 text-sm font-medium"
+              aria-label={copy.pickDate}
+              aria-haspopup="dialog"
+              aria-expanded={datePickerOpen}
+            >
+              <span className="truncate" aria-live="polite">
+                {dateLabel}
+              </span>
+              <ChevronDownIcon aria-hidden className="size-3.5 shrink-0 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="center" className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={viewDate}
+              defaultMonth={viewDate}
+              locale={trDayPickerLocale}
+              captionLayout="dropdown"
+              onSelect={(date) => {
+                if (!date) return;
+                setViewDate(startOfDay(date));
+                setDatePickerOpen(false);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
         <Button
           type="button"
           variant="ghost"
@@ -370,9 +422,13 @@ function PlannerAllDayBanner({
 }
 
 /**
- * Tek-gün dikey timeline (09:00-21:00). Sol şeritte saat etiketleri, sağ
- * tarafta yatay grid + absolute positioned etkinlik blokları. Bugün ise
- * geçerli zamanı işaretleyen kırmızı çizgi.
+ * Tek-gün dikey timeline. Sol şeritte saat etiketleri, sağ tarafta yatay grid
+ * + absolute positioned etkinlik blokları. Bugün ise geçerli zamanı işaretleyen
+ * kırmızı çizgi.
+ *
+ * Aralık dinamiktir: boş günde 09:00-21:00 (Trello-vari); 09:00 öncesi
+ * etkinlikler varsa başlangıç aşağı, 21:00 sonrası varsa bitiş yukarı kayar.
+ * Çakışan etkinlikler yan yana kolonlara dağıtılır (Google Calendar mantığı).
  */
 function PlannerTimeline({
   events,
@@ -386,21 +442,30 @@ function PlannerTimeline({
   isToday: boolean;
 }) {
   const copy = strings.board.planner;
+  const { startHour, endHour } = useMemo(
+    () => computeTimelineRange(events),
+    [events],
+  );
   const hours = useMemo(() => {
     const list: number[] = [];
-    for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h += 1) list.push(h);
+    for (let h = startHour; h <= endHour; h += 1) list.push(h);
     return list;
-  }, []);
+  }, [startHour, endHour]);
 
   const positioned = useMemo(
-    () => events.map((event) => positionEvent(event)).filter((p) => p != null),
-    [events],
+    () =>
+      layoutColumns(
+        events
+          .map((event) => positionEvent(event, startHour, endHour))
+          .filter((p): p is PositionedEvent => p != null),
+      ),
+    [events, startHour, endHour],
   );
   const nowOffsetPx = useMemo(() => {
     if (!isToday) return null;
     const now = new Date();
-    return hourOffsetToPx(now.getHours() + now.getMinutes() / 60);
-  }, [isToday]);
+    return hourOffsetToPx(now.getHours() + now.getMinutes() / 60, startHour);
+  }, [isToday, startHour]);
 
   const totalHeight = hours.length * HOUR_HEIGHT_PX;
 
@@ -436,13 +501,16 @@ function PlannerTimeline({
               style={{ top: `${nowOffsetPx}px` }}
             />
           )}
-          {/* Etkinlik blokları — takvim rengi varsa o kullanılır, yoksa primary. */}
+          {/* Etkinlik blokları — takvim rengi varsa o kullanılır, yoksa primary.
+              Çakışanlar kolonlara dağıtılır (col / totalCols). */}
           {positioned.map((pos) => {
             const color = pos.event.calendarColor;
             const titleAttr = pos.event.calendarSummary
               ? `${eventTitle(pos.event)} — ${pos.event.calendarSummary}`
               : eventTitle(pos.event);
             const fallback = !color;
+            const widthPct = 100 / pos.totalCols;
+            const leftPct = pos.col * widthPct;
             return (
               <button
                 key={`${pos.event.calendarId ?? 'primary'}-${pos.event.id}`}
@@ -450,12 +518,14 @@ function PlannerTimeline({
                 onClick={() => onEventClick(pos.event.id, pos.event.calendarId)}
                 title={titleAttr}
                 className={cn(
-                  'absolute left-0 right-1 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-xs transition-colors',
+                  'absolute overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-xs transition-colors',
                   fallback && 'bg-primary/15 hover:bg-primary/25 border-primary',
                 )}
                 style={{
                   top: `${pos.top}px`,
                   height: `${Math.max(pos.height, 24)}px`,
+                  left: `calc(${leftPct}% + ${pos.col === 0 ? 0 : COLUMN_GAP_PX / 2}px)`,
+                  width: `calc(${widthPct}% - ${pos.col === 0 || pos.col === pos.totalCols - 1 ? COLUMN_GAP_PX / 2 : COLUMN_GAP_PX}px)`,
                   ...(color
                     ? {
                         backgroundColor: hexWithAlpha(color, 0.18),
@@ -579,31 +649,150 @@ type PositionedEvent = {
   height: number;
 };
 
+type LayoutedEvent = PositionedEvent & {
+  /** 0-indexli kolon konumu — çakışan etkinlikler içinde sıra. */
+  col: number;
+  /** İçinde bulunduğu cluster'ın toplam kolon sayısı (yatay bölme paydası). */
+  totalCols: number;
+};
+
 /**
- * Etkinliği timeline'da konumlandır. Saat başlangıçları 09:00 baz.
- * Timeline dışında kalan etkinlikler clamp edilir.
+ * Timeline aralığını etkinliklere göre hesapla. Boş günde default 09:00-21:00;
+ * 09:00 öncesi etkinlik varsa başlangıç aşağı, 21:00 sonrası varsa bitiş yukarı
+ * kayar. MIN_START_HOUR/MAX_END_HOUR ile saat dışı taşmalardan korunur.
  */
-function positionEvent(event: PlannerEvent): PositionedEvent | null {
+function computeTimelineRange(events: PlannerEvent[]): {
+  startHour: number;
+  endHour: number;
+} {
+  let earliest = DEFAULT_START_HOUR;
+  let latest = DEFAULT_END_HOUR + 1;
+  for (const e of events) {
+    const start = parseEventStart(e);
+    const end = parseEventEnd(e);
+    if (start) {
+      const h = start.getHours() + start.getMinutes() / 60;
+      if (h < earliest) earliest = h;
+    }
+    if (end) {
+      const h = end.getHours() + end.getMinutes() / 60;
+      if (h > latest) latest = h;
+    } else if (start) {
+      const h = start.getHours() + start.getMinutes() / 60 + 0.5;
+      if (h > latest) latest = h;
+    }
+  }
+  const startHour = Math.max(
+    MIN_START_HOUR,
+    Math.min(DEFAULT_START_HOUR, Math.floor(earliest)),
+  );
+  const endHour = Math.min(
+    MAX_END_HOUR,
+    Math.max(DEFAULT_END_HOUR, Math.ceil(latest) - 1),
+  );
+  return { startHour, endHour };
+}
+
+/**
+ * Etkinliği timeline'da konumlandır. `startHour`/`endHour` dinamik aralığı
+ * temsil eder (label aralığı; render alanı `[startHour, endHour + 1)` saat).
+ * Aralık dışı uçlar clamp'lenir.
+ */
+function positionEvent(
+  event: PlannerEvent,
+  startHour: number,
+  endHour: number,
+): PositionedEvent | null {
   const start = parseEventStart(event);
   if (!start) return null;
   const end = parseEventEnd(event);
-  const startHour = start.getHours() + start.getMinutes() / 60;
-  const endHour = end
+  const startFloat = start.getHours() + start.getMinutes() / 60;
+  const endFloat = end
     ? end.getHours() + end.getMinutes() / 60
-    : startHour + 0.5;
-  const clampedStart = Math.max(TIMELINE_START_HOUR, startHour);
-  const clampedEnd = Math.min(TIMELINE_END_HOUR + 1, Math.max(endHour, clampedStart + 0.25));
-  if (clampedEnd <= TIMELINE_START_HOUR) return null;
-  if (clampedStart >= TIMELINE_END_HOUR + 1) return null;
+    : startFloat + 0.5;
+  const rangeEnd = endHour + 1;
+  const clampedStart = Math.max(startHour, startFloat);
+  const clampedEnd = Math.min(rangeEnd, Math.max(endFloat, clampedStart + 0.25));
+  if (clampedEnd <= startHour) return null;
+  if (clampedStart >= rangeEnd) return null;
   return {
     event,
-    top: hourOffsetToPx(clampedStart),
-    height: hourOffsetToPx(clampedEnd) - hourOffsetToPx(clampedStart),
+    top: hourOffsetToPx(clampedStart, startHour),
+    height:
+      hourOffsetToPx(clampedEnd, startHour) -
+      hourOffsetToPx(clampedStart, startHour),
   };
 }
 
-function hourOffsetToPx(hour: number): number {
-  return (hour - TIMELINE_START_HOUR) * HOUR_HEIGHT_PX;
+function hourOffsetToPx(hour: number, baseHour: number): number {
+  return (hour - baseHour) * HOUR_HEIGHT_PX;
+}
+
+/**
+ * Çakışan etkinlikleri yan yana kolonlara dağıt (Google Calendar mantığı).
+ *
+ * 1. Etkinlikleri başlangıca göre sırala (eşitlik: uzun olan önce).
+ * 2. Greedy kolon ataması — boş ilk kolona koy, yoksa yeni kolon aç.
+ * 3. Birbirine zincirle bağlı çakışma kümelerini (cluster) bul; her cluster
+ *    içinde maxCol+1 = totalCols → tüm cluster üyeleri aynı paydayı paylaşır.
+ */
+function layoutColumns(positioned: PositionedEvent[]): LayoutedEvent[] {
+  if (positioned.length === 0) return [];
+  const sorted = [...positioned].sort(
+    (a, b) => a.top - b.top || b.height - a.height,
+  );
+
+  const columnEndBottoms: number[] = [];
+  const withCol: Array<PositionedEvent & { col: number }> = [];
+  for (const p of sorted) {
+    const top = p.top;
+    const bottom = p.top + p.height;
+    let placedCol = -1;
+    for (let i = 0; i < columnEndBottoms.length; i += 1) {
+      const colEnd = columnEndBottoms[i];
+      if (colEnd != null && colEnd <= top) {
+        columnEndBottoms[i] = bottom;
+        placedCol = i;
+        break;
+      }
+    }
+    if (placedCol === -1) {
+      placedCol = columnEndBottoms.length;
+      columnEndBottoms.push(bottom);
+    }
+    withCol.push({ ...p, col: placedCol });
+  }
+
+  const byTop = [...withCol].sort((a, b) => a.top - b.top);
+  type Cluster = {
+    members: Array<PositionedEvent & { col: number }>;
+    maxCol: number;
+    activeBottom: number;
+  };
+  const clusters: Cluster[] = [];
+  for (const p of byTop) {
+    const last = clusters[clusters.length - 1];
+    if (last && p.top < last.activeBottom) {
+      last.members.push(p);
+      last.maxCol = Math.max(last.maxCol, p.col);
+      last.activeBottom = Math.max(last.activeBottom, p.top + p.height);
+    } else {
+      clusters.push({
+        members: [p],
+        maxCol: p.col,
+        activeBottom: p.top + p.height,
+      });
+    }
+  }
+
+  const result: LayoutedEvent[] = [];
+  for (const c of clusters) {
+    const totalCols = c.maxCol + 1;
+    for (const m of c.members) {
+      result.push({ ...m, totalCols });
+    }
+  }
+  return result;
 }
 
 /**

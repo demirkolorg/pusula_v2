@@ -36,6 +36,12 @@ export const strings = {
     back: 'Geri',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
     navigationRail: 'Navigasyon çubuğu',
+    panels: {
+      closeAll: 'Tüm panelleri kapat',
+      closeOthers: 'Diğer panelleri kapat',
+      closeThis: 'Bu paneli kapat',
+      closeBackdrop: 'Paneli kapat',
+    },
   },
   entityIcons: {
     'layout-grid': 'Izgara',
@@ -1258,6 +1264,7 @@ export const strings = {
       today: 'Bugün',
       prevDay: 'Önceki gün',
       nextDay: 'Sonraki gün',
+      pickDate: 'Tarih seç',
       refresh: 'Yenile',
       refreshing: 'Yenileniyor…',
       refreshSuccess: 'Etkinlikler güncellendi.',
