@@ -620,9 +620,11 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       .select()
       .from(notificationOutbox)
       .where(dbMod.eq(notificationOutbox.eventId, removedAct!.id));
-    expect(outbox).toHaveLength(2);
+    // 2026-06-01 push expansion — `member_removed` artık push'a da gider
+    // (önceki: email + in_app; yeni: email + in_app + push).
+    expect(outbox).toHaveLength(3);
     const channels = outbox.map((o) => o.channel).sort();
-    expect(channels).toEqual(['email', 'in_app']);
+    expect(channels).toEqual(['email', 'in_app', 'push']);
     expect(outbox.every((o) => o.type === 'member_removed')).toBe(true);
     expect(outbox.every((o) => o.recipientId === freshId)).toBe(true);
   });
@@ -670,11 +672,15 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
       .select()
       .from(notificationOutbox)
       .where(dbMod.eq(notificationOutbox.eventId, roleAct!.id));
-    expect(outbox).toHaveLength(1);
-    expect(outbox[0]!.channel).toBe('in_app');
-    expect(outbox[0]!.type).toBe('member_role_changed');
-    expect(outbox[0]!.recipientId).toBe(freshId);
-    expect((outbox[0]!.payload as { toRole?: string }).toRole).toBe('admin');
+    // 2026-06-01 push expansion — `member_role_changed` artık in_app + push
+    // (önceki: yalnız in_app). Email default kalmıyor (heavy-touch değil).
+    expect(outbox).toHaveLength(2);
+    const channels = outbox.map((o) => o.channel).sort();
+    expect(channels).toEqual(['in_app', 'push']);
+    expect(outbox.every((o) => o.type === 'member_role_changed')).toBe(true);
+    expect(outbox.every((o) => o.recipientId === freshId)).toBe(true);
+    const inAppRow = outbox.find((o) => o.channel === 'in_app');
+    expect((inAppRow?.payload as { toRole?: string }).toRole).toBe('admin');
   });
 });
 

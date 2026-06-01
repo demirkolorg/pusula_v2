@@ -15,15 +15,11 @@ import {
  */
 
 const MUTE_BYPASS_TYPES = new Set(['mention', 'board_invitation', 'workspace_invitation']);
-const PUSH_TYPES = new Set([
-  'card_assigned',
-  'mention',
-  'due_approaching',
-  'due_overdue',
-  // DEM-152 — `attachment_added` push opt-in (eski `watched_activity` çöp
-  // kovasının attachment yolunun davranışını korur).
-  'attachment_added',
-]);
+// 2026-06-01 push expansion — `pickChannels` push'u tüm tipler için `pushEnabled`
+// kapısına bağlar (önceki 5-tip alt-küme kaldırıldı). UI matris her push hücresini
+// `'on'` (toggle açık, kullanıcı `push_enabled=false` ile opt-out edebilir) olarak
+// gösterir; push'ta mute-bypass yok. Detay → `docs/domain/04-bildirim-kurallari.md`
+// "Push kanalı kapsamı".
 const EMAIL_TYPES = new Set([
   'card_assigned',
   'mention',
@@ -57,12 +53,12 @@ describe('notifications-shared MATRIX_ROWS', () => {
     }
   });
 
-  it('mirrors notification-rules pickChannels for push channel', () => {
+  it('mirrors notification-rules pickChannels for push channel (2026-06-01 expansion)', () => {
     for (const row of MATRIX_ROWS) {
-      // Push has no mute-bypass — mention is in PUSH_TYPES so 'on'; invitations are not in
-      // PUSH_TYPES so 'unavailable'.
-      const expected: ChannelCellState = PUSH_TYPES.has(row.type) ? 'on' : 'unavailable';
-      expect(row.channels.push, row.type).toBe(expected);
+      // 2026-06-01 push expansion — `pickChannels` push'u tüm tipler için
+      // `pushEnabled` gate'ine bağlar; push'ta mute-bypass yok. Her satır
+      // `'on'` (kullanıcı `push_enabled=false` ile opt-out edebilir).
+      expect(row.channels.push, row.type).toBe('on');
     }
   });
 

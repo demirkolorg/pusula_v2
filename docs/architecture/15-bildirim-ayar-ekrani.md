@@ -17,7 +17,7 @@ related:
   - '[[docs/domain/04-bildirim-kurallari|04 — Bildirim Kuralları]]'
   - '[[docs/architecture/13-ui-tasarim-dili|13 — UI Tasarım Dili]]'
   - '[[docs/architecture/08-web-ve-mobil|08 — Web ve Mobil]]'
-updated: 2026-05-15
+updated: 2026-06-01
 ---
 
 # 15 — Bildirim Ayar Ekranı (Faz 10)
@@ -119,6 +119,7 @@ Aşağıdaki 4 ana section sırayla render edilir. Faz 10D üç section'ı (1+2+
 **Davranış:**
 - `✓ sabit` → mute-bypass tipleri (mention + board_invitation + workspace_invitation) için `Switch` disabled + info `Tooltip` ("Bu bildirim her zaman gönderilir — mute-bypass").
 - `—` → o tip × kanal kombinasyonu rule engine'de yok (örn. `comment_reply` için email kanal gönderilmiyor — bkz. `notification-rules.ts:381-405`). UI sütununda boş hücre.
+- **2026-06-01 push expansion sonrası:** Push sütununda `—` (em-dash) yalnız teorik fallback — `pickChannels` artık tüm tipler için `pushEnabled` gate'ine bağlar (`pushByType = true`), yani matristeki her push hücresi `'on'` olur (toggle açık, kullanıcı global `push_enabled=false` ile veya scope override ile opt-out edebilir). Push'ta mute-bypass yok: mention/davet push'u da `push_enabled` ile kapatılabilir. Detay → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md) "Push kanalı kapsamı".
 - Genel Email/Push (Section 1) OFF iken matrix'teki ilgili sütunlar disabled + tooltip "Önce genel {kanal}'ı aç".
 - Toplu işlem butonları üstte: "Hepsini aç" / "Hepsini kapat" / "Sadece e-postayı kapat". Tek tıkla tüm Switch'leri set eder + tek bir `upsert` mutation gönderir.
 

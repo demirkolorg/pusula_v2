@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-19
+updated: 2026-06-01
 ---
 
 # 04 — Bildirim Kuralları
@@ -33,33 +33,37 @@ updated: 2026-05-19
 
 `activity_events` tablosundaki her olay için bildirim kuralı `packages/api/src/lib/notification-rules.ts`'te tanımlıdır (Faz 6A — [DEM-90](https://linear.app/demirkol/issue/DEM-90)). Tablo: olay tipi → kimin bildirim alacağı → varsayılan kanal(lar).
 
-| Activity event tipi                            | Bildirim kimde?                           | Varsayılan kanal(lar)                          | Not                                                                              |
-| ---------------------------------------------- | ----------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
-| `card.member_added`                            | Atanan kullanıcı                          | in-app + email (opt-in)                        | Faz 2.5C; en yaygın                                                              |
-| `comment.mentioned`                            | Mention edilen kullanıcı(lar)             | in-app + push + email (her zaman; mute-bypass) | Yüksek öncelik                                                                   |
-| `comment.created`                              | Kart watcher'ları (assignee/watcher rolü) | in-app                                         | Actor hariç; push yalnız `attachment.added`/mention/due'da                       |
-| `card.due_changed`                             | Kart üyeleri + watcher'lar                | in-app                                         | Yeni due/yeni tarih; push yalnız due reminder/overdue'da                         |
-| `card.completed` / `uncompleted`               | Kart üyeleri (actor hariç)                | in-app                                         | Görünür ama düşük gürültü                                                        |
-| `card.moved` (cross-list)                      | Kart üyeleri                              | in-app                                         | Faz 3A; aynı liste içi reorder bildirim üretmez                                  |
-| `card.movedToList` (cross-board)               | Kart üyeleri                              | in-app                                         | Faz 3E; board değişimi belirtilir                                                |
-| `card.archived`                                | Kart üyeleri                              | in-app                                         | Actor hariç                                                                      |
-| `checklist.item_checked` (watch edilen kartta) | Kart watcher'ları                         | in-app                                         | Düşük gürültü; checklist tamamlandığında bir kez özet üretilebilir (sonraki tur) |
-| `board.member_invited`                         | Davet edilen e-posta                      | email (+ in-app kabul sonrası)                 | Faz 2.5C; davet token + accept/decline link                                      |
-| `board.member_added`                           | Eklenen kullanıcı                         | in-app + email (opt-in)                        | DEM-175; `board_member_added` tipi — "davet" değil "eklendi" (mute-bypass değil)  |
-| `workspace.member_invited`                     | Davet edilen e-posta                      | email                                          | Faz 1.3                                                                          |
-| `board.access_requested`                       | Board admin'leri (talep sahibi hariç)     | in-app + email (opt-in)                        | DEM-154; board linkinden erişim talebi — `board_access_requested` tipi           |
-| `due_reminder_1d`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (Faz 6A, 5dk cron — 24 saat içinde)                           |
-| `due_reminder_1h`                              | Kart üyeleri                              | in-app + push (opt-in)                         | Due-date scheduler (1 saat içinde)                                               |
-| `due_overdue`                                  | Kart üyeleri                              | in-app + push + email (opt-in)                 | Due-date scheduler (geçmiş; bir kez)                                             |
-| `attachment.added`                             | Kart watcher'ları (assignee/watcher rolü) | in-app + (tercihse) push                       | Faz 11; actor hariç; cooldown 60s |
-| `card.renamed`                                 | Kart watcher'ları                         | in-app                                         | DEM-153; kart başlığı değişimi                                                   |
-| `card.description_changed`                     | Kart watcher'ları                         | in-app                                         | DEM-153                                                                          |
-| `card.label_added` / `card.label_removed`      | Kart watcher'ları                         | in-app                                         | DEM-153                                                                          |
-| `comment.updated` / `comment.deleted`          | Kart watcher'ları                         | in-app                                         | DEM-153; yorum düzenleme / silme                                                 |
-| `checklist.created`                            | Kart watcher'ları                         | in-app                                         | DEM-153                                                                          |
-| `checklist.item_added` / `checklist.item_removed` | Kart watcher'ları                      | in-app                                         | DEM-153                                                                          |
-| `checklist.item_unchecked`                     | Kart watcher'ları                         | in-app                                         | DEM-153; mevcut `checklist_item_completed` tipine bağlanır (`activityType` ayırır) |
-| `attachment.removed`                           | Kart watcher'ları                         | in-app                                         | DEM-153; eskiden bildirim üretmiyordu (düşük sinyal sayılıyordu)                 |
+> **Not (2026-06-01 revize):** Aşağıdaki tabloda "kanal" kolonu artık **push'ı varsayılan olarak içerir** — `push = hepsi default ON` (opt-out) kararı sonrası. Tabloya `+ push (opt-out)` etiketi her satıra eklendi; email kolonu değişmedi (yalnız heavy-touch tipler email'e gider). Detay → "Push kanalı kapsamı" bölümü.
+
+| Activity event tipi                            | Bildirim kimde?                           | Varsayılan kanal(lar)                                       | Not                                                                              |
+| ---------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `card.member_added`                            | Atanan kullanıcı                          | in-app + push (opt-out) + email (opt-in)                    | Faz 2.5C; en yaygın                                                              |
+| `comment.mentioned`                            | Mention edilen kullanıcı(lar)             | in-app + push + email (her zaman; mute-bypass)              | Yüksek öncelik                                                                   |
+| `comment.created`                              | Kart watcher'ları (assignee/watcher rolü) | in-app + push (opt-out)                                     | Actor hariç; push 2026-06-01 expansion ile açık                                  |
+| `card.due_changed`                             | Kart üyeleri + watcher'lar                | in-app + push (opt-out)                                     | Yeni due/yeni tarih; push 2026-06-01 expansion ile açık                          |
+| `card.completed` / `uncompleted`               | Kart üyeleri (actor hariç)                | in-app + push (opt-out)                                     | Push 2026-06-01 expansion ile açık                                               |
+| `card.moved` (cross-list)                      | Kart üyeleri                              | in-app + push (opt-out)                                     | Faz 3A; aynı liste içi reorder bildirim üretmez                                  |
+| `card.movedToList` (cross-board)               | Kart üyeleri                              | in-app + push (opt-out)                                     | Faz 3E; board değişimi belirtilir                                                |
+| `card.archived`                                | Kart üyeleri                              | in-app + push (opt-out)                                     | Actor hariç                                                                      |
+| `checklist.item_checked` (watch edilen kartta) | Kart watcher'ları                         | in-app + push (opt-out)                                     | Push 2026-06-01 expansion ile açık                                               |
+| `board.member_invited`                         | Davet edilen e-posta                      | email + push (opt-out, kabul sonrası in-app)                | Faz 2.5C; davet token + accept/decline link                                      |
+| `board.member_added`                           | Eklenen kullanıcı                         | in-app + push (opt-out) + email (opt-in)                    | DEM-175; "davet" değil "eklendi" (mute-bypass değil)                              |
+| `workspace.member_invited`                     | Davet edilen e-posta                      | email + push (opt-out)                                      | Faz 1.3                                                                          |
+| `board.access_requested`                       | Board admin'leri (talep sahibi hariç)     | in-app + push (opt-out) + email (opt-in)                    | DEM-154; board linkinden erişim talebi                                            |
+| `due_reminder_1d`                              | Kart üyeleri                              | in-app + push (opt-in)                                      | Due-date scheduler (Faz 6A, 5dk cron — 24 saat içinde)                           |
+| `due_reminder_1h`                              | Kart üyeleri                              | in-app + push (opt-in)                                      | Due-date scheduler (1 saat içinde)                                               |
+| `due_overdue`                                  | Kart üyeleri                              | in-app + push + email (opt-in)                              | Due-date scheduler (geçmiş; bir kez)                                             |
+| `attachment.added`                             | Kart watcher'ları (assignee/watcher rolü) | in-app + push (opt-in)                                      | Faz 11; actor hariç; cooldown 60s                                                |
+| `card.renamed`                                 | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153; kart başlığı değişimi                                                   |
+| `card.description_changed`                     | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153                                                                          |
+| `card.label_added` / `card.label_removed`      | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153                                                                          |
+| `comment.updated` / `comment.deleted`          | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153; yorum düzenleme / silme                                                 |
+| `checklist.created`                            | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153                                                                          |
+| `checklist.item_added` / `checklist.item_removed` | Kart watcher'ları                      | in-app + push (opt-out)                                     | DEM-153                                                                          |
+| `checklist.item_unchecked`                     | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153; `checklist_item_completed` tipine bağlanır (`activityType` ayırır)        |
+| `attachment.removed`                           | Kart watcher'ları                         | in-app + push (opt-out)                                     | DEM-153; eski "düşük sinyal" istisnası kalktı, 2026-06-01 expansion ile push'a açık |
+| `board.member_removed` / `workspace.member_removed` | Çıkarılan kişi                       | in-app + push (opt-out) + email (opt-in)                    | DEM-135 (Faz 10A); permission filter atlar (alıcı artık kaynağa erişemez)         |
+| `board.member_role_changed` / `workspace.member_role_changed` | Rolü değişen kişi          | in-app + push (opt-out)                                     | DEM-135 (Faz 10A); kullanıcı zaten üye                                            |
 
 ## Bildirim tipi taksonomisi (DEM-152)
 
@@ -170,6 +174,34 @@ Kurallar:
 - **Davet kabulü ayrımı.** Board davetini kabul etmek de `board.member_added` activity
   üretir; o durumda actor = yeni üyenin kendisi olduğundan actor self-skip bildirim
   üretmez — yalnız bir admin'in doğrudan eklemesi `board_member_added` bildirimi doğurur.
+
+## Push kanalı kapsamı — `push = hepsi default ON` (2026-06-01 revize)
+
+Faz 6A'da push kanalı yalnız beş "yüksek değer" tipte default açıktı: `card_assigned`, `mention`, `due_approaching`, `due_overdue`, `attachment_added`. Diğer tüm tipler (member değişimleri, board/workspace davetleri, kart move/archive/complete, granular kart aksiyonları, checklist, comment edit/delete, vb.) push'a hiç gitmiyordu — kullanıcı bildirim merkezini açmadıkça olayı kaçırıyordu.
+
+**2026-06-01 revize (kullanıcı kararı `AskUserQuestion`):** Push'a giden tip listesi **tüm `NOTIFICATION_TYPES`** kapsamına genişletildi (30+ tip). Default davranış **opt-out**: her tip default push çağrısı üretir; kullanıcı kapatmak isterse [`notification_preferences`](`../architecture/15-bildirim-ayar-ekrani.md`) matris ekranından scope (workspace/board/card) bazında veya `push_enabled=false` ile tüm push'u kapatır.
+
+| Önceki davranış | Yeni davranış |
+|---|---|
+| `pushByType` listesi 5 tip explicit kontrol (`card_assigned`, `mention`, `due_approaching`, `due_overdue`, `attachment_added`) | `pushByType = true` her tip için (sade — açık alt-küme yok) |
+| Kapsam dışı tipler hiç push üretmez | Tüm tipler default push üretir, `push_enabled` (preference) opt-out kapısı |
+| `member_removed` / `board_invitation` / `workspace_invitation` / `board_access_requested` / `board_member_added` push'sız | Bu beşi de push'a gider |
+| Granular kart aksiyonları (`card_moved` / `_archived` / `_completed` / `_due_changed` / `_cover_changed` / `_member_removed` / `_renamed` / `_description_changed` / `_label_added` / `_label_removed`) yalnız in-app | Push'a da gider |
+| Checklist aksiyonları (`checklist_created` / `_item_added` / `_item_removed` / `_item_completed`) yalnız in-app | Push'a da gider |
+| `comment_reply` / `comment_updated` / `comment_deleted` yalnız in-app | Push'a da gider |
+| `attachment_removed` yalnız in-app | Push'a da gider |
+
+Gerekçe: Kullanıcı şikayeti "iPhone bildirim merkezinde sadece atama + mention + son tarih görüyorum; oysa karta yapılan diğer aksiyonları (move, label, complete, member değişimi) anında görmek istiyorum". Bildirim ayar matrisi (Faz 10C-D-E, [DEM-133](https://linear.app/demirkol/issue/DEM-133)) zaten her tipi tek tek toggle eden satıra sahip — opt-out yolu açık. Gürültü artışı endişesi: kullanıcı tek tıkla scope susturabilir ([`docs/architecture/15-bildirim-ayar-ekrani.md`](../architecture/15-bildirim-ayar-ekrani.md) matris UI).
+
+**Push'sız kalanlar (mantıken anlamlı değil):**
+- `watched_activity` — DEM-152 sonrası hiç üretilmiyor (fallback enum değeri), pickChannels'tan asla geçmez.
+- `report_scheduled_ready` — worker direkt outbox'a yazar, pickChannels devrede değil; kendi kanal seti var (in_app + push).
+
+**Email davranışı değişmedi** — heavy-touch tipler (`card_assigned`, `mention`, `due_overdue`, davetler, `member_removed`, `board_access_requested`, `board_member_added`) opt-in default; diğerleri email'e gitmez. Email kapsamı genişletmek istenseydi ayrı tartışma — bu revizyon **yalnız push**.
+
+**Mute-bypass değişmedi:** `mention` + `board_invitation` + `workspace_invitation` her zaman geçer (kullanıcı tam mute'ta olsa bile). Diğer tipler `mute_level=all` veya `mention_only` ayarına tabidir.
+
+**Mobile değişikliği yok:** Push expansion backend-only (`packages/api/src/lib/notification-rules.ts`). Mevcut mobile push handler tüm tipleri gösterir; yeni `eas build` veya OTA gerekmez — yalnız API + worker Dokploy redeploy.
 
 ## Genel kurallar
 

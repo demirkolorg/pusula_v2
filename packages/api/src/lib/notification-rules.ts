@@ -531,24 +531,25 @@ async function pickChannels(
   // In-app is always written when *any* channel is on — the badge needs it.
   const channels: NotificationChannel[] = ['in_app'];
 
-  // Push: per the domain spec, `card_assigned` + `mention` + `due_*` opt in by
-  // default; the granular card-activity types (`card_moved`, `card_archived`,
-  // `card_completed`, `card_due_changed`, `card_cover_changed`,
-  // `card_member_removed`), `comment_reply` and `checklist_*` are in-app only
-  // unless the user explicitly opted in (push_enabled is a *gate*, not a
-  // request — the rule decides whether to even consider push).
+  // Push: 2026-06-01 (kullanıcı kararı `AskUserQuestion`) → **tüm bildirim
+  // tipleri** default push'a gider; `push_enabled` (preference) opt-out gate
+  // korunur. Önceki davranış (Faz 6A) yalnız 5 "yüksek değer" tipte default
+  // açıktı (`card_assigned`, `mention`, `due_approaching`, `due_overdue`,
+  // `attachment_added`); kullanıcı geri kalan 25+ tipi (member değişimleri,
+  // davetler, granular kart aksiyonları, checklist, comment edit/delete, vb.)
+  // iPhone bildirim merkezinde göremiyordu. Yeni davranış: opt-out matrisi
+  // (workspace/board/card scope `notification_preferences.push_enabled`)
+  // gürültüyü kullanıcı tarafına devreder. Detay →
+  // `docs/domain/04-bildirim-kurallari.md` "Push kanalı kapsamı" bölümü +
+  // `docs/architecture/02-teknoloji-kararlari.md` Karar kaydı 2026-06-01.
   //
-  // Faz 11B (DEM-148) / DEM-152: `attachment_added` push opt-in default —
-  // brief'te kart watcher push kanalına da bildirim ister. Diğer granular
-  // kart-aktivite tipleri (kapak, taşıma, tamamlama, tarih) hâlâ yalnız in_app
-  // — DEM-152 kanal davranışını değiştirmedi (saf ayrıştırma).
-  const pushByType =
-    notificationType === 'card_assigned' ||
-    notificationType === 'mention' ||
-    notificationType === 'due_approaching' ||
-    notificationType === 'due_overdue' ||
-    notificationType === 'attachment_added';
-  if (pushByType && pushEnabled) channels.push('push');
+  // Push'sız kalanlar (mantıken anlamlı değil):
+  // - `watched_activity` — DEM-152 sonrası hiç üretilmiyor (fallback enum,
+  //   `mapEventToNotificationType` hiç döndürmüyor); pickChannels'a buraya
+  //   ulaşmaz ama defansif olarak gelirse push'a yine gönderilir (no-op).
+  // - `report_scheduled_ready` — worker direkt outbox'a yazar, pickChannels
+  //   devrede değil (event_id null path).
+  if (pushEnabled) channels.push('push');
 
   // Email: per the domain spec, the heavy-touch types — `card_assigned`,
   // `mention`, `due_overdue`, invitations — opt in by default; the rest stay

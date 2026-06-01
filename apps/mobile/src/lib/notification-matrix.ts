@@ -56,7 +56,10 @@ export const MATRIX_GROUPS: readonly MatrixGroupKey[] = [
 
 /**
  * Tip × kanal matrisi — web `MATRIX_ROWS` ile birebir. `notification-rules.ts`
- * `pickChannels` koduna tabidir.
+ * `pickChannels` koduna tabidir. 2026-06-01 push expansion sonrası tüm
+ * tiplerin push hücresi `'on'` (`pickChannels` artık `pushEnabled` gate'ine
+ * bağlar; push'ta mute-bypass yok). Detay → `docs/domain/04-bildirim-kurallari.md`
+ * "Push kanalı kapsamı".
  */
 export const MATRIX_ROWS: readonly MatrixRow[] = [
   {
@@ -75,19 +78,19 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'comment_reply',
     i18nKey: 'commentReply',
     group: 'comment',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'comment_updated',
     i18nKey: 'commentUpdated',
     group: 'comment',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'comment_deleted',
     i18nKey: 'commentDeleted',
     group: 'comment',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'due_approaching',
@@ -105,31 +108,31 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'card_due_changed',
     i18nKey: 'dueChanged',
     group: 'dueDate',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_moved',
     i18nKey: 'cardMoved',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_archived',
     i18nKey: 'cardArchived',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_completed',
     i18nKey: 'cardCompleted',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_cover_changed',
     i18nKey: 'cardCoverChanged',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'attachment_added',
@@ -141,79 +144,79 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'card_renamed',
     i18nKey: 'cardRenamed',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_description_changed',
     i18nKey: 'cardDescriptionChanged',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_label_added',
     i18nKey: 'cardLabelAdded',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_label_removed',
     i18nKey: 'cardLabelRemoved',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'checklist_created',
     i18nKey: 'checklistCreated',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'checklist_item_added',
     i18nKey: 'checklistItemAdded',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'checklist_item_removed',
     i18nKey: 'checklistItemRemoved',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'attachment_removed',
     i18nKey: 'attachmentRemoved',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'checklist_item_completed',
     i18nKey: 'checklistItemCompleted',
     group: 'lifecycle',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'card_member_removed',
     i18nKey: 'cardMemberRemoved',
     group: 'membership',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'member_removed',
     i18nKey: 'memberRemoved',
     group: 'membership',
-    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'on', push: 'on' },
   },
   {
     type: 'member_role_changed',
     i18nKey: 'memberRoleChanged',
     group: 'membership',
-    channels: { in_app: 'on', email: 'unavailable', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {
     type: 'board_member_added',
     i18nKey: 'boardMemberAdded',
     group: 'membership',
-    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'on', push: 'on' },
   },
   // DEM-154 — paylaşılan board linkinden erişim talebi. Board admin'lerine
   // gider; `board_invitation` gibi mute-bypass DEĞİL, in-app + email opt-in.
@@ -221,19 +224,19 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'board_access_requested',
     i18nKey: 'boardAccessRequested',
     group: 'invitations',
-    channels: { in_app: 'on', email: 'on', push: 'unavailable' },
+    channels: { in_app: 'on', email: 'on', push: 'on' },
   },
   {
     type: 'board_invitation',
     i18nKey: 'boardInvitation',
     group: 'invitations',
-    channels: { in_app: 'mute_bypass', email: 'mute_bypass', push: 'unavailable' },
+    channels: { in_app: 'mute_bypass', email: 'mute_bypass', push: 'on' },
   },
   {
     type: 'workspace_invitation',
     i18nKey: 'workspaceInvitation',
     group: 'invitations',
-    channels: { in_app: 'mute_bypass', email: 'mute_bypass', push: 'unavailable' },
+    channels: { in_app: 'mute_bypass', email: 'mute_bypass', push: 'on' },
   },
 ];
 

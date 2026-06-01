@@ -31,10 +31,19 @@ describe('MATRIX_ROWS', () => {
     expect(mention?.channels.push).toBe('on');
   });
 
-  it('davet satırları mute-bypass, push yok', () => {
+  it('davet satırları in_app + email mute-bypass; push artık opt-out (2026-06-01 expansion)', () => {
     const boardInv = MATRIX_ROWS.find((row) => row.type === 'board_invitation');
     expect(boardInv?.channels.in_app).toBe('mute_bypass');
-    expect(boardInv?.channels.push).toBe('unavailable');
+    expect(boardInv?.channels.email).toBe('mute_bypass');
+    // 2026-06-01 push expansion — push'ta mute-bypass yok; kullanıcı
+    // `push_enabled=false` ile kapatabilir → `'on'`.
+    expect(boardInv?.channels.push).toBe('on');
+  });
+
+  it('push expansion (2026-06-01) — tüm satırların push hücresi `on`', () => {
+    for (const row of MATRIX_ROWS) {
+      expect(row.channels.push, row.type).toBe('on');
+    }
   });
 });
 

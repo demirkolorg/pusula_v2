@@ -278,12 +278,13 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
     expect(commentActivity).toBeDefined();
 
     const outbox = await outboxFor(fx.bob.id, 'comment_reply');
-    expect(outbox).toHaveLength(1);
-    expect(outbox[0]).toMatchObject({
-      eventId: commentActivity!.id,
-      channel: 'in_app',
-      type: 'comment_reply',
-    });
+    // 2026-06-01 push expansion — `comment_reply` artık in_app + push
+    // (önceki: yalnız in_app).
+    expect(outbox).toHaveLength(2);
+    const channels = outbox.map((o) => o.channel).sort();
+    expect(channels).toEqual(['in_app', 'push']);
+    expect(outbox.every((o) => o.eventId === commentActivity!.id)).toBe(true);
+    expect(outbox.every((o) => o.type === 'comment_reply')).toBe(true);
   });
 
   it('cooldown: two assignment activities in the 60s window collapse to the first notification set', async () => {

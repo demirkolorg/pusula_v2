@@ -162,7 +162,7 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     expect(rules).toEqual([]);
   });
 
-  it('comment.created → watchers get in_app, comment_reply type, actor skipped', async () => {
+  it('comment.created → watchers get in_app + push, comment_reply type, actor skipped (2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-cc'),
       type: 'comment.created',
@@ -173,9 +173,11 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { commentId: newId('cm'), cardId },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'comment_reply')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    // 2026-06-01 push expansion — `pickChannels` push default opt-out;
+    // `comment_reply` artık in_app + push (önceki: yalnız in_app).
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
   it('attachment.added → watchers get attachment_added, in_app + push (DEM-152)', async () => {
@@ -232,10 +234,11 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     const rules = await computeNotifications(db(), event);
     expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'attachment_removed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    // 2026-06-01 push expansion — granular tipler default in_app + push.
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('card.renamed → watchers get card_renamed in_app rows (DEM-153)', async () => {
+  it('card.renamed → watchers get card_renamed in_app + push rows (DEM-153 + 2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-renamed'),
       type: 'card.renamed',
@@ -248,10 +251,10 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     const rules = await computeNotifications(db(), event);
     expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'card_renamed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('checklist.item_added → watchers get checklist_item_added in_app rows (DEM-153)', async () => {
+  it('checklist.item_added → watchers get checklist_item_added in_app + push rows (DEM-153 + 2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-cli-added'),
       type: 'checklist.item_added',
@@ -264,10 +267,10 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     const rules = await computeNotifications(db(), event);
     expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'checklist_item_added')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('checklist.item_unchecked → maps to checklist_item_completed (DEM-153)', async () => {
+  it('checklist.item_unchecked → maps to checklist_item_completed (DEM-153 + 2026-06-01 push expansion)', async () => {
     // DEM-153 — `checklist.item_unchecked` yeni tip açmaz; `card.completed`/
     // `uncompleted` → `card_completed` paterniyle aynı şekilde mevcut
     // `checklist_item_completed` tipine bağlanır (`activityType` ayırır).
@@ -283,10 +286,10 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
     const rules = await computeNotifications(db(), event);
     expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'checklist_item_completed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('card.cover_image_changed → watchers get card_cover_changed in_app rows', async () => {
+  it('card.cover_image_changed → watchers get card_cover_changed in_app + push rows (2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-cover-image'),
       type: 'card.cover_image_changed',
@@ -297,9 +300,9 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { cardId, attachmentId: newId('att') },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'card_cover_changed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
   it('mute_level=all on a board-scope preference → no rows for that user', async () => {
@@ -383,12 +386,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { cardId, coverColor: 'red' },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId).sort()).toEqual([watcherId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
     expect(rules.every((r) => r.type === 'card_cover_changed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('card.member_removed → removed user (no card seat) still receives in_app (Faz 10A — permission-filter exception)', async () => {
+  it('card.member_removed → removed user (no card seat) still receives in_app + push (Faz 10A perm-filter exception + 2026-06-01 push expansion)', async () => {
     // Bu sahnede `guestNoSeatId` karta üye değil — `card_members`'ta hiç
     // bulunmadığı için recipient havuzuna `payload.removedUserId` üzerinden
     // doğrudan girer. Permission filter normalde guest'i atardı; 10A bu
@@ -403,12 +406,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { cardId, removedUserId: guestNoSeatId, role: 'assignee' },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId)).toEqual([guestNoSeatId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([guestNoSeatId]);
     expect(rules.every((r) => r.type === 'card_member_removed')).toBe(true);
-    expect(rules.every((r) => r.channel === 'in_app')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('board.member_removed → removed user (no board membership) still receives in_app + email (Faz 10A)', async () => {
+  it('board.member_removed → removed user (no board membership) still receives email + in_app + push (Faz 10A + 2026-06-01 push expansion)', async () => {
     // `outsiderId` board'a hiç üye olmadı — normal akış permission filter
     // ile düşürürdü. 10A `member_removed` için filter atlanıyor.
     const event: ActivityEventForRules = {
@@ -425,11 +428,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       .filter((r) => r.recipientUserId === outsiderId)
       .map((r) => r.channel)
       .sort();
-    expect(channels).toEqual(['email', 'in_app']);
+    // 2026-06-01 push expansion — `member_removed` artık push'a da gider.
+    expect(channels).toEqual(['email', 'in_app', 'push']);
     expect(rules.every((r) => r.type === 'member_removed')).toBe(true);
   });
 
-  it('workspace.member_removed → removed user receives in_app + email (no boardId, Faz 10A)', async () => {
+  it('workspace.member_removed → removed user receives email + in_app + push (no boardId, Faz 10A + 2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-ws-removed'),
       type: 'workspace.member_removed',
@@ -444,11 +448,11 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       .filter((r) => r.recipientUserId === outsiderId)
       .map((r) => r.channel)
       .sort();
-    expect(channels).toEqual(['email', 'in_app']);
+    expect(channels).toEqual(['email', 'in_app', 'push']);
     expect(rules.every((r) => r.type === 'member_removed')).toBe(true);
   });
 
-  it('board.member_role_changed → target user receives in_app only (Faz 10A; no mute-bypass, no email default)', async () => {
+  it('board.member_role_changed → target user receives in_app + push (Faz 10A; no mute-bypass, no email default + 2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-board-role'),
       type: 'board.member_role_changed',
@@ -459,12 +463,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { targetUserId: assigneeId, fromRole: 'member', toRole: 'admin' },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId)).toEqual([assigneeId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([assigneeId]);
     expect(rules.every((r) => r.type === 'member_role_changed')).toBe(true);
-    expect(rules.map((r) => r.channel)).toEqual(['in_app']);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
-  it('workspace.member_role_changed → target user receives in_app only (no boardId, Faz 10A)', async () => {
+  it('workspace.member_role_changed → target user receives in_app + push (no boardId, Faz 10A + 2026-06-01 push expansion)', async () => {
     const event: ActivityEventForRules = {
       id: newId('ae-ws-role'),
       type: 'workspace.member_role_changed',
@@ -475,9 +479,9 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
       payload: { targetUserId: assigneeId, fromRole: 'member', toRole: 'admin' },
     };
     const rules = await computeNotifications(db(), event);
-    expect(rules.map((r) => r.recipientUserId)).toEqual([assigneeId]);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([assigneeId]);
     expect(rules.every((r) => r.type === 'member_role_changed')).toBe(true);
-    expect(rules.map((r) => r.channel)).toEqual(['in_app']);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
   });
 
   it('member_removed actor self-skip: çıkaran kişi kendi olduğunda alıcı kendisi olamaz (Faz 10A)', async () => {
@@ -586,7 +590,9 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
         payload: { commentId: newId('cm'), cardId },
       };
       const rules = await computeNotifications(db(), event);
-      expect(rules.map((r) => r.recipientUserId)).toEqual([watcherId]);
+      // 2026-06-01 push expansion — comment_reply artık in_app + push, recipient
+      // unique kontrol için Set kullanılır.
+      expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
       expect(rules.every((r) => r.type === 'comment_reply')).toBe(true);
     } finally {
       await db()
@@ -643,6 +649,98 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
           dbMod.and(
             dbMod.eq(notificationPreferences.userId, assigneeId),
             dbMod.eq(notificationPreferences.cardId, cardId),
+          ),
+        );
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 2026-06-01 — Push notification kapsamı genişletildi: `pickChannels` artık
+  // tüm tipleri push'a gönderir (default opt-out). Önceki davranış yalnız 5
+  // "yüksek değer" tipte default açıktı. Bu blok, kullanıcı tarafından opt-out
+  // edilebilirliği + granular tiplerin push üretmeye başladığını doğrular.
+  // Detay → `docs/domain/04-bildirim-kurallari.md` "Push kanalı kapsamı".
+  // ─────────────────────────────────────────────────────────────────────
+
+  it('push expansion → card.moved (cross-list) watchers get in_app + push (2026-06-01)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-moved'),
+      type: 'card.moved',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId, fromListId: 'list-from', toListId: 'list-to' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'card_moved')).toBe(true);
+    // 2026-06-01 push expansion — `card_moved` artık in_app + push.
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
+  });
+
+  it('push expansion → card.archived watchers get in_app + push (2026-06-01)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-archived'),
+      type: 'card.archived',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'card_archived')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
+  });
+
+  it('push expansion → card.completed watchers get in_app + push (2026-06-01)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-completed'),
+      type: 'card.completed',
+      workspaceId,
+      boardId,
+      cardId,
+      actorId,
+      payload: { cardId },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+    expect(rules.every((r) => r.type === 'card_completed')).toBe(true);
+    expect(rules.map((r) => r.channel).sort()).toEqual(['in_app', 'push']);
+  });
+
+  it('push expansion → push_enabled=false workspace-scope drops push (in_app stays; opt-out path)', async () => {
+    // Kullanıcı opt-out kontrolü: workspace-scope `push_enabled=false`
+    // preference satırı → granular tipler push'a gitmez, in_app korunur.
+    // 2026-06-01 expansion'ın opt-out matrix'inin temel davranışı.
+    await db().insert(notificationPreferences).values({
+      userId: watcherId,
+      workspaceId,
+      pushEnabled: false,
+    });
+    try {
+      const event: ActivityEventForRules = {
+        id: newId('ae-moved-no-push'),
+        type: 'card.moved',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { cardId, fromListId: 'list-from', toListId: 'list-to' },
+      };
+      const rules = await computeNotifications(db(), event);
+      expect([...new Set(rules.map((r) => r.recipientUserId))]).toEqual([watcherId]);
+      expect(rules.every((r) => r.type === 'card_moved')).toBe(true);
+      expect(rules.map((r) => r.channel)).toEqual(['in_app']);
+    } finally {
+      await db()
+        .delete(notificationPreferences)
+        .where(
+          dbMod.and(
+            dbMod.eq(notificationPreferences.userId, watcherId),
+            dbMod.eq(notificationPreferences.workspaceId, workspaceId),
           ),
         );
     }

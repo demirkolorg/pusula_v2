@@ -52,6 +52,7 @@ gerekir (idempotency — `event_id` üzerinden).
 - Kullanıcı logout olunca token pasifleştirilir.
 - Push doğrudan API request içinde gönderilmez; worker üzerinden retry edilebilir şekilde.
 - Deep link ile kart açma: payload mobil tarafın çözebileceği route bilgisini taşır (bkz. [`08-web-ve-mobil.md`](08-web-ve-mobil.md)).
+- **Push kapsamı (2026-06-01 revize):** `pickChannels` `pushByType` mantığı **tüm `NOTIFICATION_TYPES`** için `true` — push opt-out default; kullanıcı `notification_preferences.push_enabled=false` ile veya scope (workspace/board/card) bazında matris ekranından kapatır. Önceki "5 yüksek değer tip" alt-kümesi kaldırıldı. Detay → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md) "Push kanalı kapsamı" bölümü + [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) "2026-06-01" karar kaydı.
 
 ## Email tarafı
 

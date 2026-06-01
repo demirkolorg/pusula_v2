@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as Sentry from '@sentry/react-native';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { deviceLabel, pushPlatform } from '@/lib/push-device';
@@ -80,8 +81,15 @@ async function registerPushToken(register: RegisterMutation): Promise<void> {
     });
     // Logout akışı (`account.tsx`) bu token'ı `revoke` için kullanır.
     setRegisteredPushToken(token);
-  } catch {
-    // Best-effort: Expo Go'da token yok, cihaz çevrimdışı olabilir vb.
+  } catch (error) {
+    // Best-effort: Expo Go'da token yok, cihaz çevrimdışı olabilir vb. — UI'yı
+    // bloklama. 2026-06-01 follow-up (BE-2026-05-31-001): silent catch Sentry'e
+    // bağlandı — "push gelmiyor" şikayetleri Sentry breadcrumb'larıyla teşhis
+    // edilebilir. Beklenen hatalar (Expo Go token yok, network) Sentry'e yine
+    // gönderilir ama düşük gürültü tag'iyle filtrelenir.
+    Sentry.captureException(error, {
+      tags: { area: 'push', stage: 'register-token' },
+    });
   }
 }
 
@@ -119,8 +127,13 @@ export function usePushTokenRegistration(): PushTokenRegistration {
           return;
         }
         // 4. `denied` ya da tekrar sorulamaz → sessizce geç.
-      } catch {
-        // Best-effort — izin okunamazsa bildirim kaydı denenmez.
+      } catch (error) {
+        // Best-effort — izin okunamazsa bildirim kaydı denenmez. 2026-06-01
+        // follow-up: Sentry'e bağlandı (önceden silent catch, "push gelmiyor"
+        // teşhisinde kör nokta yaratıyordu).
+        Sentry.captureException(error, {
+          tags: { area: 'push', stage: 'check-permission' },
+        });
       }
     };
 
@@ -139,8 +152,13 @@ export function usePushTokenRegistration(): PushTokenRegistration {
       try {
         const requested = await Notifications.requestPermissionsAsync();
         if (requested.granted) await registerPushToken(register);
-      } catch {
-        // Best-effort — OS dialog'u/token hatası UI'yı bloklamaz.
+      } catch (error) {
+        // Best-effort — OS dialog'u/token hatası UI'yı bloklamaz. 2026-06-01
+        // follow-up: Sentry'e bağlandı (kullanıcı "İzin ver" derken hata
+        // alırsa görmek isteriz).
+        Sentry.captureException(error, {
+          tags: { area: 'push', stage: 'request-permission' },
+        });
       }
     })();
   }, [register]);
