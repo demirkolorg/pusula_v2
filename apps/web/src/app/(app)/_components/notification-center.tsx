@@ -35,6 +35,11 @@ const SYSTEM_NOTIFICATION_TYPES = new Set([
   'due_overdue',
   'due_reminder_1d',
   'due_reminder_1h',
+  // DEM-276 follow-up — manuel/save rapor render sonucu. Worker tarafından
+  // tetiklenir (aktör yok); UI satırı "Sen" ya da actor avatarı göstermek
+  // yerine sistem ikonu + özet metni kullanır.
+  'report_render_completed',
+  'report_render_failed',
 ]);
 
 function isSystemNotification(type: string): boolean {

@@ -323,6 +323,13 @@
       "when": 1780500000000,
       "tag": "0045_list_card_deleted_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1780600000000,
+      "tag": "0046_dem276_followup_manual_render_notifications",
+      "breakpoints": true
     }
   ]
 }

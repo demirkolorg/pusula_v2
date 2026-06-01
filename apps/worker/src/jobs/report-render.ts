@@ -42,6 +42,7 @@ import { createHash } from 'node:crypto';
 import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { eq } from '@pusula/db';
 import {
+  notifications,
   reportRenderAssets,
   reportRenders,
   type Database,
@@ -389,7 +390,12 @@ export async function processReportRenderJob(
     throw wrapError(err, 'storage_upload_failed');
   }
 
-  // 6. DB transaction: render UPDATE + asset INSERT atomik.
+  // 6. DB transaction: render UPDATE + asset INSERT + (manual/save tetik
+  // ise) notification INSERT atomik. `report_scheduled_ready` (DEM-275)
+  // scheduled pipeline'a özel — burada hariç tutulur.
+  const shouldNotify =
+    (row.triggerKind === 'manual' || row.triggerKind === 'save') &&
+    row.triggeredBy !== null;
   try {
     await deps.db.transaction(async (tx) => {
       await tx
@@ -410,6 +416,25 @@ export async function processReportRenderJob(
         // 90g retention — Faz 13P (DEM-272) cleanup worker bunu kullanır.
         expiresAt: new Date(now().getTime() + 90 * 24 * 60 * 60 * 1000),
       });
+      // DEM-276 follow-up — manuel/save tetikleyici için in-app bildirim.
+      // Frontend `notification-center.tsx` renderer'ı `payload.renderId` +
+      // `payload.format` ile "Rapor hazır" satırı + "Aç" linki üretir.
+      if (shouldNotify) {
+        await tx.insert(notifications).values({
+          recipientId: row.triggeredBy as string,
+          // workspaceId scope için (notification list cross-workspace filtre
+          // edilebilir; ileride workspace-mute desteği için temel).
+          workspaceId: row.workspaceId,
+          type: 'report_render_completed',
+          payload: {
+            renderId: row.id,
+            format,
+            presetId: row.presetId,
+            scopeKind: row.scopeKind,
+            scopeId: row.scopeId,
+          },
+        });
+      }
     });
   } catch (err) {
     // DB hatası — S3'te artık dosya var. Cleanup için 13P retention
@@ -705,6 +730,37 @@ async function stampFailed(
       errorMessage: i18nKey,
     })
     .where(eq(reportRenders.id, row.id));
+  // DEM-276 follow-up — manuel/save tetikleyici için failure bildirimi.
+  // Best-effort: notification INSERT fail olursa Sentry değil console.warn
+  // (zaten render 'failed' damgalı, kullanıcı UI'da görebilir; eksik
+  // bildirim deal-breaker değil). `report_scheduled_ready` (DEM-275)
+  // scheduled pipeline'a özel — burada hariç tutulur.
+  if (
+    (row.triggerKind === 'manual' || row.triggerKind === 'save') &&
+    row.triggeredBy !== null
+  ) {
+    try {
+      await deps.db.insert(notifications).values({
+        recipientId: row.triggeredBy,
+        workspaceId: row.workspaceId,
+        type: 'report_render_failed',
+        payload: {
+          renderId: row.id,
+          format: row.format,
+          errorCode,
+          errorMessage: i18nKey,
+          presetId: row.presetId,
+          scopeKind: row.scopeKind,
+          scopeId: row.scopeId,
+        },
+      });
+    } catch (err) {
+      console.warn(
+        '[worker:report-render] failed-notification insert failed:',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
   const message: ReportRenderMessage = {
     event: {
       type: 'report.render.failed',

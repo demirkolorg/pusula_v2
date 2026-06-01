@@ -141,6 +141,14 @@ export function activitySummary(type: string, payload: unknown): string {
       return copy.cardArchived(cardTitle(p));
     case 'card.completed':
       return copy.cardCompleted(cardTitle(p));
+    // DEM-276 follow-up — manuel/save rapor render bildirimleri. Worker
+    // payload'a `format` koyar ('pdf' | 'xlsx' | 'png' | 'svg'); fallback
+    // 'pdf'. Sistem bildirimi olduğundan `actorName` yok — UI satırı
+    // `isSystemNotification` ile actor bloğunu hide eder.
+    case 'report_render_completed':
+      return copy.reportRenderCompleted(text(p, 'format') ?? 'pdf');
+    case 'report_render_failed':
+      return copy.reportRenderFailed(text(p, 'format') ?? 'pdf');
     default:
       return copy.default;
   }

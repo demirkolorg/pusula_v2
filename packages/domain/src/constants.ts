@@ -860,6 +860,18 @@ export const NOTIFICATION_TYPES = [
   // (migration `0039_dem275_faz13S_report_scheduled_ready.sql`).
   // Detay → `docs/architecture/16-raporlama-mimarisi.md` §16.14.
   'report_scheduled_ready',
+  // DEM-276 follow-up 2026-06-01 — manuel (trigger='manual' veya 'save')
+  // rapor render'ı tamamlandığında / başarısız olduğunda tetikleyici
+  // kullanıcıya in-app bildirim. `report_scheduled_ready` scheduled
+  // pipeline'a özel kalır (mail + push + in-app); manuel için anlık
+  // tetik + (A) auto-download zaten yapıldığından bildirim **in-app only**
+  // + mute-bypass DEĞIL (kendi tetiklediğin rapor için spam yok). Worker
+  // `processReportRenderJob` final outcome'da `triggerKind in
+  // ('manual','save')` && `triggeredBy` set ise outbox INSERT eder.
+  // APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)` ile bağlı.
+  // Detay → `docs/domain/04-bildirim-kurallari.md` (DEM-276 follow-up).
+  'report_render_completed',
+  'report_render_failed',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */

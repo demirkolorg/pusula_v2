@@ -1,0 +1,34 @@
+-- DEM-276 follow-up 2026-06-01 (Faz 13T post-mortem) — manuel/save rapor
+-- render'ı tamamlandığında veya başarısız olduğunda tetikleyici kullanıcıya
+-- in-app bildirim için iki yeni notification tipi.
+--
+-- notification_type += 'report_render_completed'
+-- notification_type += 'report_render_failed'
+--
+--   `apps/worker/src/jobs/report-render.ts` `processReportRenderJob` outcome
+--   sonrası (`triggerKind in ('manual','save')` && `triggeredBy IS NOT NULL`)
+--   `notifications` tablosuna doğrudan INSERT eder — channel `in_app` only
+--   (mail/push YOK; render kullanıcının kendisinin tetiklediği eylem,
+--   ek kanallar gürültü olur). `notification_outbox` üzerinden geçmez —
+--   transactional INSERT, sweeper devre dışı.
+--
+--   Frontend `apps/web/.../notification-center.tsx` renderer bu tipleri
+--   tanıyacak: completed → "Rapor hazır" + Raporlar/Son Render'lar linki;
+--   failed → "Rapor üretilemedi" + retry CTA.
+--
+--   `report_scheduled_ready` (DEM-275) scheduled pipeline'a özel kalır
+--   (mail + push + in-app). Bu yeni tipler manuel/save için ayrı; aynı
+--   tipi reuse etmedik çünkü cooldown/mute kuralları ve UX metni farklı.
+--
+-- Activity event'i ÜRETMEZ — render başlatma/tamamlama activity feed'inde
+-- gözükmez (kullanıcının kendi aksiyonu, gürültü). Notification table'a
+-- doğrudan INSERT; outbox sweeper tetiklenmez.
+--
+-- Kaynak: `@pusula/domain/constants.ts` `NOTIFICATION_TYPES` (`pgEnum(...)`
+-- ile bağlı — DB enum tek listeye eşitlenmek zorunda; aksi halde insert
+-- SQLSTATE 22P02 ile fail eder). `IF NOT EXISTS` idempotent.
+--
+-- Detay → memory `pdf-render-postmortem-2026-06-01` post-mortem fix chain
+-- #10 (auto-download = #9, bell entegrasyonu = #10).
+ALTER TYPE "public"."notification_type" ADD VALUE IF NOT EXISTS 'report_render_completed';
+ALTER TYPE "public"."notification_type" ADD VALUE IF NOT EXISTS 'report_render_failed';

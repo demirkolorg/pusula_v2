@@ -21,6 +21,17 @@ export function resolveNotificationLink(notification: NotificationRow): string |
     return payload.linkTo;
   }
 
+  // DEM-276 follow-up — rapor render bildirimleri her zaman raporlar
+  // sayfasının "Son Render'lar" sekmesine yönlendirir; payload'da
+  // workspaceId yoksa null (link kapalı).
+  if (
+    notification.type === 'report_render_completed' ||
+    notification.type === 'report_render_failed'
+  ) {
+    const wsId = payload.workspaceId;
+    return wsId ? `/workspaces/${pathPart(wsId)}/reports?tab=renders` : null;
+  }
+
   if (payload.cardId && payload.boardId && payload.workspaceId) {
     return `/workspaces/${pathPart(payload.workspaceId)}/boards/${pathPart(payload.boardId)}?card=${pathPart(payload.cardId)}`;
   }

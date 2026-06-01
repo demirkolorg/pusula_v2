@@ -6,6 +6,7 @@ import {
   CalendarClockIcon,
   CheckCircleIcon,
   ClockIcon,
+  FileTextIcon,
   ImageIcon,
   KeyRoundIcon,
   ListChecksIcon,
@@ -16,6 +17,7 @@ import {
   PaperclipIcon,
   PencilIcon,
   TagIcon,
+  TriangleAlertIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from 'lucide-react';
@@ -113,6 +115,12 @@ export function notificationTypeIcon(type: string, className?: string) {
     case 'board_access_requested':
     case 'board.access_requested':
       return <KeyRoundIcon className={cn(iconClass, 'text-cyan-500')} aria-hidden />;
+    // DEM-276 follow-up — manuel/save rapor render sonucu. Completed yeşil
+    // dosya simgesi, failed kırmızı uyarı üçgeni.
+    case 'report_render_completed':
+      return <FileTextIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
+    case 'report_render_failed':
+      return <TriangleAlertIcon className={cn(iconClass, 'text-red-500')} aria-hidden />;
     default:
       return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
   }
