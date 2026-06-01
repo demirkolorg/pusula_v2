@@ -55,6 +55,38 @@ export const CHANGELOG: ChangelogDay[] = [
     entries: [
       {
         kind: 'new',
+        text: 'Yeni "Yenilikler" sol paneli ve anasayfa "Son yenilik" rozeti eklendi — Pusula\'daki en son güncellemeleri tek tıkla görür, tam sayfaya (/yenilikler) geçebilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Yeni "Görevlerim" sol paneli yayında — size atanmış tüm kartları (atanmadığım dahil), son tarih durumuna göre filtreleyip tek panelden takip edebilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Yeni "Aktivite Akışı" sol paneli yayında — ekibinizdeki son değişiklikleri (kart oluşturma, taşıma, yorum, tamamlama vb.) tek panelden anında görebilirsiniz.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Planlayıcı paneline tarih navigasyonu (◀ Bugün ▶ + takvim popover\'ı) eklendi; gün boyunca dolu saat aralığına göre saatler dinamik ölçeklenir ve çakışan etkinlikler artık ayrı kolonlarda yan yana gösterilir.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Gezgin sol paneli sadeleştirildi: 4 katmanlı ağaç yerine artık kartların düz listesi (her satırda "Pano › Liste" yolu) görünür; aktif kart vurgulanır, arama doğrudan kart başlığında çalışır.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Sol panel başlıklarına (Görevlerim, Aktivite, Hızlı Notlar) sağ-tık menüsü eklendi — sağ tıklayıp paneli hızlıca kapatabilirsiniz.',
+      },
+      {
+        kind: 'improvement',
+        text: 'Sol panellerin kapat (X) butonlarında "Kapat (Esc)" ipucu görünür — klavyeden Esc tuşuyla da kapatabileceğinizi hatırlatır.',
+      },
+      {
+        kind: 'fix',
+        text: 'Klasik PDF rapor indirme bazı kurulumlarda oturum hatası verip indirilmiyordu — alt-domain çerez sorununu giderdik, web ve mobilde tekrar çalışıyor.',
+      },
+      {
+        kind: 'new',
         text: 'Liste ve kartlara "Kalıcı sil" eylemi eklendi — context menüden (sağ tık) veya liste başlığındaki ⋮ menüden ulaşabilirsiniz. Yalnızca pano yöneticileri görebilir; geri alınamaz olduğu için onay diyaloğu zorunludur. Arşivleme aynen duruyor (eski yerinde, geri alınabilir).',
       },
       {
