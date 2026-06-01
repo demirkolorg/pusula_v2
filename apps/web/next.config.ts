@@ -71,6 +71,10 @@ const config: NextConfig = {
 // Sentry — `pusula-web` projesi. `withSentryConfig` derleme zamanı source map
 // yüklemesini sarmalar; `SENTRY_AUTH_TOKEN`/`SENTRY_ORG` yoksa yükleme atlanır
 // (runtime hata izleme yine `instrumentation*.ts` ile çalışır).
+// `tunnelRoute`: tarayıcı, Sentry ingest domain'ine direkt POST atmak yerine
+// same-origin `/monitoring` Next route'una gönderir; reklam engelleyicilerin
+// (uBlock/Brave Shields/Pi-hole) `*.ingest.sentry.io` filtresi olayları
+// ERR_BLOCKED_BY_CLIENT ile düşürmesini önler.
 // Bkz. `docs/architecture/10-platform.md` §10.5.1.
 export default withSentryConfig(config, {
   org: process.env.SENTRY_ORG,
@@ -78,4 +82,5 @@ export default withSentryConfig(config, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   // CI dışında sessiz: token yokken uyarı basmasın.
   silent: !process.env.CI,
+  tunnelRoute: '/monitoring',
 });

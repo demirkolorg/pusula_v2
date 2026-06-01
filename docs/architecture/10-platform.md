@@ -189,6 +189,7 @@ Kurallar:
   - `apps/api/tsup.config.ts` + `apps/worker/tsup.config.ts` `@sentry/esbuild-plugin` (tsup esbuild kullanır).
   - Env: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` (Dokploy + GitHub Actions secrets — build-time only, runtime'da yok).
   - Token yoksa atlanır (lokal dev + token'sız CI). tRPC permission/validation hataları beklenen akış olduğundan Sentry'ye gürültü olarak gitmemeli — yalnız beklenmeyen 5xx/exception raporlanır.
+- **Tunnel route** — `apps/web/next.config.ts` içinde `withSentryConfig`'e `tunnelRoute: '/monitoring'` geçilir. Tarayıcı Sentry envelope'ünü direkt `*.ingest.de.sentry.io`'ya değil same-origin `/monitoring` Next route'una POST eder; Next route Sentry'ye proxy'ler. Gerekçe: reklam engelleyiciler (uBlock Origin, Brave Shields, Pi-hole, AdGuard) `sentry.io` ingest endpoint'lerini otomatik filtreler → olaylar `ERR_BLOCKED_BY_CLIENT` ile düşer ve istemci tarafı hata raporu eksik kalır. CSP `connect-src` Sentry origin'i defense-in-depth olarak korunur (tunnel kapatılırsa hazır).
 
 OpenTelemetry standalone export bu kapsamın dışındadır (V2 — gerekirse Grafana stack'i ile).
 
