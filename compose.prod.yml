@@ -160,6 +160,21 @@ services:
       # Dockerfile build-time placeholder ayrı (next build "Collecting page
       # data" için); bu satır runtime override sağlar (Dokploy env injection).
       DATABASE_URL: ${DATABASE_URL}
+      # Faz 13T (DEM-276) — Server Component'lar (print/widget render) tRPC
+      # API'sine server-side fetch atar. Internal Docker network'ü
+      # (`api:3001`) public URL'e göre hem hızlı hem reverse-proxy bağımsız.
+      # Worker tarafıyla simetrik (compose `worker.environment.INTERNAL_API_URL`
+      # aynı değer). Web `page.tsx`/widget `page.tsx` bu env yoksa
+      # `env.ts` default'u `http://localhost:3001`'a düşer → ECONNREFUSED →
+      # `notFound()` → Puppeteer 404 görür → `__reportReady` set olmaz →
+      # `pdf_render_failed` 30s timeout.
+      INTERNAL_API_URL: http://api:3001
+      # Server Component'lar `env.ts`'i runtime'da import edip default'a (
+      # `http://localhost:3001`) düşmesin diye runtime env de set. Build args
+      # NEXT_PUBLIC_API_URL (yukarıda) browser bundle inline; bu satır
+      # share/verify-email/route handler gibi henüz INTERNAL_API_URL'a
+      # taşınmamış Server Component'ler için fallback'i doğru tutar.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       api: { condition: service_started }
     labels:
