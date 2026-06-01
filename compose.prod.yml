@@ -51,6 +51,13 @@ services:
       # güven; min 32 char. api ve worker AYNI değeri taşımalı. Boş bırakılırsa
       # `apps/api/src/env.ts` production hardening boot'u durdurur.
       WORKER_SHARED_SECRET: ${WORKER_SHARED_SECRET}
+      # Faz 16A (DEM-310) — Better Auth `genericOAuth` plugin Google Takvim
+      # hesap bağlama için. İkisi de boş = entegrasyon kapalı (plugin mount
+      # edilmez, `/api/auth/oauth2/*` 404 döner); yarım set prod boot'u durdurur
+      # (`apps/api/src/env.ts` assertProductionHardening). Worker'a gerek yok —
+      # token akışı yalnız api tarafında. Bkz. `docs/architecture/19-takvim-entegrasyonu.md` §4.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     depends_on:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
