@@ -17,6 +17,10 @@ import type { RouterOutputs } from '@pusula/api';
 import {
   Avatar,
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -97,36 +101,48 @@ export function ActivityFeedPanel({ onClose, onNavigate }: ActivityFeedPanelProp
       aria-label={copy.panelTitle}
       className="bg-background text-foreground border-border flex h-full w-80 shrink-0 flex-col overflow-hidden lg:w-96 lg:rounded-xl lg:border"
     >
-      <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
-        <ActivityIcon aria-hidden className="size-4 opacity-70" />
-        <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              aria-label={copy.refresh}
-              onClick={() => query.refetch()}
-              disabled={query.isFetching}
-            >
-              <RefreshCwIcon className={cn('size-4', query.isFetching && 'animate-spin')} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{copy.refresh}</TooltipContent>
-        </Tooltip>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={copy.close}
-          onClick={onClose}
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </header>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
+            <ActivityIcon aria-hidden className="size-4 opacity-70" />
+            <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={copy.refresh}
+                  onClick={() => query.refetch()}
+                  disabled={query.isFetching}
+                >
+                  <RefreshCwIcon className={cn('size-4', query.isFetching && 'animate-spin')} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copy.refresh}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={copy.close}
+                  onClick={onClose}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{strings.common.panels.closeShortcut}</TooltipContent>
+            </Tooltip>
+          </header>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={onClose}>{strings.common.panels.closeThis}</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       {/* Chip filtre satırı — tek seçim (radio benzeri). Yatay scroll yok;
           dar ekranda iki satıra wrap eder. */}

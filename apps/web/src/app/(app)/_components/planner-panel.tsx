@@ -28,6 +28,9 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   buttonVariants,
   cn,
   trDayPickerLocale,
@@ -170,16 +173,21 @@ export function PlannerPanel({ onClose, onNavigate }: PlannerPanelProps) {
       <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
         <CalendarIcon aria-hidden className="size-4 opacity-70" />
         <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={copy.close}
-          onClick={onClose}
-        >
-          <XIcon className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label={copy.close}
+              onClick={onClose}
+            >
+              <XIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{strings.common.panels.closeShortcut}</TooltipContent>
+        </Tooltip>
       </header>
 
       {/* Tarih navigasyonu — ◀ Bugün ▶ + Yenile */}

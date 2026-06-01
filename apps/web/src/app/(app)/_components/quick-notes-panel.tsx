@@ -4,7 +4,17 @@ import { useId, useState } from 'react';
 import { InboxIcon, PencilLineIcon, PlusIcon, XIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { quickNoteContentSchema } from '@pusula/domain';
-import { Button, Textarea } from '@pusula/ui';
+import {
+  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  Textarea,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { useQuickNoteMutations } from '@/lib/use-quick-note-mutations';
 import { useTRPC } from '@/trpc/client';
@@ -55,20 +65,32 @@ export function QuickNotesPanel({ canConvert, onClose }: QuickNotesPanelProps) {
       // (Gezgin paneliyle aynı). Mobilde köşesiz — paneller arası gap yok.
       className="bg-background text-foreground border-border flex h-full w-96 shrink-0 flex-col overflow-hidden lg:rounded-xl lg:border"
     >
-      <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
-        <InboxIcon aria-hidden className="size-4 opacity-70" />
-        <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={copy.close}
-          onClick={onClose}
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </header>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <header className="bg-card text-card-foreground border-border flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
+            <InboxIcon aria-hidden className="size-4 opacity-70" />
+            <h2 className="flex-1 text-sm font-semibold">{copy.panelTitle}</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={copy.close}
+                  onClick={onClose}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{strings.common.panels.closeShortcut}</TooltipContent>
+            </Tooltip>
+          </header>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={onClose}>{strings.common.panels.closeThis}</ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
         <QuickNoteComposer onSubmit={createNote} />
