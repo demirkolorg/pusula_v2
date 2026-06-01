@@ -176,6 +176,7 @@ export default function WorkspacesPage() {
   const listsColumnEl = (
     <ListsColumn
       boardId={selectedBoardId}
+      boardRole={selectedBoard?.role ?? null}
       lists={lists}
       cards={cards}
       selectedListId={selectedListId}
@@ -192,6 +193,7 @@ export default function WorkspacesPage() {
       workspaceId={effectiveWorkspaceId}
       boardId={selectedBoardId}
       listId={selectedListId}
+      boardRole={selectedBoard?.role ?? null}
       cards={cards}
       onBack={() => selection.setList(null)}
       isPending={Boolean(selectedBoardId) && boardGetQuery.isPending}

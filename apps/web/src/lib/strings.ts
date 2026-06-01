@@ -672,6 +672,11 @@ export const strings = {
       settingsLabel: (name: string) => `${name} ayarları`,
       emptyTitle: 'Çalışma alanı yok',
       emptyDescription: 'Yeni bir çalışma alanı oluşturarak başla.',
+      /**
+       * Satır meta’sının son parçası (2026-06-01 sinyal yoğunluğu turu).
+       * Örn. "1 pano · 4 üye · 2 saât önce aktif". `lastActivityAt` null ise atlanır.
+       */
+      lastActivity: (relative: string) => `${relative} aktif`,
     },
     boardsColumn: {
       eyebrow: 'Panolar',
@@ -695,12 +700,38 @@ export const strings = {
       selectWorkspaceDescription: 'Soldan bir çalışma alanı seçtiğinde panolar burada listelenir.',
       lastActivity: (relative: string) => `Son aktivite ${relative}`,
       lastActivityNever: 'Henüz aktivite yok',
+      /**
+       * Pano satırı mikro-meta (2026-06-01 sinyal yoğunluğu turu):
+       * "{açık} açık · {bitti} bitti". 0 açık + 0 bitti durumda atlanır.
+       */
+      openDoneSummary: (open: number, done: number) =>
+        `${open} açık · ${done} bitti`,
+      /** Pano üye avatar stack'i için screen-reader / tooltip etiketi. */
+      membersTooltip: (n: number) =>
+        n === 1 ? '1 pano üyesi' : `${n} pano üyesi`,
+      /** Stack'e sığmayan üye sayısı için "+N" rozeti aria-label'ı. */
+      extraMembersLabel: (n: number) =>
+        n === 1 ? '1 üye daha' : `${n} üye daha`,
     },
     listsColumn: {
       eyebrow: 'Listeler',
       count: (n: number) => `${n} liste`,
       archivedBadge: 'Arşivli',
       cardCount: (n: number) => `${n} kart`,
+      /**
+       * Liste satırında tamamlanma fraction'ı (2026-06-01 sinyal yoğunluğu turu).
+       * "{tamamlanan}/{toplam}". `total > 0` koşuluyla render edilir; aksi halde
+       * boş listede `cardCount(0)` gösterilir.
+       */
+      progress: (done: number, total: number) => `${done}/${total}`,
+      progressLabel: (done: number, total: number) =>
+        `${done} kart tamamlandı, toplam ${total}`,
+      /**
+       * Listede vadesi geçmiş + tamamlanmamış kart sayısı için kırmızı mikro-rozet.
+       * 0 ise render edilmez.
+       */
+      overdueBadge: (n: number) => `${n} vadesi geçti`,
+      overdueBadgeShort: (n: number) => `!${n}`,
       emptyTitle: 'Liste yok',
       emptyDescription: 'Bu panoda henüz liste yok. Pano ekranında oluşturabilirsin.',
       selectBoardTitle: 'Pano seç',
@@ -731,6 +762,59 @@ export const strings = {
       selectWorkspace: 'Çalışma alanı seç',
       selectBoard: 'Pano seç',
       selectList: 'Liste seç',
+    },
+    /**
+     * Anasayfa 4-sütun gezgininin satır-bazlı sağ tık context menüsü (2026-06-01
+     * sağ tık turu). Her entity tipi farklı eylem set'i taşır; eylemin var
+     * olması backend mevcudiyetiyle hizalı (workspace/list/card için "sabitle"
+     * yok; workspace/board/list için "kopyala" yok). Buradaki metinler hem
+     * `ContextMenuItem` etiketleri hem de açılan dialog başlık/onay metinleri.
+     */
+    rowActions: {
+      triggerLabel: (title: string) => `"${title}" için işlemler`,
+      rename: 'Yeniden adlandır',
+      archive: 'Arşivle',
+      pin: 'Sabitle',
+      unpin: 'Sabitlemeyi kaldır',
+      copy: 'Kopyala',
+      rename_: {
+        title: (entityLabel: string) => `${entityLabel} adını değiştir`,
+        nameLabel: 'Yeni ad',
+        submit: 'Kaydet',
+        submitting: 'Kaydediliyor…',
+        cancel: 'Vazgeç',
+        emptyError: 'Ad boş olamaz.',
+        sameValueNote: 'Ad değişmedi; kaydetmeden kapatabilirsin.',
+      },
+      archive_: {
+        title: (entityLabel: string) => `${entityLabel} arşivlensin mi?`,
+        description: (entityLabel: string) =>
+          `Bu ${entityLabel.toLocaleLowerCase('tr')} listenden kaldırılır. İçerik silinmez; yöneticiler geri alabilir.`,
+        confirm: 'Arşivle',
+        archiving: 'Arşivleniyor…',
+        cancel: 'Vazgeç',
+      },
+      copyCard: {
+        successToast: (title: string) => `"${title}" kopyalandı.`,
+        errorToast: 'Kart kopyalanamadı.',
+      },
+      pin_: {
+        successPinned: (title: string) => `"${title}" sabitlendi.`,
+        successUnpinned: (title: string) => `"${title}" sabitlemesi kaldırıldı.`,
+        error: 'Sabitleme değiştirilemedi.',
+      },
+      genericError: 'İşlem tamamlanamadı.',
+    },
+    /**
+     * Per-entity etiketler — dialog başlıklarında "{entityLabel} adını değiştir"
+     * tek bir yardımcı ile üretilir. (TR'de "panoyu", "kartı" gibi accusative
+     * ekleri farklılaştığı için dialog metinleri içinde sade nominatif tutuluyor.)
+     */
+    entityLabels: {
+      workspace: 'Çalışma alanı',
+      board: 'Pano',
+      list: 'Liste',
+      card: 'Kart',
     },
   },
   workspace: {

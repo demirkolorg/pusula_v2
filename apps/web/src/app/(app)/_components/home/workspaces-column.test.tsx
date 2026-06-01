@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,28 @@ import type { WorkspaceRow } from './types';
 vi.mock('../create-workspace-dialog', () => ({
   CreateWorkspaceDialog: () => null,
 }));
+
+// useTRPC için minimum cevap: `workspace.list.queryKey()` cache anahtarı +
+// `update` / `archive` için no-op `mutationOptions`. Mutation render path'i
+// ContextMenu görünür ama testler tetiklemediği için no-op yeterli.
+vi.mock('@/trpc/client', () => ({
+  useTRPC: () => ({
+    workspace: {
+      list: { queryKey: () => ['workspace.list'] },
+      update: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
+      archive: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
+    },
+  }),
+}));
+
+function renderWithProviders(ui: React.ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 const baseWorkspace: WorkspaceRow = {
   id: 'w1',
@@ -22,7 +45,7 @@ const baseWorkspace: WorkspaceRow = {
 
 describe('<WorkspacesColumn>', () => {
   it('renders empty state when no workspaces', () => {
-    render(
+    renderWithProviders(
       <WorkspacesColumn
         workspaces={[]}
         selectedWorkspaceId={null}
@@ -44,7 +67,7 @@ describe('<WorkspacesColumn>', () => {
         memberCount: 12,
       },
     ];
-    render(
+    renderWithProviders(
       <WorkspacesColumn
         workspaces={workspaces}
         selectedWorkspaceId="w1"
@@ -53,7 +76,6 @@ describe('<WorkspacesColumn>', () => {
     );
     expect(screen.getByText('Pazarlama')).toBeInTheDocument();
     expect(screen.getByText('Geliştirme')).toBeInTheDocument();
-    // Her satırın meta bilgisi farklı — iki kez bulunmasın diye doğrudan sayıya bak.
     expect(screen.getByText(/3 pano · 5 üye/)).toBeInTheDocument();
     expect(screen.getByText(/7 pano · 12 üye/)).toBeInTheDocument();
   });
@@ -63,7 +85,7 @@ describe('<WorkspacesColumn>', () => {
       baseWorkspace,
       { ...baseWorkspace, id: 'w2', name: 'Geliştirme' },
     ];
-    render(
+    renderWithProviders(
       <WorkspacesColumn
         workspaces={workspaces}
         selectedWorkspaceId="w2"
@@ -79,7 +101,7 @@ describe('<WorkspacesColumn>', () => {
       baseWorkspace,
       { ...baseWorkspace, id: 'w2', name: 'Geliştirme' },
     ];
-    render(
+    renderWithProviders(
       <WorkspacesColumn
         workspaces={workspaces}
         selectedWorkspaceId="w1"
@@ -91,7 +113,7 @@ describe('<WorkspacesColumn>', () => {
   });
 
   it('shows count in the header', () => {
-    render(
+    renderWithProviders(
       <WorkspacesColumn
         workspaces={[baseWorkspace, { ...baseWorkspace, id: 'w2', name: 'B' }]}
         selectedWorkspaceId={null}
@@ -99,5 +121,90 @@ describe('<WorkspacesColumn>', () => {
       />,
     );
     expect(screen.getByText('2 çalışma alanı')).toBeInTheDocument();
+  });
+
+  it('omits last-activity suffix when lastActivityAt is null', () => {
+    renderWithProviders(
+      <WorkspacesColumn
+        workspaces={[baseWorkspace]}
+        selectedWorkspaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.queryByText(/aktif/)).not.toBeInTheDocument();
+  });
+
+  it('exposes a rename + archive context menu for an owner', async () => {
+    renderWithProviders(
+      <WorkspacesColumn
+        workspaces={[baseWorkspace]}
+        selectedWorkspaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    // Sağ tık tetikleyicisi satır button'u; Radix `onContextMenu` ile açılır.
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: /Pazarlama/ }),
+    });
+    expect(
+      await screen.findByRole('menuitem', { name: 'Yeniden adlandır' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Arşivle' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the archive item for non-owners', async () => {
+    renderWithProviders(
+      <WorkspacesColumn
+        workspaces={[{ ...baseWorkspace, role: 'admin' }]}
+        selectedWorkspaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: /Pazarlama/ }),
+    });
+    expect(
+      await screen.findByRole('menuitem', { name: 'Yeniden adlandır' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Arşivle' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('omits the context menu entirely for a guest viewer', async () => {
+    renderWithProviders(
+      <WorkspacesColumn
+        workspaces={[{ ...baseWorkspace, role: 'guest' }]}
+        selectedWorkspaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: screen.getByRole('button', { name: /Pazarlama/ }),
+    });
+    // Misafir hiçbir eylem alamaz — ContextMenuTrigger disabled.
+    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+  });
+
+  it('appends a relative "aktif" suffix when lastActivityAt is set', () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    renderWithProviders(
+      <WorkspacesColumn
+        workspaces={[
+          {
+            ...baseWorkspace,
+            lastActivityAt: twoHoursAgo,
+          },
+        ]}
+        selectedWorkspaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.getByText(/aktif/)).toBeInTheDocument();
   });
 });
