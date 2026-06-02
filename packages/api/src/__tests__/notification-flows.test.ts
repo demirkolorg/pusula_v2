@@ -287,7 +287,7 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
     expect(outbox.every((o) => o.type === 'comment_reply')).toBe(true);
   });
 
-  it('cooldown: two assignment activities in the 60s window collapse to the first notification set', async () => {
+  it('no cooldown: two assignment activities each produce their own notification set (cooldown removed 2026-06-03)', async () => {
     const fx = await seedFixture({ extraCards: 1 });
 
     await callerFor(fx.alice).card.members.add({
@@ -304,9 +304,18 @@ describe.runIf(dbAvailable)('notification flows (integration)', () => {
     });
 
     const outbox = await outboxFor(fx.bob.id, 'card_assigned');
-    expect(outbox.map((row) => row.channel).sort()).toEqual(['email', 'in_app', 'push']);
-    expect(new Set(outbox.map((row) => row.eventId)).size).toBe(1);
-    expect(outbox[0]?.payload).toMatchObject({ cardId: fx.card.id });
+    // Cooldown kalktı (2026-06-03): iki ayrı event → iki ayrı bildirim seti,
+    // her biri email + in_app + push = 3 satır → toplam 6, distinct eventId = 2.
+    expect(new Set(outbox.map((row) => row.eventId)).size).toBe(2);
+    expect(outbox.length).toBe(6);
+    expect(outbox.map((row) => row.channel).sort()).toEqual([
+      'email',
+      'email',
+      'in_app',
+      'in_app',
+      'push',
+      'push',
+    ]);
 
     const activityRows = await probe!.db
       .select()

@@ -114,10 +114,10 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
     };
   }
 
-  it('insertNotificationOutbox: a second activity event in 60s same (recipient, type) skips', async () => {
-    // Two distinct activity events — the cooldown collapses the *second* one
-    // (kanal-bağımsız dedupe). Same-event multi-channel still goes through
-    // (covered by the dispatchNotificationsForActivity test below).
+  it('insertNotificationOutbox: a second activity event same (recipient, type) ALSO inserts (cooldown removed 2026-06-03)', async () => {
+    // Cooldown removed: two distinct activity events each produce their own
+    // notification — no `(recipient, type)` collapse. The user wants every
+    // event surfaced.
     const [secondActivity] = await db()
       .insert(activityEvents)
       .values({
@@ -135,8 +135,7 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
       expect(first.inserted).toBe(true);
 
       const dup = await insertNotificationOutbox(db(), { rule: rule(), eventId: secondId });
-      expect(dup.inserted).toBe(false);
-      if (!dup.inserted) expect(dup.reason).toBe('cooldown');
+      expect(dup.inserted).toBe(true);
     } finally {
       await db()
         .delete(notificationOutbox)

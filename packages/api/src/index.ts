@@ -23,7 +23,6 @@ export {
   insertNotificationOutbox,
   maybeEnqueueNotificationPublish,
   dispatchNotificationsForActivity,
-  NOTIFICATION_COOLDOWN_SECONDS,
   type InsertNotificationOutboxInput,
   type InsertOutcome as InsertNotificationOutcome,
 } from './lib/notification-outbox';

@@ -9,16 +9,18 @@
  * periodic sweeper (`apps/worker/src/jobs/notification-publish-sweeper.ts`)
  * picks up rows the enqueue missed.
  *
- * Two responsibilities sit here, not in the rule engine:
- *  1. Cooldown 60 s — same `(recipient_id, type)` row inside the window? Skip
- *     silently. Three notification types bypass the cooldown:
- *       - `mention` (every mention is its own load-bearing signal)
- *       - `board_invitation` / `workspace_invitation` (each token is unique)
- *       - `due_approaching` / `due_overdue` (the scheduler already dedupes)
- *  2. Multi-channel fan-out — the rule produces one row per `(recipient,
+ * Responsibility that sits here, not in the rule engine:
+ *  - Multi-channel fan-out — the rule produces one row per `(recipient,
  *     channel)`; we insert each as its own outbox row so the worker can
  *     channel-route via the `channel` column (Faz 6B's email + push
  *     processors filter on `WHERE channel = 'email'` / `'push'`).
+ *
+ * Cooldown note (2026-06-03 kullanıcı kararı): the old 60 s `(recipient, type)`
+ * duplicate-suppression cooldown was removed — the user wants *every* event to
+ * produce a notification (no collapse of rapid same-type activity). The
+ * scheduler keeps its own `(card, tier)` dedupe via the partial UNIQUE index
+ * `notification_outbox_scheduler_dedupe_uq` (that prevents re-firing the *same*
+ * reminder, not distinct user actions).
  *
  * The DB row is the source of truth: `event_id` (= `activity_events.id`) gives
  * the worker the activity context to read; the outbox `payload` carries the
@@ -32,12 +34,9 @@
 import {
   and,
   eq,
-  gt,
   isNull,
-  ne,
   notificationOutbox,
   notificationPreferences,
-  sql,
 } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import type { EmailDigestMode, NotificationType } from '@pusula/domain';
@@ -50,29 +49,6 @@ type Tx = Pick<Database, 'select' | 'insert'>;
 
 /** Host-supplied, best-effort enqueue hook (Redis errors must be swallowed by the host). */
 export type EnqueueNotificationPublish = (args: { eventId: string }) => void | Promise<void>;
-
-/** Cooldown window for `(recipient, type)` duplicate suppression. Seconds. */
-export const NOTIFICATION_COOLDOWN_SECONDS = 60;
-
-/**
- * Notification types that skip the 60 s cooldown — each carries unique
- * information that callers would notice missing if collapsed. See
- * `docs/domain/04-bildirim-kurallari.md` "Cooldown" → "İstisnalar".
- */
-const COOLDOWN_BYPASS = new Set<NotificationType>([
-  'mention',
-  'board_invitation',
-  'workspace_invitation',
-  'due_approaching',
-  'due_overdue',
-  // DEM-154 — her board erişim talebi ayrı bir kişi + ayrı bir aksiyon;
-  // 60 s içinde gelen ikinci talep sahibi collapse edilirse admin'den
-  // gizlenir. `board_invitation` ile aynı gerekçe.
-  'board_access_requested',
-  // DEM-175 — her board ekleme ayrı bir pano erişimi; bir admin kullanıcıyı
-  // 60 s içinde iki panoya eklerse ikinci ekleme collapse edilmemeli.
-  'board_member_added',
-]);
 
 /**
  * Faz 10G (DEM-141) — e-posta digest **mute-bypass** tipler. Recipient
@@ -103,7 +79,7 @@ export interface InsertNotificationOutboxInput {
 
 export type InsertOutcome =
   | { inserted: true; outboxId: string; status: 'pending' | 'digest_queued' }
-  | { inserted: false; reason: 'cooldown' | 'email_mode_off' };
+  | { inserted: false; reason: 'email_mode_off' };
 
 /**
  * Faz 10G (DEM-141) — recipient'in global preference satırından `email_mode`
@@ -144,42 +120,8 @@ export async function insertNotificationOutbox(
 ): Promise<InsertOutcome> {
   const { rule, eventId } = input;
 
-  // Cooldown 60 s pre-check (`comment.mentioned` + invitations + due reminders
-  // bypass). The window is `(recipient, type)`-scoped *and* excludes rows
-  // produced by the same activity event — multi-channel fan-out for one
-  // event writes three rows (in_app/email/push) in the same call, so the
-  // second + third insert would otherwise see the first as "recent" and
-  // skip themselves. Two different activity events firing the same
-  // `(recipient, type)` within 60 s collapses to the first one, exactly as
-  // the domain doc requires. The partial composite index
-  // `(recipient_id, type, created_at)` makes this an index-only lookup.
-  //
-  // NB scheduler rows (event_id IS NULL): `ne(NULL, anyValue) → NULL`, so
-  // SQL three-valued logic filters them out of this check — fine, the
-  // scheduler runs its own (card, tier) dedupe via the partial UNIQUE
-  // index `notification_outbox_scheduler_dedupe_uq`. An activity-fired
-  // notification 30 s after a scheduler-fired one therefore proceeds (it's
-  // a different *signal*, not a duplicate).
-  if (!COOLDOWN_BYPASS.has(rule.type)) {
-    const recent = await tx
-      .select({ id: notificationOutbox.id })
-      .from(notificationOutbox)
-      .where(
-        and(
-          eq(notificationOutbox.recipientId, rule.recipientUserId),
-          eq(notificationOutbox.type, rule.type),
-          ne(notificationOutbox.eventId, eventId),
-          gt(
-            notificationOutbox.createdAt,
-            sql`NOW() - (${NOTIFICATION_COOLDOWN_SECONDS} * INTERVAL '1 second')`,
-          ),
-        ),
-      )
-      .limit(1);
-    if (recent.length > 0) {
-      return { inserted: false, reason: 'cooldown' };
-    }
-  }
+  // Cooldown removed (2026-06-03) — every event now produces its notification;
+  // no `(recipient, type)` duplicate suppression. See the module header.
 
   // Faz 10G (DEM-141) — e-posta kanalı için recipient'in `email_mode`
   // tercihini damgalama aşamasında uygula. Mute-bypass tipler (mention +
