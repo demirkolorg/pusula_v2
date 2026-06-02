@@ -231,8 +231,52 @@ export const pushTokens = pgTable(
   ],
 );
 
+/**
+ * Expo push receipts — Faz 6B follow-up (push-receipt-polling).
+ *
+ * `sendPushNotificationsAsync` only returns *tickets* ("Expo accepted the
+ * message"). Actual APNs/FCM delivery success/failure is reported later via
+ * *receipts*, fetched by ticket id with `getPushNotificationReceiptsAsync`
+ * (Expo holds them ~24h, ready a few minutes after send). Without polling
+ * them, a `DeviceNotRegistered` / `InvalidCredentials` / `MessageTooBig`
+ * delivery failure is invisible and dead tokens never get pruned — the exact
+ * blind spot behind the 2026-05-31 push incident.
+ *
+ * The push processor inserts one row per `status:'ok'` ticket; the
+ * `notification-push-receipts` cron drains unchecked rows older than the
+ * settle window, revokes tokens Expo reports as `DeviceNotRegistered`, logs
+ * other delivery errors, and stamps `checked_at`.
+ */
+export const pushReceipts = pgTable(
+  'push_receipts',
+  {
+    id: primaryId(),
+    // Expo ticket id — the key passed back to `getPushNotificationReceiptsAsync`.
+    ticketId: text().notNull(),
+    pushTokenId: text()
+      .notNull()
+      .references(() => pushTokens.id, { onDelete: 'cascade' }),
+    // Audit trail back to the originating outbox row (nullable: the outbox row
+    // may be retention-pruned before the receipt is polled).
+    outboxId: text().references(() => notificationOutbox.id, { onDelete: 'set null' }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // NULL → receipt not yet polled. The cron stamps this once Expo returns a
+    // verdict (ok or error), so the partial index below stays tiny.
+    checkedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    // Poll scan: unchecked receipts oldest-first. Partial index keeps it to
+    // only the rows the cron still owes a lookup.
+    index('push_receipts_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.checkedAt} IS NULL`),
+    index('push_receipts_token_idx').on(t.pushTokenId),
+  ],
+);
+
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type NotificationOutboxRow = typeof notificationOutbox.$inferSelect;
 export type PushToken = typeof pushTokens.$inferSelect;
+export type PushReceipt = typeof pushReceipts.$inferSelect;

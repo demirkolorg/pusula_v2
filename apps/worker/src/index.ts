@@ -54,6 +54,11 @@ import {
   type NotificationPushJobData,
 } from './jobs/notification-push';
 import {
+  PUSH_RECEIPT_POLL_INTERVAL_MS,
+  PUSH_RECEIPT_POLL_JOB_NAME,
+  sweepPushReceipts,
+} from './jobs/notification-push-receipts';
+import {
   NOTIFICATION_EMAIL_DIGEST_DAILY_CRON,
   NOTIFICATION_EMAIL_DIGEST_DAILY_JOB_NAME,
   NOTIFICATION_EMAIL_DIGEST_HOURLY_CRON,
@@ -334,11 +339,23 @@ function getExpoClient() {
 const notificationPushWorker = new Worker(
   QUEUE.notificationsPush,
   async (job) => {
+    // push-receipt-polling — the repeatable receipt poller rides the same
+    // queue (it needs the same lazy Expo client). Matched by job name.
+    if (job.name === PUSH_RECEIPT_POLL_JOB_NAME) {
+      const result = await sweepPushReceipts(db, getExpoClient());
+      if (result.checked > 0 || result.revokedTokens > 0 || result.deliveryErrors > 0) {
+        console.warn(
+          `[worker:push-receipts] checked=${result.checked} revoked=${result.revokedTokens} ` +
+            `deliveryErrors=${result.deliveryErrors} expired=${result.expired}`,
+        );
+      }
+      return;
+    }
     const data = job.data as NotificationPushJobData;
     const outcome = await processNotificationPushJob(
       db,
       getExpoClient(),
-      { appUrl: env.APP_URL },
+      { appUrl: env.APP_URL, dryRun: env.NOTIFICATION_EXTERNAL_DRY_RUN },
       data,
     );
     if (outcome.kind === 'skipped') {
@@ -691,6 +708,24 @@ void notificationsQueue
   )
   .catch((err) => {
     console.error('[worker:notifications-sweeper] failed to register repeatable job:', err.message);
+  });
+
+// push-receipt-polling — register the Expo receipt poller on the push queue.
+// 15 min cadence; confirms real APNs/FCM delivery + prunes DeviceNotRegistered
+// tokens that ticket-level errors miss.
+void notificationsPushQueue
+  .add(
+    PUSH_RECEIPT_POLL_JOB_NAME,
+    {},
+    {
+      jobId: 'notification-push-receipts',
+      repeat: { every: PUSH_RECEIPT_POLL_INTERVAL_MS },
+      removeOnComplete: true,
+      removeOnFail: { age: 60 * 60 * 24 },
+    },
+  )
+  .catch((err) => {
+    console.error('[worker:push-receipts] failed to register repeatable job:', err.message);
   });
 
 // Faz 10G (DEM-141) — register the email digest cron jobs. Hourly + daily

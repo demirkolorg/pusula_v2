@@ -26,7 +26,13 @@
  * 6B)".
  */
 import { and, eq, inArray, isNull, sql } from '@pusula/db';
-import { notificationOutbox, notificationPreferences, pushTokens, users } from '@pusula/db';
+import {
+  notificationOutbox,
+  notificationPreferences,
+  pushReceipts,
+  pushTokens,
+  users,
+} from '@pusula/db';
 import { createRequire } from 'node:module';
 import type { Database } from '@pusula/db';
 import type { NotificationType } from '@pusula/domain';
@@ -75,9 +81,26 @@ export interface ExpoPushTicketError {
 
 export type ExpoPushTicket = ExpoPushTicketOk | ExpoPushTicketError;
 
+export interface ExpoPushReceiptOk {
+  status: 'ok';
+}
+
+export interface ExpoPushReceiptError {
+  status: 'error';
+  message: string;
+  details?: { error?: string };
+}
+
+export type ExpoPushReceipt = ExpoPushReceiptOk | ExpoPushReceiptError;
+
 export interface ExpoPushClient {
   chunkPushNotifications(messages: ExpoPushMessage[]): ExpoPushMessage[][];
   sendPushNotificationsAsync(chunk: ExpoPushMessage[]): Promise<ExpoPushTicket[]>;
+  // Receipt polling (push-receipt-polling follow-up). `getPushNotificationReceiptsAsync`
+  // takes ticket ids and returns a map keyed by ticket id — entries are absent
+  // until Expo has a verdict, so a missing key means "not ready yet".
+  chunkPushNotificationReceiptIds(ids: string[]): string[][];
+  getPushNotificationReceiptsAsync(ids: string[]): Promise<Record<string, ExpoPushReceipt>>;
 }
 
 export function createDryRunExpoClient(): ExpoPushClient {
@@ -88,6 +111,15 @@ export function createDryRunExpoClient(): ExpoPushClient {
         `[worker:notification-push] dry-run — would send ${chunk.length} push notification(s)`,
       );
       return chunk.map((_, index) => ({ status: 'ok', id: `dry-run-${index}` }));
+    },
+    chunkPushNotificationReceiptIds: (ids) => (ids.length === 0 ? [] : [ids]),
+    getPushNotificationReceiptsAsync: async (ids) => {
+      console.warn(
+        `[worker:notification-push] dry-run — would fetch ${ids.length} push receipt(s)`,
+      );
+      // Dry-run never sends, so it never persists receipts (see `config.dryRun`
+      // gate in the processor); this path only fires if a test wires it.
+      return Object.fromEntries(ids.map((id) => [id, { status: 'ok' as const }]));
     },
   };
 }
@@ -115,6 +147,12 @@ export function createExpoClient(args: { accessToken?: string }): ExpoPushClient
       const tickets = await expo.sendPushNotificationsAsync(chunk as never[]);
       return tickets as unknown as ExpoPushTicket[];
     },
+    chunkPushNotificationReceiptIds: (ids) =>
+      expo.chunkPushNotificationReceiptIds(ids) as unknown as string[][],
+    getPushNotificationReceiptsAsync: async (ids) => {
+      const receipts = await expo.getPushNotificationReceiptsAsync(ids as never[]);
+      return receipts as unknown as Record<string, ExpoPushReceipt>;
+    },
   };
 }
 
@@ -132,7 +170,7 @@ type OutboxRow = {
 export async function processNotificationPushJob(
   db: Database,
   client: ExpoPushClient,
-  config: { appUrl: string },
+  config: { appUrl: string; dryRun?: boolean },
   data: NotificationPushJobData,
 ): Promise<NotificationPushOutcome> {
   return db.transaction(async (tx) => {
@@ -186,7 +224,7 @@ export async function processNotificationPushJob(
     // Active tokens only. `revoked_at IS NULL` is index-backed (Faz 6B
     // partial index `push_tokens_user_active_idx`).
     const tokens = await tx
-      .select({ token: pushTokens.token })
+      .select({ id: pushTokens.id, token: pushTokens.token })
       .from(pushTokens)
       .where(and(eq(pushTokens.userId, row.recipientId), isNull(pushTokens.revokedAt)));
 
@@ -224,13 +262,22 @@ export async function processNotificationPushJob(
       tickets.push(...batch);
     }
 
-    // Find every token Expo says is dead (`DeviceNotRegistered`) and stamp it
-    // revoked. Other errors (`MessageTooBig`, network) leave the token
-    // active — they're operational issues, not "this device is gone".
+    // Walk tickets once: revoke tokens Expo already rejected
+    // (`DeviceNotRegistered` ticket error), and persist every `ok` ticket id so
+    // the receipt cron can later confirm real APNs/FCM delivery (a ticket `ok`
+    // only means Expo *accepted* the message — delivery is reported separately
+    // via receipts). `messages[i]`/`tokens[i]`/`tickets[i]` share an index
+    // because `messages` is `tokens.map(...)` and the SDK preserves order.
     const deadTokens: string[] = [];
+    const receiptRows: Array<{ ticketId: string; pushTokenId: string; outboxId: string }> = [];
     for (let i = 0; i < tickets.length; i++) {
       const ticket = tickets[i]!;
-      if (ticket.status === 'error') {
+      if (ticket.status === 'ok') {
+        const tokenRow = tokens[i];
+        if (tokenRow && !config.dryRun) {
+          receiptRows.push({ ticketId: ticket.id, pushTokenId: tokenRow.id, outboxId: row.id });
+        }
+      } else {
         const code = ticket.details?.error;
         const token = messages[i]?.to;
         if (code === 'DeviceNotRegistered' && token) {
@@ -243,6 +290,9 @@ export async function processNotificationPushJob(
         .update(pushTokens)
         .set({ revokedAt: new Date() })
         .where(and(inArray(pushTokens.token, deadTokens), isNull(pushTokens.revokedAt)));
+    }
+    if (receiptRows.length > 0) {
+      await tx.insert(pushReceipts).values(receiptRows);
     }
 
     // Touch last_used_at on every token we actually sent to (or tried) —

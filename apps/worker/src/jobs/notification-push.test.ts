@@ -64,6 +64,8 @@ function capturingClient(
           responder ? responder(msg) : { status: 'ok', id: `t_${msg.to.slice(-6)}` },
       );
     },
+    chunkPushNotificationReceiptIds: (ids) => (ids.length === 0 ? [] : [ids]),
+    getPushNotificationReceiptsAsync: async () => ({}),
   };
 }
 
@@ -73,6 +75,8 @@ function throwingClient(message = 'expo offline'): ExpoPushClient {
     sendPushNotificationsAsync: async () => {
       throw new Error(message);
     },
+    chunkPushNotificationReceiptIds: (ids) => (ids.length === 0 ? [] : [ids]),
+    getPushNotificationReceiptsAsync: async () => ({}),
   };
 }
 
@@ -427,5 +431,55 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     const outcome = await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
     expect(outcome.kind).toBe('sent');
     expect(client.sentChunks).toHaveLength(1);
+  });
+
+  it('persists a push_receipts row per ok ticket (for receipt polling)', async () => {
+    const token = await seedToken(aliceId);
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'X', cardId: 'c1', boardId: 'b1' },
+    });
+    const client = capturingClient((msg) => ({ status: 'ok', id: `rcpt_${msg.to.slice(-6)}` }));
+    await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+
+    const receipts = await db()
+      .select()
+      .from(dbMod.pushReceipts)
+      .where(dbMod.eq(dbMod.pushReceipts.outboxId, outboxId));
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]!.ticketId).toBe(`rcpt_${token.slice(-6)}`);
+    expect(receipts[0]!.checkedAt).toBeNull();
+    const tok = await readToken(token);
+    expect(receipts[0]!.pushTokenId).toBe(tok!.id);
+  });
+
+  it('does NOT persist receipts for error tickets (DeviceNotRegistered)', async () => {
+    await seedToken(aliceId);
+    const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
+    const client = capturingClient(() => ({
+      status: 'error',
+      message: 'gone',
+      details: { error: 'DeviceNotRegistered' },
+    }));
+    await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+
+    const receipts = await db()
+      .select()
+      .from(dbMod.pushReceipts)
+      .where(dbMod.eq(dbMod.pushReceipts.outboxId, outboxId));
+    expect(receipts).toHaveLength(0);
+  });
+
+  it('does NOT persist receipts in dry-run mode', async () => {
+    await seedToken(aliceId);
+    const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
+    const client = capturingClient();
+    await processNotificationPushJob(db() as never, client, { ...CONFIG, dryRun: true }, { outboxId });
+
+    const receipts = await db()
+      .select()
+      .from(dbMod.pushReceipts)
+      .where(dbMod.eq(dbMod.pushReceipts.outboxId, outboxId));
+    expect(receipts).toHaveLength(0);
   });
 });
