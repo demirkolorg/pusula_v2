@@ -54,6 +54,10 @@ export const CHANGELOG: ChangelogDay[] = [
     label: '2 Haziran 2026',
     entries: [
       {
+        kind: 'new',
+        text: 'Yapılacaklar (checklist) maddelerine artık yorum yazabilirsiniz: her maddenin altında, kart yorumlarının aynısı gibi tam bir sohbet açılır — zengin metin, @bahsetme, düzenleme ve silme dahil. Maddenin yanındaki konuşma balonu rozeti yorum sayısını gösterir; rozete tıklayınca konuşma açılır. Yeni yorumlar ve değişiklikler ekibinize anlık yansır, ilgililere bildirim gider.',
+      },
+      {
         kind: 'improvement',
         text: 'Anasayfa gezgininde pano satırlarındaki "Ayarlar" ve "Aç" düğmeleri artık satıra sağ tıklayınca açılan menüde toplandı; satır görünümü sadeleşti. Liste satırlarına da sağ tık menüsünden "Aç" eklendi — listenin bağlı olduğu panoyu tek tıkla açabilirsiniz.',
       },

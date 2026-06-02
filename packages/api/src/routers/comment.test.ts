@@ -424,6 +424,156 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
+
+  // ------------------------------------------------- checklist item comments
+
+  it('create+list: a checklist-item comment is threaded under the item, not the card; card-level list excludes it and the item list excludes card-level comments', async () => {
+    // A checklist + item on the main card.
+    const checklist = await callerFor(ownerId).checklist.create({
+      cardId,
+      title: 'Acceptance',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const item = await callerFor(ownerId).checklist.item.create({
+      cardId,
+      checklistId: checklist.id,
+      content: 'Ship it',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const cardLevel = await callerFor(memberId).comment.create({
+      cardId,
+      body: 'card-level note',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const onItem = await callerFor(memberId).comment.create({
+      cardId,
+      checklistItemId: item.id,
+      body: 'item-level note',
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(onItem).toMatchObject({ cardId, checklistItemId: item.id, body: 'item-level note' });
+
+    // Card-level thread excludes the item comment.
+    const cardThread = await callerFor(guestId).comment.list({ cardId });
+    const cardThreadIds = cardThread.map((c) => c.id);
+    expect(cardThreadIds).toContain(cardLevel.id);
+    expect(cardThreadIds).not.toContain(onItem.id);
+
+    // Item thread contains only the item comment.
+    const itemThread = await callerFor(guestId).comment.list({ cardId, checklistItemId: item.id });
+    const itemThreadIds = itemThread.map((c) => c.id);
+    expect(itemThreadIds).toContain(onItem.id);
+    expect(itemThreadIds).not.toContain(cardLevel.id);
+    expect(itemThread.every((c) => c.checklistItemId === item.id)).toBe(true);
+  });
+
+  it('NOT_FOUND: a checklistItemId that lives on another card cannot receive a comment via this card', async () => {
+    const otherChecklist = await callerFor(ownerId).checklist.create({
+      cardId: otherCardId,
+      title: 'Other checklist',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const otherItem = await callerFor(ownerId).checklist.item.create({
+      cardId: otherCardId,
+      checklistId: otherChecklist.id,
+      content: 'Belongs elsewhere',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(ownerId).comment.create({
+        cardId,
+        checklistItemId: otherItem.id,
+        body: 'cross-card attempt',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('checklist.list: per-item commentCount counts non-deleted item comments only', async () => {
+    const checklist = await callerFor(ownerId).checklist.create({
+      cardId,
+      title: 'Counted',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const item = await callerFor(ownerId).checklist.item.create({
+      cardId,
+      checklistId: checklist.id,
+      content: 'Has comments',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const c1 = await callerFor(memberId).comment.create({
+      cardId,
+      checklistItemId: item.id,
+      body: 'one',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(memberId).comment.create({
+      cardId,
+      checklistItemId: item.id,
+      body: 'two',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // A card-level comment must NOT inflate the item count.
+    await callerFor(memberId).comment.create({
+      cardId,
+      body: 'card-level, not counted',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const afterTwo = await callerFor(guestId).checklist.list({ cardId });
+    const itemAfterTwo = afterTwo
+      .find((cl) => cl.id === checklist.id)!
+      .items.find((i) => i.id === item.id)!;
+    expect(itemAfterTwo.commentCount).toBe(2);
+
+    // Soft-deleting one drops the count to 1.
+    await callerFor(memberId).comment.delete({
+      cardId,
+      commentId: c1.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    const afterDelete = await callerFor(guestId).checklist.list({ cardId });
+    const itemAfterDelete = afterDelete
+      .find((cl) => cl.id === checklist.id)!
+      .items.find((i) => i.id === item.id)!;
+    expect(itemAfterDelete.commentCount).toBe(1);
+  });
+
+  it('cascade: deleting a checklist item removes its comments (FK on delete cascade)', async () => {
+    const checklist = await callerFor(ownerId).checklist.create({
+      cardId,
+      title: 'Doomed checklist',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const item = await callerFor(ownerId).checklist.item.create({
+      cardId,
+      checklistId: checklist.id,
+      content: 'Doomed item',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const onItem = await callerFor(memberId).comment.create({
+      cardId,
+      checklistItemId: item.id,
+      body: 'goes away with the item',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await callerFor(ownerId).checklist.item.delete({
+      cardId,
+      checklistId: checklist.id,
+      itemId: item.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const [row] = await db()
+      .select({ id: comments.id })
+      .from(comments)
+      .where(dbMod.eq(comments.id, onItem.id))
+      .limit(1);
+    expect(row).toBeUndefined();
+  });
 });
 
 // File-scoped teardown: close the probe pool once after every suite in this file.

@@ -798,6 +798,15 @@ export function CardDetailDialog({
                       canEdit={canEdit}
                       nameOf={nameOf}
                       imageOf={imageOf}
+                      comments={{
+                        cardId,
+                        canComment: canEdit,
+                        isBoardAdmin,
+                        viewerUserId,
+                        viewerName,
+                        viewerImage,
+                        mentions: mentionSource,
+                      }}
                       onCreateChecklist={(title) =>
                         createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
                       }

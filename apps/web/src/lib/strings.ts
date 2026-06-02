@@ -1858,6 +1858,11 @@ export const strings = {
       itemToggleLabel: 'Tamamlandı olarak işaretle',
       overallProgressLabel: 'Toplam ilerleme',
       checklistProgressLabel: 'Liste ilerlemesi',
+      // Madde yorum thread'i (DEM — yapılacaklar maddesine yorum).
+      itemCommentsToggle: 'Maddeye yorum yaz',
+      itemCommentsToggleClose: 'Madde yorumlarını kapat',
+      itemCommentsCountLabel: 'Madde yorumu',
+      itemCommentsThreadLabel: 'Madde yorumları',
     },
     comments: {
       title: 'Yorumlar',

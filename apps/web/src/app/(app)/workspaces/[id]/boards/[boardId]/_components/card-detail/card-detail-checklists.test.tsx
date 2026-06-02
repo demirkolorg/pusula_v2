@@ -30,6 +30,7 @@ const checklists: ChecklistView[] = [
         position: 'a0',
         completed: false,
         completedBy: null,
+        commentCount: 0,
       },
       {
         id: 'i2',
@@ -38,6 +39,7 @@ const checklists: ChecklistView[] = [
         position: 'a1',
         completed: true,
         completedBy: null,
+        commentCount: 0,
       },
     ],
   },

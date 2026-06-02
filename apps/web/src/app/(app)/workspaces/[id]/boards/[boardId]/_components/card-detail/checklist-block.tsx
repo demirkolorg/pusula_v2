@@ -22,6 +22,7 @@ import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
 import { ChecklistItemRow } from './checklist-item-row';
 import type {
+  ChecklistCommentContext,
   ChecklistHandlers,
   ChecklistView,
   ImageResolver,
@@ -40,6 +41,7 @@ export function ChecklistBlock({
   handlers,
   nameOf,
   imageOf,
+  comments,
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
@@ -47,6 +49,8 @@ export function ChecklistBlock({
   handlers: ChecklistHandlers;
   nameOf?: NameResolver;
   imageOf?: ImageResolver;
+  /** Per-item comment-thread context — forwarded to each row's toggle. */
+  comments?: ChecklistCommentContext;
 }) {
   const copy = strings.card.checklist;
   const [renaming, setRenaming] = useState(false);
@@ -206,6 +210,7 @@ export function ChecklistBlock({
               pending={pending}
               nameOf={nameOf}
               imageOf={imageOf}
+              comments={comments}
               onToggle={(completed) =>
                 handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
               }

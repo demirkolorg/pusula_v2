@@ -140,18 +140,24 @@ const commentCreatedPayloadSchema = z
     // mevcut testleri kırmıyoruz.
     authorId: z.string().min(1).optional(),
     bodyPreview: z.string().optional(),
+    // Checklist madde yorumu ise hedef maddenin id'si; kart yorumunda undefined.
+    // Dispatcher bu alana bakıp event'i madde thread'ine mi yoksa kart
+    // thread'ine mi yönlendireceğine karar verir.
+    checklistItemId: z.string().min(1).optional(),
   })
   .passthrough();
 
 const commentUpdatedPayloadSchema = z
   .object({
     commentId: z.string().min(1),
+    checklistItemId: z.string().min(1).optional(),
   })
   .passthrough();
 
 const commentDeletedPayloadSchema = z
   .object({
     commentId: z.string().min(1),
+    checklistItemId: z.string().min(1).optional(),
   })
   .passthrough();
 

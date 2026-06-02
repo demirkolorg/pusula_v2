@@ -7,6 +7,7 @@ import { strings } from '@/lib/strings';
 import { AddChecklistFormPanel, AddChecklistTrigger } from './checklist-add-forms';
 import { ChecklistBlock } from './checklist-block';
 import type {
+  ChecklistCommentContext,
   ChecklistHandlers,
   ChecklistView,
   ImageResolver,
@@ -23,6 +24,8 @@ type CardDetailChecklistsProps = ChecklistHandlers & {
   nameOf?: NameResolver;
   /** Resolve a user id to an avatar URL (for the "completed by" avatars). */
   imageOf?: ImageResolver;
+  /** Per-item comment-thread context — forwarded to each item row's toggle. */
+  comments?: ChecklistCommentContext;
   pending?: boolean;
   error?: string | null;
 };
@@ -41,6 +44,7 @@ export function CardDetailChecklists({
   canEdit,
   nameOf,
   imageOf,
+  comments,
   pending = false,
   error,
   ...handlers
@@ -120,6 +124,7 @@ export function CardDetailChecklists({
                 handlers={handlers}
                 nameOf={nameOf}
                 imageOf={imageOf}
+                comments={comments}
               />
             ))}
           </div>

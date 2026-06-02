@@ -691,6 +691,9 @@ function buildPayload(
     'mentionText',
     'checklistId',
     'itemId',
+    // Checklist madde yorumu: in-app bildirim ilgili maddenin thread'ine
+    // derin link verebilsin diye hedef madde id'si taşınır.
+    'checklistItemId',
     // DEM-153 — `card.label_added/removed` payload'ında etiket kimliği; UI
     // bildirimi ilgili etikete bağlamak için kullanır.
     'labelId',

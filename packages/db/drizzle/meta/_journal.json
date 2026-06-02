@@ -330,6 +330,13 @@
       "when": 1780600000000,
       "tag": "0046_dem276_followup_manual_render_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1780600000001,
+      "tag": "0047_lethal_hellion",
+      "breakpoints": true
     }
   ]
 }

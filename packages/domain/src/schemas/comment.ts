@@ -17,11 +17,23 @@ export const commentBodySchema = z.string().trim().min(1).max(20_000);
 
 export const listCommentsInput = z.object({
   cardId: idSchema,
+  /**
+   * Belirtilirse yalnız o checklist (yapılacaklar) maddesine ait thread
+   * döner; verilmezse kart-seviyesi yorumlar (`checklist_item_id IS NULL`)
+   * döner. Madde her durumda `cardId`'nin bir checklist'ine ait olmalı —
+   * aksi halde `NOT_FOUND`.
+   */
+  checklistItemId: idSchema.optional(),
 });
 
 export const createCommentInput = z.object({
   cardId: idSchema,
   body: commentBodySchema,
+  /**
+   * Verilirse yorum bu checklist maddesine bağlanır (madde thread'i); aksi
+   * halde klasik kart yorumu olur. `cardId` her iki durumda da zorunludur.
+   */
+  checklistItemId: idSchema.optional(),
   ...withClientMutationId,
 });
 

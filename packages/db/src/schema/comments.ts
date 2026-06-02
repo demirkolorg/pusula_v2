@@ -10,7 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { boards } from './boards';
-import { cards } from './cards';
+import { cards, checklistItems } from './cards';
 import { shareLinks } from './share-links';
 import { primaryId, timestamps } from './_common';
 
@@ -21,6 +21,17 @@ export const comments = pgTable(
     cardId: text()
       .notNull()
       .references((): AnyPgColumn => cards.id, { onDelete: 'cascade' }),
+    /**
+     * Yorumun hedefi bir checklist (yapılacaklar) maddesiyse o maddenin id'si;
+     * `NULL` iken yorum doğrudan karta aittir (klasik kart yorumu). `cardId`
+     * her durumda doludur — permission, realtime room ve board sorgusu hep
+     * kart üzerinden çalışır; bu kolon yalnızca thread'i madde altında
+     * gruplamak için bir hedef boyutudur. Madde silinince yorumlar da cascade
+     * gider (kart yorum geçmişi etkilenmez).
+     */
+    checklistItemId: text().references((): AnyPgColumn => checklistItems.id, {
+      onDelete: 'cascade',
+    }),
     /**
      * Yorum yazarı. Kullanıcı hesabını silince `set null` (yorum tarihsellik
      * için kalır; UI "Silinmiş kullanıcı" olarak gösterir). Misafir yorumlarda
@@ -43,6 +54,11 @@ export const comments = pgTable(
   },
   (t) => [
     index('comments_card_created_idx').on(t.cardId, t.createdAt),
+    // Madde thread'i (`checklist.list` badge + inline thread) bu partial index'ten
+    // okur; kart-seviyesi yorumlar (`checklistItemId IS NULL`) bunu doldurmaz.
+    index('comments_checklist_item_created_idx')
+      .on(t.checklistItemId, t.createdAt)
+      .where(sql`${t.checklistItemId} IS NOT NULL`),
     check(
       'comments_author_or_share_link_chk',
       sql`NOT (${t.authorId} IS NOT NULL AND ${t.shareLinkId} IS NOT NULL)`,

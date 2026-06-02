@@ -31,8 +31,8 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — checklist / checklist.item
  * procedure'leri) and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { asc, desc, eq, inArray } from '@pusula/db';
-import { activityEvents, boards, checklistItems, checklists } from '@pusula/db';
+import { and, asc, count, desc, eq, inArray, isNull } from '@pusula/db';
+import { activityEvents, boards, checklistItems, checklists, comments } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
   canEditBoardContent,
@@ -532,11 +532,28 @@ export const checklistRouter = router({
           .orderBy(asc(checklistItems.position))
       : [];
 
-    const itemsByChecklist = new Map<string, typeof itemRows>();
+    // Madde başına (silinmemiş) yorum sayısı — inline thread rozeti bundan
+    // okur. Tek gruplu sorgu; `checklist_item_id IS NOT NULL` partial index'i
+    // kullanır. Soft-delete edilmiş yorumlar sayılmaz.
+    const itemIds = itemRows.map((i) => i.id);
+    const countRows = itemIds.length
+      ? await ctx.db
+          .select({ checklistItemId: comments.checklistItemId, count: count() })
+          .from(comments)
+          .where(and(inArray(comments.checklistItemId, itemIds), isNull(comments.deletedAt)))
+          .groupBy(comments.checklistItemId)
+      : [];
+    const commentCountByItem = new Map<string, number>();
+    for (const row of countRows) {
+      if (row.checklistItemId) commentCountByItem.set(row.checklistItemId, Number(row.count));
+    }
+
+    const itemsByChecklist = new Map<string, Array<(typeof itemRows)[number] & { commentCount: number }>>();
     for (const item of itemRows) {
+      const withCount = { ...item, commentCount: commentCountByItem.get(item.id) ?? 0 };
       const bucket = itemsByChecklist.get(item.checklistId);
-      if (bucket) bucket.push(item);
-      else itemsByChecklist.set(item.checklistId, [item]);
+      if (bucket) bucket.push(withCount);
+      else itemsByChecklist.set(item.checklistId, [withCount]);
     }
 
     return rows.map((checklist) => ({

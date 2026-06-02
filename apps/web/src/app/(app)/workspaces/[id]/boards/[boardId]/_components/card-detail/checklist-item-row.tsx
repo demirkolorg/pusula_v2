@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilIcon, Trash2Icon } from 'lucide-react';
+import { MessageSquareIcon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { checklistItemContentSchema } from '@pusula/domain';
 import {
   Avatar,
@@ -11,9 +11,18 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import type { ChecklistItemView, ImageResolver, NameResolver } from './checklist-types';
+import { ChecklistItemThread } from './checklist-item-thread';
+import type {
+  ChecklistCommentContext,
+  ChecklistItemView,
+  ImageResolver,
+  NameResolver,
+} from './checklist-types';
+
+export type { ChecklistCommentContext } from './checklist-types';
 
 /**
  * One checklist item: a `Checkbox` + content, with inline edit/delete for board
@@ -26,6 +35,7 @@ export function ChecklistItemRow({
   pending,
   nameOf,
   imageOf,
+  comments,
   onToggle,
   onEdit,
   onDelete,
@@ -35,6 +45,8 @@ export function ChecklistItemRow({
   pending: boolean;
   nameOf?: NameResolver;
   imageOf?: ImageResolver;
+  /** Comment-thread context — when present, the row shows a thread toggle. */
+  comments?: ChecklistCommentContext;
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
@@ -43,6 +55,8 @@ export function ChecklistItemRow({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.content);
   const [error, setError] = useState<string | null>(null);
+  const [threadOpen, setThreadOpen] = useState(false);
+  const commentCount = item.commentCount;
 
   const completerName =
     item.completed && item.completedBy
@@ -52,7 +66,8 @@ export function ChecklistItemRow({
     item.completed && item.completedBy ? (imageOf?.(item.completedBy) ?? null) : null;
 
   return (
-    <li className="group/item flex items-start gap-2 text-sm">
+    <li className="group/item text-sm">
+      <div className="flex items-start gap-2">
       <Checkbox
         checked={item.completed}
         disabled={!canEdit || pending}
@@ -124,6 +139,36 @@ export function ChecklistItemRow({
               className="shrink-0"
             />
           )}
+          {comments && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
+                  aria-expanded={threadOpen}
+                  // `commentCount > 0` ise rozet hep görünür; 0 ise yalnız
+                  // hover/focus/touch'ta (edit/sil butonlarıyla aynı desen).
+                  className={cn(
+                    'text-muted-foreground hover:text-foreground size-7 shrink-0 gap-1 px-1.5 touch:size-11',
+                    commentCount === 0 &&
+                      'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
+                    threadOpen && 'text-foreground opacity-100',
+                  )}
+                  onClick={() => setThreadOpen((open) => !open)}
+                >
+                  <MessageSquareIcon className="size-3.5" aria-hidden />
+                  {commentCount > 0 && (
+                    <span className="text-[11px] font-medium tabular-nums">{commentCount}</span>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
+              </TooltipContent>
+            </Tooltip>
+          )}
           {canEdit && (
             <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100">
               <Tooltip>
@@ -166,6 +211,22 @@ export function ChecklistItemRow({
             </span>
           )}
         </>
+      )}
+      </div>
+
+      {comments && threadOpen && (
+        <ChecklistItemThread
+          cardId={comments.cardId}
+          checklistItemId={item.id}
+          canComment={comments.canComment}
+          isBoardAdmin={comments.isBoardAdmin}
+          viewerUserId={comments.viewerUserId}
+          viewerName={comments.viewerName}
+          viewerImage={comments.viewerImage}
+          nameOf={(userId) => nameOf?.(userId)}
+          imageOf={imageOf ? (userId) => imageOf(userId) : undefined}
+          mentions={comments.mentions}
+        />
       )}
     </li>
   );

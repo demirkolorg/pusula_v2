@@ -27,13 +27,15 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / Card içerik procedure
  * haritası — Faz 2.5).
  */
-import { asc, eq } from '@pusula/db';
-import { activityEvents, boards, comments } from '@pusula/db';
+import { and, asc, eq, isNull } from '@pusula/db';
+import { activityEvents, boards, checklistItems, checklists, comments } from '@pusula/db';
+import type { Database } from '@pusula/db';
 import {
   canEditBoardContent,
   canManageBoard,
   createCommentInput,
   deleteCommentInput,
+  listCommentsInput,
   updateCommentInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
@@ -57,6 +59,7 @@ import { router } from '../trpc';
 const commentCols = {
   id: comments.id,
   cardId: comments.cardId,
+  checklistItemId: comments.checklistItemId,
   authorId: comments.authorId,
   body: comments.body,
   editedAt: comments.editedAt,
@@ -64,6 +67,31 @@ const commentCols = {
   createdAt: comments.createdAt,
   updatedAt: comments.updatedAt,
 } as const;
+
+/** A Drizzle transaction handle for our schema, as passed to `db.transaction(cb)`. */
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/**
+ * Assert that `checklistItemId` is a checklist item belonging to a checklist on
+ * `cardId`; `NOT_FOUND` otherwise. Walks item → checklist → card so a
+ * cross-card item id is rejected (the comment's `cardId` is always the card the
+ * procedure is scoped to). Returns nothing — callers only need the guard.
+ */
+async function assertChecklistItemOnCard(
+  tx: Transaction,
+  checklistItemId: string,
+  cardId: string,
+): Promise<void> {
+  const [row] = await tx
+    .select({ cardId: checklists.cardId })
+    .from(checklistItems)
+    .innerJoin(checklists, eq(checklistItems.checklistId, checklists.id))
+    .where(eq(checklistItems.id, checklistItemId))
+    .limit(1);
+  if (!row || row.cardId !== cardId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist öğesi bulunamadı.' });
+  }
+}
 
 /**
  * Tiptap doc body'sini düz metin önizlemesine indirger. Faz 6 review fix
@@ -132,12 +160,23 @@ export const commentRouter = router({
    * (already enforced by `cardProcedure`). Includes soft-deleted rows (their
    * `body` is empty) so the client can render a "deleted" placeholder in place.
    * No transaction (read-only).
+   *
+   * `checklistItemId` omitted → kart-seviyesi thread (`checklist_item_id IS
+   * NULL`); set → o maddenin thread'i. Böylece kart yorum bölümü madde
+   * yorumlarını karıştırmaz ve her madde kendi thread'ini ayrı çeker.
    */
-  list: cardProcedure.query(async ({ ctx }) => {
+  list: cardProcedure.input(listCommentsInput).query(async ({ ctx, input }) => {
     return ctx.db
       .select(commentCols)
       .from(comments)
-      .where(eq(comments.cardId, ctx.card.id))
+      .where(
+        and(
+          eq(comments.cardId, ctx.card.id),
+          input.checklistItemId
+            ? eq(comments.checklistItemId, input.checklistItemId)
+            : isNull(comments.checklistItemId),
+        ),
+      )
       .orderBy(asc(comments.createdAt));
   }),
 
@@ -164,11 +203,27 @@ export const commentRouter = router({
       }
       assertNotArchived('board', board, "Arşivli board'a yorum eklenemez.");
 
+      // Madde thread'i ise hedef maddenin gerçekten bu kartın bir checklist'ine
+      // ait olduğunu doğrula (cross-card madde id'si reddedilir).
+      if (input.checklistItemId) {
+        await assertChecklistItemOnCard(tx, input.checklistItemId, ctx.card.id);
+      }
+
       const [createdComment] = await tx
         .insert(comments)
-        .values({ cardId: ctx.card.id, authorId: ctx.session.user.id, body: input.body })
+        .values({
+          cardId: ctx.card.id,
+          checklistItemId: input.checklistItemId ?? null,
+          authorId: ctx.session.user.id,
+          body: input.body,
+        })
         .returning(commentCols);
       if (!createdComment) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Madde thread'inde `checklistItemId` activity payload'a + (aşağıda)
+      // realtime data'ya taşınır; kart yorumunda alan hiç eklenmez. Null'u
+      // realtime şemasına (`z.string().min(1)`) sokmamak için koşullu yayıyoruz.
+      const itemTarget = input.checklistItemId ? { checklistItemId: input.checklistItemId } : {};
 
       // Faz 6 review fix (W1 DEM-91): commentPreview activity payload'ına
       // konur ve notification-rules.buildPayload whitelist'i üzerinden email
@@ -183,7 +238,7 @@ export const commentRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'comment.created',
-          payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview },
+          payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview, ...itemTarget },
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -208,6 +263,7 @@ export const commentRouter = router({
             mentionedUserIds,
             createdAt: createdComment.createdAt.toISOString(),
             comment: createdComment,
+            ...itemTarget,
           },
         }),
       );
@@ -221,7 +277,7 @@ export const commentRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview },
+        payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview, ...itemTarget },
       });
       if (dispatched.inserted > 0) notificationEventIds.push(activity.id);
 
@@ -377,6 +433,9 @@ export const commentRouter = router({
           bodyPreview: bodyPreview(updated.body),
           editedAt: updated.editedAt?.toISOString() ?? null,
           patch: { body: updated.body, editedAt: updated.editedAt },
+          // Madde thread'i ise dispatcher cache patch'ini o maddenin
+          // `comment.list({ cardId, checklistItemId })` query'sine yöneltir.
+          ...(comment.checklistItemId ? { checklistItemId: comment.checklistItemId } : {}),
         },
       });
 
@@ -408,6 +467,7 @@ export const commentRouter = router({
         .select({
           id: comments.id,
           cardId: comments.cardId,
+          checklistItemId: comments.checklistItemId,
           authorId: comments.authorId,
           deletedAt: comments.deletedAt,
         })
@@ -477,7 +537,11 @@ export const commentRouter = router({
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
         seq,
-        data: { commentId: comment.id, deletedAt: updated.deletedAt?.toISOString() ?? null },
+        data: {
+          commentId: comment.id,
+          deletedAt: updated.deletedAt?.toISOString() ?? null,
+          ...(comment.checklistItemId ? { checklistItemId: comment.checklistItemId } : {}),
+        },
       });
 
       await deleteSearchDocument(tx, { entityType: 'comment', entityId: updated.id });

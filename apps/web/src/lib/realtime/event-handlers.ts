@@ -219,6 +219,48 @@ function invalidate(qc: QueryClient, filter: QueryFilters | undefined): void {
   void qc.invalidateQueries(filter);
 }
 
+/**
+ * Invalidate the `comment.list({ cardId, checklistItemId })` thread for a single
+ * checklist item.
+ *
+ * `filters.comments(cardId)` is a *partial* match on `{ cardId }` so it also
+ * covers `{ cardId, checklistItemId }` entries — but a bare invalidation would
+ * additionally refetch the card-level thread (whose contents are unaffected by
+ * an item comment). We narrow with a `predicate` that requires the query's
+ * serialized input to carry the matching `checklistItemId`, so only the item's
+ * own thread refetches. The input lives at `queryKey[1].input` (tRPC's
+ * react-query key shape); we read it defensively.
+ */
+function invalidateChecklistItemThread(
+  qc: QueryClient,
+  filters: RealtimeFilters,
+  cardId: string,
+  checklistItemId: string,
+): void {
+  const base = filters.comments?.(cardId);
+  if (!base) return;
+  void qc.invalidateQueries({
+    ...base,
+    predicate: (query) => inputChecklistItemId(query.queryKey) === checklistItemId,
+  });
+}
+
+/** Read `checklistItemId` out of a tRPC react-query key's serialized input. */
+function inputChecklistItemId(queryKey: readonly unknown[]): string | undefined {
+  for (const part of queryKey) {
+    if (part && typeof part === 'object') {
+      const record = part as Record<string, unknown>;
+      const input = ('input' in record ? record.input : record) as
+        | Record<string, unknown>
+        | undefined;
+      if (input && typeof input === 'object' && typeof input.checklistItemId === 'string') {
+        return input.checklistItemId;
+      }
+    }
+  }
+  return undefined;
+}
+
 function cardIdFrom(envelope: RealtimeEventEnvelope, payload: Payload): string | undefined {
   return envelope.cardId ?? (typeof payload.cardId === 'string' ? payload.cardId : undefined);
 }
@@ -570,6 +612,14 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const comment = payload.comment as IdRow | undefined;
       if (!cardId || !comment) return;
+      // Checklist madde yorumu — kart thread'ine / kart commentCount'una DOKUNMA.
+      // Sadece o maddenin thread'ini ve checklist listesini (rozet sayacı) tazele.
+      const checklistItemId = stringField(payload, 'checklistItemId');
+      if (checklistItemId) {
+        invalidateChecklistItemThread(qc, filters, cardId, checklistItemId);
+        invalidate(qc, filters.checklists?.(cardId));
+        return;
+      }
       setList<IdRow>(qc, filters.comments?.(cardId), (data) => applyCommentAdd(data, comment));
       bumpCardNumber(qc, filters, cardId, 'commentCount', 1);
       return;
@@ -578,6 +628,12 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { commentId, patch } = payload as { commentId: string; patch?: Partial<IdRow> };
       if (!cardId || !commentId) return;
+      const checklistItemId = stringField(payload, 'checklistItemId');
+      if (checklistItemId) {
+        // Düzenleme rozet sayacını değiştirmez; yalnız madde thread'ini tazele.
+        invalidateChecklistItemThread(qc, filters, cardId, checklistItemId);
+        return;
+      }
       setList<IdRow>(qc, filters.comments?.(cardId), (data) =>
         applyCommentPatch(data, commentId, patch ?? {}),
       );
@@ -587,6 +643,12 @@ export function dispatchRealtimeEvent(
       const cardId = cardIdFrom(envelope, payload);
       const { commentId, deletedAt } = payload as { commentId: string; deletedAt?: string | null };
       if (!cardId || !commentId) return;
+      const checklistItemId = stringField(payload, 'checklistItemId');
+      if (checklistItemId) {
+        invalidateChecklistItemThread(qc, filters, cardId, checklistItemId);
+        invalidate(qc, filters.checklists?.(cardId));
+        return;
+      }
       setList<CommentRow>(qc, filters.comments?.(cardId), (data) =>
         applyCommentSoftDelete(data, commentId, deletedAt ?? envelope.createdAt),
       );
