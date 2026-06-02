@@ -275,14 +275,7 @@ export const strings = {
       // görünümünde, başlık ise gerçek içeriktir.
       logoCloud: {
         heading: 'Büyüyen ekipler Pusula’ya güveniyor',
-        brands: [
-          'Akıntı',
-          'Kuzey Ofis',
-          'Pusula Lab',
-          'Yelken',
-          'Mavi Liman',
-          'Ada Yazılım',
-        ],
+        brands: ['Akıntı', 'Kuzey Ofis', 'Pusula Lab', 'Yelken', 'Mavi Liman', 'Ada Yazılım'],
       },
       // Bildirim sistemi vitrini — Pusula'nın outbox tabanlı bildirim
       // altyapısını (anlık in-app, mobil push, e-posta özeti, aktivite
@@ -571,6 +564,8 @@ export const strings = {
     fallbackCardTitle: 'bu kart',
     fallbackBoardName: 'bu pano',
     fallbackWorkspaceName: 'bu çalışma alanı',
+    fallbackListName: 'bir liste',
+    fallbackLabelName: 'bir etiket',
     summary: {
       cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
       commentMentioned: (cardTitle: string) =>
@@ -617,10 +612,25 @@ export const strings = {
       attachmentRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir dosya kaldırdı`,
       // DEM-276 follow-up — manuel/save tetik rapor render sonucu. Sistem
       // bildirimi (aktör yok) — `isSystemNotification` set'inde tutulur.
-      reportRenderCompleted: (format: string) =>
-        `${format.toUpperCase()} raporun hazır`,
-      reportRenderFailed: (format: string) =>
-        `${format.toUpperCase()} rapor üretilemedi`,
+      reportRenderCompleted: (format: string) => `${format.toUpperCase()} raporun hazır`,
+      reportRenderFailed: (format: string) => `${format.toUpperCase()} rapor üretilemedi`,
+      // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
+      cardCreated: (cardTitle: string) => `"${cardTitle}" kartını oluşturdu`,
+      listCreated: (listName: string) => `"${listName}" listesini oluşturdu`,
+      listRenamed: (listName: string) => `bir listenin adını "${listName}" yaptı`,
+      listMoved: (listName: string) => `"${listName}" listesini taşıdı`,
+      listArchived: (listName: string) => `"${listName}" listesini arşivledi`,
+      listUnarchived: (listName: string) => `"${listName}" listesini arşivden çıkardı`,
+      listDeleted: (listName: string) => `"${listName}" listesini sildi`,
+      boardCreated: (boardName: string) => `"${boardName}" panosunu oluşturdu`,
+      boardRenamed: (boardName: string) => `bir panonun adını "${boardName}" yaptı`,
+      boardArchived: (boardName: string) => `"${boardName}" panosunu arşivledi`,
+      boardUnarchived: (boardName: string) => `"${boardName}" panosunu arşivden çıkardı`,
+      boardBackgroundChanged: (boardName: string) =>
+        `"${boardName}" panosunun arka planını değiştirdi`,
+      labelCreated: (labelName: string) => `"${labelName}" etiketini oluşturdu`,
+      labelUpdated: (labelName: string) => `"${labelName}" etiketini güncelledi`,
+      labelDeleted: (labelName: string) => `"${labelName}" etiketini sildi`,
       default: 'bir işlem yaptı',
     },
   },
@@ -655,8 +665,7 @@ export const strings = {
        */
       latestNews: {
         label: 'Son yenilik',
-        countSuffix: (n: number) =>
-          n === 1 ? '1 güncelleme' : `${n} güncelleme`,
+        countSuffix: (n: number) => (n === 1 ? '1 güncelleme' : `${n} güncelleme`),
         ariaLabel: (dayLabel: string, n: number) =>
           `Son yenilik — ${dayLabel}, ${n === 1 ? '1 güncelleme' : `${n} güncelleme`}. Yenilikler panelini aç.`,
       },
@@ -700,14 +709,11 @@ export const strings = {
        * Pano satırı mikro-meta (2026-06-01 sinyal yoğunluğu turu):
        * "{açık} açık · {bitti} bitti". 0 açık + 0 bitti durumda atlanır.
        */
-      openDoneSummary: (open: number, done: number) =>
-        `${open} açık · ${done} bitti`,
+      openDoneSummary: (open: number, done: number) => `${open} açık · ${done} bitti`,
       /** Pano üye avatar stack'i için screen-reader / tooltip etiketi. */
-      membersTooltip: (n: number) =>
-        n === 1 ? '1 pano üyesi' : `${n} pano üyesi`,
+      membersTooltip: (n: number) => (n === 1 ? '1 pano üyesi' : `${n} pano üyesi`),
       /** Stack'e sığmayan üye sayısı için "+N" rozeti aria-label'ı. */
-      extraMembersLabel: (n: number) =>
-        n === 1 ? '1 üye daha' : `${n} üye daha`,
+      extraMembersLabel: (n: number) => (n === 1 ? '1 üye daha' : `${n} üye daha`),
     },
     listsColumn: {
       eyebrow: 'Listeler',
@@ -722,8 +728,7 @@ export const strings = {
        * boş listede `cardCount(0)` gösterilir.
        */
       progress: (done: number, total: number) => `${done}/${total}`,
-      progressLabel: (done: number, total: number) =>
-        `${done} kart tamamlandı, toplam ${total}`,
+      progressLabel: (done: number, total: number) => `${done} kart tamamlandı, toplam ${total}`,
       /**
        * Listede vadesi geçmiş + tamamlanmamış kart sayısı için kırmızı mikro-rozet.
        * 0 ise render edilmez.
@@ -740,8 +745,7 @@ export const strings = {
       count: (n: number) => `${n} kart`,
       addLabel: 'Yeni kart oluştur',
       completedToggleLabel: (title: string) => `"${title}" kartını tamamlandı işaretle`,
-      completedUntoggleLabel: (title: string) =>
-        `"${title}" kartının tamamlandı işaretini kaldır`,
+      completedUntoggleLabel: (title: string) => `"${title}" kartının tamamlandı işaretini kaldır`,
       openInBoard: (title: string) => `"${title}" kartını panoda aç`,
       dueOverdue: 'Vadesi geçti',
       dueToday: 'Bugün',
@@ -929,8 +933,7 @@ export const strings = {
       dropdownTitle: 'Pano ayarları',
       membersDropdownTitle: 'Üyeler ve davetler',
       labelsDropdownTitle: 'Pano etiketleri',
-      pendingRequestsBadge: (count: number) =>
-        `${count} bekleyen erişim talebi`,
+      pendingRequestsBadge: (count: number) => `${count} bekleyen erişim talebi`,
       backToBoard: 'Panoya dön',
       generalTitle: 'Genel',
       generalDescription: 'Pano adı ve ikonunu düzenleyin.',
@@ -1183,8 +1186,7 @@ export const strings = {
       shareCopied: 'Pano bağlantısı kopyalandı.',
       shareFailed: 'Bağlantı kopyalanamadı.',
       members: 'Üyeler',
-      membersWithRequests: (count: number) =>
-        `Üyeler — ${count} bekleyen erişim talebi`,
+      membersWithRequests: (count: number) => `Üyeler — ${count} bekleyen erişim talebi`,
       labels: 'Etiketler',
       settings: 'Ayarlar',
       search: 'Bu panoda ara',
@@ -1355,8 +1357,7 @@ export const strings = {
       // aria-live announcements while dragging (best-effort).
       announceCardGrabbed: 'Kart kaldırıldı. Bırakmak için fareyi taşıyın.',
       announceListGrabbed: 'Liste kaldırıldı. Bırakmak için fareyi taşıyın.',
-      announceQuickNoteGrabbed:
-        'Hızlı not kaldırıldı. Karta çevirmek için bir listeye bırakın.',
+      announceQuickNoteGrabbed: 'Hızlı not kaldırıldı. Karta çevirmek için bir listeye bırakın.',
       announceDropped: 'Bırakıldı.',
     },
     // Planlayıcı paneli (Faz 16B / DEM-311) — sol kenarda 3. global panel.
@@ -1380,12 +1381,12 @@ export const strings = {
       emptyDay: 'Bu gün için etkinlik yok.',
       allDayLabel: 'Tüm gün',
       reconnectTitle: 'Bağlantı süresi doldu',
-      reconnectBody: 'Google Takvim bağlantın yenilenmeli. Ayarlar > Entegrasyonlar üzerinden tekrar bağla.',
+      reconnectBody:
+        'Google Takvim bağlantın yenilenmeli. Ayarlar > Entegrasyonlar üzerinden tekrar bağla.',
       reconnectCta: 'Bağlantıyı yenile',
       notConnected: {
         title: 'Planlayıcı',
-        body:
-          'Planlayıcıyı ve yapılacak işlerini yan yana görüntülemek için takvimini bağla.',
+        body: 'Planlayıcıyı ve yapılacak işlerini yan yana görüntülemek için takvimini bağla.',
         cta: 'Hesap bağla',
         hint: 'Planlayıcını yalnızca sen görürsün.',
       },
@@ -1397,7 +1398,7 @@ export const strings = {
         untitled: '(Başlıksız)',
         loadError: 'Etkinlik yüklenemedi.',
         close: 'Kapat',
-        openInGoogle: 'Google\'da aç',
+        openInGoogle: "Google'da aç",
         location: 'Konum',
         description: 'Açıklama',
         attendees: 'Katılımcılar',
@@ -1457,7 +1458,8 @@ export const strings = {
       emptyDescription:
         'Bir karta sorumlu olarak atandığında burada görünür. Bir karta kendini ekleyerek başlayabilirsin.',
       loadErrorTitle: 'Görevler yüklenemedi',
-      hasMoreHint: (count: number) => `${count}+ görev — daha eskilerini görmek için kartı doğrudan açın.`,
+      hasMoreHint: (count: number) =>
+        `${count}+ görev — daha eskilerini görmek için kartı doğrudan açın.`,
       dueLabel: (label: string) => `Vade: ${label}`,
       noDueLabel: 'Vade yok',
       contextSeparator: ' · ',
@@ -1475,7 +1477,7 @@ export const strings = {
       loadingMore: 'Yükleniyor…',
       emptyTitle: 'Aktivite yok',
       emptyDescription:
-        'Erişebildiğin board\'larda henüz bir hareket olmamış. Bir kart oluştur, taşı veya bir yorum yaz.',
+        "Erişebildiğin board'larda henüz bir hareket olmamış. Bir kart oluştur, taşı veya bir yorum yaz.",
       emptyFilteredTitle: 'Bu filtre için aktivite yok',
       emptyFilteredDescription: 'Farklı bir filtre seçmeyi veya temizlemeyi dene.',
       loadErrorTitle: 'Aktivite akışı yüklenemedi',
@@ -1562,8 +1564,7 @@ export const strings = {
       toggle: 'Yenilikler',
       open: 'Yenilikler panelini aç',
       close: 'Yenilikler panelini kapat',
-      description:
-        'Pusula\'da çıkan yeni özellikler, iyileştirmeler ve güvenlik güncellemeleri.',
+      description: "Pusula'da çıkan yeni özellikler, iyileştirmeler ve güvenlik güncellemeleri.",
       /** Panelin altındaki "Tam sayfayı aç" linki (`/yenilikler`'e gider). */
       openFullPage: 'Tam sayfada aç',
     },
@@ -1966,13 +1967,13 @@ export const strings = {
     integrations: {
       sectionTitle: 'Entegrasyonlar',
       sectionDescription:
-        'Pusula\'yı kullandığın diğer servislere bağla. Bağlantılar yalnız sana özeldir; çalışma alanı veya pano üyelerinin görmediği kişisel verilerdir.',
+        "Pusula'yı kullandığın diğer servislere bağla. Bağlantılar yalnız sana özeldir; çalışma alanı veya pano üyelerinin görmediği kişisel verilerdir.",
       loading: 'Bağlantılar yükleniyor…',
       loadError: 'Bağlantı durumu okunamadı. Sayfayı yenileyip tekrar dene.',
       google: {
         title: 'Google Takvim',
         description:
-          'Takvim etkinliklerini Pusula\'nın Planlayıcı panelinde salt-okunur olarak görürsün. Pusula etkinliklerini değiştirmez veya silmez.',
+          "Takvim etkinliklerini Pusula'nın Planlayıcı panelinde salt-okunur olarak görürsün. Pusula etkinliklerini değiştirmez veya silmez.",
         notConnected: 'Bağlı değil',
         connected: 'Bağlı',
         connectedAt: '{date} tarihinde bağlandın.',
@@ -1980,15 +1981,14 @@ export const strings = {
         disconnect: 'Bağlantıyı kes',
         disconnectConfirmTitle: 'Google Takvim bağlantısı kesilsin mi?',
         disconnectConfirmBody:
-          'Planlayıcı paneli boş kalır; ihtiyaç olduğunda yeniden bağlayabilirsin. Pusula\'da saklanan takvim verisi yok.',
+          "Planlayıcı paneli boş kalır; ihtiyaç olduğunda yeniden bağlayabilirsin. Pusula'da saklanan takvim verisi yok.",
         disconnectConfirm: 'Bağlantıyı kes',
         disconnectCancel: 'Vazgeç',
         connectError: 'Bağlantı başlatılamadı. Daha sonra tekrar dene.',
         disconnectError: 'Bağlantı kesilemedi. Daha sonra tekrar dene.',
         disabled: {
           title: 'Bu özellik henüz hazır değil',
-          body:
-            'Yönetici Google Takvim entegrasyonunu etkinleştirmemiş. Daha sonra tekrar gel.',
+          body: 'Yönetici Google Takvim entegrasyonunu etkinleştirmemiş. Daha sonra tekrar gel.',
         },
         privacy: 'Yalnızca sen görebilirsin.',
       },
@@ -2022,13 +2022,14 @@ export const strings = {
         disabledByGlobalEmail: 'Önce genel e-postayı aç.',
         disabledByGlobalPush: 'Önce genel push bildirimini aç.',
         unavailable: 'Bu kanal bu bildirim tipi için mevcut değil.',
-        typeToggleHint:
-          'Şu an global kanal toggle’ı geçerli; tip-bazlı ayar yakında.',
+        typeToggleHint: 'Şu an global kanal toggle’ı geçerli; tip-bazlı ayar yakında.',
         groups: {
           mentions: 'Atama & sözedilme',
           comment: 'Yorum',
           dueDate: 'Bitiş tarihi',
           lifecycle: 'Kart yaşam döngüsü',
+          boardLifecycle: 'Pano & liste yaşam döngüsü',
+          label: 'Etiketler',
           membership: 'Üyelik',
           invitations: 'Davet',
         },
@@ -2064,6 +2065,20 @@ export const strings = {
           boardAccessRequested: 'Pano erişim talebi',
           boardInvitation: 'Pano daveti',
           workspaceInvitation: 'Çalışma alanı daveti',
+          // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
+          cardCreated: 'Kart oluşturuldu',
+          listCreated: 'Liste oluşturuldu',
+          listRenamed: 'Liste yeniden adlandırıldı',
+          listMoved: 'Liste taşındı',
+          listArchived: 'Liste arşivlendi',
+          listDeleted: 'Liste silindi',
+          boardCreated: 'Pano oluşturuldu',
+          boardRenamed: 'Pano yeniden adlandırıldı',
+          boardArchived: 'Pano arşivlendi',
+          boardBackgroundChanged: 'Pano arka planı değişti',
+          labelCreated: 'Etiket oluşturuldu',
+          labelUpdated: 'Etiket güncellendi',
+          labelDeleted: 'Etiket silindi',
         },
       },
       scopes: {
@@ -2270,7 +2285,8 @@ export const strings = {
       avatarUploadHelp: 'JPG, PNG veya WebP — en fazla 10 MB.',
       imageLabel: 'veya görsel bağlantısı (URL)',
       imagePlaceholder: 'https://…',
-      imageHelp: 'Dosya yüklemek yerine bir bağlantı da kullanabilirsin. Boş bırakırsan avatar kaldırılır.',
+      imageHelp:
+        'Dosya yüklemek yerine bir bağlantı da kullanabilirsin. Boş bırakırsan avatar kaldırılır.',
       avatarTypeError: 'Yalnızca JPG, PNG veya WebP yükleyebilirsin.',
       avatarSizeError: 'Görsel en fazla 10 MB olabilir.',
       avatarUploadError: 'Görsel yüklenemedi. Lütfen tekrar dene.',
@@ -2384,8 +2400,7 @@ export const strings = {
       workspaceLabel: 'Çalışma alanı:',
       sharedByLabel: 'Paylaşan:',
       unknownSharer: 'Bir kullanıcı',
-      noRealtimeNotice:
-        'Bu sayfa canlı güncellenmez. Yeni içeriği görmek için sayfayı yenileyin.',
+      noRealtimeNotice: 'Bu sayfa canlı güncellenmez. Yeni içeriği görmek için sayfayı yenileyin.',
       labelsHeading: 'Etiketler',
       membersHeading: 'Kart üyeleri',
       descriptionHeading: 'Açıklama',

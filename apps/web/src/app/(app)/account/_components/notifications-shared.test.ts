@@ -62,14 +62,17 @@ describe('notifications-shared MATRIX_ROWS', () => {
     }
   });
 
-  it('exposes 29 rows (one per produced NotificationType)', () => {
+  it('exposes 42 rows (one per produced NotificationType)', () => {
     // DEM-152 — 11 → 17: `watched_activity` çıkarıldı (artık üretilmiyor,
     // enum'da fallback), 7 granular kart-aktivite tipi eklendi.
     // DEM-153 — 17 → 27: kartla ilgili kalan 10 granular aksiyon tipi eklendi
     // (başlık/açıklama/etiket/yorum düzenle-sil/checklist/ek kaldırma).
     // DEM-175 — 27 → 28: `board_member_added` (doğrudan board ekleme).
     // DEM-213 — 28 → 29: `board_access_requested` (board erişim talebi).
-    expect(MATRIX_ROWS).toHaveLength(29);
+    // Bildirim kapsamı genişletme — Faz 2 (2026-06-03) — 29 → 42: kart oluşturma
+    // + liste yaşam döngüsü (5) + board yaşam döngüsü (4) + etiket CRUD (3) =
+    // 13 yeni granular tip (hepsi in-app + push, email opt-in DEĞİL).
+    expect(MATRIX_ROWS).toHaveLength(42);
   });
 
   it('every row carries a valid group + i18nKey + channel state set', () => {

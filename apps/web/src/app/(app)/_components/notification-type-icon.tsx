@@ -6,17 +6,22 @@ import {
   CalendarClockIcon,
   CheckCircleIcon,
   ClockIcon,
+  Columns3Icon,
+  FilePlusIcon,
   FileTextIcon,
   ImageIcon,
   KeyRoundIcon,
+  LayoutGridIcon,
   ListChecksIcon,
   ListPlusIcon,
   ListXIcon,
   MailIcon,
   MessageSquareIcon,
+  PaintbrushIcon,
   PaperclipIcon,
   PencilIcon,
   TagIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   UserMinusIcon,
   UserPlusIcon,
@@ -121,6 +126,49 @@ export function notificationTypeIcon(type: string, className?: string) {
       return <FileTextIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
     case 'report_render_failed':
       return <TriangleAlertIcon className={cn(iconClass, 'text-red-500')} aria-hidden />;
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü; her tip kendi ikonu +
+    // rengiyle. `payload.activityType` ile yön ayrımı (arşivle/geri al) özet
+    // metninde yapılır — ikon tip-bazlı sabit.
+    case 'card_created':
+    case 'card.created':
+      return <FilePlusIcon className={cn(iconClass, 'text-blue-500')} aria-hidden />;
+    case 'list_created':
+    case 'list.created':
+      return <ListPlusIcon className={cn(iconClass, 'text-teal-500')} aria-hidden />;
+    case 'list_renamed':
+    case 'list.renamed':
+      return <PencilIcon className={cn(iconClass, 'text-teal-500')} aria-hidden />;
+    case 'list_moved':
+    case 'list.moved':
+      return <Columns3Icon className={cn(iconClass, 'text-teal-500')} aria-hidden />;
+    case 'list_archived':
+    case 'list.archived':
+      return <ArchiveIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    case 'list_deleted':
+    case 'list.deleted':
+      return <Trash2Icon className={cn(iconClass, 'text-rose-500')} aria-hidden />;
+    case 'board_created':
+    case 'board.created':
+      return <LayoutGridIcon className={cn(iconClass, 'text-indigo-500')} aria-hidden />;
+    case 'board_renamed':
+    case 'board.renamed':
+      return <PencilIcon className={cn(iconClass, 'text-indigo-500')} aria-hidden />;
+    case 'board_archived':
+    case 'board.archived':
+      return <ArchiveIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
+    case 'board_background_changed':
+    case 'board.background_changed':
+      return <PaintbrushIcon className={cn(iconClass, 'text-fuchsia-500')} aria-hidden />;
+    case 'label_created':
+    case 'label.created':
+      return <TagIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
+    case 'label_updated':
+    case 'label.updated':
+      return <TagIcon className={cn(iconClass, 'text-amber-500')} aria-hidden />;
+    case 'label_deleted':
+    case 'label.deleted':
+      return <TagIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
     default:
       return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
   }

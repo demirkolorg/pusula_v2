@@ -18,6 +18,36 @@ function boardName(payload: ActivityPayload): string {
 }
 
 /**
+ * Liste adı — yeniden adlandırmada `toTitle` (yeni başlık), oluşturma/silmede
+ * `title`, taşımada hiç ad taşınmaz (payload yalnız pozisyon). Hiçbiri yoksa
+ * entity-bağımsız jenerik yedek. Bkz. `notification-rules.ts:buildPayload`
+ * whitelist (`title`/`toTitle`/`name`).
+ */
+function listName(payload: ActivityPayload): string {
+  return (
+    text(payload, 'toTitle') ??
+    text(payload, 'title') ??
+    text(payload, 'name') ??
+    strings.notifications.fallbackListName
+  );
+}
+
+/** Etiket adı — `name` payload alanı (label CRUD); yoksa jenerik yedek. */
+function labelName(payload: ActivityPayload): string {
+  return text(payload, 'name') ?? strings.notifications.fallbackLabelName;
+}
+
+/** Board adı — rename sonrası yeni başlık (`toTitle`) varsa onu yeğle. */
+function boardTitle(payload: ActivityPayload): string {
+  return text(payload, 'toTitle') ?? boardName(payload);
+}
+
+/** `payload.archived` boolean'ından arşivleme yönünü çözer (true = arşivlendi). */
+function isArchived(payload: ActivityPayload): boolean {
+  return payload.archived !== false;
+}
+
+/**
  * Notification summary copy without the actor prefix. Notification rows render
  * the actor separately so the name can stay bold while the action text remains
  * reusable and testable.
@@ -149,6 +179,48 @@ export function activitySummary(type: string, payload: unknown): string {
       return copy.reportRenderCompleted(text(p, 'format') ?? 'pdf');
     case 'report_render_failed':
       return copy.reportRenderFailed(text(p, 'format') ?? 'pdf');
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü özetleri. Arşivleme
+    // tipleri `payload.archived` yönüne göre arşivle/geri al metnini seçer.
+    case 'card_created':
+    case 'card.created':
+      return copy.cardCreated(cardTitle(p));
+    case 'list_created':
+    case 'list.created':
+      return copy.listCreated(listName(p));
+    case 'list_renamed':
+    case 'list.renamed':
+      return copy.listRenamed(listName(p));
+    case 'list_moved':
+    case 'list.moved':
+      return copy.listMoved(listName(p));
+    case 'list_archived':
+    case 'list.archived':
+      return isArchived(p) ? copy.listArchived(listName(p)) : copy.listUnarchived(listName(p));
+    case 'list_deleted':
+    case 'list.deleted':
+      return copy.listDeleted(listName(p));
+    case 'board_created':
+    case 'board.created':
+      return copy.boardCreated(boardTitle(p));
+    case 'board_renamed':
+    case 'board.renamed':
+      return copy.boardRenamed(boardTitle(p));
+    case 'board_archived':
+    case 'board.archived':
+      return isArchived(p) ? copy.boardArchived(boardName(p)) : copy.boardUnarchived(boardName(p));
+    case 'board_background_changed':
+    case 'board.background_changed':
+      return copy.boardBackgroundChanged(boardName(p));
+    case 'label_created':
+    case 'label.created':
+      return copy.labelCreated(labelName(p));
+    case 'label_updated':
+    case 'label.updated':
+      return copy.labelUpdated(labelName(p));
+    case 'label_deleted':
+    case 'label.deleted':
+      return copy.labelDeleted(labelName(p));
     default:
       return copy.default;
   }

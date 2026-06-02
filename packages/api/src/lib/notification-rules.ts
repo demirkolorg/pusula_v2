@@ -458,9 +458,7 @@ async function collectRecipients(
         const adminRows = await tx
           .select({ userId: boardMembers.userId })
           .from(boardMembers)
-          .where(
-            and(eq(boardMembers.boardId, event.boardId), eq(boardMembers.role, 'admin')),
-          );
+          .where(and(eq(boardMembers.boardId, event.boardId), eq(boardMembers.role, 'admin')));
         for (const r of adminRows) candidates.add(r.userId);
       }
       const wsAdminRows = await tx
@@ -774,8 +772,14 @@ function buildPayload(
     // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — liste yaşam döngüsü
     // bildirimleri ilgili listeye derin link verir; etiket bildirimleri etiket
     // adını önizlemede gösterir. `name` etiket CRUD payload'ından gelir.
+    // `toTitle` liste/board yeniden adlandırma sonrası yeni başlığı, `archived`
+    // liste/board arşivleme yönünü (arşivle/geri al), `color` etiket rengini
+    // bildirim özet metnine taşır — hepsi kullanıcıya görünür, gizli alan değil.
     'listId',
     'name',
+    'toTitle',
+    'archived',
+    'color',
     'fromListId',
     'toListId',
     'fromBoardId',

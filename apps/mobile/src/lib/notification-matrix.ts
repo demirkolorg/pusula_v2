@@ -34,6 +34,8 @@ export type MatrixGroupKey =
   | 'comment'
   | 'dueDate'
   | 'lifecycle'
+  | 'boardLifecycle'
+  | 'label'
   | 'membership'
   | 'invitations';
 
@@ -50,6 +52,8 @@ export const MATRIX_GROUPS: readonly MatrixGroupKey[] = [
   'comment',
   'dueDate',
   'lifecycle',
+  'boardLifecycle',
+  'label',
   'membership',
   'invitations',
 ];
@@ -192,6 +196,87 @@ export const MATRIX_ROWS: readonly MatrixRow[] = [
     type: 'checklist_item_completed',
     i18nKey: 'checklistItemCompleted',
     group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Web
+  // `MATRIX_ROWS` ile birebir simetrik. Hepsi in-app + push (email opt-in
+  // listesinde DEĞİL); push 2026-06-01 expansion gereği `'on'`.
+  {
+    type: 'card_created',
+    i18nKey: 'cardCreated',
+    group: 'lifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'list_created',
+    i18nKey: 'listCreated',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'list_renamed',
+    i18nKey: 'listRenamed',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'list_moved',
+    i18nKey: 'listMoved',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'list_archived',
+    i18nKey: 'listArchived',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'list_deleted',
+    i18nKey: 'listDeleted',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'board_created',
+    i18nKey: 'boardCreated',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'board_renamed',
+    i18nKey: 'boardRenamed',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'board_archived',
+    i18nKey: 'boardArchived',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'board_background_changed',
+    i18nKey: 'boardBackgroundChanged',
+    group: 'boardLifecycle',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'label_created',
+    i18nKey: 'labelCreated',
+    group: 'label',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'label_updated',
+    i18nKey: 'labelUpdated',
+    group: 'label',
+    channels: { in_app: 'on', email: 'unavailable', push: 'on' },
+  },
+  {
+    type: 'label_deleted',
+    i18nKey: 'labelDeleted',
+    group: 'label',
     channels: { in_app: 'on', email: 'unavailable', push: 'on' },
   },
   {

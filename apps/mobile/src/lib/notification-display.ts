@@ -113,6 +113,45 @@ export function notificationTypeIcon(type: string): IconName {
     case 'board_access_requested':
     case 'board.access_requested':
       return 'key';
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü. Web `lucide`
+    // karşılıklarının Feather eşlenikleri (görsel dil tutarlı).
+    case 'card_created':
+    case 'card.created':
+      return 'file-plus';
+    case 'list_created':
+    case 'list.created':
+      return 'plus-square';
+    case 'list_renamed':
+    case 'list.renamed':
+      return 'edit-2';
+    case 'list_moved':
+    case 'list.moved':
+      return 'columns';
+    case 'list_archived':
+    case 'list.archived':
+    case 'board_archived':
+    case 'board.archived':
+      return 'archive';
+    case 'list_deleted':
+    case 'list.deleted':
+      return 'trash-2';
+    case 'board_created':
+    case 'board.created':
+      return 'grid';
+    case 'board_renamed':
+    case 'board.renamed':
+      return 'edit-2';
+    case 'board_background_changed':
+    case 'board.background_changed':
+      return 'droplet';
+    case 'label_created':
+    case 'label.created':
+    case 'label_updated':
+    case 'label.updated':
+    case 'label_deleted':
+    case 'label.deleted':
+      return 'tag';
     default:
       return 'message-square';
   }
@@ -138,15 +177,42 @@ function boardNameOf(payload: NotificationPayloadRecord): string {
 }
 
 /**
+ * Liste adı — yeniden adlandırmada `toTitle`, oluşturma/silmede `title`,
+ * taşımada ad taşınmaz. Hiçbiri yoksa entity-bağımsız jenerik yedek. Web
+ * `activity-summary.ts:listName` ile aynı.
+ */
+function listNameOf(payload: NotificationPayloadRecord): string {
+  return (
+    payloadText(payload, 'toTitle') ??
+    payloadText(payload, 'title') ??
+    payloadText(payload, 'name') ??
+    strings.notifications.fallbackListName
+  );
+}
+
+/** Etiket adı — `name` payload alanı; yoksa jenerik yedek. */
+function labelNameOf(payload: NotificationPayloadRecord): string {
+  return payloadText(payload, 'name') ?? strings.notifications.fallbackLabelName;
+}
+
+/** Board adı — rename sonrası yeni başlık (`toTitle`) varsa onu yeğle. */
+function boardTitleOf(payload: NotificationPayloadRecord): string {
+  return payloadText(payload, 'toTitle') ?? boardNameOf(payload);
+}
+
+/** `payload.archived` boolean'ından arşivleme yönünü çözer (true = arşivlendi). */
+function isArchivedOf(payload: NotificationPayloadRecord): boolean {
+  return payload.archived !== false;
+}
+
+/**
  * Bildirim satırının aktör-prefixsiz özet metni — web `activity-summary.ts`'in
  * mobil karşılığı. Satır aktör adını ayrı (kalın) basar; bu metin yeniden
  * kullanılabilir + test edilebilir kalsın diye aktör adını içermez.
  */
 export function notificationSummary(type: string, payload: unknown): string {
   const p: NotificationPayloadRecord =
-    typeof payload === 'object' && payload !== null
-      ? (payload as NotificationPayloadRecord)
-      : {};
+    typeof payload === 'object' && payload !== null ? (payload as NotificationPayloadRecord) : {};
   const copy = strings.notifications.summary;
 
   switch (type) {
@@ -248,6 +314,52 @@ export function notificationSummary(type: string, payload: unknown): string {
       return copy.checklistItemCompleted(cardTitleOf(p));
     case 'watched_activity':
       return copy.watchedActivity(cardTitleOf(p));
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü. Web `activity-summary.ts`
+    // ile aynı metin seti (mobil `strings.notifications.summary` kopyası).
+    case 'card_created':
+    case 'card.created':
+      return copy.cardCreated(cardTitleOf(p));
+    case 'list_created':
+    case 'list.created':
+      return copy.listCreated(listNameOf(p));
+    case 'list_renamed':
+    case 'list.renamed':
+      return copy.listRenamed(listNameOf(p));
+    case 'list_moved':
+    case 'list.moved':
+      return copy.listMoved(listNameOf(p));
+    case 'list_archived':
+    case 'list.archived':
+      return isArchivedOf(p)
+        ? copy.listArchived(listNameOf(p))
+        : copy.listUnarchived(listNameOf(p));
+    case 'list_deleted':
+    case 'list.deleted':
+      return copy.listDeleted(listNameOf(p));
+    case 'board_created':
+    case 'board.created':
+      return copy.boardCreated(boardTitleOf(p));
+    case 'board_renamed':
+    case 'board.renamed':
+      return copy.boardRenamed(boardTitleOf(p));
+    case 'board_archived':
+    case 'board.archived':
+      return isArchivedOf(p)
+        ? copy.boardArchived(boardNameOf(p))
+        : copy.boardUnarchived(boardNameOf(p));
+    case 'board_background_changed':
+    case 'board.background_changed':
+      return copy.boardBackgroundChanged(boardNameOf(p));
+    case 'label_created':
+    case 'label.created':
+      return copy.labelCreated(labelNameOf(p));
+    case 'label_updated':
+    case 'label.updated':
+      return copy.labelUpdated(labelNameOf(p));
+    case 'label_deleted':
+    case 'label.deleted':
+      return copy.labelDeleted(labelNameOf(p));
     default:
       return copy.default;
   }
@@ -256,8 +368,6 @@ export function notificationSummary(type: string, payload: unknown): string {
 /** Bildirim payload'ından aktör adını okur (yoksa `null`). */
 export function notificationActorName(payload: unknown): string | null {
   const p: NotificationPayloadRecord =
-    typeof payload === 'object' && payload !== null
-      ? (payload as NotificationPayloadRecord)
-      : {};
+    typeof payload === 'object' && payload !== null ? (payload as NotificationPayloadRecord) : {};
   return payloadText(p, 'actorName') ?? null;
 }

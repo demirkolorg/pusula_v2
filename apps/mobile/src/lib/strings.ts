@@ -527,6 +527,8 @@ export const strings = {
     fallbackCardTitle: 'bu kart',
     fallbackBoardName: 'bu pano',
     fallbackWorkspaceName: 'bu çalışma alanı',
+    fallbackListName: 'bir liste',
+    fallbackLabelName: 'bir etiket',
     // Tarih grup başlıkları (web bildirim merkezi simetrisi).
     groups: {
       today: 'Bugün',
@@ -578,6 +580,23 @@ export const strings = {
       checklistItemRemoved: (cardTitle: string) =>
         `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
       attachmentRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir dosya kaldırdı`,
+      // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
+      cardCreated: (cardTitle: string) => `"${cardTitle}" kartını oluşturdu`,
+      listCreated: (listName: string) => `"${listName}" listesini oluşturdu`,
+      listRenamed: (listName: string) => `bir listenin adını "${listName}" yaptı`,
+      listMoved: (listName: string) => `"${listName}" listesini taşıdı`,
+      listArchived: (listName: string) => `"${listName}" listesini arşivledi`,
+      listUnarchived: (listName: string) => `"${listName}" listesini arşivden çıkardı`,
+      listDeleted: (listName: string) => `"${listName}" listesini sildi`,
+      boardCreated: (boardName: string) => `"${boardName}" panosunu oluşturdu`,
+      boardRenamed: (boardName: string) => `bir panonun adını "${boardName}" yaptı`,
+      boardArchived: (boardName: string) => `"${boardName}" panosunu arşivledi`,
+      boardUnarchived: (boardName: string) => `"${boardName}" panosunu arşivden çıkardı`,
+      boardBackgroundChanged: (boardName: string) =>
+        `"${boardName}" panosunun arka planını değiştirdi`,
+      labelCreated: (labelName: string) => `"${labelName}" etiketini oluşturdu`,
+      labelUpdated: (labelName: string) => `"${labelName}" etiketini güncelledi`,
+      labelDeleted: (labelName: string) => `"${labelName}" etiketini sildi`,
       default: 'bir işlem yaptı',
     },
   },
@@ -621,6 +640,8 @@ export const strings = {
         comment: 'Yorum',
         dueDate: 'Teslim tarihi',
         lifecycle: 'Kart aktivitesi',
+        boardLifecycle: 'Pano & liste aktivitesi',
+        label: 'Etiketler',
         membership: 'Üyelik',
         invitations: 'Davetler',
       },
@@ -654,6 +675,20 @@ export const strings = {
         boardAccessRequested: 'Pano erişim talebi',
         boardInvitation: 'Pano daveti',
         workspaceInvitation: 'Çalışma alanı daveti',
+        // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
+        cardCreated: 'Kart oluşturuldu',
+        listCreated: 'Liste oluşturuldu',
+        listRenamed: 'Liste yeniden adlandırıldı',
+        listMoved: 'Liste taşındı',
+        listArchived: 'Liste arşivlendi',
+        listDeleted: 'Liste silindi',
+        boardCreated: 'Pano oluşturuldu',
+        boardRenamed: 'Pano yeniden adlandırıldı',
+        boardArchived: 'Pano arşivlendi',
+        boardBackgroundChanged: 'Pano arka planı değişti',
+        labelCreated: 'Etiket oluşturuldu',
+        labelUpdated: 'Etiket güncellendi',
+        labelDeleted: 'Etiket silindi',
       },
     },
     // Scope override bölümü.
@@ -753,7 +788,8 @@ export const strings = {
     avatarRejectEmpty: 'Görsel okunamadı veya boş görünüyor.',
     // Kamera/galeri izin akışı (permission priming) — avatara özel gövde.
     avatarPermissionCameraBody: 'Profil fotoğrafı çekmek için kamera erişimine izin ver.',
-    avatarPermissionGalleryBody: 'Galeriden profil fotoğrafı seçmek için fotoğraf erişimine izin ver.',
+    avatarPermissionGalleryBody:
+      'Galeriden profil fotoğrafı seçmek için fotoğraf erişimine izin ver.',
   },
   // Hesap silme ekranı (DEM-212).
   deleteAccount: {
@@ -762,8 +798,7 @@ export const strings = {
     row: 'Hesabı sil',
     // Geri-alınamaz uyarısı.
     warningTitle: 'Bu işlem geri alınamaz',
-    warningBody:
-      'Hesabın ve tüm verilerin kalıcı olarak silinecek. Bu işlemi geri alamazsın.',
+    warningBody: 'Hesabın ve tüm verilerin kalıcı olarak silinecek. Bu işlemi geri alamazsın.',
     // Parola doğrulama alanı.
     passwordLabel: 'Parola',
     passwordPlaceholder: 'Parolanı gir',
