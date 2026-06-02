@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { useMutation } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
@@ -83,6 +84,10 @@ export default function AccountScreen() {
         }
         clearRegisteredPushToken();
       }
+      // app-icon rozetini sıfırla. React Query `enabled:false` olunca cached
+      // unreadCount'u silmez (AppShell unmount olur, effect 0 yazmaz) — explicit
+      // sıfırlamazsak çıkıştan sonra eski rozet sayısı ikonda takılı kalır.
+      await Notifications.setBadgeCountAsync(0);
       await authClient.signOut();
     } catch (caught) {
       setError(authErrorMessage(caught));

@@ -23,13 +23,16 @@ configureOnlineManager();
 
 // Faz 7L: foreground bildirim sunumu. Uygulama açıkken gelen push da banner +
 // bildirim listesinde gösterilir (SDK 54 alan adları — `shouldShowAlert`
-// deprecated). Ses/badge kapalı; uygulama arka plandayken bildirimi OS gösterir.
+// deprecated). Uygulama arka plandayken bildirimi OS gösterir.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: false,
-    shouldSetBadge: false,
+    // app-icon rozeti: foreground'da gelen push da `aps.badge` değerini ikona
+    // yazsın (arka planda OS zaten uygular). Rozet sayısını backend gönderir;
+    // AppShell `(app)/_layout` okuma sonrası `setBadgeCountAsync` ile günceller.
+    shouldSetBadge: true,
   }),
 });
 

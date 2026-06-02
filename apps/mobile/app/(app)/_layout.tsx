@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { View, useColorScheme } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import * as Notifications from 'expo-notifications';
 import { useQuery } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { ConnectionBanner } from '@/components/connection-banner';
@@ -83,6 +85,17 @@ export default function AppLayout() {
     enabled: !!session,
   });
   const unreadCount = unreadQuery.data?.count ?? 0;
+
+  // iOS app-icon rozetini okunmamış sayıyla senkronize tut. Backend push'ta
+  // `aps.badge` gönderir (worker notification-push) → uygulama kapalıyken ikon
+  // güncellenir; bu effect uygulama içi okuma (`markRead`/`markAllRead`
+  // unreadCount'u invalidate eder) + foreground refresh sonrası rozeti
+  // düzeltir/sıfırlar. (Logout rozeti `(account)` signOut handler'ı
+  // `setBadgeCountAsync(0)` ile ayrıca temizler — burada cache disable olunca
+  // unreadCount sıfırlanmaz.)
+  useEffect(() => {
+    void Notifications.setBadgeCountAsync(unreadCount);
+  }, [unreadCount]);
 
   if (isPending) return <LoadingScreen />;
   if (!session) return <Redirect href="/sign-in" />;

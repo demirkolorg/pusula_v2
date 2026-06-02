@@ -22,7 +22,13 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as dbMod from '@pusula/db';
-import { notificationOutbox, notificationPreferences, pushTokens, users } from '@pusula/db';
+import {
+  notificationOutbox,
+  notificationPreferences,
+  notifications,
+  pushTokens,
+  users,
+} from '@pusula/db';
 import {
   createDryRunExpoClient,
   processNotificationPushJob,
@@ -122,6 +128,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationPreferences)
       .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
+    await db().delete(notifications).where(dbMod.inArray(notifications.recipientId, createdUserIds));
   });
 
   afterAll(async () => {
@@ -133,6 +140,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationPreferences)
       .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
+    await db().delete(notifications).where(dbMod.inArray(notifications.recipientId, createdUserIds));
     await db().delete(users).where(dbMod.inArray(users.id, createdUserIds));
     await probe.pool.end();
   });
@@ -481,5 +489,39 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
       .from(dbMod.pushReceipts)
       .where(dbMod.eq(dbMod.pushReceipts.outboxId, outboxId));
     expect(receipts).toHaveLength(0);
+  });
+
+  it('sends the unread count as the iOS app-icon badge', async () => {
+    await seedToken(aliceId);
+    // Two unread in-app notifications already exist for alice.
+    await db()
+      .insert(notifications)
+      .values([
+        { recipientId: aliceId, type: 'card_assigned', payload: {} },
+        { recipientId: aliceId, type: 'mention', payload: {} },
+      ]);
+    const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
+    const client = capturingClient();
+    await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+
+    const msg = client.sentChunks[0]![0]!;
+    expect(msg.badge).toBe(2);
+  });
+
+  it('badge counts only the recipient unread rows, ignoring read + other users', async () => {
+    await seedToken(aliceId);
+    await db()
+      .insert(notifications)
+      .values([
+        { recipientId: aliceId, type: 'card_assigned', payload: {} },
+        { recipientId: aliceId, type: 'mention', payload: {}, readAt: new Date() },
+        { recipientId: bobId, type: 'card_assigned', payload: {} },
+      ]);
+    const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
+    const client = capturingClient();
+    await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+
+    // alice has 1 unread (the read row + bob's row excluded).
+    expect(client.sentChunks[0]![0]!.badge).toBe(1);
   });
 });

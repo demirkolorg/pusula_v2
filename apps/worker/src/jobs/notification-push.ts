@@ -29,6 +29,7 @@ import { and, eq, inArray, isNull, sql } from '@pusula/db';
 import {
   notificationOutbox,
   notificationPreferences,
+  notifications,
   pushReceipts,
   pushTokens,
   users,
@@ -66,6 +67,10 @@ export interface ExpoPushMessage {
   data?: Record<string, string>;
   sound?: 'default' | null;
   priority?: 'default' | 'normal' | 'high';
+  // iOS app-icon badge count (APNs `aps.badge`). We send the recipient's total
+  // unread notification count so the icon mirrors the in-app badge. Omitted on
+  // Android (no app-icon badge concept there; harmless if ignored).
+  badge?: number;
 }
 
 export interface ExpoPushTicketOk {
@@ -246,6 +251,17 @@ export async function processNotificationPushJob(
       appUrl: config.appUrl,
     });
 
+    // iOS app-icon badge = recipient's total unread count. The in-app
+    // `notifications` row for this event was already written synchronously by
+    // the publish job (it fans `in_app` out before enqueuing `push`), so this
+    // count includes the notification we're pushing right now — the icon badge
+    // mirrors the in-app badge exactly.
+    const [unreadRow] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notifications)
+      .where(and(eq(notifications.recipientId, row.recipientId), isNull(notifications.readAt)));
+    const badge = unreadRow?.count ?? 0;
+
     const messages: ExpoPushMessage[] = tokens.map((t) => ({
       to: t.token,
       title: rendered.title,
@@ -253,6 +269,7 @@ export async function processNotificationPushJob(
       data: rendered.data,
       sound: 'default',
       priority: 'high',
+      badge,
     }));
 
     const chunks = client.chunkPushNotifications(messages);
