@@ -54,6 +54,10 @@ export const CHANGELOG: ChangelogDay[] = [
     label: '2 Haziran 2026',
     entries: [
       {
+        kind: 'improvement',
+        text: 'Anasayfa gezgininde pano satırlarındaki "Ayarlar" ve "Aç" düğmeleri artık satıra sağ tıklayınca açılan menüde toplandı; satır görünümü sadeleşti. Liste satırlarına da sağ tık menüsünden "Aç" eklendi — listenin bağlı olduğu panoyu tek tıkla açabilirsiniz.',
+      },
+      {
         kind: 'fix',
         text: 'Kart açıklamasını düzenlerken uzun metinlerde yaşanan kaydırma sorunu giderildi: artık metin alanı kendi içinde kayar, üstteki biçimlendirme araç çubuğu ile alttaki "Kaydet / Vazgeç" düğmeleri her zaman görünür kalır.',
       },
