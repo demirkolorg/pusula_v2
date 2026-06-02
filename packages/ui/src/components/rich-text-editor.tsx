@@ -448,6 +448,13 @@ export interface RichTextEditorProps {
    */
   onChange?: (serializedValue: string, isEmpty: boolean) => void;
   className?: string;
+  /**
+   * Extra classes for the editable content area (the ProseMirror node). Use to
+   * cap its height + enable its own scroll (e.g. `max-h-[50vh] overflow-y-auto`)
+   * so the sticky toolbar — and any save/cancel actions the caller renders below
+   * the editor — stay in view while a long document scrolls *inside* the field.
+   */
+  contentClassName?: string;
 }
 
 /**
@@ -471,6 +478,7 @@ export function RichTextEditor({
   mentions,
   onChange,
   className,
+  contentClassName,
 }: RichTextEditorProps) {
   const onChangeRef = React.useRef(onChange);
   React.useEffect(() => {
@@ -532,7 +540,7 @@ export function RichTextEditor({
     content: parseRichTextValue(value),
     editorProps: {
       attributes: {
-        class: cn(PROSE_CLASS, 'min-h-[2.5rem] px-3 py-2'),
+        class: cn(PROSE_CLASS, 'min-h-[2.5rem] px-3 py-2', contentClassName),
         ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
       },
     },

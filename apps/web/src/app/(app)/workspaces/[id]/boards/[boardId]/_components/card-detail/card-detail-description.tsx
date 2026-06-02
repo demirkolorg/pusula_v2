@@ -264,6 +264,9 @@ export function CardDetailDescription({
               placeholder={copy.descriptionPlaceholder}
               ariaLabel={copy.descriptionTitle}
               labels={copy.richText}
+              // Uzun metinlerde editör gövdesi kendi içinde scroll etsin —
+              // sticky toolbar + alttaki Kaydet/Vazgeç görünür kalır.
+              contentClassName="pusula-scrollbar max-h-[50vh] overflow-y-auto"
               disabled={pending}
               onChange={(serialized, isEmpty) => {
                 setDraft(serialized);

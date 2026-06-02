@@ -50,6 +50,16 @@ export const CHANGELOG_KIND_META: Record<
 
 export const CHANGELOG: ChangelogDay[] = [
   {
+    date: '2026-06-02',
+    label: '2 Haziran 2026',
+    entries: [
+      {
+        kind: 'fix',
+        text: 'Kart açıklamasını düzenlerken uzun metinlerde yaşanan kaydırma sorunu giderildi: artık metin alanı kendi içinde kayar, üstteki biçimlendirme araç çubuğu ile alttaki "Kaydet / Vazgeç" düğmeleri her zaman görünür kalır.',
+      },
+    ],
+  },
+  {
     date: '2026-06-01',
     label: '1 Haziran 2026',
     entries: [
