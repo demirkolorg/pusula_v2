@@ -43,7 +43,6 @@ import type { Queryable } from '../middleware/board-access';
 import {
   boards,
   boardMembers,
-  cardMembers,
   cards,
   notificationPreferences,
   users,
@@ -225,8 +224,20 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
 // ───────────────────────────────────────────────────────────────────────────
 
 interface EventContext {
-  /** Card members on the event's card, if any (assignee + watcher). */
-  cardMemberIds: Set<string>;
+  /**
+   * Board audience: everyone who can reach the event's board — explicit
+   * `board_members` rows ∪ non-guest workspace members (owner/admin/member see
+   * every board in the workspace). Card-activity events (checklist, comment,
+   * card changes, attachments, …) notify this whole pool.
+   *
+   * 2026-06-03 kullanıcı kararı ("board'daki herkes"): eski kart watcher pool'u
+   * (assignee + watcher) çoğu kartta boştu — kart oluşturan otomatik watcher
+   * olmadığından kimseye bildirim gitmiyordu. Board audience pool'u kullanıcının
+   * "tam kapsam" beklentisini karşılar; gürültü `notification_preferences`
+   * (board/workspace scope mute / push_enabled) + 60 sn cooldown ile kullanıcı
+   * tarafında yönetilir.
+   */
+  boardMemberIds: Set<string>;
 }
 
 interface PayloadContext {
@@ -241,15 +252,25 @@ async function loadEventContext(
   tx: Queryable,
   event: ActivityEventForRules,
 ): Promise<EventContext> {
-  const cardMemberIds = new Set<string>();
-  if (event.cardId) {
-    const rows = await tx
-      .select({ userId: cardMembers.userId })
-      .from(cardMembers)
-      .where(eq(cardMembers.cardId, event.cardId));
-    for (const r of rows) cardMemberIds.add(r.userId);
+  const boardMemberIds = new Set<string>();
+  if (event.boardId) {
+    // Explicit board members (includes guests granted a board seat).
+    const bm = await tx
+      .select({ userId: boardMembers.userId })
+      .from(boardMembers)
+      .where(eq(boardMembers.boardId, event.boardId));
+    for (const r of bm) boardMemberIds.add(r.userId);
+    // Non-guest workspace members see every board in the workspace
+    // (mirrors `effectiveBoardRole` in `@pusula/domain/permissions`).
+    const ws = await tx
+      .select({ userId: workspaceMembers.userId, role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, event.workspaceId));
+    for (const r of ws) {
+      if (r.role !== 'guest') boardMemberIds.add(r.userId);
+    }
   }
-  return { cardMemberIds };
+  return { boardMemberIds };
 }
 
 async function loadPayloadContext(
@@ -341,9 +362,10 @@ async function collectRecipients(
     case 'checklist.item_added':
     case 'checklist.item_removed':
     case 'attachment.removed':
-      // The card's watcher pool — assignees + watchers. The actor is removed
-      // below.
-      for (const userId of ctx.cardMemberIds) candidates.add(userId);
+      // Board audience — everyone who can reach the board (2026-06-03 karar:
+      // "board'daki herkes"). Replaces the old card watcher pool, which was
+      // empty on most cards. Actor self-skip + permission filter apply below.
+      for (const userId of ctx.boardMemberIds) candidates.add(userId);
       break;
     case 'comment.mentioned': {
       const userId = stringField(event.payload, 'mentionedUserId');
