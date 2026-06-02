@@ -293,7 +293,12 @@ services:
   # DEM-276 follow-up: ilk deploy'da `pusula-reports` bucket'ı + policy
   # adımı manuel kaldı, atlandı, 4 gün incident'e sebep oldu — artık otomatik.
   minio-setup:
-    image: minio/mc:latest
+    # Sürüm sabit — `minio/mc:latest` çekimi prod deploy'da "No such image" ile
+    # patladı (2026-06-02). MinIO lisans değişikliği sonrası public mc imajları
+    # 2025-09-07'de donduruldu; `latest` manifest'i güvenilmez. Bu, dondurma
+    # öncesi son kararlı mc sürümü — reprodüklenebilir, `mc admin policy
+    # create/update` ikisi de mevcut.
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       - minio
     volumes:
