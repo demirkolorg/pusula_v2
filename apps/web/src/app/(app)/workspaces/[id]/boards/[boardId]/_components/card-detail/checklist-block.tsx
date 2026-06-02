@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PencilIcon, Trash2Icon } from 'lucide-react';
+import { MoreHorizontalIcon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { checklistTitleSchema } from '@pusula/domain';
 import {
   Button,
@@ -12,11 +12,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Progress,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
@@ -115,24 +117,37 @@ export function ChecklistBlock({
           <h4 className="flex-1 text-sm font-medium break-words">{checklist.title}</h4>
         )}
         {canEdit && !renaming && (
-          <span className="flex shrink-0 items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <span className="flex shrink-0 items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={copy.rename}
-                  onClick={() => {
+                  aria-label={copy.listActions}
+                  // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                  className="size-7 touch:size-11"
+                >
+                  <MoreHorizontalIcon className="size-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
                     setTitleValue(checklist.title);
                     setRenaming(true);
                   }}
                 >
                   <PencilIcon className="size-3.5" aria-hidden />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{copy.rename}</TooltipContent>
-            </Tooltip>
+                  {copy.rename}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                  <Trash2Icon className="size-3.5" aria-hidden />
+                  {copy.delete}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Dialog
               open={deleteOpen}
               onOpenChange={(next) => {
@@ -140,21 +155,6 @@ export function ChecklistBlock({
                 setDeleteOpen(next);
               }}
             >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={copy.delete}
-                    onClick={() => setDeleteOpen(true)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2Icon className="size-3.5" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{copy.delete}</TooltipContent>
-              </Tooltip>
               <DialogContent closeLabel={strings.common.close}>
                 <DialogHeader>
                   <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>

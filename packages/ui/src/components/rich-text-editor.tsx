@@ -455,6 +455,13 @@ export interface RichTextEditorProps {
    * the editor — stay in view while a long document scrolls *inside* the field.
    */
   contentClassName?: string;
+  /**
+   * When `true`, the toolbar is hidden until the editor is focused (or already
+   * holds content) — the field reads as a slim single line at rest and expands
+   * on focus. Used by the compact comment composer (checklist item thread) so a
+   * full editor doesn't dominate an inline, chat-style thread.
+   */
+  collapsibleToolbar?: boolean;
 }
 
 /**
@@ -479,11 +486,17 @@ export function RichTextEditor({
   onChange,
   className,
   contentClassName,
+  collapsibleToolbar = false,
 }: RichTextEditorProps) {
   const onChangeRef = React.useRef(onChange);
   React.useEffect(() => {
     onChangeRef.current = onChange;
   });
+
+  // `collapsibleToolbar`: toolbar yalnız editör odaktayken (veya içerik
+  // doluyken) görünür; boşta alan ince tek satır gibi durur.
+  const [focused, setFocused] = React.useState(false);
+  const [hasContent, setHasContent] = React.useState(false);
 
   // Mention extension is bound once per editor instance via `useMemo`. The
   // `search` callback is read through `mentionsRef` so a parent passing a new
@@ -545,7 +558,15 @@ export function RichTextEditor({
       },
     },
     onUpdate({ editor: ed }) {
-      onChangeRef.current?.(serializeRichTextValue(ed), isRichTextEmpty(ed));
+      const empty = isRichTextEmpty(ed);
+      setHasContent(!empty);
+      onChangeRef.current?.(serializeRichTextValue(ed), empty);
+    },
+    onFocus() {
+      setFocused(true);
+    },
+    onBlur() {
+      setFocused(false);
     },
   });
 
@@ -601,6 +622,7 @@ export function RichTextEditor({
           className,
         )}
       >
+        {(!collapsibleToolbar || focused || hasContent) && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-card px-1 py-1">
           {toolbar === 'full' && (
             <>
@@ -694,6 +716,7 @@ export function RichTextEditor({
             <Link2Icon />
           </ToolbarButton>
         </div>
+        )}
         <EditorContent editor={editor} />
         {suggestion && mentions && (
           <MentionSuggestionPopup

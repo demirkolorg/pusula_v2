@@ -1,12 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquareIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, MessageSquareIcon, PencilIcon, SquareIcon, Trash2Icon } from 'lucide-react';
 import { checklistItemContentSchema } from '@pusula/domain';
 import {
   Avatar,
   Button,
   Checkbox,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   Input,
   Tooltip,
   TooltipContent,
@@ -67,7 +72,9 @@ export function ChecklistItemRow({
 
   return (
     <li className="group/item text-sm">
-      <div className="flex items-start gap-2">
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={!canEdit || editing}>
+          <div className="flex items-start gap-2">
       <Checkbox
         checked={item.completed}
         disabled={!canEdit || pending}
@@ -122,97 +129,115 @@ export function ChecklistItemRow({
         </form>
       ) : (
         <>
-          <span
-            className={
-              item.completed
-                ? 'min-w-0 flex-1 break-words italic text-muted-foreground/70'
-                : 'min-w-0 flex-1 break-words'
-            }
-          >
-            {item.content}
-          </span>
-          {completerName && (
-            <Avatar
-              name={completerName}
-              image={completerImage}
-              size="xs"
-              className="shrink-0"
-            />
-          )}
-          {comments && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
-                  aria-expanded={threadOpen}
-                  // `commentCount > 0` ise rozet hep görünür; 0 ise yalnız
-                  // hover/focus/touch'ta (edit/sil butonlarıyla aynı desen).
-                  className={cn(
-                    'text-muted-foreground hover:text-foreground size-7 shrink-0 gap-1 px-1.5 touch:size-11',
-                    commentCount === 0 &&
-                      'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
-                    threadOpen && 'text-foreground opacity-100',
-                  )}
-                  onClick={() => setThreadOpen((open) => !open)}
-                >
-                  <MessageSquareIcon className="size-3.5" aria-hidden />
-                  {commentCount > 0 && (
-                    <span className="text-[11px] font-medium tabular-nums">{commentCount}</span>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {canEdit && (
-            <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={copy.itemEdit}
-                    disabled={pending}
-                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
-                    className="size-7 touch:size-11"
-                    onClick={() => {
-                      setValue(item.content);
-                      setEditing(true);
-                    }}
-                  >
-                    <PencilIcon className="size-3.5" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{copy.itemEdit}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={copy.itemDelete}
-                    disabled={pending}
-                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
-                    className="text-muted-foreground hover:text-destructive size-7 touch:size-11"
-                    onClick={onDelete}
-                  >
-                    <Trash2Icon className="size-3.5" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{copy.itemDelete}</TooltipContent>
-              </Tooltip>
+          {comments ? (
+            // Yorum mümkünse madde metni tıklanabilir — tıklayınca thread
+            // açılır/kapanır (kart açar gibi). Sağ tık yine context menüyü açar.
+            <button
+              type="button"
+              aria-expanded={threadOpen}
+              onClick={() => setThreadOpen((open) => !open)}
+              className={cn(
+                'focus-visible:ring-ring/60 min-w-0 flex-1 break-words rounded-sm text-left outline-none focus-visible:ring-2',
+                item.completed && 'italic text-muted-foreground/70',
+              )}
+            >
+              {item.content}
+            </button>
+          ) : (
+            <span
+              className={
+                item.completed
+                  ? 'min-w-0 flex-1 break-words italic text-muted-foreground/70'
+                  : 'min-w-0 flex-1 break-words'
+              }
+            >
+              {item.content}
             </span>
+          )}
+          {/* İşlem yapan (tamamlayan) avatarı + yorum rozeti tek bir
+              dikey-ortalı grupta hizalanır. Yorum rozeti satırda kalır —
+              yorum yetkisi (canComment) edit yetkisinden bağımsız ve viewer
+              da thread açabildiği için context menüye taşınmadı.
+              `commentCount > 0` ise rozet hep görünür; 0 ise yalnız
+              hover/focus/touch'ta. Düzenle/sil/tamamla eylemleri maddeye
+              sağ tık (context) menüsünde. */}
+          {(completerName || comments) && (
+            <div className="flex shrink-0 items-center gap-1 self-start">
+              {completerName && (
+                <Avatar name={completerName} image={completerImage} size="xs" />
+              )}
+              {comments && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={
+                        threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle
+                      }
+                      aria-expanded={threadOpen}
+                      className={cn(
+                        'text-muted-foreground hover:text-foreground size-6 gap-1 px-1.5 touch:size-11',
+                        commentCount === 0 &&
+                          'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
+                        threadOpen && 'text-foreground opacity-100',
+                      )}
+                      onClick={() => setThreadOpen((open) => !open)}
+                    >
+                      <MessageSquareIcon className="size-3.5" aria-hidden />
+                      {commentCount > 0 && (
+                        <span className="text-[11px] font-medium tabular-nums">
+                          {commentCount}
+                        </span>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           )}
         </>
       )}
-      </div>
+          </div>
+        </ContextMenuTrigger>
+        {canEdit && !editing && (
+          <ContextMenuContent aria-label={copy.itemActions}>
+            <ContextMenuItem disabled={pending} onSelect={() => onToggle(!item.completed)}>
+              {item.completed ? (
+                <SquareIcon className="size-3.5" aria-hidden />
+              ) : (
+                <CheckIcon className="size-3.5" aria-hidden />
+              )}
+              {item.completed ? copy.itemUntoggleLabel : copy.itemToggleLabel}
+            </ContextMenuItem>
+            {comments && (
+              <ContextMenuItem onSelect={() => setThreadOpen(true)}>
+                <MessageSquareIcon className="size-3.5" aria-hidden />
+                {copy.itemCommentsToggle}
+              </ContextMenuItem>
+            )}
+            <ContextMenuItem
+              disabled={pending}
+              onSelect={() => {
+                setValue(item.content);
+                setEditing(true);
+              }}
+            >
+              <PencilIcon className="size-3.5" aria-hidden />
+              {copy.itemEdit}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" disabled={pending} onSelect={onDelete}>
+              <Trash2Icon className="size-3.5" aria-hidden />
+              {copy.itemDelete}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        )}
+      </ContextMenu>
 
       {comments && threadOpen && (
         <ChecklistItemThread

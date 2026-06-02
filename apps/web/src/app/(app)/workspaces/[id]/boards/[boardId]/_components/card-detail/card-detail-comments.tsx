@@ -1,7 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquareIcon, PencilIcon, SendIcon, Trash2Icon } from 'lucide-react';
+import {
+  MessageSquareIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  SendIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -14,12 +20,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   EmptyState,
   RichTextContent,
   RichTextEditor,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+  cn,
   type MentionSource,
 } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
@@ -55,6 +64,11 @@ type CardCommentComposerProps = {
   error?: string | null;
   /** Optional @-mention picker source (board members) — when omitted, no picker. */
   mentions?: MentionSource;
+  /**
+   * Kompakt varyant: kart kabuğu (border + dolgu + gölge) ve avatar kaldırılır.
+   * Checklist maddesi yorum thread'inde, iç içe kart kalabalığını azaltmak için.
+   */
+  compact?: boolean;
 };
 
 export function CardCommentComposer({
@@ -64,6 +78,7 @@ export function CardCommentComposer({
   pending = false,
   error,
   mentions,
+  compact = false,
 }: CardCommentComposerProps) {
   const copy = strings.card.detail;
   // `null` ⇒ a fresh/empty editor; a non-empty string ⇒ the in-progress draft.
@@ -83,8 +98,14 @@ export function CardCommentComposer({
   };
 
   return (
-    <div className="bg-card focus-within:border-ring/45 flex items-start gap-2 rounded-lg border p-2.5 shadow-xs transition-colors">
-      <Avatar name={viewerName} image={viewerImage} size="sm" />
+    <div
+      className={cn(
+        'flex items-start gap-2',
+        !compact &&
+          'bg-card focus-within:border-ring/45 rounded-lg border p-2.5 shadow-xs transition-colors',
+      )}
+    >
+      {!compact && <Avatar name={viewerName} image={viewerImage} size="sm" />}
       <div className="min-w-0 flex-1 space-y-1.5">
         <div
           onKeyDownCapture={(e) => {
@@ -100,6 +121,8 @@ export function CardCommentComposer({
             placeholder={copy.composer.placeholder}
             labels={richTextLabels}
             toolbar="mini"
+            // Kompakt (thread) composer'da toolbar boşta gizli, odakta açılır.
+            collapsibleToolbar={compact}
             ariaLabel={copy.composer.placeholder}
             disabled={pending}
             mentions={mentions}
@@ -139,6 +162,7 @@ function CommentRow({
   onEdit,
   onDelete,
   mentions,
+  compact = false,
 }: {
   comment: CommentView;
   authorName: string;
@@ -148,6 +172,8 @@ function CommentRow({
   onEdit: (body: string) => void;
   onDelete: () => void;
   mentions?: MentionSource;
+  /** Kompakt varyant: yorum satırı kart kabuğu olmadan render edilir. */
+  compact?: boolean;
 }) {
   const copy = strings.card.comments;
   const detailCopy = strings.card.detail;
@@ -159,8 +185,13 @@ function CommentRow({
   const deleted = comment.deletedAt != null;
 
   return (
-    <li className="group bg-card/55 hover:bg-accent/35 flex items-start gap-2 rounded-lg border p-2.5 transition-colors">
-      <Avatar name={authorName} image={authorImage} size="sm" />
+    <li
+      className={cn(
+        'group flex items-start gap-2 rounded-lg transition-colors',
+        compact ? '' : 'bg-card/55 hover:bg-accent/35 border p-2',
+      )}
+    >
+      <Avatar name={authorName} image={authorImage} size={compact ? 'xs' : 'sm'} />
       <div className="min-w-0 flex-1 space-y-1 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{authorName}</span>
@@ -216,83 +247,84 @@ function CommentRow({
               </Button>
             </div>
           </div>
+        ) : compact ? (
+          // Sohbet baloncuğu — gövde hafif arka planlı, içeriğe göre genişler.
+          <div className="bg-muted/60 w-fit max-w-full rounded-2xl rounded-tl-sm px-3 py-1.5">
+            <RichTextContent value={comment.body} />
+          </div>
         ) : (
           <RichTextContent value={comment.body} />
         )}
+      </div>
 
-        {!deleted && canEdit && !editing && (
-          <div className="flex items-center gap-0.5 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 touch:opacity-100">
-            <Tooltip>
-              <TooltipTrigger asChild>
+      {!deleted && canEdit && !editing && (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={copy.actions}
+                disabled={pending}
+                // Hover/focus/touch'ta belirir; satırı kalabalıklaştırmaz.
+                // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
+                className="-mr-0.5 -mt-0.5 size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 data-[state=open]:opacity-100 touch:size-11 touch:opacity-100"
+              >
+                <MoreHorizontalIcon className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  setDraft(comment.body);
+                  setEditing(true);
+                }}
+              >
+                <PencilIcon className="size-3.5" aria-hidden />
+                {copy.edit}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <Trash2Icon className="size-3.5" aria-hidden />
+                {copy.delete}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog
+            open={deleteOpen}
+            onOpenChange={(next) => {
+              if (pending) return;
+              setDeleteOpen(next);
+            }}
+          >
+            <DialogContent closeLabel={strings.common.close}>
+              <DialogHeader>
+                <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
+                <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={pending}>
+                    {strings.common.cancel}
+                  </Button>
+                </DialogClose>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={copy.edit}
+                  variant="destructive"
                   disabled={pending}
-                  // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
-                  className="size-7 touch:size-11"
                   onClick={() => {
-                    setDraft(comment.body);
-                    setEditing(true);
+                    onDelete();
+                    setDeleteOpen(false);
                   }}
                 >
-                  <PencilIcon className="size-3.5" aria-hidden />
+                  {pending ? copy.deleting : copy.deleteConfirm}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>{copy.edit}</TooltipContent>
-            </Tooltip>
-            <Dialog
-              open={deleteOpen}
-              onOpenChange={(next) => {
-                if (pending) return;
-                setDeleteOpen(next);
-              }}
-            >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={copy.delete}
-                    // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
-                    className="text-muted-foreground hover:text-destructive size-7 touch:size-11"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2Icon className="size-3.5" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{copy.delete}</TooltipContent>
-              </Tooltip>
-              <DialogContent closeLabel={strings.common.close}>
-                <DialogHeader>
-                  <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
-                  <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline" disabled={pending}>
-                      {strings.common.cancel}
-                    </Button>
-                  </DialogClose>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={pending}
-                    onClick={() => {
-                      onDelete();
-                      setDeleteOpen(false);
-                    }}
-                  >
-                    {pending ? copy.deleting : copy.deleteConfirm}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-      </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </li>
   );
 }
@@ -317,6 +349,8 @@ type CardDetailCommentsProps = {
   error?: string | null;
   /** Optional @-mention picker source — forwarded to the inline edit editor. */
   mentions?: MentionSource;
+  /** Kompakt varyant: satırlar kart kabuğu olmadan, daha sıkı aralıkla. */
+  compact?: boolean;
 };
 
 /**
@@ -339,11 +373,12 @@ export function CardDetailComments({
   pending = false,
   error,
   mentions,
+  compact = false,
 }: CardDetailCommentsProps) {
   const copy = strings.card.comments;
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? 'space-y-1' : 'space-y-3'}>
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -351,9 +386,11 @@ export function CardDetailComments({
       )}
 
       {comments.length === 0 ? (
-        <EmptyState icon={<MessageSquareIcon className="size-8" />} message={copy.empty} />
+        compact ? null : (
+          <EmptyState icon={<MessageSquareIcon className="size-8" />} message={copy.empty} />
+        )
       ) : (
-        <ul className="space-y-3">
+        <ul className={compact ? 'space-y-2' : 'space-y-3'}>
           {comments.map((comment) => {
             const canEditThis =
               canComment &&
@@ -380,6 +417,7 @@ export function CardDetailComments({
                 onEdit={(body) => onEdit({ commentId: comment.id, body })}
                 onDelete={() => onDelete(comment.id)}
                 mentions={mentions}
+                compact={compact}
               />
             );
           })}

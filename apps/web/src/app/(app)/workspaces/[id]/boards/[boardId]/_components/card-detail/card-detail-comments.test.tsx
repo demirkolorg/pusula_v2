@@ -61,7 +61,7 @@ describe('<CardDetailComments>', () => {
     expect(screen.getByText(copy.deletedPlaceholder)).toBeInTheDocument();
   });
 
-  it('author may edit/delete their own comment; not others', () => {
+  it('author sees the actions menu on their own comment; not others', () => {
     render(
       <CardDetailComments
         comments={comments}
@@ -73,7 +73,9 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: copy.edit })).toBeInTheDocument();
+    // Tek yorum yazara ait (u1); ikincisi silinmiş → tek bir işlemler menüsü.
+    const menus = screen.getAllByRole('button', { name: copy.actions });
+    expect(menus).toHaveLength(1);
   });
 
   it('editing a legacy plain-text comment and saving without a semantic change is a no-op', async () => {
@@ -92,7 +94,8 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.edit }));
+    await user.click(screen.getByRole('button', { name: copy.actions }));
+    await user.click(screen.getByRole('menuitem', { name: copy.edit }));
     // Editor seeded from the legacy plain text (now a Tiptap JSON serialisation).
     const region = await screen.findByLabelText(copy.edit);
     // Touch the editor so its `onChange` fires with the JSON serialisation, then
@@ -119,7 +122,8 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.edit }));
+    await user.click(screen.getByRole('button', { name: copy.actions }));
+    await user.click(screen.getByRole('menuitem', { name: copy.edit }));
     const region = await screen.findByLabelText(copy.edit);
     await user.click(region);
     await user.keyboard(' güncel');

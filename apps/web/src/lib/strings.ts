@@ -1838,6 +1838,8 @@ export const strings = {
       renameSave: 'Kaydet',
       renameSaving: 'Kaydediliyor…',
       renamePlaceholder: 'Liste adı',
+      // Liste başlığındaki üç nokta menüsü (yeniden adlandır + sil).
+      listActions: 'Liste işlemleri',
       delete: 'Listeyi sil',
       deleting: 'Siliniyor…',
       deleteConfirmTitle: 'Liste silinsin mi?',
@@ -1856,6 +1858,10 @@ export const strings = {
       itemDelete: 'Sil',
       itemDeleting: 'Siliniyor…',
       itemToggleLabel: 'Tamamlandı olarak işaretle',
+      // Maddeye sağ tık menüsündeki işaret kaldırma eylemi.
+      itemUntoggleLabel: 'İşareti kaldır',
+      // Maddeye sağ tık (context) menüsünün erişilebilir adı.
+      itemActions: 'Madde işlemleri',
       overallProgressLabel: 'Toplam ilerleme',
       checklistProgressLabel: 'Liste ilerlemesi',
       // Madde yorum thread'i (DEM — yapılacaklar maddesine yorum).
@@ -1863,8 +1869,6 @@ export const strings = {
       itemCommentsToggleClose: 'Madde yorumlarını kapat',
       itemCommentsCountLabel: 'Madde yorumu',
       itemCommentsThreadLabel: 'Madde yorumları',
-      // Thread içindeki composer'ı açan buton — varsayılan kapalı, kalabalık olmasın.
-      itemCommentsCompose: 'Yorum yap',
     },
     comments: {
       title: 'Yorumlar',
@@ -1874,6 +1878,8 @@ export const strings = {
       adding: 'Ekleniyor…',
       deletedPlaceholder: 'Bu yorum silindi.',
       editedSuffix: '(düzenlendi)',
+      // Yorum satırındaki üç nokta menüsü (düzenle + sil).
+      actions: 'Yorum işlemleri',
       edit: 'Düzenle',
       editSave: 'Kaydet',
       editSaving: 'Kaydediliyor…',
