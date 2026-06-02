@@ -20,6 +20,7 @@ import {
 } from '@pusula/db';
 import {
   NOTIFICATION_USER_CHANNEL,
+  SCHEDULER_TICK_EVENT_ID,
   processNotificationPublishJob,
   type NotificationUserMessage,
 } from './notification-publish';
@@ -527,6 +528,73 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
       const swept = await sweepStaleNotificationEvents(db(), enqueuer);
       expect(swept).toBeGreaterThanOrEqual(1);
       expect(enqueued).toContain(activityId);
+    } finally {
+      await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+    }
+  });
+
+  it('sweeper recovers scheduler-fired (event_id IS NULL) stale rows via the sentinel', async () => {
+    // Regression — push incident 2026-05-31: a due_overdue scheduler tick lost
+    // its best-effort `scheduler:tick` enqueue. These rows have `event_id NULL`
+    // (no triggering activity), so the old `event_id IS NOT NULL` sweep filter
+    // could never recover them → stuck `pending` forever. The sweeper must now
+    // hand the `SCHEDULER_TICK_EVENT_ID` sentinel to the enqueuer.
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: null,
+        channel: 'push',
+        recipientId,
+        type: 'due_overdue',
+        payload: {},
+        createdAt: new Date(Date.now() - 120_000),
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+    try {
+      const enqueued: string[] = [];
+      const swept = await sweepStaleNotificationEvents(db(), {
+        enqueue: async (eventId: string) => {
+          enqueued.push(eventId);
+        },
+      });
+      expect(swept).toBeGreaterThanOrEqual(1);
+      expect(enqueued).toContain(SCHEDULER_TICK_EVENT_ID);
+    } finally {
+      await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+    }
+  });
+
+  it('sweeper does NOT fire the scheduler sentinel for digest_queued NULL rows', async () => {
+    // `digest_queued` rows are owned by the email-digest cron; the scheduler
+    // recovery branch must exclude them exactly like the activity-driven sweep.
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: null,
+        channel: 'email',
+        recipientId,
+        type: 'due_overdue',
+        payload: {},
+        status: 'digest_queued',
+        createdAt: new Date(Date.now() - 120_000),
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+    try {
+      const enqueued: string[] = [];
+      await sweepStaleNotificationEvents(db(), {
+        enqueue: async (eventId: string) => {
+          enqueued.push(eventId);
+        },
+      });
+      // This row alone must not trigger the sentinel. (Other stale NULL rows in
+      // a shared DB could, so we assert this specific row stays unprocessed.)
+      const [after] = await db()
+        .select({ processedAt: notificationOutbox.processedAt })
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.id, outboxId));
+      expect(after?.processedAt).toBeNull();
     } finally {
       await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
     }
