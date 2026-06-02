@@ -1863,6 +1863,8 @@ export const strings = {
       itemCommentsToggleClose: 'Madde yorumlarını kapat',
       itemCommentsCountLabel: 'Madde yorumu',
       itemCommentsThreadLabel: 'Madde yorumları',
+      // Thread içindeki composer'ı açan buton — varsayılan kapalı, kalabalık olmasın.
+      itemCommentsCompose: 'Yorum yap',
     },
     comments: {
       title: 'Yorumlar',

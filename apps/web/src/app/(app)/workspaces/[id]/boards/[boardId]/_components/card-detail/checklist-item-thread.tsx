@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState, type MentionSource } from '@pusula/ui';
+import { MessageSquarePlusIcon } from 'lucide-react';
+import { Button, EmptyState, type MentionSource } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
 import { getMutationErrorMessage } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
@@ -62,6 +63,10 @@ export function ChecklistItemThread({
   const queryClient = useQueryClient();
   const copy = strings.card.checklist;
 
+  // Composer varsayılan kapalı — thread açıldığında önce mevcut yorumlar görünür,
+  // "Yorum yap" butonuyla istenince açılır (gereksiz kalabalık olmasın).
+  const [composerOpen, setComposerOpen] = useState(false);
+
   const commentsQuery = useQuery(
     trpc.comment.list.queryOptions({ cardId, checklistItemId }),
   );
@@ -100,18 +105,31 @@ export function ChecklistItemThread({
       className="border-border/60 ml-1.5 mt-2 space-y-2.5 border-l-2 pl-3"
       aria-label={copy.itemCommentsThreadLabel}
     >
-      {canComment && (
-        <CardCommentComposer
-          viewerName={viewerName}
-          viewerImage={viewerImage}
-          onSubmit={(body) =>
-            createComment.mutate({ cardId, checklistItemId, body, clientMutationId: cmid() })
-          }
-          pending={createComment.isPending}
-          error={errOf(createComment)}
-          mentions={mentions}
-        />
-      )}
+      {canComment &&
+        (composerOpen ? (
+          <CardCommentComposer
+            viewerName={viewerName}
+            viewerImage={viewerImage}
+            onSubmit={(body) => {
+              createComment.mutate({ cardId, checklistItemId, body, clientMutationId: cmid() });
+              setComposerOpen(false);
+            }}
+            pending={createComment.isPending}
+            error={errOf(createComment)}
+            mentions={mentions}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => setComposerOpen(true)}
+          >
+            <MessageSquarePlusIcon className="size-3.5" aria-hidden />
+            {copy.itemCommentsCompose}
+          </Button>
+        ))}
 
       {commentsQuery.isPending ? (
         <AppSpinner label={strings.common.loading} className="justify-start py-2" />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquareIcon, PaperclipIcon, PencilIcon, SendIcon, Trash2Icon } from 'lucide-react';
+import { MessageSquareIcon, PencilIcon, SendIcon, Trash2Icon } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -114,23 +114,7 @@ export function CardCommentComposer({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <div className="flex items-center justify-between gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled
-                aria-disabled
-                aria-label={strings.card.detail.modal.attachmentAdd}
-                className="text-muted-foreground size-7 cursor-not-allowed opacity-50"
-              >
-                <PaperclipIcon className="size-3.5" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{strings.card.detail.modal.attachmentAdd}</TooltipContent>
-          </Tooltip>
+        <div className="flex items-center justify-end gap-2">
           <Button type="button" size="sm" disabled={pending || empty} onClick={submit}>
             <SendIcon className="size-3.5" />
             {pending ? copy.composer.submitting : copy.composer.submit}
