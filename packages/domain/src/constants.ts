@@ -117,6 +117,15 @@ export const ACTIVITY_EVENT_TYPES = [
   // "Liste/kart kalıcı silme" + `docs/architecture/02-teknoloji-kararlari.md`.
   'list.deleted',
   'card.deleted',
+  // Bildirim kapsamı genişletme (Faz 2 — granular tipler, 2026-06-03). Etiket
+  // CRUD'u Phase 2.5B'den beri **hiç** activity yazmıyordu (low-signal board
+  // metadata sayılıyordu); granular bildirim tipleri için artık kendi activity
+  // event'lerini üretir. `board.*` / `list.*` / `card.created` zaten var; yalnız
+  // etiket yaşam döngüsü eksikti. Appended to keep the Postgres enum append-only.
+  // See `docs/domain/05-aktivite-kurallari.md`.
+  'label.created',
+  'label.updated',
+  'label.deleted',
 ] as const;
 
 /**
@@ -872,6 +881,29 @@ export const NOTIFICATION_TYPES = [
   // Detay → `docs/domain/04-bildirim-kurallari.md` (DEM-276 follow-up).
   'report_render_completed',
   'report_render_failed',
+  // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Faz 1
+  // (pool genişletme, 25abfc9) kart aktivitesi bildirimlerini board audience'a
+  // taşıdı; ama kart oluşturma, liste yaşam döngüsü (oluştur/yeniden adlandır/
+  // taşı/arşivle/sil), board yaşam döngüsü (oluştur/yeniden adlandır/arşivle/
+  // arka plan) ve etiket CRUD'u hâlâ hiç bildirim üretmiyordu. Kullanıcı kararı
+  // "granular: her olay ayrı tip" → her activity kendi bildirim tipine 1:1
+  // eşlenir (UI'da ayrı ikon/renk/özet). Hepsi board audience pool, in-app +
+  // push default (email opt-in listesinde DEĞİL — DEM-153 granular tipleriyle
+  // aynı seviye). APPEND-ONLY — `pgEnum('notification_type', NOTIFICATION_TYPES)`
+  // ile bağlı. Detay → `docs/domain/04-bildirim-kurallari.md`.
+  'card_created',
+  'list_created',
+  'list_renamed',
+  'list_moved',
+  'list_archived',
+  'list_deleted',
+  'board_created',
+  'board_renamed',
+  'board_archived',
+  'board_background_changed',
+  'label_created',
+  'label_updated',
+  'label_deleted',
 ] as const;
 
 /** Notification mute levels for a (user, scope) pair in `notification_preferences`. */

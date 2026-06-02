@@ -40,6 +40,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
 import { compactionScopeKey, maybeEnqueueCompaction } from '../lib/compaction';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { resolveMovePosition } from '../lib/position';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import {
@@ -78,6 +82,7 @@ export const listRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const created = await ctx.db.transaction(async (tx) => {
       // Re-read the board inside the tx so an archive that landed between the
       // middleware read and here still wins (race-safe).
@@ -107,18 +112,36 @@ export const listRouter = router({
         .returning(listCols);
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const listCreatedPayload = {
+        listId: created.id,
+        title: created.title,
+        position: created.position,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [listCreatedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'list.created',
+          payload: listCreatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!listCreatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — liste oluşturma board audience'a
+      // `list_created` bildirimi üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: listCreatedActivity.id,
+        type: 'list.created',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'list.created',
-        payload: {
-          listId: created.id,
-          title: created.title,
-          position: created.position,
-          clientMutationId: ctx.clientMutationId,
-        },
+        payload: listCreatedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = listCreatedActivity.id;
 
       const [bumped] = await tx
         .update(boards)
@@ -147,6 +170,7 @@ export const listRouter = router({
       return created;
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return created;
   }),
 
@@ -171,6 +195,7 @@ export const listRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select(listCols)
@@ -228,18 +253,37 @@ export const listRouter = router({
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
       if (titleChanged) {
-        await tx.insert(activityEvents).values({
+        const listRenamedPayload = {
+          listId: updated.id,
+          fromTitle: list.title,
+          toTitle: updated.title,
+          clientMutationId: ctx.clientMutationId,
+        };
+        const [listRenamedActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.board.workspaceId,
+            boardId: ctx.board.id,
+            actorId: ctx.session.user.id,
+            type: 'list.renamed',
+            payload: listRenamedPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!listRenamedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Bildirim kapsamı genişletme (Faz 2) — yalnız yeniden adlandırma board
+        // audience'a `list_renamed` bildirimi üretir; renk/ikon değişimi kapsam
+        // dışı (brief yalnız create/rename/move/archive/delete'i istedi).
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: listRenamedActivity.id,
+          type: 'list.renamed',
           workspaceId: ctx.board.workspaceId,
           boardId: ctx.board.id,
+          cardId: null,
           actorId: ctx.session.user.id,
-          type: 'list.renamed',
-          payload: {
-            listId: updated.id,
-            fromTitle: list.title,
-            toTitle: updated.title,
-            clientMutationId: ctx.clientMutationId,
-          },
+          payload: listRenamedPayload,
         });
+        if (dispatched.inserted > 0) notificationEventId = listRenamedActivity.id;
       }
 
       if (colorChanged) {
@@ -328,6 +372,7 @@ export const listRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -344,6 +389,7 @@ export const listRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -380,17 +426,35 @@ export const listRouter = router({
         .returning({ id: lists.id, archivedAt: lists.archivedAt });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const listArchivedPayload = {
+        listId: updated.id,
+        archived: input.archived,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [listArchivedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'list.archived',
+          payload: listArchivedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!listArchivedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — arşivleme/geri alma board
+      // audience'a `list_archived` bildirimi üretir (`payload.archived` yönü).
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: listArchivedActivity.id,
+        type: 'list.archived',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'list.archived',
-        payload: {
-          listId: updated.id,
-          archived: input.archived,
-          clientMutationId: ctx.clientMutationId,
-        },
+        payload: listArchivedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = listArchivedActivity.id;
 
       const [bumped] = await tx
         .update(boards)
@@ -416,6 +480,7 @@ export const listRouter = router({
       return { id: updated.id, archivedAt: updated.archivedAt, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -436,6 +501,7 @@ export const listRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       // Advisory lock keyed identically to the compaction job's `compactionScopeKey`
       // (`apps/worker/src/jobs/compaction.ts`) — moves and compaction on the same
@@ -513,18 +579,36 @@ export const listRouter = router({
         .returning(listCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const listMovedPayload = {
+        listId: updated.id,
+        fromPosition: list.position,
+        toPosition: updated.position,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [listMovedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'list.moved',
+          payload: listMovedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!listMovedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — liste taşıma board audience'a
+      // `list_moved` bildirimi üretir.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: listMovedActivity.id,
+        type: 'list.moved',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'list.moved',
-        payload: {
-          listId: updated.id,
-          fromPosition: list.position,
-          toPosition: updated.position,
-          clientMutationId: ctx.clientMutationId,
-        },
+        payload: listMovedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = listMovedActivity.id;
 
       const [bumped] = await tx
         .update(boards)
@@ -555,6 +639,7 @@ export const listRouter = router({
       maybeEnqueueCompaction(ctx, { kind: 'board', boardId: ctx.board.id }, [result.position]);
     }
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
 
     return result;
   }),
@@ -579,6 +664,7 @@ export const listRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select({ id: lists.id, boardId: lists.boardId, title: lists.title })
@@ -618,17 +704,37 @@ export const listRouter = router({
         });
       }
 
-      await tx.insert(activityEvents).values({
+      const listDeletedPayload = {
+        listId: list.id,
+        title: list.title,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [listDeletedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'list.deleted',
+          payload: listDeletedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!listDeletedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — liste kalıcı silme board
+      // audience'a `list_deleted` bildirimi üretir. Liste satırı aşağıda
+      // silinince `activity_events.list_id` cascade ile null'a düşer; silinen
+      // liste id'si `payload.listId`'de korunur.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: listDeletedActivity.id,
+        type: 'list.deleted',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'list.deleted',
-        payload: {
-          listId: list.id,
-          title: list.title,
-          clientMutationId: ctx.clientMutationId,
-        },
+        payload: listDeletedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = listDeletedActivity.id;
 
       const [bumped] = await tx
         .update(boards)
@@ -652,6 +758,7 @@ export const listRouter = router({
       return { id: list.id, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 });

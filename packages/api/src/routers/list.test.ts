@@ -9,6 +9,7 @@ import * as dbMod from '@pusula/db';
 import {
   activityEvents,
   boardMembers,
+  notificationOutbox,
   realtimeEvents,
   users,
   workspaceMembers,
@@ -155,6 +156,30 @@ describe.runIf(dbAvailable)('list router (integration)', () => {
     expect(created.some((a) => (a.payload as { listId?: string }).listId === first.id)).toBe(true);
 
     expect(await boardVersion(boardId)).toBe(v0 + 3);
+
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — liste oluşturma board
+    // audience'a `list_created` bildirimi üretir. Bu suite'in İLK liste
+    // oluşturması olduğundan ownerId için `list_created` cooldown'u (60 sn,
+    // `(recipient,type)`) henüz tetiklenmedi; `first` event'i ownerId'ye outbox
+    // satırı yazar. actor (memberId) self-skip. (Sonraki create'ler cooldown'a
+    // takılabilir — kasıtlı; bu yüzden yalnız ilk event doğrulanır.)
+    const firstAct = created.find(
+      (a) => (a.payload as { listId?: string }).listId === first.id,
+    );
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, firstAct!.id));
+    const recipients = new Set(outbox.map((r) => r.recipientId));
+    expect(recipients.has(ownerId)).toBe(true);
+    expect(recipients.has(memberId)).toBe(false); // actor self-skip
+    expect(outbox.every((r) => r.type === 'list_created')).toBe(true);
+    // in_app + push default (granular tipler email opt-in listesinde değil).
+    const ownerChannels = outbox
+      .filter((r) => r.recipientId === ownerId)
+      .map((r) => r.channel)
+      .sort();
+    expect(ownerChannels).toEqual(['in_app', 'push']);
   });
 
   it('create: new lists project null icon and iconColor through board.get', async () => {

@@ -42,6 +42,10 @@ import {
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { COVER_IMAGE_URL_TTL_SECONDS, toCoverImage } from '../lib/object-storage';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import { insertRealtimeEvent, maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { syncSearchDocumentsForScope, upsertSearchDocument } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
@@ -280,7 +284,8 @@ export const boardRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Board oluşturma yetkiniz yok.' });
     }
 
-    return ctx.db.transaction(async (tx) => {
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .insert(boards)
         .values({ workspaceId: ctx.workspace.id, title: input.title, icon: input.icon })
@@ -291,22 +296,49 @@ export const boardRouter = router({
         .insert(boardMembers)
         .values({ boardId: board.id, userId: ctx.session.user.id, role: 'admin' });
 
-      await tx.insert(activityEvents).values({
-        workspaceId: ctx.workspace.id,
-        boardId: board.id,
-        actorId: ctx.session.user.id,
-        type: 'board.created',
+      const boardCreatedPayload = {
         // Phase 4A (DEM-78): the optional `clientMutationId` is carried through
         // every collaborative activity payload. `undefined` keys are stripped
         // by jsonb serialisation, so omission leaves no on-disk trace —
         // Phase 5 dedupe reads `payload->>'clientMutationId'` on present rows.
-        payload: { title: board.title, icon: board.icon, clientMutationId: ctx.clientMutationId },
+        title: board.title,
+        icon: board.icon,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [boardCreatedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.workspace.id,
+          boardId: board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.created',
+          payload: boardCreatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!boardCreatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — board oluşturma board audience'a
+      // `board_created` bildirimi üretir. Oluşturan (actor) tek board üyesi +
+      // self-skip; alıcılar workspace'in diğer non-guest üyeleri (board'u
+      // görür). Yeni board'a kimse atanmamışsa (tek kişilik workspace) hiç
+      // satır üretilmez.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: boardCreatedActivity.id,
+        type: 'board.created',
+        workspaceId: ctx.workspace.id,
+        boardId: board.id,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: boardCreatedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = boardCreatedActivity.id;
 
       await upsertSearchDocument(tx, { entityType: 'board', entityId: board.id });
 
       return { ...board, role: 'admin' satisfies BoardRole };
     });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    return result;
   }),
 
   /**
@@ -660,6 +692,10 @@ export const boardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    // Bildirim kapsamı genişletme (Faz 2) — başlık + arka plan aynı update
+    // çağrısında değişebilir; her biri kendi activity'sini ve bildirimini
+    // üretir, ikisi de ayrı publish job'una kuyruğa atılır.
+    const notificationEventIds: string[] = [];
     const result = await ctx.db.transaction(async (tx) => {
       const [current] = await tx
         .select(boardCols)
@@ -711,35 +747,76 @@ export const boardRouter = router({
 
       if (titleChanged) {
         const nextTitle = input.title as string;
-        await tx.insert(activityEvents).values({
+        const boardRenamedPayload = {
+          fromTitle: current.title,
+          toTitle: nextTitle,
+          clientMutationId: ctx.clientMutationId,
+        };
+        const [boardRenamedActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.board.workspaceId,
+            boardId: ctx.board.id,
+            actorId: ctx.session.user.id,
+            type: 'board.renamed',
+            payload: boardRenamedPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!boardRenamedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Bildirim kapsamı genişletme (Faz 2) — yeniden adlandırma board
+        // audience'a `board_renamed` bildirimi üretir.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: boardRenamedActivity.id,
+          type: 'board.renamed',
           workspaceId: ctx.board.workspaceId,
           boardId: ctx.board.id,
+          cardId: null,
           actorId: ctx.session.user.id,
-          type: 'board.renamed',
-          payload: {
-            fromTitle: current.title,
-            toTitle: nextTitle,
-            clientMutationId: ctx.clientMutationId,
-          },
+          payload: boardRenamedPayload,
         });
+        if (dispatched.inserted > 0) notificationEventIds.push(boardRenamedActivity.id);
       }
 
       if (backgroundChanged) {
         const nextBackground = input.background as string | null;
-        await tx.insert(activityEvents).values({
+        const backgroundType =
+          nextBackground === null ? 'board.background_cleared' : 'board.background_changed';
+        const boardBackgroundPayload =
+          nextBackground === null
+            ? { from: current.background, clientMutationId: ctx.clientMutationId }
+            : {
+                from: current.background,
+                to: nextBackground,
+                clientMutationId: ctx.clientMutationId,
+              };
+        const [boardBackgroundActivity] = await tx
+          .insert(activityEvents)
+          .values({
+            workspaceId: ctx.board.workspaceId,
+            boardId: ctx.board.id,
+            actorId: ctx.session.user.id,
+            type: backgroundType,
+            payload: boardBackgroundPayload,
+          })
+          .returning({ id: activityEvents.id });
+        if (!boardBackgroundActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Bildirim kapsamı genişletme (Faz 2) — yalnız arka plan *değişimi*
+        // (`board.background_changed`) board audience'a `board_background_changed`
+        // bildirimi üretir; temizleme (`board.background_cleared`) kapsam dışı —
+        // `mapEventToNotificationType` onun için null döner, dispatch 0 satır
+        // yazar, enqueue edilmez.
+        const dispatched = await dispatchNotificationsForActivity(tx, {
+          id: boardBackgroundActivity.id,
+          type: backgroundType,
           workspaceId: ctx.board.workspaceId,
           boardId: ctx.board.id,
+          cardId: null,
           actorId: ctx.session.user.id,
-          type: nextBackground === null ? 'board.background_cleared' : 'board.background_changed',
-          payload:
-            nextBackground === null
-              ? { from: current.background, clientMutationId: ctx.clientMutationId }
-              : {
-                  from: current.background,
-                  to: nextBackground,
-                  clientMutationId: ctx.clientMutationId,
-                },
+          payload: boardBackgroundPayload,
         });
+        if (dispatched.inserted > 0) notificationEventIds.push(boardBackgroundActivity.id);
       }
       if (iconChanged) {
         const nextIcon = input.icon as string;
@@ -796,6 +873,7 @@ export const boardRouter = router({
       return { ...updated, role: ctx.board.role, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    for (const eventId of notificationEventIds) maybeEnqueueNotificationPublish(ctx, eventId);
     return result;
   }),
 
@@ -812,6 +890,7 @@ export const boardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [current] = await tx
         .select({ archivedAt: boards.archivedAt, version: boards.version })
@@ -840,13 +919,34 @@ export const boardRouter = router({
         .returning({ id: boards.id, archivedAt: boards.archivedAt, version: boards.version });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-      await tx.insert(activityEvents).values({
+      const boardArchivedPayload = {
+        archived: input.archived,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [boardArchivedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.archived',
+          payload: boardArchivedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!boardArchivedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — arşivleme/geri alma board
+      // audience'a `board_archived` bildirimi üretir (`payload.archived` yönü).
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: boardArchivedActivity.id,
+        type: 'board.archived',
         workspaceId: ctx.board.workspaceId,
         boardId: ctx.board.id,
+        cardId: null,
         actorId: ctx.session.user.id,
-        type: 'board.archived',
-        payload: { archived: input.archived, clientMutationId: ctx.clientMutationId },
+        payload: boardArchivedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = boardArchivedActivity.id;
 
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'board.archived',
@@ -868,6 +968,7 @@ export const boardRouter = router({
       };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 

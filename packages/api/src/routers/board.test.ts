@@ -12,6 +12,7 @@ import {
   boardMembers,
   cards,
   lists,
+  notificationOutbox,
   realtimeEvents,
   users,
   workspaceMembers,
@@ -135,6 +136,21 @@ describe.runIf(dbAvailable)('board router (integration)', () => {
     const acts = await actsFor(board.id);
     expect(acts.some((a) => a.type === 'board.created')).toBe(true);
     expect(acts.find((a) => a.type === 'board.created')?.payload).toMatchObject({ icon: 'rocket' });
+
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — board oluşturma board
+    // audience'a `board_created` bildirimi üretir. Oluşturan (memberId) tek
+    // board üyesi + actor self-skip; alıcı workspace'in diğer non-guest üyesi
+    // ownerId (owner, board'u görür). guest dahil değil (permission filter).
+    const boardCreatedAct = acts.find((a) => a.type === 'board.created');
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, boardCreatedAct!.id));
+    const recipients = new Set(outbox.map((r) => r.recipientId));
+    expect(recipients.has(ownerId)).toBe(true);
+    expect(recipients.has(memberId)).toBe(false); // actor self-skip
+    expect(recipients.has(guestId)).toBe(false); // guest, no board seat → filtered
+    expect(outbox.every((r) => r.type === 'board_created')).toBe(true);
   });
 
   it('create: a workspace guest cannot create a board (FORBIDDEN)', async () => {

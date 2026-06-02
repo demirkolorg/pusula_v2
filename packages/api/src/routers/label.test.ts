@@ -119,7 +119,7 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
   // ---------------------------------------------------------------- create
 
-  it('create: a member creates a label (version+1, no activity); a board viewer is FORBIDDEN', async () => {
+  it('create: a member creates a label (version+1, label.created activity); a board viewer is FORBIDDEN', async () => {
     const v0 = await boardVersion(boardId);
 
     const created = await callerFor(memberId).label.create({
@@ -132,9 +132,13 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
     expect(created.id).toBeTruthy();
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
-    // label CRUD writes no activity
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — etiket CRUD'u artık
+    // granular bildirim için `label.created` activity'si yazar (eskiden hiç
+    // activity yoktu). Payload silinen/oluşan etiketin id + adını taşır.
     const acts = await actsFor(boardId);
-    expect(acts.some((a) => String(a.type).startsWith('label.'))).toBe(false);
+    const createdActs = acts.filter((a) => String(a.type) === 'label.created');
+    expect(createdActs).toHaveLength(1);
+    expect(createdActs[0]!.payload).toMatchObject({ labelId: created.id, name: 'Bug' });
 
     await expect(
       callerFor(guestId).label.create({
@@ -193,7 +197,7 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
 
   // ---------------------------------------------------------------- update
 
-  it('update: rename + recolor (version+1, no activity); empty input → BAD_REQUEST; idempotent no-op; CONFLICT on clash; viewer → FORBIDDEN; unknown labelId → NOT_FOUND', async () => {
+  it('update: rename + recolor (version+1, label.updated activity); empty input → BAD_REQUEST; idempotent no-op; CONFLICT on clash; viewer → FORBIDDEN; unknown labelId → NOT_FOUND', async () => {
     const label = await callerFor(ownerId).label.create({
       boardId,
       color: 'orange',
@@ -279,14 +283,22 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
-    // no activity from any of this
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — gerçek değişen her
+    // güncelleme `label.updated` activity'si yazar (idempotent no-op + hatalar
+    // YAZMAZ). Bu testte iki gerçek değişim var: rename + recolor → 2 adet
+    // `label.updated`. Setup'taki create de bir `label.created` üretir.
     const acts = await actsFor(boardId);
-    expect(acts.some((a) => String(a.type).startsWith('label.'))).toBe(false);
+    const updatedActs = acts.filter(
+      (a) =>
+        String(a.type) === 'label.updated' &&
+        (a.payload as { labelId?: string }).labelId === label.id,
+    );
+    expect(updatedActs).toHaveLength(2);
   });
 
   // ---------------------------------------------------------------- delete
 
-  it('delete: removes the label and cascades its card_labels links (no activity, version+1); unknown labelId → NOT_FOUND; viewer → FORBIDDEN', async () => {
+  it('delete: removes the label and cascades its card_labels links (label.deleted activity, version+1); unknown labelId → NOT_FOUND; viewer → FORBIDDEN', async () => {
     const label = await callerFor(ownerId).label.create({
       boardId,
       color: 'sky',
@@ -328,6 +340,19 @@ describe.runIf(dbAvailable)('label router (integration)', () => {
       .from(cardLabels)
       .where(dbMod.eq(cardLabels.labelId, label.id));
     expect(afterLinks.length).toBe(0);
+
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — etiket silme
+    // `label.deleted` activity'si yazar; silinen etiketin id + adı payload'da
+    // korunur (etiket satırı silindiği için sonradan okunamaz). Activity
+    // silmeden ÖNCE yazıldığından `activity_events` satırı kalır.
+    const acts = await actsFor(boardId);
+    const deletedActs = acts.filter(
+      (a) =>
+        String(a.type) === 'label.deleted' &&
+        (a.payload as { labelId?: string }).labelId === label.id,
+    );
+    expect(deletedActs).toHaveLength(1);
+    expect(deletedActs[0]!.payload).toMatchObject({ name: 'Doomed' });
 
     // unknown labelId
     await expect(

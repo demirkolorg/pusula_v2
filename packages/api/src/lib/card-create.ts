@@ -20,6 +20,7 @@
 import { activityEvents, boards, cards, desc, eq, inArray, sql } from '@pusula/db';
 import { TRPCError } from '@trpc/server';
 import type { Queryable } from '../middleware/board-access';
+import { dispatchNotificationsForActivity } from './notification-outbox';
 import { resolveMovePosition } from './position';
 import { insertRealtimeEvent } from './realtime-publish';
 import { upsertSearchDocument } from './search-indexer';
@@ -139,6 +140,14 @@ export interface CreateCardResult {
   card: CreatedCard;
   /** Pass to `maybeEnqueueRealtimePublish` after the transaction commits. */
   realtimeEventId: string;
+  /**
+   * Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — `card.created` activity'si
+   * board audience'a `card_created` bildirimi üretir. En az bir outbox satırı
+   * yazıldıysa `card.created` activity'sinin id'si; aksi halde `undefined`.
+   * Caller transaction commit'inden sonra `maybeEnqueueNotificationPublish` ile
+   * publish job'unu kuyruğa atar.
+   */
+  notificationEventId?: string;
 }
 
 /**
@@ -164,20 +173,40 @@ export async function createCardInTransaction(
     .returning(cardCols);
   if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
-  await tx.insert(activityEvents).values({
+  const cardCreatedPayload = {
+    cardId: created.id,
+    listId: list.id,
+    title: created.title,
+    position: created.position,
+    clientMutationId,
+  };
+  const [cardCreatedActivity] = await tx
+    .insert(activityEvents)
+    .values({
+      workspaceId: board.workspaceId,
+      boardId: list.boardId,
+      cardId: created.id,
+      actorId,
+      type: 'card.created',
+      payload: cardCreatedPayload,
+    })
+    .returning({ id: activityEvents.id });
+  if (!cardCreatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+  // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — kart oluşturma board
+  // audience'a `card_created` bildirimi üretir. Actor self-skip + permission
+  // filter + cooldown dispatch zincirinde uygulanır.
+  let notificationEventId: string | undefined;
+  const dispatched = await dispatchNotificationsForActivity(tx, {
+    id: cardCreatedActivity.id,
+    type: 'card.created',
     workspaceId: board.workspaceId,
     boardId: list.boardId,
     cardId: created.id,
     actorId,
-    type: 'card.created',
-    payload: {
-      cardId: created.id,
-      listId: list.id,
-      title: created.title,
-      position: created.position,
-      clientMutationId,
-    },
+    payload: cardCreatedPayload,
   });
+  if (dispatched.inserted > 0) notificationEventId = cardCreatedActivity.id;
 
   const [bumped] = await tx
     .update(boards)
@@ -203,5 +232,5 @@ export async function createCardInTransaction(
 
   await upsertSearchDocument(tx, { entityType: 'card', entityId: created.id });
 
-  return { card: created, realtimeEventId };
+  return { card: created, realtimeEventId, notificationEventId };
 }

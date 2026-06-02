@@ -203,6 +203,7 @@ export const cardRouter = router({
    */
   create: protectedProcedure.input(createCardInput).mutation(async ({ ctx, input }) => {
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const created = await ctx.db.transaction(async (tx) => {
       const [list] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -228,9 +229,13 @@ export const cardRouter = router({
         clientMutationId: ctx.clientMutationId,
       });
       realtimeEventId = result.realtimeEventId;
+      notificationEventId = result.notificationEventId;
       return result.card;
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    // Bildirim kapsamı genişletme (Faz 2) — `card.created` board audience'a
+    // bildirim ürettiyse publish job'unu commit sonrası kuyruğa at.
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return created;
   }),
 
@@ -1634,6 +1639,7 @@ export const cardRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [toList] = await tx
         .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
@@ -1764,21 +1770,39 @@ export const cardRouter = router({
         }
       }
 
-      await tx.insert(activityEvents).values({
+      const copyCreatedPayload = {
+        cardId: created.id,
+        listId: input.toListId,
+        title: created.title,
+        position: created.position,
+        copiedFromCardId: source.id,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [copyCreatedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: targetBoard.workspaceId,
+          boardId: toList.boardId,
+          cardId: created.id,
+          actorId: ctx.session.user.id,
+          type: 'card.created',
+          payload: copyCreatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!copyCreatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — kopyalama da yeni bir kart
+      // oluşturur; board audience'a `card_created` bildirimi gider.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: copyCreatedActivity.id,
+        type: 'card.created',
         workspaceId: targetBoard.workspaceId,
         boardId: toList.boardId,
         cardId: created.id,
         actorId: ctx.session.user.id,
-        type: 'card.created',
-        payload: {
-          cardId: created.id,
-          listId: input.toListId,
-          title: created.title,
-          position: created.position,
-          copiedFromCardId: source.id,
-          clientMutationId: ctx.clientMutationId,
-        },
+        payload: copyCreatedPayload,
       });
+      if (dispatched.inserted > 0) notificationEventId = copyCreatedActivity.id;
 
       const [bumped] = await tx
         .update(boards)
@@ -1813,6 +1837,7 @@ export const cardRouter = router({
 
     maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.position]);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
 
     return result;
   }),

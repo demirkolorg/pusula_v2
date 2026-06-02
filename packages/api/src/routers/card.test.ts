@@ -11,6 +11,7 @@ import {
   attachments,
   boardMembers,
   cardMembers,
+  notificationOutbox,
   realtimeEvents,
   users,
   workspaceMembers,
@@ -168,6 +169,25 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(created[0]?.cardId).toBe(first.id);
 
     expect(await boardVersion(boardId)).toBe(v0 + 2);
+
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — kart oluşturma board
+    // audience'a `card_created` bildirimi üretir. Bu suite'in İLK kart
+    // oluşturması olduğundan ownerId için `card_created` cooldown'u (60 sn,
+    // `(recipient,type)`) henüz tetiklenmedi; `first` event'i ownerId'ye outbox
+    // satırı yazar. actor (memberId) self-skip.
+    const outbox = await db()
+      .select()
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.eventId, created[0]!.id));
+    const recipients = new Set(outbox.map((r) => r.recipientId));
+    expect(recipients.has(ownerId)).toBe(true);
+    expect(recipients.has(memberId)).toBe(false); // actor self-skip
+    expect(outbox.every((r) => r.type === 'card_created')).toBe(true);
+    const ownerChannels = outbox
+      .filter((r) => r.recipientId === ownerId)
+      .map((r) => r.channel)
+      .sort();
+    expect(ownerChannels).toEqual(['in_app', 'push']);
   });
 
   it('create: a board viewer is FORBIDDEN; an unknown listId is NOT_FOUND', async () => {

@@ -397,8 +397,12 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
 
   it('unknown activity type → no rows', async () => {
     const event: ActivityEventForRules = {
+      // `workspace.created` is a real activity type but deliberately NOT in the
+      // notification map (`mapEventToNotificationType` returns null) — it has no
+      // board audience semantics. (Eski stand-in `card.created` 2026-06-03 Faz 2
+      // ile artık `card_created` tipine eşlendiği için kullanılamaz.)
       id: newId('ae-x'),
-      type: 'card.created', // not in the notification map
+      type: 'workspace.created',
       workspaceId,
       boardId,
       cardId: null,
@@ -813,5 +817,176 @@ describe.runIf(dbAvailable)('notification-rules (integration)', () => {
           ),
         );
     }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
+  // Kart oluşturma + liste/board/etiket yaşam döngüsü her olay kendi bildirim
+  // tipine 1:1 eşlenir; hepsi board audience pool (non-guest workspace üyeleri
+  // ∪ explicit board üyeleri), actor self-skip, in-app + push default (email
+  // opt-in listesinde değil).
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Tek olay → board audience'a giden granular bildirim tipi doğrulaması.
+   * `cardId` opsiyonel (list/board/label event'lerinde yok ama boardId var →
+   * `loadEventContext` board üyelerini yine yükler). Beklenen alıcı:
+   * {assignee, watcher} (actor self-skip + guest/outsider permission filter).
+   */
+  async function expectGranular(
+    type: ActivityEventForRules['type'],
+    expectedType: string,
+    payload: Record<string, unknown>,
+    opts: { cardId?: string | null } = {},
+  ) {
+    const event: ActivityEventForRules = {
+      id: newId('ae-gran'),
+      type,
+      workspaceId,
+      boardId,
+      cardId: opts.cardId ?? null,
+      actorId,
+      payload,
+    };
+    const rules = await computeNotifications(db(), event);
+    // Board audience: assignee + watcher (actor self-skipped, guest/outsider filtered).
+    expect([...new Set(rules.map((r) => r.recipientUserId))].sort()).toEqual(
+      [assigneeId, watcherId].sort(),
+    );
+    expect(rules.every((r) => r.type === expectedType)).toBe(true);
+    // in_app + push default (granular tipler email opt-in listesinde değil).
+    expect(
+      rules.filter((r) => r.recipientUserId === watcherId).map((r) => r.channel).sort(),
+    ).toEqual(['in_app', 'push']);
+    expect(
+      rules.filter((r) => r.recipientUserId === assigneeId).map((r) => r.channel).sort(),
+    ).toEqual(['in_app', 'push']);
+    return rules;
+  }
+
+  it('card.created → board audience gets card_created, in_app + push (Faz 2)', async () => {
+    const rules = await expectGranular(
+      'card.created',
+      'card_created',
+      { cardId, listId: newId('l'), title: 'Yeni Kart' },
+      { cardId },
+    );
+    // Payload taşıma: activityType + notificationType + title.
+    const sample = rules.find((r) => r.recipientUserId === watcherId && r.channel === 'in_app');
+    expect(sample?.payload).toMatchObject({
+      activityType: 'card.created',
+      notificationType: 'card_created',
+      title: 'Yeni Kart',
+    });
+  });
+
+  it('list.created → board audience gets list_created (Faz 2)', async () => {
+    const rules = await expectGranular('list.created', 'list_created', {
+      listId: newId('l'),
+      title: 'Yeni Liste',
+    });
+    const sample = rules.find((r) => r.recipientUserId === watcherId && r.channel === 'in_app');
+    // cardId null ama listId payload'a taşınmalı (derin link).
+    expect(sample?.payload).toMatchObject({ notificationType: 'list_created' });
+    expect(sample?.payload.listId).toEqual(expect.any(String));
+    expect(sample?.payload.cardId).toBeUndefined();
+  });
+
+  it('list.renamed → board audience gets list_renamed (Faz 2)', async () => {
+    await expectGranular('list.renamed', 'list_renamed', {
+      listId: newId('l'),
+      fromTitle: 'Eski',
+      toTitle: 'Yeni',
+    });
+  });
+
+  it('list.moved → board audience gets list_moved (Faz 2)', async () => {
+    await expectGranular('list.moved', 'list_moved', {
+      listId: newId('l'),
+      fromPosition: 'a0',
+      toPosition: 'a1',
+    });
+  });
+
+  it('list.archived → board audience gets list_archived (archive + restore aynı tip, Faz 2)', async () => {
+    await expectGranular('list.archived', 'list_archived', {
+      listId: newId('l'),
+      archived: true,
+    });
+    // Geri alma da aynı tipe düşer (payload.archived yönü taşır).
+    await expectGranular('list.archived', 'list_archived', {
+      listId: newId('l'),
+      archived: false,
+    });
+  });
+
+  it('list.deleted → board audience gets list_deleted (Faz 2)', async () => {
+    await expectGranular('list.deleted', 'list_deleted', {
+      listId: newId('l'),
+      title: 'Silinen Liste',
+    });
+  });
+
+  it('board.created → board audience gets board_created (Faz 2)', async () => {
+    await expectGranular('board.created', 'board_created', {
+      title: 'NR Board',
+      icon: null,
+    });
+  });
+
+  it('board.renamed → board audience gets board_renamed (Faz 2)', async () => {
+    await expectGranular('board.renamed', 'board_renamed', {
+      fromTitle: 'Eski Board',
+      toTitle: 'Yeni Board',
+    });
+  });
+
+  it('board.archived → board audience gets board_archived (Faz 2)', async () => {
+    await expectGranular('board.archived', 'board_archived', { archived: true });
+  });
+
+  it('board.background_changed → board audience gets board_background_changed (Faz 2)', async () => {
+    await expectGranular('board.background_changed', 'board_background_changed', {
+      from: null,
+      to: 'gradient:peach',
+    });
+  });
+
+  it('board.background_cleared → bildirim üretmez (temizleme kapsam dışı, Faz 2)', async () => {
+    const event: ActivityEventForRules = {
+      id: newId('ae-bgclear'),
+      type: 'board.background_cleared',
+      workspaceId,
+      boardId,
+      cardId: null,
+      actorId,
+      payload: { from: 'gradient:peach' },
+    };
+    const rules = await computeNotifications(db(), event);
+    expect(rules).toEqual([]);
+  });
+
+  it('label.created → board audience gets label_created, name payload taşınır (Faz 2)', async () => {
+    const rules = await expectGranular('label.created', 'label_created', {
+      labelId: newId('lbl'),
+      name: 'Acil',
+    });
+    const sample = rules.find((r) => r.recipientUserId === watcherId && r.channel === 'in_app');
+    expect(sample?.payload).toMatchObject({ notificationType: 'label_created', name: 'Acil' });
+    expect(sample?.payload.labelId).toEqual(expect.any(String));
+  });
+
+  it('label.updated → board audience gets label_updated (Faz 2)', async () => {
+    await expectGranular('label.updated', 'label_updated', {
+      labelId: newId('lbl'),
+      name: 'Güncel',
+    });
+  });
+
+  it('label.deleted → board audience gets label_deleted (Faz 2)', async () => {
+    await expectGranular('label.deleted', 'label_deleted', {
+      labelId: newId('lbl'),
+      name: 'Silinen',
+    });
   });
 });

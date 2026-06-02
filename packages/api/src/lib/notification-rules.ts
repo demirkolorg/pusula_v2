@@ -214,6 +214,40 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
       // admin'leri (`collectRecipients` özel branch). Talep sahibi actor
       // self-skip ile düşer.
       return 'board_access_requested';
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste/board/etiket yaşam döngüsü her olay kendi bildirim
+    // tipine 1:1 eşlenir. Hepsi board audience (`collectRecipients` aşağıda).
+    case 'card.created':
+      return 'card_created';
+    case 'list.created':
+      return 'list_created';
+    case 'list.renamed':
+      return 'list_renamed';
+    case 'list.moved':
+      return 'list_moved';
+    case 'list.archived':
+      // Hem arşivleme hem geri alma bu activity'yi üretir; `payload.archived`
+      // UI'da yönü ayırır (kart aksiyonlarındaki completed/uncompleted paterni).
+      return 'list_archived';
+    case 'list.deleted':
+      return 'list_deleted';
+    case 'board.created':
+      return 'board_created';
+    case 'board.renamed':
+      return 'board_renamed';
+    case 'board.archived':
+      // Hem arşivleme hem geri alma; `payload.archived` yönü taşır.
+      return 'board_archived';
+    case 'board.background_changed':
+      // Arka plan temizleme (`board.background_cleared`) bilinçli olarak DIŞARIDA —
+      // brief yalnız `board_background_changed` tipini istedi; temizleme low-signal.
+      return 'board_background_changed';
+    case 'label.created':
+      return 'label_created';
+    case 'label.updated':
+      return 'label_updated';
+    case 'label.deleted':
+      return 'label_deleted';
     default:
       return null;
   }
@@ -362,6 +396,24 @@ async function collectRecipients(
     case 'checklist.item_added':
     case 'checklist.item_removed':
     case 'attachment.removed':
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste/board/etiket yaşam döngüsü de board audience'a gider.
+    // Bu event'lerin çoğunda `cardId` yok ama `boardId` VAR → `loadEventContext`
+    // board üyelerini yine yükler. `board.created`'da boardId = yeni board;
+    // actor (oluşturan) self-skip sonrası diğer non-guest workspace üyeleri alır.
+    case 'card.created':
+    case 'list.created':
+    case 'list.renamed':
+    case 'list.moved':
+    case 'list.archived':
+    case 'list.deleted':
+    case 'board.created':
+    case 'board.renamed':
+    case 'board.archived':
+    case 'board.background_changed':
+    case 'label.created':
+    case 'label.updated':
+    case 'label.deleted':
       // Board audience — everyone who can reach the board (2026-06-03 karar:
       // "board'daki herkes"). Replaces the old card watcher pool, which was
       // empty on most cards. Actor self-skip + permission filter apply below.
@@ -719,6 +771,11 @@ function buildPayload(
     // DEM-153 — `card.label_added/removed` payload'ında etiket kimliği; UI
     // bildirimi ilgili etikete bağlamak için kullanır.
     'labelId',
+    // Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — liste yaşam döngüsü
+    // bildirimleri ilgili listeye derin link verir; etiket bildirimleri etiket
+    // adını önizlemede gösterir. `name` etiket CRUD payload'ından gelir.
+    'listId',
+    'name',
     'fromListId',
     'toListId',
     'fromBoardId',

@@ -28,6 +28,7 @@ import {
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
 import { createCardInTransaction } from '../lib/card-create';
+import { maybeEnqueueNotificationPublish } from '../lib/notification-outbox';
 import { maybeEnqueueRealtimePublish } from '../lib/realtime-publish';
 import { accessFromBoardRole } from '../middleware/board';
 import { resolveBoardAccess } from '../middleware/board-access';
@@ -114,6 +115,7 @@ export const quickNoteRouter = router({
     .input(convertQuickNoteToCardInput)
     .mutation(async ({ ctx, input }) => {
       let realtimeEventId: string | undefined;
+      let notificationEventId: string | undefined;
       const card = await ctx.db.transaction(async (tx) => {
         // (1) Delete the note first, ownership-scoped. The `DELETE` row lock
         // makes this the idempotency gate: a concurrent second call sees 0
@@ -164,10 +166,15 @@ export const quickNoteRouter = router({
           },
         });
         realtimeEventId = result.realtimeEventId;
+        notificationEventId = result.notificationEventId;
 
         return result.card;
       });
       maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+      // Bildirim kapsamı genişletme (Faz 2) — nottan oluşturulan kart da board
+      // audience'a `card_created` bildirimi üretir (kart artık board'da gerçek
+      // bir kayıt). Not silme sessiz; kart oluşturma bildirimi normal akışta.
+      maybeEnqueueNotificationPublish(ctx, notificationEventId);
       return card;
     }),
 });

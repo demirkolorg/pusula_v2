@@ -12,17 +12,22 @@
  * translate the Postgres `23505` into a `CONFLICT` (the only user-input-driven
  * unique constraint on `labels`).
  *
- * Per `docs/domain/05-aktivite-kurallari.md`, label CRUD writes **no activity**
- * (it's low-signal board metadata, like checklist rename) — but it still bumps
- * `boards.version` inside the transaction (the board screen renders label chips,
- * so a stale-snapshot client needs to know). An archived board is read-only:
- * every mutation re-reads `boards.archived_at` inside its transaction.
+ * Bildirim kapsamı genişletme (Faz 2 — granular tipler, 2026-06-03): label CRUD
+ * artık `label.created` / `label.updated` / `label.deleted` activity event'leri
+ * yazar. Eskiden "low-signal board metadata" sayılıp hiç activity üretmiyordu;
+ * granular bildirim tipleri (`label_created` / `label_updated` / `label_deleted`)
+ * board audience'a düştüğü için her olay kendi activity'sini üretip
+ * `dispatchNotificationsForActivity` ile bildirim fan-out'unu tetikler. Activity
+ * + `boards.version` bump (board ekranı etiket çiplerini render eder; stale
+ * snapshot client'ı haberdar olmalı) aynı transaction'da. An archived board is
+ * read-only: every mutation re-reads `boards.archived_at` inside its transaction.
+ * Detay → `docs/domain/05-aktivite-kurallari.md` + `docs/domain/04-bildirim-kurallari.md`.
  *
  * See `docs/architecture/03-backend.md` (Faz 2.5 — label procedure'leri) and
  * `docs/domain/02-yetkilendirme-kurallari.md`.
  */
 import { asc, eq } from '@pusula/db';
-import { boards, labels } from '@pusula/db';
+import { activityEvents, boards, labels } from '@pusula/db';
 import {
   canEditBoardContent,
   createLabelInput,
@@ -31,6 +36,10 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
+import {
+  dispatchNotificationsForActivity,
+  maybeEnqueueNotificationPublish,
+} from '../lib/notification-outbox';
 import {
   deleteSearchDocument,
   syncSearchDocumentsForScope,
@@ -104,6 +113,7 @@ export const labelRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -122,6 +132,37 @@ export const labelRouter = router({
           .returning(labelCols),
       );
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Bildirim kapsamı genişletme (Faz 2) — etiket oluşturma `label.created`
+      // activity'si yazar + board audience'a `label_created` bildirimi üretir.
+      const labelCreatedPayload = {
+        labelId: created.id,
+        name: created.name,
+        color: created.color,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [labelCreatedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'label.created',
+          payload: labelCreatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!labelCreatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: labelCreatedActivity.id,
+        type: 'label.created',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: labelCreatedPayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = labelCreatedActivity.id;
 
       const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
       realtimeEventId = await insertRealtimeEvent(tx, {
@@ -144,6 +185,7 @@ export const labelRouter = router({
       return created;
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -168,6 +210,7 @@ export const labelRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -202,6 +245,37 @@ export const labelRouter = router({
       );
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
+      // Bildirim kapsamı genişletme (Faz 2) — etiket güncelleme `label.updated`
+      // activity'si yazar + board audience'a `label_updated` bildirimi üretir.
+      const labelUpdatedPayload = {
+        labelId: updated.id,
+        name: updated.name,
+        color: updated.color,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [labelUpdatedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'label.updated',
+          payload: labelUpdatedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!labelUpdatedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: labelUpdatedActivity.id,
+        type: 'label.updated',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: labelUpdatedPayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = labelUpdatedActivity.id;
+
       const seq = await bumpBoardVersionForRealtime(tx, ctx.board.id);
       realtimeEventId = await insertRealtimeEvent(tx, {
         type: 'board.label_updated',
@@ -226,6 +300,7 @@ export const labelRouter = router({
       return { ...updated, changed: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 
@@ -240,6 +315,7 @@ export const labelRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [board] = await tx
         .select({ archivedAt: boards.archivedAt })
@@ -252,13 +328,46 @@ export const labelRouter = router({
       assertNotArchived('board', board);
 
       const [label] = await tx
-        .select({ id: labels.id, boardId: labels.boardId })
+        // `name` de seçilir: silinen etiketin adı bildirim payload'una taşınır
+        // (önizleme — etiket satırı aşağıda silindiği için sonradan okunamaz).
+        .select({ id: labels.id, boardId: labels.boardId, name: labels.name })
         .from(labels)
         .where(eq(labels.id, input.labelId))
         .limit(1);
       if (!label || label.boardId !== ctx.board.id) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Etiket bulunamadı.' });
       }
+
+      // Bildirim kapsamı genişletme (Faz 2) — etiket silme `label.deleted`
+      // activity'si yazar + board audience'a `label_deleted` bildirimi üretir.
+      // Activity silmeden ÖNCE yazılır; silinen etiket id'si + adı payload'da.
+      const labelDeletedPayload = {
+        labelId: label.id,
+        name: label.name,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [labelDeletedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.board.workspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'label.deleted',
+          payload: labelDeletedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!labelDeletedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: labelDeletedActivity.id,
+        type: 'label.deleted',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: labelDeletedPayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = labelDeletedActivity.id;
 
       await tx.delete(labels).where(eq(labels.id, label.id));
 
@@ -282,6 +391,7 @@ export const labelRouter = router({
       return { id: label.id, deleted: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
 });
