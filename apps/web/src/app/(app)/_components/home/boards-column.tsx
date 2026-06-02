@@ -76,10 +76,11 @@ type BoardRowActionsHandlers = {
 /**
  * Sütun 2 — Boards (§13.11). Lists the boards of the selected workspace,
  * grouped: starred boards on top under a small "Favoriler" label, then the
- * remainder sorted by `updatedAt desc`. Her satırın sağında iki ikon-buton var
- * (2026-06-01 kararı): **ayarlar** (`/.../settings`) ve **git** (`/.../boards/<id>`).
- * **Sağ tık** ise yeniden adlandır / sabitle / arşivle (2026-06-01 sağ tık turu);
- * sabitle her viewer için bireyseldir, rename + archive board `admin` ister.
+ * remainder sorted by `updatedAt desc`. Tüm satır eylemleri **sağ tık**
+ * menüsünde toplanır (2026-06-02 kararı: inline ikon-butonlar kaldırıldı):
+ * **aç** (`/.../boards/<id>`) · **ayarlar** (`/.../settings`) · yeniden adlandır /
+ * sabitle / arşivle; sabitle her viewer için bireyseldir, rename + archive
+ * board `admin` ister.
  * `+` button opens {@link CreateBoardDialog} when the viewer is workspace `member+`.
  */
 export function BoardsColumn({
@@ -397,7 +398,7 @@ function BoardRowItem({ board, workspaceId, active, onSelect, actions }: BoardRo
   });
 
   return (
-    <li className="flex items-center gap-1">
+    <li className="flex items-center">
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <button
@@ -450,6 +451,19 @@ function BoardRowItem({ board, workspaceId, active, onSelect, actions }: BoardRo
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent aria-label={actionsCopy.triggerLabel(board.title)}>
+          <ContextMenuItem asChild>
+            <Link href={`/workspaces/${workspaceId}/boards/${board.id}`}>
+              <ArrowUpRightIcon className="size-3.5" aria-hidden />
+              {copy.openAction}
+            </Link>
+          </ContextMenuItem>
+          <ContextMenuItem asChild>
+            <Link href={`/workspaces/${workspaceId}/boards/${board.id}/settings`}>
+              <Settings2Icon className="size-3.5" aria-hidden />
+              {copy.settingsAction}
+            </Link>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           {canManage && (
             <ContextMenuItem onSelect={() => actions.onRenameRequest(board)}>
               <PencilIcon className="size-3.5" aria-hidden />
@@ -483,11 +497,6 @@ function BoardRowItem({ board, workspaceId, active, onSelect, actions }: BoardRo
           )}
         </ContextMenuContent>
       </ContextMenu>
-      <BoardRowActions
-        workspaceId={workspaceId}
-        boardId={board.id}
-        boardTitle={board.title}
-      />
     </li>
   );
 }
@@ -536,45 +545,3 @@ function BoardMembersStack({ members }: { members: BoardRow['members'] }) {
   );
 }
 
-type BoardRowActionsProps = {
-  workspaceId: string;
-  boardId: string;
-  boardTitle: string;
-};
-
-/**
- * Sütun 2 satır eylemleri: **ayarlar** + **git**. İki kompakt `<Link>`;
- * `e.stopPropagation` gerek yok çünkü seçim button ayrı bir node. Settings
- * Sütun 1 workspace satırlarındaki ile aynı `Settings2Icon`'u kullanır (UI
- * tutarlılığı); git ikonu olarak `ArrowUpRight` — board sayfasına yönlen.
- */
-function BoardRowActions({ workspaceId, boardId, boardTitle }: BoardRowActionsProps) {
-  const copy = strings.home.boardsColumn;
-  const settingsAriaLabel = copy.settingsLabel(boardTitle);
-  const openAriaLabel = copy.openLabel(boardTitle);
-  const actionClass =
-    'text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring/60 inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2';
-
-  return (
-    <>
-      <Link
-        href={`/workspaces/${workspaceId}/boards/${boardId}/settings`}
-        aria-label={settingsAriaLabel}
-        title={settingsAriaLabel}
-        className={actionClass}
-      >
-        <Settings2Icon className="size-3.5" aria-hidden />
-        <span>{copy.settingsAction}</span>
-      </Link>
-      <Link
-        href={`/workspaces/${workspaceId}/boards/${boardId}`}
-        aria-label={openAriaLabel}
-        title={openAriaLabel}
-        className={actionClass}
-      >
-        <ArrowUpRightIcon className="size-3.5" aria-hidden />
-        <span>{copy.openAction}</span>
-      </Link>
-    </>
-  );
-}

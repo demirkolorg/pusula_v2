@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircleIcon,
   ArchiveIcon,
+  ArrowUpRightIcon,
   ListIcon as ListGlyphIcon,
   PencilIcon,
 } from 'lucide-react';
@@ -43,6 +45,8 @@ import { RowArchiveDialog, RowRenameDialog } from './row-action-dialogs';
 import { isArchivedList, type CardRow, type ListRow } from './types';
 
 type ListsColumnProps = {
+  /** Owning workspace id; "Aç" eyleminin board URL'ini kurar. */
+  workspaceId: string | null;
   /** Owning board id; null when Sütun 2'de seçim yok. */
   boardId: string | null;
   /**
@@ -64,10 +68,12 @@ type ListsColumnProps = {
 /**
  * Sütun 3 — Lists (§13.11). Reads from the same `board.get` payload as Sütun 4;
  * row shows list icon + title + card count. Read-only nav — yeni liste yalnızca
- * board ekranında oluşturulur (`+` butonu yok). **Sağ tık** ile yeniden adlandır
- * / arşivle (2026-06-01 sağ tık turu) — board `member+` yetkisi gerektirir.
+ * board ekranında oluşturulur (`+` butonu yok). **Sağ tık** menüsü: **aç**
+ * (listenin board'unu açar — her viewer) · yeniden adlandır / arşivle
+ * (2026-06-01 sağ tık turu — board `member+` ve arşivli olmayan liste ister).
  */
 export function ListsColumn({
+  workspaceId,
   boardId,
   boardRole = null,
   lists,
@@ -185,11 +191,15 @@ export function ListsColumn({
             // Arşivli liste sağ tık ile yeniden arşivlenemez/adlandırılamaz —
             // board ekranındaki "restore" akışı tek geri dönüş yolu.
             const showMenu = canEdit && !archived;
+            // "Aç" her viewer için: listenin board'unu açar (navigasyon, yetki
+            // gerektirmez). board+workspace seçiliyken satır render edildiği için
+            // pratikte her zaman doğru.
+            const canOpen = workspaceId != null && boardId != null;
 
             return (
               <li key={list.id}>
                 <ContextMenu>
-                  <ContextMenuTrigger asChild disabled={!showMenu}>
+                  <ContextMenuTrigger asChild disabled={!showMenu && !canOpen}>
                     <button
                       type="button"
                       aria-pressed={active}
@@ -226,22 +236,35 @@ export function ListsColumn({
                       <ListStatsMeta stats={stats} />
                     </button>
                   </ContextMenuTrigger>
-                  {showMenu && (
+                  {(canOpen || showMenu) && (
                     <ContextMenuContent
                       aria-label={actionsCopy.triggerLabel(list.title)}
                     >
-                      <ContextMenuItem onSelect={() => setRenameTargetId(list.id)}>
-                        <PencilIcon className="size-3.5" aria-hidden />
-                        {actionsCopy.rename}
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => setArchiveTargetId(list.id)}
-                      >
-                        <ArchiveIcon className="size-3.5" aria-hidden />
-                        {actionsCopy.archive}
-                      </ContextMenuItem>
+                      {canOpen && (
+                        <ContextMenuItem asChild>
+                          <Link href={`/workspaces/${workspaceId}/boards/${boardId}`}>
+                            <ArrowUpRightIcon className="size-3.5" aria-hidden />
+                            {copy.openAction}
+                          </Link>
+                        </ContextMenuItem>
+                      )}
+                      {showMenu && (
+                        <>
+                          {canOpen && <ContextMenuSeparator />}
+                          <ContextMenuItem onSelect={() => setRenameTargetId(list.id)}>
+                            <PencilIcon className="size-3.5" aria-hidden />
+                            {actionsCopy.rename}
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem
+                            variant="destructive"
+                            onSelect={() => setArchiveTargetId(list.id)}
+                          >
+                            <ArchiveIcon className="size-3.5" aria-hidden />
+                            {actionsCopy.archive}
+                          </ContextMenuItem>
+                        </>
+                      )}
                     </ContextMenuContent>
                   )}
                 </ContextMenu>

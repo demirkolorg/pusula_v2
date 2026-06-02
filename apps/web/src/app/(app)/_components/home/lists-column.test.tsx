@@ -78,6 +78,7 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
   it('renders a "0 kart" placeholder for empty lists', () => {
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         lists={[baseList]}
         cards={[]}
@@ -98,6 +99,7 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
     ];
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         lists={[baseList]}
         cards={cards}
@@ -119,6 +121,7 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
     ];
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         lists={[baseList]}
         cards={cards}
@@ -136,6 +139,7 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
     ];
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         lists={[baseList]}
         cards={cards}
@@ -155,6 +159,7 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
     ];
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         lists={[baseList]}
         cards={cards}
@@ -168,9 +173,10 @@ describe('<ListsColumn> — sinyal yoğunluğu', () => {
 });
 
 describe('<ListsColumn> — sağ tık menüsü', () => {
-  it('exposes rename + archive for board members', async () => {
+  it('exposes open + rename + archive for board members', async () => {
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         boardRole="member"
         lists={[baseList]}
@@ -184,16 +190,20 @@ describe('<ListsColumn> — sağ tık menüsü', () => {
       target: screen.getByRole('button', { name: /Hoş geldin/ }),
     });
     expect(
-      await screen.findByRole('menuitem', { name: 'Yeniden adlandır' }),
+      await screen.findByRole('menuitem', { name: 'Aç' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Yeniden adlandır' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Arşivle' }),
     ).toBeInTheDocument();
   });
 
-  it('disables the context menu for board viewers', async () => {
+  it('exposes only "Aç" for board viewers (no rename/archive)', async () => {
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         boardRole="viewer"
         lists={[baseList]}
@@ -206,13 +216,21 @@ describe('<ListsColumn> — sağ tık menüsü', () => {
       keys: '[MouseRight]',
       target: screen.getByRole('button', { name: /Hoş geldin/ }),
     });
-    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+    // "Aç" her viewer için (board'u açar); düzenleme eylemleri member+ ister.
+    expect(await screen.findByRole('menuitem', { name: 'Aç' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Yeniden adlandır' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Arşivle' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('disables the context menu on an already archived list', async () => {
+  it('exposes only "Aç" on an already archived list (no rename/archive)', async () => {
     const archivedAt = new Date();
     renderWithProviders(
       <ListsColumn
+        workspaceId="w1"
         boardId="b1"
         boardRole="member"
         lists={[{ ...baseList, archivedAt }]}
@@ -225,8 +243,14 @@ describe('<ListsColumn> — sağ tık menüsü', () => {
       keys: '[MouseRight]',
       target: screen.getByRole('button', { name: /Hoş geldin/ }),
     });
-    // Arşivli liste sağ tıkta menü almaz — kullanıcı board ekranındaki
-    // "restore" akışını izlemeli.
-    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+    // Arşivli liste yeniden adlandırılamaz/arşivlenemez (board ekranındaki
+    // "restore" akışı tek yol) — ama board'u açmak hâlâ mümkün.
+    expect(await screen.findByRole('menuitem', { name: 'Aç' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Yeniden adlandır' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Arşivle' }),
+    ).not.toBeInTheDocument();
   });
 });

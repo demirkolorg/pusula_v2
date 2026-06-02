@@ -175,6 +175,7 @@ export default function WorkspacesPage() {
 
   const listsColumnEl = (
     <ListsColumn
+      workspaceId={effectiveWorkspaceId}
       boardId={selectedBoardId}
       boardRole={selectedBoard?.role ?? null}
       lists={lists}

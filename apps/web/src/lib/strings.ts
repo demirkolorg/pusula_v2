@@ -685,13 +685,9 @@ export const strings = {
       favoritesGroupTitle: 'Favoriler',
       othersGroupTitle: 'Tümü',
       /**
-       * Satır içi eylemler (2026-06-01 — yıldız toggle kaldırıldı, yerine
-       * ayarlar + git eklendi). Favori değiştirme board ekranındaki üst bar'da.
-       * `*Label` ekran okuyucu/aria için uzun bağlamlı; `*Action` butonun
-       * görünen kısa etiketi.
+       * Satır eylemleri sağ tık menüsünde (2026-06-02 — inline ikon-butonlar
+       * kaldırıldı). `*Action` context menu öğesinin görünen kısa etiketi.
        */
-      settingsLabel: (title: string) => `"${title}" panosunun ayarları`,
-      openLabel: (title: string) => `"${title}" panosunu aç`,
       settingsAction: 'Ayarlar',
       openAction: 'Aç',
       emptyTitle: 'Pano yok',
@@ -716,6 +712,8 @@ export const strings = {
     listsColumn: {
       eyebrow: 'Listeler',
       count: (n: number) => `${n} liste`,
+      /** Sağ tık menüsünde listenin board'unu açan eylemin görünen etiketi. */
+      openAction: 'Aç',
       archivedBadge: 'Arşivli',
       cardCount: (n: number) => `${n} kart`,
       /**
