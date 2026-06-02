@@ -110,7 +110,7 @@ export function ChecklistItemRow({
           <span
             className={
               item.completed
-                ? 'text-muted-foreground min-w-0 flex-1 break-words line-through'
+                ? 'min-w-0 flex-1 break-words italic text-muted-foreground/70'
                 : 'min-w-0 flex-1 break-words'
             }
           >
