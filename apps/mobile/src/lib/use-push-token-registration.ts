@@ -28,6 +28,45 @@ import { useTRPC } from '@/trpc/provider';
 import { deviceLabel, pushPlatform } from '@/lib/push-device';
 import { setRegisteredPushToken } from '@/lib/push-token-store';
 
+/**
+ * iOS izin isteği option'ları — `requestPermissionsAsync`'e **açıkça** verilir.
+ *
+ * 2026-06-03 (badge fix): Argümansız `requestPermissionsAsync()` bazı
+ * expo-notifications / iOS sürümlerinde `UNAuthorizationOptionBadge`'i
+ * istemiyordu → iOS Ayarlar'da "Rozetler" toggle'ı hiç görünmüyor, dolayısıyla
+ * `setBadgeCountAsync` sessizce etkisiz kalıyor (app-icon rozeti donuyor). Badge
+ * yetkisi alert/sound ile birlikte AÇIKÇA istenir. Android'de bu option'lar
+ * yok sayılır (rozet platform varsayılanıyla yönetilir).
+ */
+const IOS_PERMISSION_REQUEST = {
+  ios: { allowAlert: true, allowBadge: true, allowSound: true },
+} as const;
+
+/**
+ * iOS'ta badge yetkisinin gerçekten alınıp alınmadığını söyler.
+ *
+ * `granted` true olsa bile (alert verilmiş) iOS badge'i ayrıca reddedebilir —
+ * o durumda `ios.allowsBadge` false döner ve `setBadgeCountAsync` çalışmaz.
+ * Android'de bu kavram yok; her zaman yetki var sayılır.
+ */
+function iosBadgeAllowed(permission: Notifications.NotificationPermissionsStatus): boolean {
+  if (Platform.OS !== 'ios') return true;
+  return permission.ios?.allowsBadge ?? false;
+}
+
+/**
+ * iOS "provisional" (sessiz) authorization mı? Provisional'da bildirimler
+ * **sessizce** bildirim merkezine düşer: banner yok, ses yok, ekran uyanmaz,
+ * badge yok, iOS Ayarlar'da Uyarılar/Sesler/Rozetler toggle'ları görünmez.
+ * `granted` yine de `true`'dur (bildirim teslim ediliyor) — bu yüzden tek
+ * başına `granted` kontrolü provisional'ı kaçırır. Full'e yükseltmek için
+ * `requestPermissionsAsync(full)` çağrılır → iOS gerçek izin dialog'unu gösterir.
+ */
+function isProvisional(permission: Notifications.NotificationPermissionsStatus): boolean {
+  if (Platform.OS !== 'ios') return false;
+  return permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+}
+
 /** EAS `projectId` — `getExpoPushTokenAsync` bunu ister. `app.config.ts` `extra.eas.projectId`. */
 function easProjectId(): string | undefined {
   const fromEas = Constants.easConfig?.projectId;
@@ -115,9 +154,26 @@ export function usePushTokenRegistration(): PushTokenRegistration {
         const current = await Notifications.getPermissionsAsync();
         if (cancelled) return;
 
-        // 2. İzin zaten verilmiş → priming atla, doğrudan token kaydı.
+        // 2. İzin zaten verilmiş → token'ı kaydet. iOS'ta badge yetkisi de
+        //    alınmış olabilir/olmayabilir (alert verilip badge reddedilmiş eski
+        //    kurulumlar). Token kaydı badge'den bağımsızdır; ayrı kontrol edilir.
         if (current.granted) {
           await registerPushToken(register);
+          // iOS full-yetki yükseltmesi gerekiyor mu?
+          //  - Provisional (sessiz) authorization → banner/ses/badge yok;
+          //    full'e yükseltmek için OS dialog'u şart. Provisional her zaman
+          //    yükseltilebilir, `canAskAgain`'e bakmadan primer gösterilir.
+          //  - Badge reddedilmiş (alert verilip badge alınmamış eski kurulum) →
+          //    tekrar sorulabilirse primer; `requestPermissionsAsync(allowBadge)`
+          //    "Rozetler" toggle'ını açar, `setBadgeCountAsync` çalışır.
+          // Primer'da "İzin ver" → `requestPermissionsAsync(IOS_PERMISSION_REQUEST)`
+          // iOS'a gerçek izin dialog'unu göstertir; kullanıcı onaylarsa
+          // banner + ses + rozet (+ ekran uyanması) full olarak açılır.
+          const provisional = isProvisional(current);
+          const badgeMissing = !iosBadgeAllowed(current) && current.canAskAgain;
+          if (provisional || badgeMissing) {
+            setShowPrimer(true);
+          }
           return;
         }
         // 3. İzin belirsiz + sorulabilir → priming Sheet'i göster (OS dialog'u
@@ -150,7 +206,10 @@ export function usePushTokenRegistration(): PushTokenRegistration {
     setShowPrimer(false);
     void (async () => {
       try {
-        const requested = await Notifications.requestPermissionsAsync();
+        // iOS badge yetkisini AÇIKÇA iste (alert/sound/badge). Argümansız çağrı
+        // bazı sürümlerde badge'i atlıyordu → "Rozetler" toggle'ı görünmüyor,
+        // `setBadgeCountAsync` etkisiz kalıyordu (app-icon rozeti donuyordu).
+        const requested = await Notifications.requestPermissionsAsync(IOS_PERMISSION_REQUEST);
         if (requested.granted) await registerPushToken(register);
       } catch (error) {
         // Best-effort — OS dialog'u/token hatası UI'yı bloklamaz. 2026-06-01
