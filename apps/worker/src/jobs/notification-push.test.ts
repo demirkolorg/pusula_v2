@@ -214,6 +214,10 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     expect(msg.body).toContain('Tasarımı bitir');
     expect(msg.data?.type).toBe('card_assigned');
     expect(msg.data?.cardId).toBe('c1');
+    // iOS kilitli-ekran ses+uyanma garantisi (regresyon guard).
+    expect(msg.sound).toBe('default');
+    expect(msg.priority).toBe('high');
+    expect(msg.interruptionLevel).toBe('active');
 
     const row = await readOutbox(outboxId);
     expect(row?.processedAt).not.toBeNull();

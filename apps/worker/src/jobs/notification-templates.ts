@@ -115,6 +115,26 @@ export function renderNotificationEmail(ctx: TemplateContext): RenderedEmail {
       // (`renderGeneric` yeterince güvenli). Faz 13U'da eklenen
       // `report_render_completed`/`failed` da aynı kanal disiplinine tabi.
       return renderGeneric(ctx);
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü. Bu 13 tip email opt-in
+    // listesinde DEĞİL (`notification-rules.ts pickChannels emailByType` false)
+    // → e-posta hattı pratikte hiç render etmez; switch yine de `never`
+    // exhaustiveness için case ister. Generic gövde yeterli (in-app + push
+    // özel metni `renderNotificationPush` / `activity-summary.ts`'te).
+    case 'card_created':
+    case 'list_created':
+    case 'list_renamed':
+    case 'list_moved':
+    case 'list_archived':
+    case 'list_deleted':
+    case 'board_created':
+    case 'board_renamed':
+    case 'board_archived':
+    case 'board_background_changed':
+    case 'label_created':
+    case 'label_updated':
+    case 'label_deleted':
+      return renderGeneric(ctx);
     default: {
       // Exhaustiveness check — every new NotificationType must be wired here.
       const _exhaustive: never = ctx.type;
@@ -145,8 +165,12 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
   };
   const cardId = stringOr(ctx.payload, 'cardId', '');
   const boardId = stringOr(ctx.payload, 'boardId', '');
+  const listId = stringOr(ctx.payload, 'listId', '');
   if (cardId) data.cardId = cardId;
   if (boardId) data.boardId = boardId;
+  // Faz 2 (2026-06-03) — liste yaşam döngüsü bildirimleri ilgili listeye derin
+  // link verebilsin diye `listId` taşınır (payload whitelist'te mevcut).
+  if (listId) data.listId = listId;
 
   switch (ctx.type) {
     case 'card_assigned':
@@ -385,6 +409,99 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         data,
       };
     }
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü. Push default açık
+    // (`pickChannels` 2026-06-01 kararı tüm tipleri push'a yollar) → anlamlı
+    // Türkçe metin gerekli. Entity adları payload'dan (web `activity-summary.ts`
+    // + mobil `notification-display.ts` ile simetrik); actor `actorName`.
+    case 'card_created':
+      return {
+        title: 'Yeni kart',
+        body: `${actor} yeni kart oluşturdu: "${pickSubject(ctx.payload)}".`,
+        data,
+      };
+    case 'list_created':
+      return {
+        title: 'Yeni liste',
+        body: `${actor}, "${pickListName(ctx.payload)}" listesini oluşturdu.`,
+        data,
+      };
+    case 'list_renamed':
+      return {
+        title: 'Liste yeniden adlandırıldı',
+        body: `${actor} bir listeyi yeniden adlandırdı: "${pickListName(ctx.payload)}".`,
+        data,
+      };
+    case 'list_moved':
+      return {
+        title: 'Liste taşındı',
+        body: `${actor}, "${pickListName(ctx.payload)}" listesini taşıdı.`,
+        data,
+      };
+    case 'list_archived': {
+      const archived = isPayloadArchived(ctx.payload);
+      const name = pickListName(ctx.payload);
+      return {
+        title: archived ? 'Liste arşivlendi' : 'Liste arşivden çıkarıldı',
+        body: archived
+          ? `${actor}, "${name}" listesini arşivledi.`
+          : `${actor}, "${name}" listesini arşivden çıkardı.`,
+        data,
+      };
+    }
+    case 'list_deleted':
+      return {
+        title: 'Liste silindi',
+        body: `${actor}, "${pickListName(ctx.payload)}" listesini sildi.`,
+        data,
+      };
+    case 'board_created':
+      return {
+        title: 'Yeni pano',
+        body: `${actor} yeni pano oluşturdu: "${pickBoardName(ctx.payload)}".`,
+        data,
+      };
+    case 'board_renamed':
+      return {
+        title: 'Pano yeniden adlandırıldı',
+        body: `${actor} panoyu yeniden adlandırdı: "${pickBoardName(ctx.payload)}".`,
+        data,
+      };
+    case 'board_archived': {
+      const archived = isPayloadArchived(ctx.payload);
+      const name = stringOr(ctx.payload, 'boardName', '') || 'bir pano';
+      return {
+        title: archived ? 'Pano arşivlendi' : 'Pano arşivden çıkarıldı',
+        body: archived
+          ? `${actor}, "${name}" panosunu arşivledi.`
+          : `${actor}, "${name}" panosunu arşivden çıkardı.`,
+        data,
+      };
+    }
+    case 'board_background_changed':
+      return {
+        title: 'Pano arka planı değişti',
+        body: `${actor}, "${stringOr(ctx.payload, 'boardName', '') || 'bir pano'}" panosunun arka planını değiştirdi.`,
+        data,
+      };
+    case 'label_created':
+      return {
+        title: 'Yeni etiket',
+        body: `${actor} bir etiket oluşturdu: "${pickLabelName(ctx.payload)}".`,
+        data,
+      };
+    case 'label_updated':
+      return {
+        title: 'Etiket düzenlendi',
+        body: `${actor} bir etiketi düzenledi: "${pickLabelName(ctx.payload)}".`,
+        data,
+      };
+    case 'label_deleted':
+      return {
+        title: 'Etiket silindi',
+        body: `${actor} bir etiketi sildi: "${pickLabelName(ctx.payload)}".`,
+        data,
+      };
     default: {
       const _exhaustive: never = ctx.type;
       void _exhaustive;
@@ -880,6 +997,36 @@ function digestGroupBaseTitle(type: NotificationType): string {
       // toplamaz. Exhaustiveness için tam tutulur. `report_render_*` Faz 13U
       // follow-up; aynı kanal disiplini.
       return 'Hazırlanan raporlar';
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
+    // oluşturma + liste / board / etiket yaşam döngüsü. E-posta kanalı bu tipler
+    // için satır yazmaz → digest pratikte hiç toplamaz; case'ler `never`
+    // exhaustiveness için tam tutulur.
+    case 'card_created':
+      return 'Yeni kartlar';
+    case 'list_created':
+      return 'Yeni listeler';
+    case 'list_renamed':
+      return 'Yeniden adlandırılan listeler';
+    case 'list_moved':
+      return 'Taşınan listeler';
+    case 'list_archived':
+      return 'Liste arşiv değişiklikleri';
+    case 'list_deleted':
+      return 'Silinen listeler';
+    case 'board_created':
+      return 'Yeni panolar';
+    case 'board_renamed':
+      return 'Yeniden adlandırılan panolar';
+    case 'board_archived':
+      return 'Pano arşiv değişiklikleri';
+    case 'board_background_changed':
+      return 'Pano arka planı değişiklikleri';
+    case 'label_created':
+      return 'Yeni etiketler';
+    case 'label_updated':
+      return 'Düzenlenen etiketler';
+    case 'label_deleted':
+      return 'Silinen etiketler';
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -983,6 +1130,40 @@ function digestLineFor(type: NotificationType, item: DigestItem, _appUrl: string
       const reportTitle = stringOr(item.payload, 'reportTitle', 'Rapor');
       return `"${reportTitle}" raporu hazır`;
     }
+    // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Digest
+    // e-posta için pratikte hiç çağrılmaz (email kanalı satır yazmaz); `never`
+    // exhaustiveness için tam. Entity adları item.payload'dan (push + web/mobil
+    // özet metniyle simetrik).
+    case 'card_created':
+      return `${actor} → "${subject}" kartını oluşturdu`;
+    case 'list_created':
+      return `${actor} → "${pickListName(item.payload)}" listesini oluşturdu`;
+    case 'list_renamed':
+      return `${actor} → "${pickListName(item.payload)}" listesini yeniden adlandırdı`;
+    case 'list_moved':
+      return `${actor} → "${pickListName(item.payload)}" listesini taşıdı`;
+    case 'list_archived':
+      return `${actor} → "${pickListName(item.payload)}" listesini ${
+        isPayloadArchived(item.payload) ? 'arşivledi' : 'arşivden çıkardı'
+      }`;
+    case 'list_deleted':
+      return `${actor} → "${pickListName(item.payload)}" listesini sildi`;
+    case 'board_created':
+      return `${actor} → "${pickBoardName(item.payload)}" panosunu oluşturdu`;
+    case 'board_renamed':
+      return `${actor} → "${pickBoardName(item.payload)}" panosunu yeniden adlandırdı`;
+    case 'board_archived':
+      return `${actor} → "${stringOr(item.payload, 'boardName', '') || 'bir pano'}" panosunu ${
+        isPayloadArchived(item.payload) ? 'arşivledi' : 'arşivden çıkardı'
+      }`;
+    case 'board_background_changed':
+      return `${actor} → "${stringOr(item.payload, 'boardName', '') || 'bir pano'}" panosunun arka planını değiştirdi`;
+    case 'label_created':
+      return `${actor} → "${pickLabelName(item.payload)}" etiketini oluşturdu`;
+    case 'label_updated':
+      return `${actor} → "${pickLabelName(item.payload)}" etiketini düzenledi`;
+    case 'label_deleted':
+      return `${actor} → "${pickLabelName(item.payload)}" etiketini sildi`;
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -1033,6 +1214,39 @@ function pickSubject(payload: Record<string, unknown>): string {
     stringOr(payload, 'workspaceName', '') ||
     'Pusula'
   );
+}
+
+/**
+ * Bildirim kapsamı genişletme (Faz 2, 2026-06-03) — liste / etiket / board
+ * adı çözümleyicileri. Web `apps/web/src/lib/activity-summary.ts` ve mobil
+ * `apps/mobile/src/lib/notification-display.ts` ile simetrik tutulur:
+ *  - Liste adı: rename'de `toTitle`, oluştur/sil'de `title`, taşımada ad
+ *    taşınmaz → `name` ya da jenerik yedek (whitelist'te `toTitle`/`title`/`name`).
+ *  - Etiket adı: `name` (label CRUD payload'ı), yoksa jenerik yedek.
+ *  - Board adı: rename sonrası yeni başlık `toTitle`, yoksa context'ten gelen
+ *    `boardName`.
+ *  - Arşivleme yönü: `payload.archived !== false` → arşivlendi (true). Web/mobil
+ *    `isArchived` ile aynı (boolean yoksa "arşivlendi" varsayar).
+ */
+function pickListName(payload: Record<string, unknown>): string {
+  return (
+    stringOr(payload, 'toTitle', '') ||
+    stringOr(payload, 'title', '') ||
+    stringOr(payload, 'name', '') ||
+    'bir liste'
+  );
+}
+
+function pickLabelName(payload: Record<string, unknown>): string {
+  return stringOr(payload, 'name', '') || 'bir etiket';
+}
+
+function pickBoardName(payload: Record<string, unknown>): string {
+  return stringOr(payload, 'toTitle', '') || stringOr(payload, 'boardName', '') || 'bir pano';
+}
+
+function isPayloadArchived(payload: Record<string, unknown>): boolean {
+  return payload.archived !== false;
 }
 
 function stringOr(payload: Record<string, unknown>, key: string, fallback: string): string {

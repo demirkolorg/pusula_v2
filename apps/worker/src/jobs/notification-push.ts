@@ -71,6 +71,12 @@ export interface ExpoPushMessage {
   // unread notification count so the icon mirrors the in-app badge. Omitted on
   // Android (no app-icon badge concept there; harmless if ignored).
   badge?: number;
+  // iOS 15+ interruption level (APNs `aps.interruption-level`). Without it Expo
+  // omits the field and iOS may deliver locked-screen pushes silently (no sound,
+  // no wake) even with `priority:'high'` + `sound`. `'active'` = default active
+  // delivery (sound + banner + wake) and needs NO entitlement; `'time-sensitive'`
+  // would pierce Focus but requires the time-sensitive entitlement (native).
+  interruptionLevel?: 'active' | 'critical' | 'passive' | 'time-sensitive';
 }
 
 export interface ExpoPushTicketOk {
@@ -270,6 +276,9 @@ export async function processNotificationPushJob(
       sound: 'default',
       priority: 'high',
       badge,
+      // iOS: kilitli ekranda ses + ekran uyanması için açık interruption-level.
+      // Olmadan iOS sessiz teslime düşüyordu (priority+sound yetmiyor).
+      interruptionLevel: 'active',
     }));
 
     const chunks = client.chunkPushNotifications(messages);
