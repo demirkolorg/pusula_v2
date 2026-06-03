@@ -134,6 +134,10 @@ export default function QuickNotesScreen() {
           data={notes}
           keyExtractor={(note) => note.id}
           contentContainerClassName="gap-3 p-4"
+          // Satır-içi not düzenleme (QuickNoteRow input) klavyenin altında
+          // kalmasın — iOS otomatik content-inset (kart detayı [cardId].tsx:320
+          // ile aynı desen). Üstteki InlineComposer zaten klavye üstünde.
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={notes.length === 0 ? { flex: 1 } : undefined}
           renderItem={renderNote}
           ListEmptyComponent={

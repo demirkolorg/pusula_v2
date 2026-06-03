@@ -133,7 +133,13 @@ export default function ProfileEditScreen() {
       : strings.profileEdit.avatarAdd;
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4">
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerClassName="gap-5 p-4"
+      // Klavye açılınca alttaki alanlar (TextField) klavyenin altında kalmasın —
+      // iOS otomatik content-inset (kart detayı [cardId].tsx:320 ile aynı desen).
+      automaticallyAdjustKeyboardInsets
+    >
       <Text className="text-sm text-muted-foreground">{strings.profileEdit.description}</Text>
 
       {/* Avatar — mevcut görsel + değiştir / kaldır (DEM-212). */}

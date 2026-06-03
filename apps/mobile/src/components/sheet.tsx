@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, View, useColorScheme } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { useIsTablet } from '@/lib/use-device-class';
@@ -42,40 +49,49 @@ export function Sheet({ visible, title, onClose, children }: SheetProps) {
       animationType={isTablet ? 'fade' : 'slide'}
       onRequestClose={onClose}
     >
-      <Pressable
-        className={
-          isTablet
-            ? 'flex-1 items-center justify-center bg-black/50 px-6'
-            : 'flex-1 justify-end bg-black/50'
-        }
-        onPress={onClose}
+      <KeyboardAvoidingView
+        // iOS'ta klavye açılınca alttan açılan panel (özellikle içindeki
+        // composer/TextArea) klavyenin altında kalmasın diye panel klavye
+        // yüksekliği kadar yukarı iter. Android'de pencere `adjustResize`
+        // davranışı zaten yeniden boyutlandırdığından orada kapalı.
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        className="flex-1"
       >
-        {/* Panel — `onPress` no-op'ı dokunuşu yutar, backdrop'a yayılmaz. */}
         <Pressable
-          onPress={() => {}}
           className={
             isTablet
-              ? 'w-full max-w-md gap-3 rounded-2xl bg-background p-4'
-              : 'gap-3 rounded-t-2xl bg-background p-4 pb-8'
+              ? 'flex-1 items-center justify-center bg-black/50 px-6'
+              : 'flex-1 justify-end bg-black/50'
           }
+          onPress={onClose}
         >
-          <View className="flex-row items-center justify-between">
-            <Text weight="semibold" className="text-base text-foreground">
-              {title}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.common.close}
-              hitSlop={8}
-              onPress={onClose}
-              className="active:opacity-60"
-            >
-              <Icon name="x" size={22} color={theme.mutedForeground} />
-            </Pressable>
-          </View>
-          {children}
+          {/* Panel — `onPress` no-op'ı dokunuşu yutar, backdrop'a yayılmaz. */}
+          <Pressable
+            onPress={() => {}}
+            className={
+              isTablet
+                ? 'w-full max-w-md gap-3 rounded-2xl bg-background p-4'
+                : 'gap-3 rounded-t-2xl bg-background p-4 pb-8'
+            }
+          >
+            <View className="flex-row items-center justify-between">
+              <Text weight="semibold" className="text-base text-foreground">
+                {title}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.common.close}
+                hitSlop={8}
+                onPress={onClose}
+                className="active:opacity-60"
+              >
+                <Icon name="x" size={22} color={theme.mutedForeground} />
+              </Pressable>
+            </View>
+            {children}
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
