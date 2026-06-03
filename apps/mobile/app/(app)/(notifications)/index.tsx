@@ -48,6 +48,11 @@ export default function NotificationsScreen() {
   const query = useQuery(
     trpc.notifications.list.queryOptions(LIST_INPUT, { placeholderData: keepPreviousData }),
   );
+  // Okunmamış sayısı — sekme rozetiyle AYNI kaynak (`unreadCount`) ki başlık
+  // özeti rozetle birebir tutarlı olsun. Liste hem okunmuş hem okunmamışı
+  // gösterir (geçmiş); rozet + bu özet yalnız okunmamışı sayar.
+  const unreadQuery = useQuery(trpc.notifications.unreadCount.queryOptions());
+  const unreadCount = unreadQuery.data?.count ?? 0;
   const { markRead, markAllRead, isMarkingAll } = useNotificationMutations(LIST_INPUT);
 
   const items = query.data?.items ?? [];
@@ -70,9 +75,16 @@ export default function NotificationsScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
       {/* Ekran-içi başlık + aksiyonlar (sekme ekranı — native header yok). */}
       <View className="flex-row items-center justify-between px-4 pb-2 pt-2">
-        <Text weight="semibold" className="text-2xl text-foreground">
-          {strings.notifications.title}
-        </Text>
+        <View>
+          <Text weight="semibold" className="text-2xl text-foreground">
+            {strings.notifications.title}
+          </Text>
+          {unreadCount > 0 ? (
+            <Text className="text-xs text-muted-foreground">
+              {strings.notifications.unreadSummary(unreadCount)}
+            </Text>
+          ) : null}
+        </View>
         <View className="flex-row items-center gap-4">
           <Pressable
             accessibilityRole="button"

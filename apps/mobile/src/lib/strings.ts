@@ -521,6 +521,8 @@ export const strings = {
     loadMore: 'Daha fazla yükle',
     loadingMore: 'Yükleniyor…',
     unreadLabel: 'Okunmamış',
+    /** Başlık altı okunmamış sayısı özeti: `${n} okunmamış`. */
+    unreadSummary: (n: number) => `${n} okunmamış`,
     systemBadge: 'Sistem',
     // Aktör adı / kart / board / workspace yedek metinleri.
     fallbackActorName: 'Bir kullanıcı',
