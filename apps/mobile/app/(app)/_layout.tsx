@@ -1,6 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { AppState, View, useColorScheme } from 'react-native';
+import {
+  AppState,
+  Pressable,
+  ScrollView,
+  Text as RNText,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
+import type { ErrorBoundaryProps } from 'expo-router';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import * as Notifications from 'expo-notifications';
 import { useQuery } from '@tanstack/react-query';
@@ -31,6 +39,48 @@ import { themeFor } from '@/theme/tokens';
 export const unstable_settings = {
   initialRouteName: '(boards)',
 };
+
+/**
+ * GEÇİCİ TEŞHİS (2026-06-03): pano/kart açılışındaki crash'in gerçek JS
+ * hatasını yakalamak için Expo Router ErrorBoundary'si. `(app)` altındaki tüm
+ * ekranların (pano, kart, ...) render/lifecycle hatasını yakalar; uygulama
+ * kapanmak (expo-updates native recovery → SIGABRT) yerine hata adını, mesajını
+ * ve stack'ini **seçilebilir** olarak ekranda gösterir. Crash sebebi bulununca
+ * bu export kaldırılacak. Kasıtlı olarak yalnız çıplak RN bileşenleri kullanır
+ * (kendi `@/components` bileşenleri de hataya karışmasın).
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: '#fff' }}
+      contentContainerStyle={{ padding: 20, paddingTop: 72, gap: 12 }}
+    >
+      <RNText style={{ fontSize: 18, fontWeight: '700', color: '#dc2626' }}>
+        ⚠️ Yakalanan hata (teşhis)
+      </RNText>
+      <RNText selectable style={{ fontSize: 15, fontWeight: '600', color: '#111' }}>
+        {String(error?.name ?? 'Error')}: {String(error?.message ?? 'bilinmiyor')}
+      </RNText>
+      <RNText selectable style={{ fontSize: 11, color: '#555', lineHeight: 16 }}>
+        {String(error?.stack ?? '(stack yok)')}
+      </RNText>
+      <Pressable
+        onPress={() => {
+          void retry();
+        }}
+        style={{
+          marginTop: 8,
+          padding: 14,
+          borderRadius: 10,
+          backgroundColor: '#2563eb',
+          alignItems: 'center',
+        }}
+      >
+        <RNText style={{ color: '#fff', fontWeight: '600' }}>Tekrar dene</RNText>
+      </Pressable>
+    </ScrollView>
+  );
+}
 
 /**
  * Korumalı app-shell — alt tab bar (4 sekme: Panolar / Arama / Bildirimler /
