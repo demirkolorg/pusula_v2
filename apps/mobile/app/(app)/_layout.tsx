@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, View, useColorScheme } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import * as Notifications from 'expo-notifications';
@@ -93,9 +93,34 @@ export default function AppLayout() {
   // düzeltir/sıfırlar. (Logout rozeti `(account)` signOut handler'ı
   // `setBadgeCountAsync(0)` ile ayrıca temizler — burada cache disable olunca
   // unreadCount sıfırlanmaz.)
+  //
+  // NOT: `setBadgeCountAsync` ancak iOS badge yetkisi (UNAuthorizationOptionBadge)
+  // alınmışsa etki eder. O yetki push izin akışında AÇIKÇA istenir
+  // (`use-push-token-registration` → `requestPermissionsAsync({ ios: {
+  // allowBadge: true }})`). Yetki yoksa bu çağrı sessizce no-op olur — rozet
+  // ekrandaki son değerinde donar (bu fix'ten önceki kök neden buydu).
   useEffect(() => {
     void Notifications.setBadgeCountAsync(unreadCount);
   }, [unreadCount]);
+
+  // Defansif (2026-06-03): app foreground'a her dönüşte rozeti güncel
+  // `unreadCount` ile yeniden yaz. Mount-timing kaynaklı kaçırmaları (örn.
+  // arka plandayken markAllRead/okuma sonrası ön plana dönüş, ya da effect
+  // ilk koştuğunda yetki henüz verilmemişti) telafi eder. `unreadCountRef`
+  // sayesinde listener bağımlılığa girmez (her sayı değişiminde re-subscribe
+  // etmeyiz), ama active'e geçişte en güncel değeri okur.
+  const unreadCountRef = useRef(unreadCount);
+  unreadCountRef.current = unreadCount;
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void Notifications.setBadgeCountAsync(unreadCountRef.current);
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   if (isPending) return <LoadingScreen />;
   if (!session) return <Redirect href="/sign-in" />;
