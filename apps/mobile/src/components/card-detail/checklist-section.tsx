@@ -360,11 +360,14 @@ export function ChecklistSection({
       ) : null}
     </View>
 
-    {/* Madde yorum thread'i — tek paylaşılan bottom sheet (açık madde id'sine
-        göre). Yorum bağlamı yoksa hiç render edilmez. */}
-    {comments ? (
+    {/* Madde yorum thread'i — KOŞULLU mount: yalnız bir madde thread'i açıkken
+        Modal mount edilir. Önceden her kart açılışında (visible=false) sürekli
+        mount ediliyordu; kart detayındaki diğer sheet'lerle (CardActionsSheet,
+        CardMetaBar) üst üste binen her-zaman-mount Modal iOS'ta native crash'e
+        yol açıyordu. Diğer sheet'ler gibi koşullu mount → çakışma yok. */}
+    {comments && openThreadItemId != null ? (
       <ChecklistItemThreadSheet
-        visible={openThreadItemId != null}
+        visible
         cardId={cardId}
         checklistItemId={openThreadItemId}
         resolveAuthor={comments.resolveAuthor}

@@ -86,7 +86,10 @@ export function ChecklistItemRow({
   // (yorum bağlamı), satır optimistic olmamalı (madde sunucuda) ve düzenleme
   // kapalı olmalı. `commentCount > 0` ise sayı görünür; 0 ise yalnız ikon
   // (boş thread'i açıp ilk yorumu yazmak için). 44×44 dokunma hedefi.
-  const hasComments = item.commentCount > 0;
+  // `?? 0` defansif: eski/yarı yüklenmiş cache satırında `commentCount`
+  // tanımsız olabilir (backend alanı yeni); tanımsız → rozet sayısı gizli.
+  const commentCount = item.commentCount ?? 0;
+  const hasComments = commentCount > 0;
   const commentsBadge =
     onOpenComments && !optimistic && !editing ? (
       <Pressable
@@ -103,7 +106,7 @@ export function ChecklistItemRow({
         />
         {hasComments ? (
           <Text weight="medium" className="text-xs text-primary">
-            {item.commentCount}
+            {commentCount}
           </Text>
         ) : null}
       </Pressable>
