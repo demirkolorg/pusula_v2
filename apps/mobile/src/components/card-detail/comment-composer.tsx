@@ -35,6 +35,8 @@ export function CommentComposer({ cardId }: { cardId: string }) {
         const optimistic: Comments[number] = {
           id: `optimistic-${vars.clientMutationId ?? newClientMutationId()}`,
           cardId,
+          // Kart yorumu — bir checklist maddesine bağlı değil.
+          checklistItemId: null,
           authorId: session?.user.id ?? null,
           body: vars.body,
           editedAt: null,

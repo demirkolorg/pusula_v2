@@ -15,6 +15,7 @@ const baseItem: ChecklistItem = {
   completed: false,
   completedAt: null,
   completedBy: null,
+  commentCount: 0,
   createdAt: new Date('2026-05-19T00:00:00Z'),
   updatedAt: new Date('2026-05-19T00:00:00Z'),
 };

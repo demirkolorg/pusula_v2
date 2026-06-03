@@ -93,6 +93,9 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
           completed: false,
           completedAt: null,
           completedBy: null,
+          // Yeni madde henüz yorum almadı — optimistic satır 0 ile başlar,
+          // gerçek sayı `onSettled` invalidate ile gelir.
+          commentCount: 0,
           createdAt: now,
           updatedAt: now,
         };
