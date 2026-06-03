@@ -7,10 +7,25 @@ import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/button';
 import { TextArea } from '@/components/text-area';
 import { newClientMutationId } from '@/lib/client-mutation-id';
+import { bumpChecklistItemCommentCount } from '@/lib/checklist-comment-cache';
 import { serializeTiptapDoc } from '@/lib/tiptap';
 import { strings } from '@/lib/strings';
 
 type Comments = RouterOutputs['comment']['list'];
+
+type CommentComposerProps = {
+  cardId: string;
+  /**
+   * Verilirse yorum bu kontrol listesi (yapılacaklar) maddesine bağlanır
+   * (madde thread'i); aksi halde klasik kart yorumu olur. Cache anahtarı ve
+   * optimistic satırın `checklistItemId`'si buna göre ayarlanır.
+   */
+  checklistItemId?: string;
+  /** Gönderim sonrası (örn. thread sheet'inde) ekstra yan etki. */
+  onSubmitted?: () => void;
+  /** Composer giriş alanının minimum yüksekliği — kompakt thread'de daha düşük. */
+  minHeightClassName?: string;
+};
 
 /**
  * Yorum yazma alanı (Faz 7G). Düz metin Tiptap JSON doc'una serialize edilir
@@ -18,12 +33,24 @@ type Comments = RouterOutputs['comment']['list'];
  * geçici bir kayıt olarak `comment.list` cache'ine eklenir, hata olursa geri
  * alınır; `clientMutationId` taşır. Board `viewer` için ekran bu bileşeni hiç
  * render etmez (yorum yazma board `member+` ister).
+ *
+ * `checklistItemId` verildiğinde aynı bileşen bir kontrol listesi maddesinin
+ * yorum thread'ine yazar: cache anahtarı `{ cardId, checklistItemId }` olur ve
+ * optimistic ekleme `checklist.list` cache'indeki o maddenin `commentCount`'unu
+ * +1 yamalar (madde satırı rozeti anında güncellensin); `onSettled` invalidate
+ * gerçek sayıyı sunucudan tazeler.
  */
-export function CommentComposer({ cardId }: { cardId: string }) {
+export function CommentComposer({
+  cardId,
+  checklistItemId,
+  onSubmitted,
+  minHeightClassName = 'min-h-20',
+}: CommentComposerProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const commentsKey = trpc.comment.list.queryKey({ cardId });
+  // Madde thread'i ise o maddenin thread cache'i; aksi halde kart yorum cache'i.
+  const commentsKey = trpc.comment.list.queryKey({ cardId, checklistItemId });
   const [draft, setDraft] = useState('');
 
   const createComment = useMutation(
@@ -35,8 +62,8 @@ export function CommentComposer({ cardId }: { cardId: string }) {
         const optimistic: Comments[number] = {
           id: `optimistic-${vars.clientMutationId ?? newClientMutationId()}`,
           cardId,
-          // Kart yorumu — bir checklist maddesine bağlı değil.
-          checklistItemId: null,
+          // Madde thread'inde maddeye bağlı; kart yorumunda `null`.
+          checklistItemId: checklistItemId ?? null,
           authorId: session?.user.id ?? null,
           body: vars.body,
           editedAt: null,
@@ -45,15 +72,26 @@ export function CommentComposer({ cardId }: { cardId: string }) {
           updatedAt: now,
         };
         queryClient.setQueryData<Comments>(commentsKey, [...(prev ?? []), optimistic]);
-        return { prev };
+        // Madde thread'i ise satır rozetini anında +1 yama (gerçek sayı
+        // `onSettled` invalidate ile gelir).
+        const prevCount = checklistItemId
+          ? bumpChecklistItemCommentCount(queryClient, trpc, cardId, checklistItemId, +1)
+          : undefined;
+        return { prev, prevCount };
       },
       onError: (_error, _vars, ctx) => {
         if (ctx?.prev) queryClient.setQueryData(commentsKey, ctx.prev);
+        // Rozet yamasını da geri al.
+        if (checklistItemId && ctx?.prevCount) ctx.prevCount();
         Alert.alert(strings.cardDetail.commentsTitle, strings.cardDetail.actionError);
       },
       onSettled: () => {
         void queryClient.invalidateQueries({ queryKey: commentsKey });
         void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
+        // Madde thread'inde satır rozetini sunucu değeriyle tazele.
+        if (checklistItemId) {
+          void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+        }
       },
     }),
   );
@@ -62,8 +100,18 @@ export function CommentComposer({ cardId }: { cardId: string }) {
     const trimmed = draft.trim();
     if (trimmed.length === 0) return;
     createComment.mutate(
-      { cardId, body: serializeTiptapDoc(trimmed), clientMutationId: newClientMutationId() },
-      { onSuccess: () => setDraft('') },
+      {
+        cardId,
+        checklistItemId,
+        body: serializeTiptapDoc(trimmed),
+        clientMutationId: newClientMutationId(),
+      },
+      {
+        onSuccess: () => {
+          setDraft('');
+          onSubmitted?.();
+        },
+      },
     );
   };
 
@@ -74,7 +122,7 @@ export function CommentComposer({ cardId }: { cardId: string }) {
         onChangeText={setDraft}
         placeholder={strings.cardDetail.commentPlaceholder}
         editable={!createComment.isPending}
-        minHeightClassName="min-h-20"
+        minHeightClassName={minHeightClassName}
       />
       <Button
         label={

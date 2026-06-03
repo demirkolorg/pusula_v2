@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View, useColorScheme } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
@@ -9,6 +9,10 @@ import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { SectionAddTrigger } from '@/components/card-detail/section';
 import { ChecklistItemRow } from '@/components/card-detail/checklist-item-row';
+import {
+  ChecklistItemThreadSheet,
+} from '@/components/card-detail/checklist-item-thread-sheet';
+import type { AuthorResolver } from '@/components/card-detail/comment-list';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
@@ -19,11 +23,32 @@ type ChecklistItem = Checklists[number]['items'][number];
 /** Optimistic eklenen (henüz sunucuda olmayan) madde id ön eki. */
 const OPTIMISTIC_PREFIX = 'optimistic-';
 
+/**
+ * Madde yorum thread'i (yapılacaklar maddesine yorum) için ekrandan akan bağlam.
+ * Verilirse her madde satırı bir yorum rozeti gösterir ve dokununca thread
+ * bottom sheet'i açılır. Yorum yazarı çözümleyici + yetki bilgisi kart yorum
+ * bölümüyle aynı kaynaktan gelir (tek `resolveAuthor`).
+ */
+export type ChecklistCommentContext = {
+  resolveAuthor: AuthorResolver;
+  currentUserId: string | undefined;
+  myBoardRole: 'admin' | 'member' | 'viewer' | undefined;
+  /** Yorum yazma yetkisi (board `member+` + board aktif) — viewer salt-okur. */
+  canComment: boolean;
+};
+
 type ChecklistSectionProps = {
   cardId: string;
   checklists: Checklists;
   /** Çağıran board `member+` mi — `false` ise salt-okunur. */
   canEdit: boolean;
+  /** Madde yorum bağlamı — verilirse satırlar yorum rozeti + thread sheet'i alır. */
+  comments?: ChecklistCommentContext;
+  /**
+   * Deep-link / bildirimle gelinen madde id'si — yorum bağlamı varsa ve madde
+   * yüklenen listede mevcutsa o maddenin thread'i bir kez otomatik açılır.
+   */
+  initialCommentItemId?: string;
 };
 
 /**
@@ -34,11 +59,36 @@ type ChecklistSectionProps = {
  * `false` ise salt-okunur. Listesi olmayan kart, düzenleyebilen kullanıcıya
  * doğrudan "kontrol listesi ekle" girişini gösterir.
  */
-export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSectionProps) {
+export function ChecklistSection({
+  cardId,
+  checklists,
+  canEdit,
+  comments,
+  initialCommentItemId,
+}: ChecklistSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const theme = themeFor(useColorScheme());
   const checklistKey = trpc.checklist.list.queryKey({ cardId });
+  // Açık madde yorum thread'i — bir madde id'si tutar; tek sheet tüm satırlar
+  // için paylaşılır (her satıra ayrı modal mount edilmez). `null` → kapalı.
+  const [openThreadItemId, setOpenThreadItemId] = useState<string | null>(null);
+  // Deep-link auto-open yalnız bir kez — kullanıcı sheet'i kapatınca tekrar
+  // açılmamalı (madde checklist'te göründüğü ilk render'da tetiklenir).
+  const autoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (!comments || !initialCommentItemId) return;
+    // Madde gerçekten yüklenen listede var mı? Yoksa (yanlış/eski id) sheet'i
+    // açma — boş thread göstermek yerine sessizce yok say.
+    const exists = checklists.some((list) =>
+      list.items.some((item) => item.id === initialCommentItemId),
+    );
+    if (!exists) return;
+    autoOpenedRef.current = true;
+    setOpenThreadItemId(initialCommentItemId);
+  }, [comments, initialCommentItemId, checklists]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: checklistKey });
@@ -198,6 +248,7 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
   };
 
   return (
+    <>
     <View className="gap-4">
       {checklists.length === 0 && !canEdit ? (
         <Text className="text-sm text-muted-foreground">
@@ -269,6 +320,10 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
                         clientMutationId: newClientMutationId(),
                       })
                     }
+                    // Yorum bağlamı varsa satır rozeti + thread sheet açma.
+                    onOpenComments={
+                      comments ? () => setOpenThreadItemId(item.id) : undefined
+                    }
                   />
                 ))}
               </View>
@@ -304,6 +359,22 @@ export function ChecklistSection({ cardId, checklists, canEdit }: ChecklistSecti
         />
       ) : null}
     </View>
+
+    {/* Madde yorum thread'i — tek paylaşılan bottom sheet (açık madde id'sine
+        göre). Yorum bağlamı yoksa hiç render edilmez. */}
+    {comments ? (
+      <ChecklistItemThreadSheet
+        visible={openThreadItemId != null}
+        cardId={cardId}
+        checklistItemId={openThreadItemId}
+        resolveAuthor={comments.resolveAuthor}
+        currentUserId={comments.currentUserId}
+        myBoardRole={comments.myBoardRole}
+        canComment={comments.canComment}
+        onClose={() => setOpenThreadItemId(null)}
+      />
+    ) : null}
+    </>
   );
 }
 

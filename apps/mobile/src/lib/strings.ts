@@ -314,6 +314,12 @@ export const strings = {
     commentDelete: 'Sil',
     commentDeleteConfirmTitle: 'Yorumu sil',
     commentDeleteConfirmBody: 'Bu yorum silinecek. Bu işlem geri alınamaz.',
+    // Kontrol listesi maddesi yorum thread'i (yapılacaklar maddesine yorum).
+    // Madde satırındaki rozet + alttan açılan thread sheet'i.
+    itemCommentsOpen: 'Madde yorumlarını aç',
+    itemCommentsTitle: 'Madde yorumları',
+    itemCommentsCountLabel: (count: number) => `${count} yorum`,
+    itemCommentsEmpty: 'Bu maddeye henüz yorum yapılmadı.',
     // Başlık düzenleme + liste taşıma (Faz 7H).
     editTitleLabel: 'Kart başlığını düzenle',
     titlePlaceholder: 'Kart başlığı',

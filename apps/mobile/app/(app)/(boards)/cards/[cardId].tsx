@@ -54,7 +54,14 @@ import { themeFor } from '@/theme/tokens';
  * her bölüm (`DetailSection`) kart yüzeyinde + başlığında özet rozeti taşır.
  */
 export default function CardDetailScreen() {
-  const params = useLocalSearchParams<{ cardId: string; title?: string }>();
+  const params = useLocalSearchParams<{
+    cardId: string;
+    title?: string;
+    // Madde yorum bildirimi/deep-link'iyle gelinince açılacak kontrol listesi
+    // maddesinin id'si — kart yüklenince o maddenin yorum thread'i (bottom
+    // sheet) otomatik açılır.
+    checklistItemId?: string;
+  }>();
   const cardId = params.cardId;
   const trpc = useTRPC();
   const theme = themeFor(useColorScheme());
@@ -428,6 +435,18 @@ export default function CardDetailScreen() {
           checklistsError={checklistsQuery.isError}
           checklistItemsDone={checklistItemsDone}
           checklistItemsTotal={checklistItemsTotal}
+          // Madde yorum thread'i bağlamı — kart yorumlarıyla aynı yazar
+          // çözümleyici + yetki. Viewer da thread açıp okuyabilir; yazma
+          // `canEdit` (board member+) ister.
+          checklistComments={{
+            resolveAuthor,
+            currentUserId,
+            myBoardRole,
+            canComment: canEdit,
+          }}
+          // Deep-link / madde yorum bildirimiyle gelinmişse o maddenin yorum
+          // thread'i otomatik açılır (bir kez).
+          initialCommentItemId={params.checklistItemId}
         />
 
         {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme

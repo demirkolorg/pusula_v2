@@ -11,6 +11,7 @@ import { EntityAvatar } from '@/components/entity-avatar';
 import { TiptapRender } from '@/components/tiptap-render';
 import { formatTimestamp } from '@/lib/format-date';
 import { newClientMutationId } from '@/lib/client-mutation-id';
+import { bumpChecklistItemCommentCount } from '@/lib/checklist-comment-cache';
 import { serializeTiptapDoc, tiptapToPlainText } from '@/lib/tiptap';
 import { strings } from '@/lib/strings';
 
@@ -35,6 +36,12 @@ type CommentListProps = {
   myBoardRole: 'admin' | 'member' | 'viewer' | undefined;
   /** Çağıran board `member+` ve board aktif mi — düzenle/sil ön koşulu. */
   canEdit: boolean;
+  /**
+   * Verilirse liste bir kontrol listesi maddesinin yorum thread'ini düzenler:
+   * cache anahtarı `{ cardId, checklistItemId }` olur ve yorum silinince o
+   * maddenin `checklist.list` cache'indeki `commentCount`'u -1 yamalanır.
+   */
+  checklistItemId?: string;
 };
 
 /**
@@ -53,16 +60,22 @@ export function CommentList({
   currentUserId,
   myBoardRole,
   canEdit,
+  checklistItemId,
 }: CommentListProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const commentsKey = trpc.comment.list.queryKey({ cardId });
+  // Madde thread'i ise o maddenin thread cache'i; aksi halde kart yorum cache'i.
+  const commentsKey = trpc.comment.list.queryKey({ cardId, checklistItemId });
   // Üzerinde bir mutation uçuşan yorum — o satırın aksiyonları kilitlenir.
   const [busyCommentId, setBusyCommentId] = useState<string | null>(null);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: commentsKey });
     void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
+    // Madde thread'inde silme sonrası satır rozetini sunucu değeriyle tazele.
+    if (checklistItemId) {
+      void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+    }
   };
 
   const updateComment = useMutation(
@@ -106,10 +119,16 @@ export function CommentList({
             ),
           );
         }
-        return { prev };
+        // Madde thread'inde silinen yorum satır rozetini anında -1 yamala
+        // (gerçek sayı `onSettled` invalidate ile gelir).
+        const prevCount = checklistItemId
+          ? bumpChecklistItemCommentCount(queryClient, trpc, cardId, checklistItemId, -1)
+          : undefined;
+        return { prev, prevCount };
       },
       onError: (_error, _vars, ctx) => {
         if (ctx?.prev) queryClient.setQueryData(commentsKey, ctx.prev);
+        if (checklistItemId && ctx?.prevCount) ctx.prevCount();
         Alert.alert(strings.cardDetail.commentsTitle, strings.cardDetail.actionError);
       },
       onSettled: (_data, _error, vars) => {

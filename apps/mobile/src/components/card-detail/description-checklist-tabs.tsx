@@ -3,7 +3,10 @@ import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
-import { ChecklistSection } from '@/components/card-detail/checklist-section';
+import {
+  ChecklistSection,
+  type ChecklistCommentContext,
+} from '@/components/card-detail/checklist-section';
 import { useIsTablet } from '@/lib/use-device-class';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
@@ -25,6 +28,13 @@ type DescriptionChecklistTabsProps = {
   /** Üst ekranda toplanmış ilerleme (Yapılacaklar sekmesi rozeti). */
   checklistItemsDone: number;
   checklistItemsTotal: number;
+  /** Madde yorum bağlamı — `ChecklistSection`'a iletilir (rozet + thread sheet). */
+  checklistComments?: ChecklistCommentContext;
+  /**
+   * Deep-link / bildirimle gelinen madde id'si — verilirse "Yapılacaklar"
+   * sekmesine geçilir (sheet host'u mount olsun) ve o maddenin thread'i açılır.
+   */
+  initialCommentItemId?: string;
 };
 
 /**
@@ -56,13 +66,20 @@ export function DescriptionChecklistTabs({
   checklistsError,
   checklistItemsDone,
   checklistItemsTotal,
+  checklistComments,
+  initialCommentItemId,
 }: DescriptionChecklistTabsProps) {
   const isTablet = useIsTablet();
   // Tablet'te default `'both'` (web kart modali paritesi); phone'da mevcut
-  // davranış `'description'`. Initialize fonksiyonu ilk render'da çağrılır —
-  // rotation/Split View V2 sırasında `isTablet` değişirse state korunur (kullanıcı
-  // seçimine saygı). İlk render dengesi: SSR yok, `useIsTablet` reactive.
-  const [active, setActive] = useState<Tab>(() => (isTablet ? 'both' : 'description'));
+  // davranış `'description'`. Deep-link / bildirimle bir madde yorum thread'i
+  // açılacaksa (phone) "Yapılacaklar" sekmesiyle başla — sheet host'u
+  // (`ChecklistSection`) ilk render'da mount olsun. Tablet'te `'both'` zaten
+  // checklist'i render ettiğinden değişiklik gerekmez.
+  // Initialize fonksiyonu ilk render'da çağrılır — rotation/Split View V2
+  // sırasında `isTablet` değişirse state korunur (kullanıcı seçimine saygı).
+  const [active, setActive] = useState<Tab>(() =>
+    isTablet ? 'both' : initialCommentItemId ? 'checklist' : 'description',
+  );
   const hasChecklistProgress = checklistItemsTotal > 0;
 
   return (
@@ -104,7 +121,13 @@ export function DescriptionChecklistTabs({
             {checklistsError ? (
               <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
             ) : (
-              <ChecklistSection cardId={cardId} checklists={checklists} canEdit={canEdit} />
+              <ChecklistSection
+                cardId={cardId}
+                checklists={checklists}
+                canEdit={canEdit}
+                comments={checklistComments}
+                initialCommentItemId={initialCommentItemId}
+              />
             )}
           </View>
         </View>
@@ -113,7 +136,13 @@ export function DescriptionChecklistTabs({
       ) : checklistsError ? (
         <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
       ) : (
-        <ChecklistSection cardId={cardId} checklists={checklists} canEdit={canEdit} />
+        <ChecklistSection
+          cardId={cardId}
+          checklists={checklists}
+          canEdit={canEdit}
+          comments={checklistComments}
+          initialCommentItemId={initialCommentItemId}
+        />
       )}
     </View>
   );

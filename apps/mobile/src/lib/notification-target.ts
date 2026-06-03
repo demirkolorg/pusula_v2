@@ -26,9 +26,18 @@ export type NotificationTargetInput = {
 
 /** Expo Router hedefi — `notificationTarget` dört mobil rotadan birini döndürür.
  *  Saved-report varyantı Faz 13S (DEM-275) ile eklendi — scheduled rapor
- *  hazır push'una dokunma `/saved-reports/[id]` ekranını açar. */
+ *  hazır push'una dokunma `/saved-reports/[id]` ekranını açar.
+ *
+ *  Kart hedefi opsiyonel `checklistItemId` taşır: bir kontrol listesi maddesi
+ *  yorum bildirimi push'unda payload `checklistItemId` taşıyorsa kart açılıp o
+ *  maddenin yorum thread'i (bottom sheet) otomatik açılır. Worker push `data`'sı
+ *  bu alanı henüz yazmıyorsa undefined kalır (yalnız karta gidilir) — ileriye
+ *  dönük, mobil-tarafı eklenti (yeni bağımlılık yok). */
 export type NotificationTarget =
-  | { pathname: '/cards/[cardId]'; params: { cardId: string; title: string } }
+  | {
+      pathname: '/cards/[cardId]';
+      params: { cardId: string; title: string; checklistItemId?: string };
+    }
   | { pathname: '/boards/[boardId]'; params: { boardId: string; title: string } }
   | { pathname: '/workspaces/[id]'; params: { id: string; name: string } }
   | {
@@ -75,9 +84,19 @@ export function notificationTarget(
   const boardTitle = stringValue(raw.boardName) ?? stringValue(raw.boardTitle) ?? '';
   const workspaceName = stringValue(raw.workspaceName) ?? '';
   const reportTitle = stringValue(raw.reportTitle) ?? '';
+  // Madde yorum bildirimi payload'ında varsa kart açılınca o maddenin yorum
+  // thread'i açılır. Yoksa undefined — yalnız karta gidilir.
+  const checklistItemId = stringValue(raw.checklistItemId);
 
   if (cardId && boardId) {
-    return { pathname: '/cards/[cardId]', params: { cardId, title: cardTitle } };
+    return {
+      pathname: '/cards/[cardId]',
+      params: {
+        cardId,
+        title: cardTitle,
+        ...(checklistItemId ? { checklistItemId } : {}),
+      },
+    };
   }
   if (boardId) {
     return { pathname: '/boards/[boardId]', params: { boardId, title: boardTitle } };

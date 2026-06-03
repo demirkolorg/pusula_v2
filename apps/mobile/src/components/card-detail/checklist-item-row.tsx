@@ -20,6 +20,13 @@ type ChecklistItemRowProps = {
   onToggle: (completed: boolean) => void;
   onRename: (content: string) => void;
   onDelete: () => void;
+  /**
+   * Verilirse satır madde yorum rozetini gösterir; rozete (ya da `commentCount`
+   * 0 iken küçük ikona) dokununca bu çağrılır — üst bileşen thread sheet'i açar.
+   * Viewer da açabilir (salt-okunur okuma), bu yüzden `canEdit`'ten bağımsızdır.
+   * Optimistic satırda rozet gizlenir (madde henüz sunucuda yok).
+   */
+  onOpenComments?: () => void;
 };
 
 /**
@@ -43,6 +50,7 @@ export function ChecklistItemRow({
   onToggle,
   onRename,
   onDelete,
+  onOpenComments,
 }: ChecklistItemRowProps) {
   const theme = themeFor(useColorScheme());
   const [editing, setEditing] = useState(false);
@@ -73,6 +81,33 @@ export function ChecklistItemRow({
     const next = resolveChecklistItemRename(item.content, draft);
     if (next !== null) onRename(next);
   };
+
+  // Madde yorum rozeti — thread sheet'i açar. `onOpenComments` verilmeli
+  // (yorum bağlamı), satır optimistic olmamalı (madde sunucuda) ve düzenleme
+  // kapalı olmalı. `commentCount > 0` ise sayı görünür; 0 ise yalnız ikon
+  // (boş thread'i açıp ilk yorumu yazmak için). 44×44 dokunma hedefi.
+  const hasComments = item.commentCount > 0;
+  const commentsBadge =
+    onOpenComments && !optimistic && !editing ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.cardDetail.itemCommentsOpen}
+        hitSlop={6}
+        onPress={onOpenComments}
+        className="h-11 min-w-11 flex-row items-center justify-center gap-1 px-1 active:opacity-60"
+      >
+        <Icon
+          name="message-square"
+          size={16}
+          color={hasComments ? theme.primary : theme.mutedForeground}
+        />
+        {hasComments ? (
+          <Text weight="medium" className="text-xs text-primary">
+            {item.commentCount}
+          </Text>
+        ) : null}
+      </Pressable>
+    ) : null;
 
   const row = (
     <View className="min-h-12 flex-row items-center bg-card">
@@ -123,6 +158,13 @@ export function ChecklistItemRow({
           </Text>
         </Pressable>
       )}
+
+      {/* Madde yorum rozeti — `commentCount > 0` ise mesaj ikonu + sayı, 0 ise
+          yalnız ikon (boş thread'i açıp ilk yorumu yazmak için). Optimistic
+          satırda gizli (madde henüz sunucuda yok, thread çekilemez). Düzenleme
+          açıkken gizli — satır alanını yeniden adlandırma TextInput'una bırak.
+          Viewer da dokunabilir (salt-okunur thread). */}
+      {commentsBadge}
     </View>
   );
 

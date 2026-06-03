@@ -111,6 +111,42 @@ describe('notificationTarget', () => {
     });
   });
 
+  it('madde yorum payloadı (checklistItemId) kart hedefine taşınır', () => {
+    // Bir kontrol listesi maddesi yorum bildirimi push'unda `checklistItemId`
+    // varsa kart açılınca o maddenin thread'i açılsın diye param'a taşınır.
+    const target = notificationTarget({
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      payload: {
+        type: 'comment_created',
+        cardId: 'c-8',
+        boardId: 'b-8',
+        checklistItemId: 'ci-3',
+        cardTitle: 'Sprint',
+      },
+    });
+    expect(target).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-8', title: 'Sprint', checklistItemId: 'ci-3' },
+    });
+  });
+
+  it('checklistItemId yoksa kart hedefi alanı taşımaz (kart-seviyesi)', () => {
+    const target = notificationTarget({
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      payload: { type: 'comment_created', cardId: 'c-9', boardId: 'b-9' },
+    });
+    expect(target).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-9', title: '' },
+    });
+    // `checklistItemId` alanı hiç var olmamalı (undefined değil, eksik).
+    expect(target && 'checklistItemId' in target.params).toBe(false);
+  });
+
   it('push data yalnız boardId taşıyorsa board ekranına çözülür (Faz 7L)', () => {
     const target = notificationTarget({
       workspaceId: null,
