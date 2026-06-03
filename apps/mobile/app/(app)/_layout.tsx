@@ -41,13 +41,13 @@ export const unstable_settings = {
 };
 
 /**
- * GEÇİCİ TEŞHİS (2026-06-03): pano/kart açılışındaki crash'in gerçek JS
- * hatasını yakalamak için Expo Router ErrorBoundary'si. `(app)` altındaki tüm
- * ekranların (pano, kart, ...) render/lifecycle hatasını yakalar; uygulama
- * kapanmak (expo-updates native recovery → SIGABRT) yerine hata adını, mesajını
- * ve stack'ini **seçilebilir** olarak ekranda gösterir. Crash sebebi bulununca
- * bu export kaldırılacak. Kasıtlı olarak yalnız çıplak RN bileşenleri kullanır
- * (kendi `@/components` bileşenleri de hataya karışmasın).
+ * `(app)` ağacı için Expo Router ErrorBoundary'si — kalıcı **crash güvenlik
+ * ağı**. Bir ekranın (pano, kart, ...) render/lifecycle hatasında uygulama
+ * kapanmak (expo-updates native recovery → SIGABRT) yerine kullanıcı dostu bir
+ * "tekrar dene" ekranı gösterir; teknik ayrıntı yalnız `__DEV__` yapılarında
+ * görünür. Çıplak RN bileşenleri kullanır (kendi `@/components` bileşenleri
+ * hataya karışmasın). 2026-06-03 expo-image native↔OTA uyumsuzluğu teşhisinde
+ * eklendi, kalıcı güvenlik ağı olarak tutuldu.
  */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   return (
@@ -55,15 +55,22 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       style={{ flex: 1, backgroundColor: '#fff' }}
       contentContainerStyle={{ padding: 20, paddingTop: 72, gap: 12 }}
     >
-      <RNText style={{ fontSize: 18, fontWeight: '700', color: '#dc2626' }}>
-        ⚠️ Yakalanan hata (teşhis)
+      <RNText style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>
+        Bir şeyler ters gitti
       </RNText>
-      <RNText selectable style={{ fontSize: 15, fontWeight: '600', color: '#111' }}>
-        {String(error?.name ?? 'Error')}: {String(error?.message ?? 'bilinmiyor')}
+      <RNText style={{ fontSize: 14, color: '#555', lineHeight: 20 }}>
+        Bu ekran yüklenirken beklenmedik bir sorun oluştu. Lütfen tekrar dene;
+        sorun sürerse uygulamayı kapatıp yeniden açman yeterli.
       </RNText>
-      <RNText selectable style={{ fontSize: 11, color: '#555', lineHeight: 16 }}>
-        {String(error?.stack ?? '(stack yok)')}
-      </RNText>
+      {/* Teknik ayrıntı yalnız geliştirme yapılarında — production'da kullanıcıya
+          ham hata/stack gösterilmez. */}
+      {__DEV__ ? (
+        <RNText selectable style={{ fontSize: 11, color: '#999', lineHeight: 16 }}>
+          {String(error?.name ?? 'Error')}: {String(error?.message ?? '?')}
+          {'\n'}
+          {String(error?.stack ?? '')}
+        </RNText>
+      ) : null}
       <Pressable
         onPress={() => {
           void retry();

@@ -16,7 +16,7 @@ const config: ExpoConfig = {
   // = 'appVersion'` olduğundan bu bump aynı zamanda yeni runtime version
   // demektir — 1.0.0 OTA bundle'ları 1.1.0 client'a düşmez. Sonraki JS-only
   // fix'ler v1.1.x OTA (`eas update --branch production --platform ios`).
-  version: '1.1.0',
+  version: '1.1.1',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
@@ -133,7 +133,17 @@ const config: ExpoConfig = {
     // Push bildirim altyapısı (Faz 7K). Native bildirim izni + Expo push
     // token üretimi bu plugin'le bağlanır; foreground/background handler ve
     // deep link açma Faz 7L kapsamı.
-    'expo-notifications',
+    //
+    // `sounds`: markaya özel bildirim sesi (2026-06-03, v1.1.1 build). Ses
+    // dosyası `notification.wav` build zamanında app bundle'ına kopyalanır;
+    // worker push payload'ı `sound: 'notification.wav'` ile bu sesi çaldırır.
+    // NATIVE — OTA ile eklenemez, yeni store build gerektirir (bu yüzden 1.1.1).
+    [
+      'expo-notifications',
+      {
+        sounds: ['./assets/notification.wav'],
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

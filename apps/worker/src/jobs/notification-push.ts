@@ -65,7 +65,11 @@ export interface ExpoPushMessage {
   title: string;
   body: string;
   data?: Record<string, string>;
-  sound?: 'default' | null;
+  // `'default'` = sistem bildirim sesi; custom marka sesi için app bundle'daki
+  // ses dosyasının adı (örn `'notification.wav'` — app.config
+  // `expo-notifications.sounds` ile gömülür). Expo relay bunu APNs `sound`'a
+  // geçirir; dosyayı içermeyen eski sürüm cihazlar varsayılan sese düşer.
+  sound?: string | null;
   priority?: 'default' | 'normal' | 'high';
   // iOS app-icon badge count (APNs `aps.badge`). We send the recipient's total
   // unread notification count so the icon mirrors the in-app badge. Omitted on
@@ -273,7 +277,11 @@ export async function processNotificationPushJob(
       title: rendered.title,
       body: rendered.body,
       data: rendered.data,
-      sound: 'default',
+      // Markaya özel bildirim sesi — v1.1.1+ build'de app bundle'ında
+      // `notification.wav` (app.config `expo-notifications.sounds`). Sesi
+      // içermeyen eski sürüm (≤1.1.0) cihazlar bu adı bulamaz → iOS otomatik
+      // varsayılan bildirim sesine düşer (sessiz kalmaz, geri-uyumlu).
+      sound: 'notification.wav',
       priority: 'high',
       badge,
       // iOS: kilitli ekranda ses + ekran uyanması için açık interruption-level.

@@ -214,8 +214,9 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     expect(msg.body).toContain('Tasarımı bitir');
     expect(msg.data?.type).toBe('card_assigned');
     expect(msg.data?.cardId).toBe('c1');
-    // iOS kilitli-ekran ses+uyanma garantisi (regresyon guard).
-    expect(msg.sound).toBe('default');
+    // iOS kilitli-ekran ses+uyanma garantisi (regresyon guard). `sound` artık
+    // markaya özel `notification.wav` (v1.1.1 build'de app bundle'ında).
+    expect(msg.sound).toBe('notification.wav');
     expect(msg.priority).toBe('high');
     expect(msg.interruptionLevel).toBe('active');
 
