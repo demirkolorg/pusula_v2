@@ -366,6 +366,7 @@ export default function BoardScreen() {
       master={<BoardSidebar lists={activeLists} cardsByList={cardsByList} />}
       detail={mainContent}
       sidebarWidth={sidebarWidth}
+      collapsible
       testID="board-master-detail"
     />
   ) : (

@@ -1,8 +1,24 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Pressable,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Text } from '@/components/text';
 import { themeFor } from '@/theme/tokens';
+
+/** Pill kenar boşluğu (snap uçlarında ekran kenarıyla pill arası px). */
+const EDGE_MARGIN = 8;
 
 /**
  * Faz 15H — iPad floating pill bottom nav (2026-05-31 2. tur revizyonu).
@@ -40,6 +56,60 @@ import { themeFor } from '@/theme/tokens';
 export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const theme = themeFor(useColorScheme());
+  const { width: screenWidth } = useWindowDimensions();
+
+  // DEM-303 V2 (2026-06-17) — pill sürüklenip sol/orta/sağ üç sabit konuma
+  // oturtulabilir. Gerekçe: pill ekran ortasında sabitken altındaki listenin
+  // "Kart ekle" butonunu örtüyordu; kullanıcı pill'i kaydırıp butona erişebilir.
+  // `translateX` ebeveynin `alignItems: 'center'` merkezinden sapma; saf JS
+  // (reanimated/gesture-handler zaten kurulu) → OTA ile dağıtılır.
+  const translateX = useSharedValue(0);
+  const dragStartX = useSharedValue(0);
+  // Merkezden azami sapma — pill kenara `EDGE_MARGIN` kalana dek kayar.
+  const maxShift = useSharedValue(0);
+  const [pillWidth, setPillWidth] = useState(0);
+
+  const onPillLayout = (e: LayoutChangeEvent) => {
+    setPillWidth(e.nativeEvent.layout.width);
+  };
+
+  // Pill genişliği veya ekran (rotasyon/Split View) değişince azami sapmayı
+  // yeniden hesapla ve mevcut konumu yeni sınıra geri kelepçele.
+  useEffect(() => {
+    const m = Math.max(0, (screenWidth - pillWidth) / 2 - EDGE_MARGIN);
+    maxShift.value = m;
+    if (translateX.value > m) translateX.value = withSpring(m);
+    else if (translateX.value < -m) translateX.value = withSpring(-m);
+  }, [screenWidth, pillWidth, maxShift, translateX]);
+
+  const panGesture = Gesture.Pan()
+    // Yatay eşik: pill içindeki sekme dokunuşlarını/dikey hareketi çalmadan
+    // yalnız belirgin yatay sürüklemede aktive olur (tap'ler Pressable'a gider).
+    .activeOffsetX([-12, 12])
+    .onStart(() => {
+      dragStartX.value = translateX.value;
+    })
+    .onUpdate((e) => {
+      const m = maxShift.value;
+      let next = dragStartX.value + e.translationX;
+      if (next > m) next = m;
+      else if (next < -m) next = -m;
+      translateX.value = next;
+    })
+    .onEnd(() => {
+      // En yakın hedefe (sol = -m / orta = 0 / sağ = +m) yaylanarak otur.
+      // Eşik m/2 — yarı yolu geçince bir sonraki konuma kilitlenir.
+      const m = maxShift.value;
+      const x = translateX.value;
+      let nearest = 0;
+      if (x <= -m / 2) nearest = -m;
+      else if (x >= m / 2) nearest = m;
+      translateX.value = withSpring(nearest, { damping: 18, stiffness: 180 });
+    });
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   return (
     <View
@@ -52,19 +122,26 @@ export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTab
         alignItems: 'center',
       }}
     >
-      <View
-        className="flex-row items-center gap-1 rounded-full border border-border bg-card px-2 py-1.5"
-        style={{
-          // Pill yüzen his — iOS shadow + Android elevation. Border'a ek olarak
-          // gölge "card düzleminin üstünde" hissini güçlendirir.
-          shadowColor: '#000',
-          shadowOpacity: 0.18,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 10,
-        }}
-      >
-        {state.routes.map((route, index) => {
+      {/* NativeWind className Animated.View'a uygulanmaz (interop yok, bkz.
+          swipe-row.tsx) → Animated.View yalnız transform taşır, pill görünümü
+          içteki normal View'da className ile kalır. onLayout pill genişliğini
+          ölçer (snap sınırı hesabı). */}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={pillStyle}>
+          <View
+            onLayout={onPillLayout}
+            className="flex-row items-center gap-1 rounded-full border border-border bg-card px-2 py-1.5"
+            style={{
+              // Pill yüzen his — iOS shadow + Android elevation. Border'a ek olarak
+              // gölge "card düzleminin üstünde" hissini güçlendirir.
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 10,
+            }}
+          >
+            {state.routes.map((route, index) => {
           // Gizli `index` route'u (cold-start redirect) tab bar'da hiç görünmez —
           // güvenlik için açıkça skip et (React Navigation `href: null` zaten
           // gizler, çift güvence).
@@ -171,9 +248,11 @@ export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTab
                 </View>
               ) : null}
             </Pressable>
-          );
-        })}
-      </View>
+            );
+          })}
+          </View>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

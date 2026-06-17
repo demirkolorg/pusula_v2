@@ -1,6 +1,13 @@
-import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, View, useColorScheme } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { Icon } from '@/components/icon';
 import { useIsTablet } from '@/lib/use-device-class';
+import { themeFor } from '@/theme/tokens';
 
 export type MasterDetailFallback = 'master' | 'detail';
 
@@ -18,6 +25,12 @@ export interface MasterDetailLayoutProps {
   selectedDetail?: boolean;
   /** Tablet sidebar (master) genişliği — px. Default 320, önerilen aralık 320–400 ([`13-ui-tasarim-dili.md`](../../../../docs/architecture/13-ui-tasarim-dili.md) §13.12.1). */
   sidebarWidth?: number;
+  /**
+   * `true` ise tablet branch'inde sidebar bir kenar tutamacıyla (chevron butonu)
+   * açılıp kapatılabilir. Default `false` → eski davranış (sidebar sabit görünür),
+   * collapsible vermeyen ekranlar etkilenmez. OTA-uyumlu, saf JS (reanimated).
+   */
+  collapsible?: boolean;
   /** Test/E2E erişimi için ekran kökü id'si; `${testID}-master` / `${testID}-detail` alt slot id'leri tablet branch'inde üretilir. */
   testID?: string;
 }
@@ -27,19 +40,16 @@ export interface MasterDetailLayoutProps {
  *
  * **Tablet** (`useIsTablet() === true`): `flex-row` yan yana — sol sidebar
  * sabit genişlikte (`sidebarWidth`, default 320), sağ main `flex-1`. Hem
- * `master` hem `detail` render edilir; `selectedDetail` yok sayılır
- * (tablet'te sidebar her zaman görünür; sidebar collapse 15C kapsam dışı —
- * V2'ye, `cards/[cardId]` sağ panel'i bu primitive'in dışından yönetilir).
+ * `master` hem `detail` render edilir; `selectedDetail` yok sayılır.
+ *
+ * **Tablet + `collapsible`** (DEM-303 V2 — 2026-06-17): sidebar bir kenar
+ * tutamacıyla daraltılabilir. Tutamaç sidebar/detail sınırında dikey ortada
+ * yüzer; daralt animasyonu reanimated `width` geçişidir (240ms), içerik
+ * `overflow-hidden` ile kırpılır ve sabit iç genişlikle reflow etmez. Native
+ * bağımlılık yok → `eas build` gerektirmeden `eas update` (OTA) ile dağıtılır.
  *
  * **Phone** (`useIsTablet() === false`): tek view. `selectedDetail` truthy ise
  * `detail`, aksi halde `fallback` (default `'master'`) tarafı render edilir.
- * Phone branch yeni stack frame açmaz — route üstü presentation'ı tüketen
- * ekran yönetir (`router.push('/cards/[cardId]')` mevcut akışı korunur;
- * detay için [`18-ipad-uyarlamasi.md`](../../../../docs/architecture/18-ipad-uyarlamasi.md) §4).
- *
- * Tablet branch'inde sidebar'ı main'den ayıran ince border `bg-border` token'ı
- * üzerine kuruludur (theme-aware). Sidebar arkaplanı `bg-card`, main
- * `bg-background` — Trello/Linear iPad pattern'i.
  */
 export function MasterDetailLayout({
   master,
@@ -47,9 +57,102 @@ export function MasterDetailLayout({
   fallback = 'master',
   selectedDetail = false,
   sidebarWidth = 320,
+  collapsible = false,
   testID,
 }: MasterDetailLayoutProps) {
   const isTablet = useIsTablet();
+  const theme = themeFor(useColorScheme());
+
+  // Hook'lar koşulsuz çağrılır (Rules of Hooks). Phone/non-collapsible branch'te
+  // kullanılmasalar da ucuzdur. `width` shared value sidebar genişliğini taşır;
+  // toggle'da 0 ↔ sidebarWidth arası withTiming.
+  const [collapsed, setCollapsed] = useState(false);
+  const width = useSharedValue(sidebarWidth);
+
+  // Rotasyon/Split View ile `sidebarWidth` değişirse açık panelin genişliğini
+  // senkronla (board ekranı landscape'te 384, portrait'te 320 verir). Kapalıyken
+  // dokunma — kullanıcı niyeti (kapalı) korunur.
+  useEffect(() => {
+    if (!collapsed) {
+      width.value = withTiming(sidebarWidth, { duration: 200 });
+    }
+  }, [sidebarWidth, collapsed, width]);
+
+  const sidebarAnimStyle = useAnimatedStyle(() => ({ width: width.value }));
+  // Tutamaç sidebar'ın sağ kenarına yapışır (translateX = güncel genişlik);
+  // kapalıyken (width 0) ekranın sol kenarına gelir.
+  const handleAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: width.value }],
+  }));
+
+  if (isTablet && collapsible) {
+    const toggle = () => {
+      const next = !collapsed;
+      setCollapsed(next);
+      width.value = withTiming(next ? 0 : sidebarWidth, { duration: 240 });
+    };
+
+    return (
+      <View testID={testID} className="flex-1 flex-row bg-background">
+        {/* NativeWind className Animated.View'a uygulanmadığından (interop yok,
+            bkz. swipe-row.tsx) görsel stiller token ile inline verilir. */}
+        <Animated.View
+          testID={testID ? `${testID}-master` : undefined}
+          style={[
+            sidebarAnimStyle,
+            {
+              overflow: 'hidden',
+              borderRightWidth: 1,
+              borderRightColor: theme.border,
+              backgroundColor: theme.card,
+            },
+          ]}
+        >
+          {/* Sabit iç genişlik: daralma animasyonu sırasında master içeriği
+              reflow edip metni sıkıştırmasın; dış kapsayıcı kırpar. */}
+          <View style={{ width: sidebarWidth, flex: 1 }}>{master}</View>
+        </Animated.View>
+        <View
+          testID={testID ? `${testID}-detail` : undefined}
+          className="flex-1 bg-background"
+        >
+          {detail}
+        </View>
+        {/* Kenar tutamacı — sidebar/detail sınırında dikey ortada yüzer.
+            Kapalıyken de erişilebilir (sol kenarda kalır). */}
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            { position: 'absolute', top: '50%', left: 0, marginTop: -18 },
+            handleAnimStyle,
+          ]}
+        >
+          <Pressable
+            onPress={toggle}
+            accessibilityRole="button"
+            accessibilityLabel={collapsed ? 'Paneli aç' : 'Paneli kapat'}
+            accessibilityState={{ expanded: !collapsed }}
+            hitSlop={8}
+            className="h-9 w-9 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
+            style={{
+              marginLeft: -18,
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 8,
+            }}
+          >
+            <Icon
+              name={collapsed ? 'chevron-right' : 'chevron-left'}
+              size={20}
+              color={theme.mutedForeground}
+            />
+          </Pressable>
+        </Animated.View>
+      </View>
+    );
+  }
 
   if (isTablet) {
     return (
