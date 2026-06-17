@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { boardRoleAtLeast, type BoardRole } from '@pusula/domain';
 import { Separator, boardBackgroundClass, cn } from '@pusula/ui';
+import { durations, easings } from '@pusula/ui/lib/motion';
 import { BrandLogoAnimated } from '@/components/brand-logo-animated';
 import { useReportRenderGlobal } from '@/lib/realtime/use-report-render-global';
 import { useUserRealtime } from '@/lib/realtime/use-user-realtime';
@@ -237,6 +238,24 @@ export function AppShell({
   // izliyor, content alanına geçmek istiyor).
   const closeOnNavigate = closePanel;
 
+  // Reduced-motion: sol panellerin width 0↔auto slide'ı kapanır (anlık,
+  // yalnız opacity); backdrop fade'i kısalır. Hareket azaltılır ama panel yine
+  // açılır/kapanır (işlev korunur). docs/architecture/20-hareket-etkilesim-sistemi.md §20.8.
+  const reduceMotion = useReducedMotion();
+  const panelMotion = reduceMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
+    : {
+        initial: { width: 0, opacity: 0 },
+        animate: { width: 'auto', opacity: 1 },
+        exit: { width: 0, opacity: 0 },
+      };
+  const panelTransition = reduceMotion
+    ? { duration: 0 }
+    : { duration: durations.base, ease: easings.panelSlide };
+  const backdropTransition = reduceMotion
+    ? { duration: 0 }
+    : { duration: durations.fast, ease: easings.out };
+
   const activeBoard = useQuery({
     ...trpc.board.get.queryOptions({ boardId: boardId ?? '__none__' }),
     enabled: Boolean(fullBleed && boardId),
@@ -360,7 +379,7 @@ export function AppShell({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
+              transition={backdropTransition}
               className="fixed inset-0 z-40 cursor-default bg-black/40 lg:hidden"
             />
           )}
@@ -375,10 +394,8 @@ export function AppShell({
           {navigatorOpen && (
             <motion.div
               key="navigator-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <NavigatorPanel
@@ -392,10 +409,8 @@ export function AppShell({
           {quickNotesOpen && (
             <motion.div
               key="quick-notes-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <QuickNotesPanel
@@ -410,10 +425,8 @@ export function AppShell({
           {plannerOpen && (
             <motion.div
               key="planner-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <PlannerPanel
@@ -427,10 +440,8 @@ export function AppShell({
           {myTasksOpen && (
             <motion.div
               key="my-tasks-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <MyTasksPanel
@@ -444,10 +455,8 @@ export function AppShell({
           {activityFeedOpen && (
             <motion.div
               key="activity-feed-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <ActivityFeedPanel
@@ -461,10 +470,8 @@ export function AppShell({
           {whatsNewOpen && (
             <motion.div
               key="whats-new-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              {...panelMotion}
+              transition={panelTransition}
               className="fixed inset-y-0 left-0 z-50 overflow-hidden lg:static lg:z-auto lg:self-stretch"
             >
               <WhatsNewPanel

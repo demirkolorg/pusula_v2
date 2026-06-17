@@ -721,6 +721,9 @@ export function CardDetailDialog({
             <div
               className={cn(
                 'grid min-h-0 flex-1 grid-cols-1 overflow-hidden',
+                // Sağ panel açılış/kapanışında grid track'i yumuşat (§20.4) —
+                // en az layout-shift veren yol: grid-template-columns geçişi.
+                'md:transition-[grid-template-columns] md:duration-(--duration-slow) md:ease-standard md:motion-reduce:transition-none',
                 sidebarOpen && 'md:grid-cols-[1fr_360px]',
               )}
             >

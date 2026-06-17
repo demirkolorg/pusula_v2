@@ -130,7 +130,7 @@ function CardDropPlaceholderMarker({ height }: { height: number | null }) {
     <div
       aria-hidden
       data-testid="card-drop-placeholder"
-      className="border-primary/60 bg-primary/5 box-border shrink-0 rounded-md border border-dashed"
+      className="border-primary/60 bg-primary/5 box-border shrink-0 rounded-md border border-dashed transition-[opacity] duration-(--duration-fast) ease-out"
       style={{ height: height ?? 64 }}
     />
   );
@@ -628,7 +628,7 @@ export function ListColumn({
     <section
       ref={columnRef}
       className={cn(
-        'group/list relative flex max-h-full shrink-0 flex-col rounded-lg bg-[color:var(--board-list-current-bg)] transition-[opacity,width]',
+        'group/list relative flex max-h-full shrink-0 flex-col rounded-lg bg-[color:var(--board-list-current-bg)] transition-[opacity,width] duration-(--duration-slow) ease-standard',
         collapsed ? 'h-52 w-10 overflow-hidden' : 'w-72',
         listArchived
           ? '[--board-list-current-bg:var(--board-list-archived-bg)]'

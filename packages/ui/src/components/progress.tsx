@@ -30,7 +30,7 @@ function Progress({ value, max = 100, complete, className, ...props }: ProgressP
     >
       <div
         className={cn(
-          'h-full rounded-full transition-all',
+          'h-full rounded-full transition-all duration-(--duration-base) ease-out',
           isComplete ? 'bg-success' : 'bg-primary',
         )}
         style={{ width: `${pct}%` }}

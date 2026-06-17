@@ -18,6 +18,7 @@ related:
   - '[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
+  - '[[docs/architecture/20-hareket-etkilesim-sistemi|Hareket & Etkileşim Sistemi]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
 updated: 2026-05-31
 ---

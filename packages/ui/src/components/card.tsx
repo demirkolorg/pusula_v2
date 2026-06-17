@@ -1,12 +1,24 @@
 import * as React from 'react';
 import { cn } from '../lib/utils';
 
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+function Card({
+  className,
+  interactive,
+  ...props
+}: React.ComponentProps<'div'> & {
+  /**
+   * Clickable card: hover elevation (shadow-card → shadow-card-hover), a subtle
+   * pressed scale and pointer cursor. See docs/architecture/20-hareket-etkilesim-sistemi.md §20.3/§20.6.
+   */
+  interactive?: boolean;
+}) {
   return (
     <div
       data-slot="card"
       className={cn(
         'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-card',
+        interactive &&
+          'cursor-pointer transition-all duration-(--duration-base) ease-standard hover:shadow-card-hover active:scale-[0.99]',
         className,
       )}
       {...props}

@@ -68,7 +68,7 @@ function ListDropPlaceholderMarker({
     <div
       aria-hidden
       data-testid="list-drop-placeholder"
-      className="border-primary/60 bg-primary/5 pointer-events-none box-border shrink-0 self-start rounded-lg border border-dashed"
+      className="border-primary/60 bg-primary/5 pointer-events-none box-border shrink-0 self-start rounded-lg border border-dashed transition-[opacity] duration-(--duration-fast) ease-out"
       style={{ width: width ?? 288, height: height ?? 240 }}
     />
   );
