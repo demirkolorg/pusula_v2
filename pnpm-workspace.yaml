@@ -9,3 +9,4 @@ allowBuilds:
   sharp: true
   msgpackr-extract: true
   '@sentry/cli': true
+  dtrace-provider: false

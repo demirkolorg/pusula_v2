@@ -75,6 +75,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.5",
     "babel-preset-expo": "~54.0.10",
+    "eas-cli": "^20.2.0",
     "eslint": "^9",
     "happy-dom": "^20.9.0",
     "react-dom": "19.1.0",
