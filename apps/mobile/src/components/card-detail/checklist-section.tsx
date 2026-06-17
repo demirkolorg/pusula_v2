@@ -9,19 +9,18 @@ import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { SectionAddTrigger } from '@/components/card-detail/section';
 import { ChecklistItemRow } from '@/components/card-detail/checklist-item-row';
+import { SortableChecklistItems } from '@/components/card-detail/sortable-checklist-items';
 import {
   ChecklistItemThreadSheet,
 } from '@/components/card-detail/checklist-item-thread-sheet';
 import type { AuthorResolver } from '@/components/card-detail/comment-list';
 import { newClientMutationId } from '@/lib/client-mutation-id';
+import { OPTIMISTIC_PREFIX, applyOrder } from '@/lib/checklist-reorder';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
 type Checklists = RouterOutputs['checklist']['list'];
 type ChecklistItem = Checklists[number]['items'][number];
-
-/** Optimistic eklenen (henüz sunucuda olmayan) madde id ön eki. */
-const OPTIMISTIC_PREFIX = 'optimistic-';
 
 /**
  * Madde yorum thread'i (yapılacaklar maddesine yorum) için ekrandan akan bağlam.
@@ -49,6 +48,12 @@ type ChecklistSectionProps = {
    * yüklenen listede mevcutsa o maddenin thread'i bir kez otomatik açılır.
    */
   initialCommentItemId?: string;
+  /**
+   * Madde sürükleme (sortable) başlayınca `true`, bitince `false` — üst bileşen
+   * (kart detay ekranı) dış `ScrollView`'un dikey scroll'unu kilitler, böylece
+   * dikey drag pan'i dış scroll ile çakışmaz.
+   */
+  onDragActiveChange?: (active: boolean) => void;
 };
 
 /**
@@ -65,6 +70,7 @@ export function ChecklistSection({
   canEdit,
   comments,
   initialCommentItemId,
+  onDragActiveChange,
 }: ChecklistSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -197,6 +203,56 @@ export function ChecklistSection({
     }),
   );
 
+  // Madde sıralama (DEM — manuel reanimated sortable). `reorder` mutation'ı
+  // yalnız transport: optimistic cache patch'i + rollback `handleReorder`'da
+  // elle yönetilir (input şeması yalnız komşu id'leri taşır; tam sıra cache'te
+  // ayrıca düzenlenmeli). `onSettled` invalidate gerçek LexoRank pozisyonlarını
+  // getirir. Drag SIRASINDA değil — yalnız `onDragEnd`'de bir kez çağrılır.
+  // NOT: Hızlı ardışık drag'lerde (bir mutation uçuştayken yenisi başlarsa)
+  // optimistic patch'ler arasında geçici görsel zıplama mümkün; `onSettled`
+  // invalidate her seferinde sunucu sırasını yeniden çekerek nihai tutarlılığı
+  // sağlar (gözle görülen kayma anlık, kalıcı değil).
+  const reorderItem = useMutation(
+    trpc.checklist.item.reorder.mutationOptions({ onSettled: invalidate }),
+  );
+
+  /**
+   * Sürükleme bittiğinde (sortable `onReorder`) — önce cache'te ilgili
+   * checklist'in `items` dizisini yeni sıraya göre yeniden dizip (optimistic,
+   * anında), sonra `reorder` mutation'ını gerçek komşularla atar. Hata → elle
+   * `rollback(snapshot)`; başarı/hata fark etmez `onSettled` invalidate eder.
+   */
+  const handleReorder = (
+    checklistId: string,
+    args: {
+      itemId: string;
+      beforeItemId: string | undefined;
+      afterItemId: string | undefined;
+      orderedIds: string[];
+    },
+  ) => {
+    // Optimistic sıra patch'i — snapshot rollback için saklanır.
+    void patch((lists) =>
+      lists.map((list) =>
+        list.id === checklistId
+          ? { ...list, items: applyOrder(list.items, args.orderedIds) }
+          : list,
+      ),
+    ).then((ctx) => {
+      reorderItem.mutate(
+        {
+          cardId,
+          checklistId,
+          itemId: args.itemId,
+          beforeItemId: args.beforeItemId,
+          afterItemId: args.afterItemId,
+          clientMutationId: newClientMutationId(),
+        },
+        { onError: () => rollback(ctx) },
+      );
+    });
+  };
+
   const createChecklist = useMutation(
     trpc.checklist.create.mutationOptions({
       onMutate: (vars) => {
@@ -287,10 +343,16 @@ export function ChecklistSection({
             </View>
 
             {checklist.items.length > 0 ? (
-              <View>
-                {checklist.items.map((item) => (
+              <SortableChecklistItems
+                items={checklist.items}
+                // Sürükleme yalnız düzenleyebilen + optimistic olmayan liste için
+                // (sortable içinde optimistic madde varken de kendiliğinden
+                // kapanır — `hasOptimistic`). Optimistic liste hiç sürüklenemez.
+                canDrag={canEdit && !optimisticList}
+                onReorder={(args) => handleReorder(checklist.id, args)}
+                onDragActiveChange={onDragActiveChange}
+                renderItem={(item) => (
                   <ChecklistItemRow
-                    key={item.id}
                     item={item}
                     optimistic={item.id.startsWith(OPTIMISTIC_PREFIX)}
                     canEdit={canEdit}
@@ -325,8 +387,8 @@ export function ChecklistSection({
                       comments ? () => setOpenThreadItemId(item.id) : undefined
                     }
                   />
-                ))}
-              </View>
+                )}
+              />
             ) : null}
 
             {canEdit && !optimisticList ? (

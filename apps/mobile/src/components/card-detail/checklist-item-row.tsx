@@ -113,7 +113,7 @@ export function ChecklistItemRow({
     ) : null;
 
   const row = (
-    <View className="min-h-12 flex-row items-center bg-card">
+    <View className="min-h-12 flex-row items-start bg-card">
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.completed, disabled: !interactive }}
@@ -150,7 +150,7 @@ export function ChecklistItemRow({
           accessibilityLabel={interactive ? strings.cardDetail.checklistItemEdit : undefined}
           disabled={!interactive}
           onPress={startEdit}
-          className="h-12 flex-1 justify-center pr-1 active:opacity-60"
+          className="min-h-12 flex-1 justify-center py-2.5 pr-1 active:opacity-60"
         >
           <Text
             className={`text-sm ${

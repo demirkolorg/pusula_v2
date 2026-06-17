@@ -35,6 +35,12 @@ type DescriptionChecklistTabsProps = {
    * sekmesine geçilir (sheet host'u mount olsun) ve o maddenin thread'i açılır.
    */
   initialCommentItemId?: string;
+  /**
+   * Checklist madde sürükleme aktif/pasif → kart detay ekranına iletilir
+   * (dış `ScrollView` scroll kilidi). Sortable dikey drag pan'i dış scroll'la
+   * çakışmasın diye.
+   */
+  onDragActiveChange?: (active: boolean) => void;
 };
 
 /**
@@ -68,6 +74,7 @@ export function DescriptionChecklistTabs({
   checklistItemsTotal,
   checklistComments,
   initialCommentItemId,
+  onDragActiveChange,
 }: DescriptionChecklistTabsProps) {
   const isTablet = useIsTablet();
   // Tablet'te default `'both'` (web kart modali paritesi); phone'da mevcut
@@ -127,6 +134,7 @@ export function DescriptionChecklistTabs({
                 canEdit={canEdit}
                 comments={checklistComments}
                 initialCommentItemId={initialCommentItemId}
+                onDragActiveChange={onDragActiveChange}
               />
             )}
           </View>
@@ -142,6 +150,7 @@ export function DescriptionChecklistTabs({
           canEdit={canEdit}
           comments={checklistComments}
           initialCommentItemId={initialCommentItemId}
+          onDragActiveChange={onDragActiveChange}
         />
       )}
     </View>

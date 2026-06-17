@@ -298,6 +298,9 @@ export const strings = {
     checklistItemPlaceholder: 'Yeni madde…',
     checklistItemEdit: 'Maddeyi düzenle',
     checklistItemDelete: 'Maddeyi sil',
+    // Madde sürükle-bırak sıralama (manuel reanimated sortable) erişilebilirlik
+    // ipucu — satıra uzun basıp dikey sürükleyerek sırayı değiştirme.
+    checklistItemReorderHint: 'Sırayı değiştirmek için uzun basıp sürükle',
     checklistAdd: 'Kontrol listesi ekle',
     checklistTitlePlaceholder: 'Liste başlığı…',
     checklistDelete: 'Kontrol listesini sil',

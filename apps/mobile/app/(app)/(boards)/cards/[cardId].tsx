@@ -126,6 +126,9 @@ export default function CardDetailScreen() {
   // yalnız 1 kez tetiklenir.
   const [collapsed, setCollapsed] = useState(false);
   const [titleThreshold, setTitleThreshold] = useState(96);
+  // Checklist madde sürükleme (sortable) aktifken dış scroll kilitlenir —
+  // dikey drag pan'i dış `ScrollView` scroll'uyla çakışmasın.
+  const [checklistDragging, setChecklistDragging] = useState(false);
 
   function handleTitleLayout(event: LayoutChangeEvent) {
     const { y, height } = event.nativeEvent.layout;
@@ -313,6 +316,9 @@ export default function CardDetailScreen() {
         contentContainerClassName="gap-3 p-4"
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        // Checklist madde sürüklenirken dış dikey scroll kilitli (drag pan ↔
+        // scroll çakışması önlenir); bırakınca tekrar açılır.
+        scrollEnabled={!checklistDragging}
         // DEM-238 — yorum composer scroll içeriğin sonunda; aktivite sayısı azsa
         // klavye composer'ı örtüyordu. iOS native otomatik content-inset ile
         // klavye açılınca scroll içeriği klavye yüksekliği kadar yukarı kayar
@@ -447,6 +453,8 @@ export default function CardDetailScreen() {
           // Deep-link / madde yorum bildirimiyle gelinmişse o maddenin yorum
           // thread'i otomatik açılır (bir kez).
           initialCommentItemId={params.checklistItemId}
+          // Madde sürükleme aktifken dış scroll kilitle (drag pan çakışması).
+          onDragActiveChange={setChecklistDragging}
         />
 
         {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme
