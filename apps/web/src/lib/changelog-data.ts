@@ -50,6 +50,46 @@ export const CHANGELOG_KIND_META: Record<
 
 export const CHANGELOG: ChangelogDay[] = [
   {
+    date: '2026-06-17',
+    label: '17 Haziran 2026',
+    entries: [
+      {
+        kind: 'improvement',
+        text: 'Web arayüzü baştan sona daha akıcı ve canlı: butonlar ile tıklanabilir öğelerde hafif bir basılma hissi, kartlarda yumuşak gölge ve hover geçişleri, pencere/panellerde tutarlı ve yumuşak açılış animasyonları, yükleniyor durumları için butonlarda dönen göstergeler. Tüm geçişler ortak bir tasarım diline oturtuldu; sistem tercihinizde "Hareketi azalt" açıksa animasyonlar otomatik olarak sadeleşir.',
+      },
+      {
+        kind: 'new',
+        text: 'Mobilde kenar çubuğu artık daraltılabilir ve alttaki sekme çubuğunu sürükleyerek dilediğiniz konuma yerleştirebilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Mobilde yapılacaklar (checklist) maddelerini uzun basıp sürükleyerek yeniden sıralayabilirsiniz; uzun madde metinleri de artık düzgün şekilde satıra sığıyor.',
+      },
+    ],
+  },
+  {
+    date: '2026-06-03',
+    label: '3 Haziran 2026',
+    entries: [
+      {
+        kind: 'improvement',
+        text: 'Bildirimler artık çok daha kapsamlı: bir kart üzerindeki neredeyse her anlamlı işlem (başlık/açıklama değişikliği, etiket ekleme-kaldırma, kontrol listesi oluşturma, yorum düzenleme-silme, ek kaldırma ve daha fazlası) bildirim üretir ve panoda ilgili herkese ulaşır. Bildirimler arasındaki bekleme süresi kaldırıldı; istemediğiniz tipleri bildirim ayarlarından tek tek kapatabilirsiniz.',
+      },
+      {
+        kind: 'new',
+        text: 'Mobilde de yapılacaklar (checklist) maddelerine yorum yazabilirsiniz — her maddenin altında açılan sohbet ile, tıpkı webdeki gibi.',
+      },
+      {
+        kind: 'improvement',
+        text: 'iOS bildirimleri belirgin şekilde iyileştirildi: uygulama simgesinde okunmamış bildirim sayısı rozeti, kilitli ekranda sesli uyarı ve ekranı uyandırma, ayrıca bildirimlerin gerçekten teslim edilip edilmediğinin arka planda doğrulanması (teslim edilemeyen cihazlar otomatik temizlenir).',
+      },
+      {
+        kind: 'fix',
+        text: 'Bazı durumlarda gönderilmeyen (son tarih gibi zamanlanmış tetiklenen) bildirimler artık güvenilir şekilde iletiliyor.',
+      },
+    ],
+  },
+  {
     date: '2026-06-02',
     label: '2 Haziran 2026',
     entries: [
