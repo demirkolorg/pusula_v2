@@ -1,7 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { CheckIcon, MessageSquareIcon, PencilIcon, SquareIcon, Trash2Icon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  CheckIcon,
+  GripVerticalIcon,
+  MessageSquareIcon,
+  PencilIcon,
+  SquareIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { checklistItemContentSchema } from '@pusula/domain';
 import {
   Avatar,
@@ -44,6 +51,9 @@ export function ChecklistItemRow({
   onToggle,
   onEdit,
   onDelete,
+  registerDnd,
+  dragging = false,
+  dropEdge = null,
 }: {
   item: ChecklistItemView;
   canEdit: boolean;
@@ -55,6 +65,16 @@ export function ChecklistItemRow({
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
+  /**
+   * Register this row with the checklist's drag-and-drop (Pragmatic DnD).
+   * Receives the row element + its drag handle; returns a cleanup. Absent /
+   * `undefined` ⇒ reorder disabled (read-only or share view) — no handle shown.
+   */
+  registerDnd?: (element: HTMLElement, dragHandle: HTMLElement) => () => void;
+  /** Whether this row is the one currently being dragged (source ghost). */
+  dragging?: boolean;
+  /** Drop indicator edge for this row (`null` when not a drop target). */
+  dropEdge?: 'top' | 'bottom' | null;
 }) {
   const copy = strings.card.checklist;
   const [editing, setEditing] = useState(false);
@@ -62,6 +82,17 @@ export function ChecklistItemRow({
   const [error, setError] = useState<string | null>(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const commentCount = item.commentCount;
+  const rowRef = useRef<HTMLLIElement>(null);
+  const handleRef = useRef<HTMLButtonElement>(null);
+
+  // Pragmatic DnD kaydı — satır + tutamaç hazır olduğunda; editing sırasında
+  // (inline form) sürükleme devre dışı (handle gizli). Cleanup unmount/değişimde.
+  useEffect(() => {
+    const row = rowRef.current;
+    const handle = handleRef.current;
+    if (!registerDnd || !row || !handle || editing) return;
+    return registerDnd(row, handle);
+  }, [registerDnd, editing, item.id]);
 
   const completerName =
     item.completed && item.completedBy
@@ -70,11 +101,37 @@ export function ChecklistItemRow({
   const completerImage =
     item.completed && item.completedBy ? (imageOf?.(item.completedBy) ?? null) : null;
 
+  const showHandle = Boolean(registerDnd) && canEdit && !editing;
+
   return (
-    <li className="group/item text-sm">
+    <li
+      ref={rowRef}
+      className={cn(
+        'group/item relative text-sm',
+        dragging && 'opacity-40',
+        // Drop göstergesi: hedef satırın üst/alt kenarında ince çizgi.
+        dropEdge === 'top' &&
+          'before:bg-primary before:absolute before:inset-x-0 before:-top-px before:h-0.5 before:rounded-full before:content-[""]',
+        dropEdge === 'bottom' &&
+          'after:bg-primary after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:content-[""]',
+      )}
+    >
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={!canEdit || editing}>
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-1.5">
+      {/* Sürükle tutamacı — yalnız düzenlenebilir + DnD aktifken. Sürüklerken
+          satır yüksekliği değişmesin diye editing/viewer'da yer ayrılmaz; grip
+          klavyeyle odaklanabilir ve aria-label taşır (erişilebilirlik). */}
+      {showHandle ? (
+        <button
+          ref={handleRef}
+          type="button"
+          aria-label={copy.itemDragHandle}
+          className="text-muted-foreground/50 hover:text-foreground focus-visible:ring-ring/60 mt-0.5 shrink-0 cursor-grab touch-none rounded-sm opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 group-hover/item:opacity-100 group-focus-within/item:opacity-100 active:cursor-grabbing touch:opacity-100"
+        >
+          <GripVerticalIcon className="size-4" aria-hidden />
+        </button>
+      ) : null}
       <Checkbox
         checked={item.completed}
         disabled={!canEdit || pending}

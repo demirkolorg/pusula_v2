@@ -14,6 +14,7 @@ const handlers = () => ({
   onToggleItem: vi.fn(),
   onEditItem: vi.fn(),
   onDeleteItem: vi.fn(),
+  onReorderItem: vi.fn(),
 });
 
 const checklists: ChecklistView[] = [
@@ -81,6 +82,33 @@ describe('<CardDetailChecklists>', () => {
     await user.type(screen.getByLabelText(copy.itemPlaceholder), '  Üçüncü  ');
     await user.click(screen.getByRole('button', { name: copy.itemAddSubmit }));
     expect(h.onAddItem).toHaveBeenCalledWith({ checklistId: 'c1', content: 'Üçüncü' });
+  });
+
+  it('collapses and re-expands the checklist body when the header is clicked', async () => {
+    const user = userEvent.setup();
+    render(<CardDetailChecklists checklists={checklists} canEdit {...handlers()} />);
+    const header = screen.getByRole('button', { name: /Hazırlık/ });
+    // Açık başlar: gövde + maddeler görünür.
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Birinci')).toBeInTheDocument();
+    // Başlığa tıkla → kapanır, maddeler DOM'dan kalkar.
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Birinci')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy.itemAddAction })).not.toBeInTheDocument();
+    // Tekrar tıkla → geri açılır.
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Birinci')).toBeInTheDocument();
+  });
+
+  it('viewer (canEdit=false): can still collapse via the header', async () => {
+    const user = userEvent.setup();
+    render(<CardDetailChecklists checklists={checklists} canEdit={false} {...handlers()} />);
+    const header = screen.getByRole('button', { name: /Hazırlık/ });
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Birinci')).not.toBeInTheDocument();
   });
 
   it('viewer (canEdit=false): checkboxes disabled, no add/edit affordances', () => {

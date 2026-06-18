@@ -1,7 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontalIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { checklistTitleSchema } from '@pusula/domain';
 import {
   Button,
@@ -23,6 +29,7 @@ import {
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
 import { ChecklistItemRow } from './checklist-item-row';
+import { useChecklistDnd } from './use-checklist-dnd';
 import type {
   ChecklistCommentContext,
   ChecklistHandlers,
@@ -34,7 +41,10 @@ import type {
 /**
  * One checklist card: header (inline rename + confirmed delete for board
  * `member+`), a `done/total` progress bar + line, its items, and an "add item"
- * form. Reorder is out of scope this phase (no drag-and-drop — Phase 3).
+ * form. Items can be reordered *within this checklist* via drag-and-drop
+ * (Atlassian Pragmatic DnD — `useChecklistDnd`); a single `onReorderItem` fires
+ * on drop with the resolved neighbours + optimistic position. Reorder is
+ * disabled for read-only (`canEdit=false`) / archived contexts.
  */
 export function ChecklistBlock({
   checklist,
@@ -59,9 +69,24 @@ export function ChecklistBlock({
   const [titleValue, setTitleValue] = useState(checklist.title);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Bölümü başlığa tıklayarak aç/kapa — çok sayıda checklist varken üzerinde
+  // çalışılana odaklanmayı kolaylaştırır. Bileşen-içi durum (kart kapanınca
+  // sıfırlanır); kapalıyken gövde (ilerleme + maddeler + ekleme formu) gizlenir.
+  const [collapsed, setCollapsed] = useState(false);
+  const bodyId = `checklist-body-${checklist.id}`;
 
   const total = checklist.items.length;
   const done = checklist.items.filter((i) => i.completed).length;
+
+  // Madde sürükle-bırak sıralaması (DEM — web). Yalnız düzenlenebilir + birden
+  // fazla madde varken anlamlı; drop'ta tek `onReorderItem` çağrısı (optimistic
+  // patch + mutation dialog'da). Salt-okur/arşiv → enabled false → handle yok.
+  const dnd = useChecklistDnd({
+    checklistId: checklist.id,
+    items: checklist.items,
+    enabled: canEdit && checklist.items.length > 1,
+    onReorder: (args) => handlers.onReorderItem(args),
+  });
 
   return (
     <div className="space-y-2 rounded-md border p-3">
@@ -114,7 +139,27 @@ export function ChecklistBlock({
             </div>
           </form>
         ) : (
-          <h4 className="flex-1 text-sm font-medium break-words">{checklist.title}</h4>
+          <h4 className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-expanded={!collapsed}
+              aria-controls={bodyId}
+              className="flex w-full items-center gap-1.5 rounded text-left text-sm font-medium transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+            >
+              {collapsed ? (
+                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              ) : (
+                <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              )}
+              <span className="min-w-0 flex-1 break-words">{checklist.title}</span>
+              {collapsed && (
+                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                  {done}/{total}
+                </span>
+              )}
+            </button>
+          </h4>
         )}
         {canEdit && !renaming && (
           <span className="flex shrink-0 items-center">
@@ -184,50 +229,69 @@ export function ChecklistBlock({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-primary text-[11px] font-semibold tabular-nums">
-          {done}/{total}
-        </span>
-        <Progress
-          value={done}
-          max={total || 1}
-          complete={total > 0 && done === total}
-          className="h-1 flex-1"
-          aria-label={copy.checklistProgressLabel}
-        />
-      </div>
-      <p className="text-muted-foreground sr-only">
-        {done}/{total} {copy.progress} {copy.progressDone}
-      </p>
-
-      {checklist.items.length > 0 && (
-        <ul className="space-y-1.5">
-          {checklist.items.map((item) => (
-            <ChecklistItemRow
-              key={item.id}
-              item={item}
-              canEdit={canEdit}
-              pending={pending}
-              nameOf={nameOf}
-              imageOf={imageOf}
-              comments={comments}
-              onToggle={(completed) =>
-                handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
-              }
-              onEdit={(content) =>
-                handlers.onEditItem({ checklistId: checklist.id, itemId: item.id, content })
-              }
-              onDelete={() => handlers.onDeleteItem({ checklistId: checklist.id, itemId: item.id })}
+      {!collapsed && (
+        <div id={bodyId} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-primary text-[11px] font-semibold tabular-nums">
+              {done}/{total}
+            </span>
+            <Progress
+              value={done}
+              max={total || 1}
+              complete={total > 0 && done === total}
+              className="h-1 flex-1"
+              aria-label={copy.checklistProgressLabel}
             />
-          ))}
-        </ul>
-      )}
+          </div>
+          <p className="text-muted-foreground sr-only">
+            {done}/{total} {copy.progress} {copy.progressDone}
+          </p>
 
-      {canEdit && (
-        <AddItemForm
-          onSubmit={(content) => handlers.onAddItem({ checklistId: checklist.id, content })}
-          pending={pending}
-        />
+          {checklist.items.length > 0 && (
+            <ul className="space-y-1.5">
+              {checklist.items.map((item) => (
+                <ChecklistItemRow
+                  key={item.id}
+                  item={item}
+                  canEdit={canEdit}
+                  pending={pending}
+                  nameOf={nameOf}
+                  imageOf={imageOf}
+                  comments={comments}
+                  registerDnd={
+                    dnd.enabled
+                      ? (element, dragHandle) =>
+                          dnd.registerItem({
+                            element,
+                            dragHandle,
+                            itemId: item.id,
+                            position: item.position,
+                          })
+                      : undefined
+                  }
+                  dragging={dnd.draggingItemId === item.id}
+                  dropEdge={dnd.dropIndicator?.itemId === item.id ? dnd.dropIndicator.edge : null}
+                  onToggle={(completed) =>
+                    handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
+                  }
+                  onEdit={(content) =>
+                    handlers.onEditItem({ checklistId: checklist.id, itemId: item.id, content })
+                  }
+                  onDelete={() =>
+                    handlers.onDeleteItem({ checklistId: checklist.id, itemId: item.id })
+                  }
+                />
+              ))}
+            </ul>
+          )}
+
+          {canEdit && (
+            <AddItemForm
+              onSubmit={(content) => handlers.onAddItem({ checklistId: checklist.id, content })}
+              pending={pending}
+            />
+          )}
+        </div>
       )}
     </div>
   );

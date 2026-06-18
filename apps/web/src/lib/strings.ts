@@ -1761,6 +1761,8 @@ export const strings = {
         attachmentAdd: 'Dosya ekle',
         sidebarOpen: 'Yan paneli aç',
         sidebarClose: 'Yan paneli kapat',
+        fullscreenEnter: 'Tam ekran',
+        fullscreenExit: 'Tam ekrandan çık',
       },
       // Rich text editor labels (passed to @pusula/ui RichTextEditor — no hardcoded copy there).
       richText: {
@@ -1863,6 +1865,8 @@ export const strings = {
       itemUntoggleLabel: 'İşareti kaldır',
       // Maddeye sağ tık (context) menüsünün erişilebilir adı.
       itemActions: 'Madde işlemleri',
+      // Maddeyi sürükle-bırakla yeniden sıralama tutamacı (DnD handle) erişilebilir adı.
+      itemDragHandle: 'Maddeyi sürükle',
       overallProgressLabel: 'Toplam ilerleme',
       checklistProgressLabel: 'Liste ilerlemesi',
       // Madde yorum thread'i (DEM — yapılacaklar maddesine yorum).

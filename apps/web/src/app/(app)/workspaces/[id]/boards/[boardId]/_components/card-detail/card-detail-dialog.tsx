@@ -35,6 +35,7 @@ import {
   type CardDetailCache,
 } from '@/lib/board-cache';
 import { AppSpinner } from '@/components/app-spinner';
+import { applyOrder } from '@/lib/checklist-reorder';
 import { friendlyErrorMessage } from '@/lib/error-message';
 import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
@@ -108,6 +109,7 @@ export function CardDetailDialog({
   const [addMenu, setAddMenu] = useState<CardAddView | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>('comments');
+  const [fullscreen, setFullscreen] = useState(false);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
   const queries = useQueries({
@@ -323,6 +325,53 @@ export function CardDetailDialog({
   const toggleItem = useMutation(trpc.checklist.item.toggle.mutationOptions(onMutated));
   const editItem = useMutation(trpc.checklist.item.update.mutationOptions(onMutated));
   const deleteItem = useMutation(trpc.checklist.item.delete.mutationOptions(onMutated));
+  // Madde sıralama (DEM — web checklist item reorder). Diğer checklist
+  // mutation'larından farklı olarak OPTIMISTIC: `checklist.list` cache'inde
+  // ilgili checklist'in `items` dizisini drop'taki `orderedIds`'e göre anında
+  // yeniden dizer (snapshot + rollback), `onSettled`'da invalidate gerçek
+  // LexoRank pozisyonlarını geri çeker. Drag SIRASINDA değil, yalnız drop'ta
+  // bir kez tetiklenir (`onReorderItem`). `clientMutationId` collaborative
+  // sözleşmesi gereği gönderilir.
+  const checklistListFilter = useMemo(
+    () => trpc.checklist.list.queryFilter({ cardId }),
+    [trpc, cardId],
+  );
+  // Optimistic patch sırası `onMutate` içinde gerekli; mutation input'u taşımaz
+  // (yalnız komşu id'leri gider). Drop'tan gelen `orderedIds`'i `mutate`
+  // çağrısından hemen önce ref'e yazıp `onMutate`'te okuruz.
+  const reorderOrderedIdsRef = useRef<string[] | null>(null);
+  const reorderItem = useMutation(
+    trpc.checklist.item.reorder.mutationOptions({
+      onMutate: async (vars) => {
+        await queryClient.cancelQueries(checklistListFilter);
+        // Cache tipi `checklist.list` çıktısından çıkarsanır (ChecklistView'dan
+        // daha zengin: createdAt/updatedAt/completedAt vb.). `applyOrder` generic
+        // (`{id}` yeter) olduğundan tam tip korunur.
+        type ChecklistListData = NonNullable<typeof checklistsQ.data>;
+        const queryKey = trpc.checklist.list.queryKey({ cardId });
+        const prev = queryClient.getQueryData<ChecklistListData>(queryKey);
+        // `orderedIds` mutation input'unda yok (yalnız komşu id'leri gider); drop
+        // callback'i `mutate` öncesi ref'e yazar, burada okunur — optimistic
+        // sırayı komşulardan değil tam yeni diziden uygularız.
+        const orderedIds = reorderOrderedIdsRef.current;
+        if (prev && orderedIds) {
+          queryClient.setQueryData<ChecklistListData>(queryKey, (lists) =>
+            (lists ?? []).map((list) =>
+              list.id === vars.checklistId
+                ? { ...list, items: applyOrder(list.items, orderedIds) }
+                : list,
+            ),
+          );
+        }
+        return { prev, queryKey };
+      },
+      onError: (_error, _vars, ctx) => {
+        if (ctx?.prev) queryClient.setQueryData(ctx.queryKey, ctx.prev);
+        toast.error(strings.board.optimistic.error);
+      },
+      onSettled: () => queryClient.invalidateQueries(checklistListFilter),
+    }),
+  );
   const createComment = useMutation(trpc.comment.create.mutationOptions(onMutated));
   const editComment = useMutation(trpc.comment.update.mutationOptions(onMutated));
   const deleteComment = useMutation(trpc.comment.delete.mutationOptions(onMutated));
@@ -568,7 +617,10 @@ export function CardDetailDialog({
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
-          'flex h-[85vh] max-h-[85vh] w-[min(1040px,92vw)] max-w-none flex-col gap-0 overflow-hidden p-0 lg:w-[62vw] sm:max-w-none',
+          'flex max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none',
+          fullscreen
+            ? 'h-screen max-h-screen w-screen rounded-none'
+            : 'h-[85vh] max-h-[85vh] w-[min(1040px,92vw)] lg:w-[62vw]',
           coverColor && !card?.coverImage && 'border-transparent',
         )}
         showCloseButton={false}
@@ -613,6 +665,8 @@ export function CardDetailDialog({
               archived={archived}
               sidebarOpen={sidebarOpen}
               onToggleSidebar={() => setSidebarOpen((value) => !value)}
+              fullscreen={fullscreen}
+              onToggleFullscreen={() => setFullscreen((value) => !value)}
               metaInfo={
                 <CardModalMetaInfo
                   memberCount={cardMembers.length}
@@ -853,6 +907,25 @@ export function CardDetailDialog({
                           clientMutationId: cmid(),
                         })
                       }
+                      onReorderItem={({
+                        checklistId,
+                        itemId,
+                        beforeItemId,
+                        afterItemId,
+                        orderedIds,
+                      }) => {
+                        // `orderedIds`'i optimistic patch için ref'e koy, sonra
+                        // mutation'ı gerçek komşularla at (drop'ta bir kez).
+                        reorderOrderedIdsRef.current = orderedIds;
+                        reorderItem.mutate({
+                          cardId,
+                          checklistId,
+                          itemId,
+                          beforeItemId: beforeItemId ?? undefined,
+                          afterItemId: afterItemId ?? undefined,
+                          clientMutationId: cmid(),
+                        });
+                      }}
                       pending={
                         createChecklist.isPending ||
                         renameChecklist.isPending ||

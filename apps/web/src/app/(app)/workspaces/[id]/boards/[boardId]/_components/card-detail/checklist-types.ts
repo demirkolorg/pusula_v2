@@ -33,6 +33,20 @@ export type ChecklistHandlers = {
   onToggleItem: (input: { checklistId: string; itemId: string; completed: boolean }) => void;
   onEditItem: (input: { checklistId: string; itemId: string; content: string }) => void;
   onDeleteItem: (input: { checklistId: string; itemId: string }) => void;
+  /**
+   * Reorder a checklist item *within the same checklist* (drag-and-drop). Fires
+   * once on drop with the resolved real neighbours, the optimistic
+   * `newPosition` (LexoRank-like), and the full post-move `orderedIds` for the
+   * optimistic cache patch. The dialog applies the optimistic reorder + rollback.
+   */
+  onReorderItem: (input: {
+    checklistId: string;
+    itemId: string;
+    beforeItemId: string | undefined;
+    afterItemId: string | undefined;
+    newPosition: string;
+    orderedIds: string[];
+  }) => void;
 };
 
 /** Resolve a user id to a display name (board/card members). */

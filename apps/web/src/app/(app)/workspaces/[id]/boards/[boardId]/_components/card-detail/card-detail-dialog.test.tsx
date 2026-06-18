@@ -130,6 +130,7 @@ vi.mock('@/trpc/client', () => ({
         toggle: deepProxy,
         update: deepProxy,
         delete: deepProxy,
+        reorder: deepProxy,
       },
     },
     comment: { list: deepProxy, create: deepProxy, update: deepProxy, delete: deepProxy },
@@ -184,27 +185,47 @@ describe('<CardDetailDialog>', () => {
     h.card.coverImageUrl = null;
   });
 
-  it('the modal surface uses the v1 wide layout and a column shell', () => {
+  it('the modal surface uses the wide layout and a column shell', () => {
     renderDialog();
     const content = document.querySelector('[data-slot="dialog-content"]')!;
-    expect(content).toHaveClass('w-[min(1200px,92vw)]');
-    expect(content).toHaveClass('lg:w-[70vw]');
+    expect(content).toHaveClass('w-[min(1040px,92vw)]');
+    expect(content).toHaveClass('lg:w-[62vw]');
     expect(content).toHaveClass('h-[85vh]');
     expect(content).toHaveClass('sm:max-w-none');
     expect(content).toHaveClass('max-w-none');
     expect(content).toHaveClass('flex', 'flex-col', 'overflow-hidden', 'p-0');
   });
 
-  it('the content area is a [1fr_360px] two-column grid on md+', () => {
+  it('toggles to a full-screen surface when the fullscreen control is clicked', async () => {
+    const user = userEvent.setup();
     renderDialog();
+    const content = document.querySelector('[data-slot="dialog-content"]')!;
+    expect(content).toHaveClass('h-[85vh]');
+    await user.click(
+      screen.getByRole('button', { name: strings.card.detail.modal.fullscreenEnter }),
+    );
+    expect(content).toHaveClass('h-screen', 'w-screen', 'rounded-none');
+    expect(content).not.toHaveClass('h-[85vh]');
+  });
+
+  it('shows the [1fr_360px] two-column grid once the sidebar is open', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(
+      screen.getByRole('button', { name: strings.card.detail.modal.sidebarOpen }),
+    );
     const grid = document.querySelector('.md\\:grid-cols-\\[1fr_360px\\]');
     expect(grid).not.toBeNull();
     expect(grid).toHaveClass('grid');
   });
 
-  it('renders the card title and the modal chrome', () => {
+  it('renders the card title and reveals the sidebar tab strip once the sidebar is open', async () => {
+    const user = userEvent.setup();
     renderDialog();
     expect(screen.getAllByText('Kart başlığı').length).toBeGreaterThan(0);
+    await user.click(
+      screen.getByRole('button', { name: strings.card.detail.modal.sidebarOpen }),
+    );
     // The sidebar tab strip is present (right column rendered).
     expect(screen.getByRole('tab', { name: /Aktivite/ })).toBeInTheDocument();
   });

@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   LinkIcon,
   ListIcon,
+  Maximize2Icon,
+  Minimize2Icon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
 } from 'lucide-react';
@@ -56,6 +58,9 @@ type CardModalHeaderProps = {
   /** Sağ panel (yorum/aktivite/ekler) açık mı — toggle butonunun durumunu sürer. */
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  /** Modal tam ekran mı — tam ekran toggle butonunun durumunu sürer. */
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
   /**
    * Breadcrumb (`pano / liste`) yanında gösterilen salt okunabilir meta info
    * (üye sayısı, etiket sayısı, son tarih, kapak rengi, ek sayısı). Tıklanmaz —
@@ -88,6 +93,8 @@ export function CardModalHeader({
   archived,
   sidebarOpen,
   onToggleSidebar,
+  fullscreen,
+  onToggleFullscreen,
   metaInfo,
   addAction,
 }: CardModalHeaderProps) {
@@ -241,6 +248,31 @@ export function CardModalHeader({
             </TooltipTrigger>
             <TooltipContent>
               {sidebarOpen ? copy.sidebarClose : copy.sidebarOpen}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Modalı tam ekrana genişlet / normale döndür — yan panel toggle'ının sağında. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                aria-pressed={fullscreen}
+                aria-label={fullscreen ? copy.fullscreenExit : copy.fullscreenEnter}
+                className={cn(
+                  iconBtnClass,
+                  fullscreen && (onColored ? 'bg-current/15' : 'bg-accent text-foreground'),
+                )}
+              >
+                {fullscreen ? (
+                  <Minimize2Icon aria-hidden />
+                ) : (
+                  <Maximize2Icon aria-hidden />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {fullscreen ? copy.fullscreenExit : copy.fullscreenEnter}
             </TooltipContent>
           </Tooltip>
         </div>

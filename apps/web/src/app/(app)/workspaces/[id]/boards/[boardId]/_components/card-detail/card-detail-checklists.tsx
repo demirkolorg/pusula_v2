@@ -35,9 +35,10 @@ type CardDetailChecklistsProps = ChecklistHandlers & {
  * progress bar + "add checklist") above a list of bordered {@link ChecklistBlock}s
  * — each with its own `done/total` bar, items (`Checkbox` + content, inline
  * edit/delete, completer avatar), and an "add item" form. Board `member+` can
- * add / rename / delete (confirmed) checklists. Reorder is out of scope this
- * phase (no drag-and-drop — Phase 3). Presentational — the dialog wires the
- * mutations; one shared `pending`/`error` covers all checklist mutations.
+ * add / rename / delete (confirmed) checklists and reorder items within a
+ * checklist via drag-and-drop (handled inside {@link ChecklistBlock}).
+ * Presentational — the dialog wires the mutations; one shared `pending`/`error`
+ * covers all checklist mutations.
  */
 export function CardDetailChecklists({
   checklists,

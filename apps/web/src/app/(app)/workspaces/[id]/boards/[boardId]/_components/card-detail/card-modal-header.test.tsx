@@ -71,6 +71,8 @@ function setup(overrides: Partial<Parameters<typeof CardModalHeader>[0]> = {}) {
     archived: false,
     sidebarOpen: false,
     onToggleSidebar: vi.fn(),
+    fullscreen: false,
+    onToggleFullscreen: vi.fn(),
     ...overrides,
   };
   render(<CardModalHeader {...props} />);
@@ -95,6 +97,8 @@ describe('<CardModalHeader>', () => {
         archived={false}
         sidebarOpen={false}
         onToggleSidebar={vi.fn()}
+        fullscreen={false}
+        onToggleFullscreen={vi.fn()}
       />,
     );
     expect(screen.queryByText(m.archivedBadge)).not.toBeInTheDocument();
@@ -108,6 +112,8 @@ describe('<CardModalHeader>', () => {
         archived
         sidebarOpen={false}
         onToggleSidebar={vi.fn()}
+        fullscreen={false}
+        onToggleFullscreen={vi.fn()}
       />,
     );
     expect(screen.getByText(m.archivedBadge)).toBeInTheDocument();
@@ -131,6 +137,24 @@ describe('<CardModalHeader>', () => {
     expect(screen.queryByRole('button', { name: m.sidebarOpen })).not.toBeInTheDocument();
   });
 
+  it('shows the fullscreen toggle with a text label', () => {
+    setup();
+    expect(screen.getByRole('button', { name: m.fullscreenEnter })).toBeInTheDocument();
+  });
+
+  it('clicking the fullscreen toggle fires onToggleFullscreen', async () => {
+    const user = userEvent.setup();
+    const props = setup();
+    await user.click(screen.getByRole('button', { name: m.fullscreenEnter })!);
+    expect(props.onToggleFullscreen).toHaveBeenCalledTimes(1);
+  });
+
+  it('label flips to "exit" when fullscreen is active', () => {
+    setup({ fullscreen: true });
+    expect(screen.getByRole('button', { name: m.fullscreenExit })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: m.fullscreenEnter })).not.toBeInTheDocument();
+  });
+
   it('plain bar (border-b, no palette class) when no cover colour is set', () => {
     render(
       <CardModalHeader
@@ -143,6 +167,8 @@ describe('<CardModalHeader>', () => {
         archived={false}
         sidebarOpen={false}
         onToggleSidebar={vi.fn()}
+        fullscreen={false}
+        onToggleFullscreen={vi.fn()}
       />,
     );
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
@@ -162,6 +188,8 @@ describe('<CardModalHeader>', () => {
         archived={false}
         sidebarOpen={false}
         onToggleSidebar={vi.fn()}
+        fullscreen={false}
+        onToggleFullscreen={vi.fn()}
       />,
     );
     const bar = document.querySelector('[data-slot="card-modal-header"]')!;
@@ -188,6 +216,8 @@ describe('<CardModalHeader>', () => {
         archived={false}
         sidebarOpen={false}
         onToggleSidebar={vi.fn()}
+        fullscreen={false}
+        onToggleFullscreen={vi.fn()}
       />,
     );
 

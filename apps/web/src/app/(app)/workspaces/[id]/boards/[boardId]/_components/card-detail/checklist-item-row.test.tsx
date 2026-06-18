@@ -82,3 +82,29 @@ describe('<ChecklistItemRow> comment thread toggle', () => {
     expect(screen.getByTestId('thread')).toBeInTheDocument();
   });
 });
+
+describe('<ChecklistItemRow> drag handle', () => {
+  it('shows a labelled drag handle when reorder is enabled (canEdit + registerDnd)', () => {
+    const registerDnd = vi.fn(() => vi.fn());
+    renderRow({ canEdit: true, registerDnd });
+    expect(screen.getByRole('button', { name: copy.itemDragHandle })).toBeInTheDocument();
+    // Pragmatic DnD kaydı satır + tutamaç ile çağrılır.
+    expect(registerDnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the drag handle when reorder is disabled (no registerDnd)', () => {
+    renderRow({ canEdit: true });
+    expect(
+      screen.queryByRole('button', { name: copy.itemDragHandle }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the drag handle for a read-only viewer even if registerDnd is passed', () => {
+    const registerDnd = vi.fn(() => vi.fn());
+    renderRow({ canEdit: false, registerDnd });
+    expect(
+      screen.queryByRole('button', { name: copy.itemDragHandle }),
+    ).not.toBeInTheDocument();
+    expect(registerDnd).not.toHaveBeenCalled();
+  });
+});
