@@ -16,13 +16,15 @@ const config: ExpoConfig = {
   // = 'appVersion'` olduğundan bu bump aynı zamanda yeni runtime version
   // demektir — 1.0.0 OTA bundle'ları 1.1.0 client'a düşmez. Sonraki JS-only
   // fix'ler v1.1.x OTA (`eas update --branch production --platform ios`).
-  // NOT (2026-06-17): yayındaki son STORE build 1.1.2 (EAS build #9, 2026-06-03;
-  // runtimeVersion policy=appVersion → 1.1.2). Bu build'den HEAD'e native
-  // değişiklik YOK (package.json native dep / app.config plugin-izin / android
-  // değişmedi), dolayısıyla biriken JS-only fix'ler 1.1.2 runtime'a OTA ile
-  // gönderilir (`eas update --branch production`). Update'in runtimeVersion'u
-  // yüklü build'le (1.1.2) eşleşmeli; aksi halde cihaza hiç düşmez.
-  version: '1.1.2',
+  // NOT (2026-06-18): 1.1.2 → 1.1.3. App Store Connect 1.1.2'yi zaten onayladı
+  // (build #9), "train 1.1.2 closed" → build #10 (1.1.2 build 10) submit'te
+  // REDDEDİLDİ (90062/90186): CFBundleShortVersionString önceki onaylı sürümden
+  // YÜKSEK olmalı. buildNumber autoIncrement (appVersionSource: remote) yeterli
+  // değil, marketing version'u bump etmek şart. Bonus: runtimeVersion.policy=
+  // appVersion → yeni runtime 1.1.3; production'daki crash eden 1.1.2 OTA'ları
+  // (reanimated worklet açılış crash'i) bu build'e ERİŞEMEZ — temiz başlangıç.
+  // Worklet'li değişiklikler OTA ile değil bu store build ile gidiyor.
+  version: '1.1.3',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
