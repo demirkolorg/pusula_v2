@@ -228,4 +228,52 @@ describe('<CardModalHeader>', () => {
     expect(bar).toHaveClass('bg-background', 'border-b');
     expect(bar.className).not.toMatch(/bg-palet-/);
   });
+
+  it('double-clicking the cover image toggles fit/banner view and persists per card', async () => {
+    const user = userEvent.setup();
+    window.localStorage.clear();
+    setup({
+      cardId: 'card-cover-1',
+      coverImage: {
+        attachmentId: 'att1',
+        fileName: 'kapak.png',
+        mimeType: 'image/png',
+        size: 1234,
+      },
+      coverImageUrl: 'https://storage.test/modal-cover.png',
+    });
+    const cover = document.querySelector('[data-slot="card-modal-cover-image"]')!;
+    const image = screen.getByRole('img', { name: 'kapak.png' });
+    // Varsayılan: sığdır (object-contain).
+    expect(cover).toHaveAttribute('data-cover-view', 'fit');
+    expect(image.className).toMatch(/object-contain/);
+
+    // Çift tıkla → banner (object-cover) + localStorage'a kart bazlı yaz.
+    await user.dblClick(cover);
+    expect(cover).toHaveAttribute('data-cover-view', 'banner');
+    expect(image.className).toMatch(/object-cover/);
+    expect(window.localStorage.getItem('sancak:card-cover-view:card-cover-1')).toBe('banner');
+
+    // Tekrar çift tıkla → sığdır.
+    await user.dblClick(cover);
+    expect(cover).toHaveAttribute('data-cover-view', 'fit');
+    expect(window.localStorage.getItem('sancak:card-cover-view:card-cover-1')).toBe('fit');
+  });
+
+  it('restores the persisted cover view from localStorage on mount', () => {
+    window.localStorage.setItem('sancak:card-cover-view:card-cover-2', 'banner');
+    setup({
+      cardId: 'card-cover-2',
+      coverImage: {
+        attachmentId: 'att1',
+        fileName: 'kapak.png',
+        mimeType: 'image/png',
+        size: 1234,
+      },
+      coverImageUrl: 'https://storage.test/modal-cover.png',
+    });
+    const cover = document.querySelector('[data-slot="card-modal-cover-image"]')!;
+    expect(cover).toHaveAttribute('data-cover-view', 'banner');
+    expect(screen.getByRole('img', { name: 'kapak.png' }).className).toMatch(/object-cover/);
+  });
 });

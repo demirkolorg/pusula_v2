@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   CheckIcon,
+  CopyIcon,
   GripVerticalIcon,
   MessageSquareIcon,
   PencilIcon,
@@ -24,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   cn,
+  toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ChecklistItemThread } from './checklist-item-thread';
@@ -103,6 +105,17 @@ export function ChecklistItemRow({
 
   const showHandle = Boolean(registerDnd) && canEdit && !editing;
 
+  // Madde metnini panoya kopyala — yetkiden bağımsız (okuma yetkisi olan da
+  // kopyalayabilir; kopyalama yıkıcı değil). Clipboard erişilemezse uyarı.
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(item.content);
+      toast.success(copy.itemCopied);
+    } catch {
+      toast.error(copy.itemCopyError);
+    }
+  };
+
   return (
     <li
       ref={rowRef}
@@ -117,7 +130,11 @@ export function ChecklistItemRow({
       )}
     >
       <ContextMenu>
-        <ContextMenuTrigger asChild disabled={!canEdit || editing}>
+        {/* Düzenleme (inline form) sırasında context menüyü açma — kullanıcı
+            metin düzenliyor olabilir, normal metin context menüsü çıksın.
+            Salt-okur (canEdit=false) durumda da açılır: yalnızca "Kopyala"
+            görünür (kopyalama yıkıcı değil, okuma yetkisi olan kopyalayabilir). */}
+        <ContextMenuTrigger asChild disabled={editing}>
           <div className="flex items-start gap-1.5">
       {/* Sürükle tutamacı — yalnız düzenlenebilir + DnD aktifken. Sürüklerken
           satır yüksekliği değişmesin diye editing/viewer'da yer ayrılmaz; grip
@@ -261,15 +278,12 @@ export function ChecklistItemRow({
       )}
           </div>
         </ContextMenuTrigger>
-        {canEdit && !editing && (
+        {!editing && (
           <ContextMenuContent aria-label={copy.itemActions}>
-            <ContextMenuItem disabled={pending} onSelect={() => onToggle(!item.completed)}>
-              {item.completed ? (
-                <SquareIcon className="size-3.5" aria-hidden />
-              ) : (
-                <CheckIcon className="size-3.5" aria-hidden />
-              )}
-              {item.completed ? copy.itemUntoggleLabel : copy.itemToggleLabel}
+            {/* Kopyala — yetkiden bağımsız, her zaman görünür. */}
+            <ContextMenuItem onSelect={() => void handleCopy()}>
+              <CopyIcon className="size-3.5" aria-hidden />
+              {copy.itemContextCopy}
             </ContextMenuItem>
             {comments && (
               <ContextMenuItem onSelect={() => setThreadOpen(true)}>
@@ -277,21 +291,37 @@ export function ChecklistItemRow({
                 {copy.itemCommentsToggle}
               </ContextMenuItem>
             )}
-            <ContextMenuItem
-              disabled={pending}
-              onSelect={() => {
-                setValue(item.content);
-                setEditing(true);
-              }}
-            >
-              <PencilIcon className="size-3.5" aria-hidden />
-              {copy.itemEdit}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" disabled={pending} onSelect={onDelete}>
-              <Trash2Icon className="size-3.5" aria-hidden />
-              {copy.itemDelete}
-            </ContextMenuItem>
+            {canEdit && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  disabled={pending}
+                  onSelect={() => onToggle(!item.completed)}
+                >
+                  {item.completed ? (
+                    <SquareIcon className="size-3.5" aria-hidden />
+                  ) : (
+                    <CheckIcon className="size-3.5" aria-hidden />
+                  )}
+                  {item.completed ? copy.itemUntoggleLabel : copy.itemToggleLabel}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  disabled={pending}
+                  onSelect={() => {
+                    setValue(item.content);
+                    setEditing(true);
+                  }}
+                >
+                  <PencilIcon className="size-3.5" aria-hidden />
+                  {copy.itemEdit}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem variant="destructive" disabled={pending} onSelect={onDelete}>
+                  <Trash2Icon className="size-3.5" aria-hidden />
+                  {copy.itemDelete}
+                </ContextMenuItem>
+              </>
+            )}
           </ContextMenuContent>
         )}
       </ContextMenu>

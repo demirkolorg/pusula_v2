@@ -129,6 +129,13 @@ function AttachmentTile({
   const [draft, setDraft] = React.useState(description ?? '');
   const [imageFailed, setImageFailed] = React.useState(false);
 
+  // Presigned thumbnail URL'leri TTL (1 saat) sonrası yenilenir; yeni URL
+  // geldiğinde eski (süresi dolmuş) URL'in tetiklediği `imageFailed` takılı
+  // kalmasın — aksi halde geçerli görsel kalıcı olarak ikon fallback'te kalırdı.
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [thumbnailUrl]);
+
   const startEdit = () => {
     setDraft(description ?? '');
     setEditing(true);

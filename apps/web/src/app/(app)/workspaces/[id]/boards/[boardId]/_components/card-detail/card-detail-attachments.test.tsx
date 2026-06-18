@@ -91,6 +91,7 @@ function makeAttachment(overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-05-01'),
     committedAt: new Date('2026-05-01'),
     isCover: false,
+    thumbnailUrl: null,
     ...overrides,
   };
 }
@@ -138,6 +139,32 @@ describe('<CardDetailAttachments>', () => {
     h.attachments = [makeAttachment()];
     renderTab();
     expect(await screen.findByText('rapor.pdf')).toBeInTheDocument();
+  });
+
+  it('renders a thumbnail <img> for an image attachment with a thumbnailUrl', async () => {
+    h.attachments = [
+      makeAttachment({
+        id: 'img-1',
+        fileName: 'foto.png',
+        kind: 'image',
+        mimeType: 'image/png',
+        thumbnailUrl: 'https://storage.test/get/foto.png',
+      }),
+    ];
+    renderTab();
+
+    const img = (await screen.findByAltText('foto.png')) as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    expect(img.tagName).toBe('IMG');
+    expect(img.getAttribute('src')).toBe('https://storage.test/get/foto.png');
+  });
+
+  it('falls back to an icon (no <img>) for a non-image attachment', async () => {
+    h.attachments = [makeAttachment()]; // pdf, thumbnailUrl: null
+    renderTab();
+
+    await screen.findByText('rapor.pdf');
+    expect(screen.queryByAltText('rapor.pdf')).not.toBeInTheDocument();
   });
 
   it('keyboard-activating the dropzone runs the two-phase upload (initiate → commit)', async () => {

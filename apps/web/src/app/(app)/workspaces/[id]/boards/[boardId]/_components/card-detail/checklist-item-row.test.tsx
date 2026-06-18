@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 import { ChecklistItemRow, type ChecklistCommentContext } from './checklist-item-row';
 import type { ChecklistItemView } from './checklist-types';
@@ -80,6 +80,34 @@ describe('<ChecklistItemRow> comment thread toggle', () => {
     renderRow({ comments: { ...commentsContext, canComment: false }, canEdit: false });
     await user.click(screen.getByRole('button', { name: copy.itemCommentsToggle }));
     expect(screen.getByTestId('thread')).toBeInTheDocument();
+  });
+});
+
+describe('<ChecklistItemRow> context-menu copy', () => {
+  const writeText = vi.fn(() => Promise.resolve());
+
+  beforeEach(() => {
+    writeText.mockClear();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('copies the item content to the clipboard from the context menu', async () => {
+    renderRow({ item: item({ content: 'Kopyalanacak metin' }), canEdit: true });
+    fireEvent.contextMenu(screen.getByText('Kopyalanacak metin'));
+    const copyItem = await screen.findByRole('menuitem', { name: copy.itemContextCopy });
+    fireEvent.click(copyItem);
+    expect(writeText).toHaveBeenCalledWith('Kopyalanacak metin');
+  });
+
+  it('exposes the copy action to read-only viewers (canEdit=false)', async () => {
+    renderRow({ item: item({ content: 'Salt okunur metin' }), canEdit: false });
+    fireEvent.contextMenu(screen.getByText('Salt okunur metin'));
+    const copyItem = await screen.findByRole('menuitem', { name: copy.itemContextCopy });
+    fireEvent.click(copyItem);
+    expect(writeText).toHaveBeenCalledWith('Salt okunur metin');
   });
 });
 

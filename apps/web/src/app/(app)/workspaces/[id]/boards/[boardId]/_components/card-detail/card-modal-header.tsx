@@ -23,6 +23,9 @@ import { CardCoverImage, type CoverImage } from '../card-cover-image';
 import { CardDetailSnooze } from './card-detail-snooze';
 import { ShareDialog } from './share-dialog';
 
+/** Kapak görünümü tercihi localStorage anahtar öneki (kart id'si eklenir). */
+const COVER_VIEW_STORAGE_KEY = 'sancak:card-cover-view';
+
 const PALETTE_BAR: Record<PaletteName, string> = {
   kirmizi: 'bg-palet-kirmizi text-palet-kirmizi-foreground',
   turuncu: 'bg-palet-turuncu text-palet-turuncu-foreground',
@@ -103,7 +106,33 @@ export function CardModalHeader({
   // Banner arka planı için görselin 1×1 örneklenmiş baskın rengi (CardCoverImage
   // callback'i). CORS engeli halinde `null` kalır ve `bg-muted` fallback görünür.
   const [coverBg, setCoverBg] = useState<string | null>(null);
+  // Kapak görseli görünümü: `fit` (sığdır — en-boy korunur, baskın renk dolgusu)
+  // veya `banner` (tam kaplar — kırparak). Kapağa çift tıklayınca değişir ve
+  // tercih kart başına localStorage'da saklanır (her kapak görseli farklı oranda
+  // olduğundan kart bazlı; SSR-güvenli: ilk render `fit`, mount sonrası okunur).
+  const [coverView, setCoverView] = useState<'fit' | 'banner'>('fit');
   const hasCoverImage = coverImage != null;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`${COVER_VIEW_STORAGE_KEY}:${cardId}`);
+      if (stored === 'banner' || stored === 'fit') setCoverView(stored);
+    } catch {
+      // localStorage erişilemez (private mode / SSR) — varsayılan `fit` kalır
+    }
+  }, [cardId]);
+
+  const toggleCoverView = () => {
+    setCoverView((prev) => {
+      const next = prev === 'fit' ? 'banner' : 'fit';
+      try {
+        window.localStorage.setItem(`${COVER_VIEW_STORAGE_KEY}:${cardId}`, next);
+      } catch {
+        // yazılamazsa sessizce geç — görünüm yine de bu oturumda değişir
+      }
+      return next;
+    });
+  };
 
   // Kart/görsel değiştiğinde önceki rengi sıfırla; yeni görsel yüklenene dek
   // banner fallback `bg-muted` üzerinde döner.
@@ -142,15 +171,18 @@ export function CardModalHeader({
       {coverImage ? (
         <div
           data-slot="card-modal-cover-image"
-          className="flex h-56 items-center justify-center overflow-hidden border-b bg-muted transition-colors duration-300"
-          style={coverBg ? { backgroundColor: coverBg } : undefined}
+          data-cover-view={coverView}
+          onDoubleClick={toggleCoverView}
+          title={coverView === 'fit' ? copy.coverViewToBanner : copy.coverViewToFit}
+          className="flex h-56 cursor-pointer items-center justify-center overflow-hidden border-b bg-muted transition-colors duration-300 select-none"
+          style={coverView === 'fit' && coverBg ? { backgroundColor: coverBg } : undefined}
         >
           <CardCoverImage
             coverImageUrl={coverImageUrl}
             alt={coverImage.fileName}
-            fit="contain"
+            fit={coverView === 'banner' ? 'cover' : 'contain'}
             className="h-full w-full"
-            onDominantColor={setCoverBg}
+            onDominantColor={coverView === 'fit' ? setCoverBg : undefined}
           />
         </div>
       ) : null}

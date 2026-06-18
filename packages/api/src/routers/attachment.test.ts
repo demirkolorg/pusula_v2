@@ -77,7 +77,12 @@ function fakeObjectStorage() {
 }
 
 interface CallerOpts {
-  objectStorage?: ReturnType<typeof fakeObjectStorage>;
+  /**
+   * Pass an explicit fake to assert on presign calls, or `null` to simulate an
+   * unconfigured object storage (graceful-degradation tests). Omitting the key
+   * falls back to a fresh fake.
+   */
+  objectStorage?: ReturnType<typeof fakeObjectStorage> | null;
   enqueueAttachmentCleanup?: EnqueueAttachmentCleanup;
 }
 
@@ -88,7 +93,8 @@ function callerFor(userId: string, opts: CallerOpts = {}) {
     createContext({
       session: session(userId),
       db: probe.db,
-      objectStorage: opts.objectStorage ?? fakeObjectStorage(),
+      objectStorage:
+        opts.objectStorage === null ? undefined : (opts.objectStorage ?? fakeObjectStorage()),
       enqueueAttachmentCleanup: opts.enqueueAttachmentCleanup,
     }),
   );
@@ -847,6 +853,83 @@ describe.runIf(dbAvailable)('attachment router (integration)', () => {
       await expect(
         callerFor(outsiderId).attachment.list({ cardId }),
       ).rejects.toMatchObject({ code: expect.stringMatching(/NOT_FOUND|FORBIDDEN/) });
+    });
+
+    // ── thumbnailUrl (list image preview, MVP full-image presigned) ──────
+    it('returns a presigned thumbnailUrl for image rows and null for non-image rows', async () => {
+      const [img] = await db()
+        .insert(attachments)
+        .values({
+          cardId,
+          boardId,
+          uploaderId: memberId,
+          storageKey: `boards/${boardId}/cards/${cardId}/thumb-image.png`,
+          fileName: 'thumb-image.png',
+          mimeType: 'image/png',
+          size: 123,
+          committedAt: new Date(),
+        })
+        .returning();
+      const [doc] = await db()
+        .insert(attachments)
+        .values({
+          cardId,
+          boardId,
+          uploaderId: memberId,
+          storageKey: `boards/${boardId}/cards/${cardId}/thumb-doc.pdf`,
+          fileName: 'thumb-doc.pdf',
+          mimeType: 'application/pdf',
+          size: 456,
+          committedAt: new Date(),
+        })
+        .returning();
+
+      const storage = fakeObjectStorage();
+      const items = await callerFor(viewerId, { objectStorage: storage }).attachment.list({ cardId });
+      const imgItem = items.find((i) => i.id === img!.id)!;
+      const docItem = items.find((i) => i.id === doc!.id)!;
+
+      // Image row carries a presigned GET URL (TTL 1 saat).
+      expect(imgItem.thumbnailUrl).toBe('https://storage.test/get');
+      expect(storage.createPresignedGetUrl).toHaveBeenCalledWith({
+        key: `boards/${boardId}/cards/${cardId}/thumb-image.png`,
+        expiresIn: 3600,
+      });
+      // Non-image row never gets a presigned URL.
+      expect(docItem.thumbnailUrl).toBeNull();
+      expect(storage.createPresignedGetUrl).not.toHaveBeenCalledWith(
+        expect.objectContaining({ key: `boards/${boardId}/cards/${cardId}/thumb-doc.pdf` }),
+      );
+
+      // Cleanup.
+      await db()
+        .delete(attachments)
+        .where(dbMod.inArray(attachments.id, [img!.id, doc!.id]));
+    });
+
+    it('thumbnailUrl is null for all rows when objectStorage is not configured (graceful)', async () => {
+      const [img] = await db()
+        .insert(attachments)
+        .values({
+          cardId,
+          boardId,
+          uploaderId: memberId,
+          storageKey: `boards/${boardId}/cards/${cardId}/thumb-nostorage.png`,
+          fileName: 'thumb-nostorage.png',
+          mimeType: 'image/png',
+          size: 789,
+          committedAt: new Date(),
+        })
+        .returning();
+
+      const items = await callerFor(viewerId, {
+        objectStorage: null,
+      }).attachment.list({ cardId });
+      const imgItem = items.find((i) => i.id === img!.id)!;
+      expect(imgItem.thumbnailUrl).toBeNull();
+
+      // Cleanup.
+      await db().delete(attachments).where(dbMod.eq(attachments.id, img!.id));
     });
   });
 

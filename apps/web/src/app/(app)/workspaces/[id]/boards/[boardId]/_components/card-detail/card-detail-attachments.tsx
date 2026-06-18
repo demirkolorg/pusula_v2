@@ -44,6 +44,8 @@ export type AttachmentView = {
   createdAt: Date;
   committedAt: Date | null;
   isCover: boolean;
+  /** Presigned GET URL for image rows (list tile thumbnail); `null` otherwise. */
+  thumbnailUrl: string | null;
 };
 
 type CardDetailAttachmentsProps = {
@@ -440,6 +442,7 @@ export function CardDetailAttachments({
                 fileName={row.fileName}
                 kind={row.kind}
                 mimeType={row.mimeType}
+                thumbnailUrl={row.thumbnailUrl}
                 sizeLabel={formatBytes(row.size)}
                 uploaderName={row.uploader.name?.trim() || strings.share.guest.deletedUserLabel}
                 timeLabel={formatRelativeTime(row.committedAt ?? row.createdAt)}

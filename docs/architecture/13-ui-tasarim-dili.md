@@ -20,7 +20,7 @@ related:
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/architecture/20-hareket-etkilesim-sistemi|Hareket & Etkileşim Sistemi]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-05-31
+updated: 2026-06-18
 ---
 
 # 13 — UI Tasarım Dili
@@ -694,6 +694,7 @@ Liste satırı — `flex items-start gap-2.5 rounded-md border bg-card p-2 hover
 
 - **Sol — Thumbnail/ikon (56×56, `rounded-md`, `shrink-0`, `overflow-hidden`):**
   - `kind === 'image'` → `<img>` `object-cover h-full w-full` (presigned GET URL lazy load; loading="lazy"; alt={fileName}; fail → fallback `ImageIcon`).
+    - **Wired (DEM-150 takip, 2026-06-18):** thumbnail URL `attachment.list` yanıtının `thumbnailUrl` alanından gelir (server-side presigned GET, TTL 1 saat; bkz. §13.10.3 altı + `docs/architecture/09-depolama-ve-arama.md` §9.1). `card-detail-attachments.tsx` `AttachmentTile`'a `thumbnailUrl={row.thumbnailUrl}` geçer; `null` ise (non-image / objectStorage yapılandırılmamış / presign başarısız) ikon fallback'i render edilir. MVP: ayrı thumbnail objesi değil, orijinal görselin presigned URL'i — tarayıcı `object-cover` ile 56px'e ölçekler.
   - `kind === 'pdf'` → `<div class="bg-destructive/10 flex items-center justify-center h-full"><FileTextIcon class="size-7 text-destructive" /></div>`.
   - `kind === 'office'` → mimeType'a göre renk: docx `bg-blue-500/10 text-blue-500`, xlsx `bg-emerald-500/10 text-emerald-500`, pptx `bg-orange-500/10 text-orange-500`; ikon `FileTextIcon`.
 - **Orta — Metadata (`flex-1 min-w-0 flex flex-col gap-0.5`):**

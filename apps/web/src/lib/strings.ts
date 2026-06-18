@@ -1763,6 +1763,8 @@ export const strings = {
         sidebarClose: 'Yan paneli kapat',
         fullscreenEnter: 'Tam ekran',
         fullscreenExit: 'Tam ekrandan çık',
+        coverViewToBanner: 'Kapağı tam kapla (çift tıkla)',
+        coverViewToFit: 'Kapağı sığdır (çift tıkla)',
       },
       // Rich text editor labels (passed to @pusula/ui RichTextEditor — no hardcoded copy there).
       richText: {
@@ -1865,6 +1867,10 @@ export const strings = {
       itemUntoggleLabel: 'İşareti kaldır',
       // Maddeye sağ tık (context) menüsünün erişilebilir adı.
       itemActions: 'Madde işlemleri',
+      // Maddeye sağ tık menüsündeki kopyalama eylemi (metni panoya kopyalar).
+      itemContextCopy: 'Kopyala',
+      itemCopied: 'Madde kopyalandı',
+      itemCopyError: 'Madde kopyalanamadı',
       // Maddeyi sürükle-bırakla yeniden sıralama tutamacı (DnD handle) erişilebilir adı.
       itemDragHandle: 'Maddeyi sürükle',
       overallProgressLabel: 'Toplam ilerleme',

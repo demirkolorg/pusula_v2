@@ -54,7 +54,7 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
-import type { ObjectStorage } from '../lib/object-storage';
+import { COVER_IMAGE_URL_TTL_SECONDS, type ObjectStorage } from '../lib/object-storage';
 import {
   bumpBoardVersionForRealtime,
   insertRealtimeEvent,
@@ -155,9 +155,20 @@ interface AttachmentResponse {
   createdAt: Date;
   committedAt: Date | null;
   isCover: boolean;
+  /**
+   * MVP list thumbnail — for `kind === 'image'` rows a presigned GET URL of the
+   * *full* object (TTL 1 saat), otherwise `null`. The browser scales it to the
+   * 56×56 tile via `object-cover`; no worker-generated thumbnail yet. `null`
+   * when objectStorage is unconfigured (graceful degradation → icon fallback).
+   */
+  thumbnailUrl: string | null;
 }
 
-function toAttachmentResponse(row: AttachmentListRow, isCover: boolean): AttachmentResponse {
+function toAttachmentResponse(
+  row: AttachmentListRow,
+  isCover: boolean,
+  thumbnailUrl: string | null = null,
+): AttachmentResponse {
   return {
     id: row.id,
     fileName: row.fileName,
@@ -169,7 +180,30 @@ function toAttachmentResponse(row: AttachmentListRow, isCover: boolean): Attachm
     createdAt: row.createdAt,
     committedAt: row.committedAt,
     isCover,
+    thumbnailUrl,
   };
+}
+
+/**
+ * Mint a presigned GET URL (TTL 1 saat) for an image attachment's full object so
+ * the list tile can render an inline preview. Returns `null` for non-image rows,
+ * when objectStorage is unconfigured, or if the presign fails — mirroring the
+ * cover-image graceful degradation in `card.get`/`board.get` (DEM-227).
+ */
+async function imageThumbnailUrl(
+  objectStorage: ObjectStorage | undefined,
+  mimeType: string,
+  storageKey: string,
+): Promise<string | null> {
+  if (!objectStorage || attachmentKindFromMime(mimeType) !== 'image') return null;
+  try {
+    return await objectStorage.createPresignedGetUrl({
+      key: storageKey,
+      expiresIn: COVER_IMAGE_URL_TTL_SECONDS,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export const attachmentRouter = router({
@@ -267,7 +301,7 @@ export const attachmentRouter = router({
     // writes. The `committedAt` snapshot is loaded inside the helper below
     // (after a fresh re-read), which also serves the race-winner branch.
     if (existing.committedAt !== null) {
-      return await loadAttachmentResponse(ctx.db, existing.id);
+      return await loadAttachmentResponse(ctx.db, existing.id, ctx.objectStorage);
     }
 
     let activityEventId: string | undefined;
@@ -376,7 +410,7 @@ export const attachmentRouter = router({
       maybeEnqueueNotificationPublish(ctx, activityEventId);
     }
 
-    return await loadAttachmentResponse(ctx.db, existing.id);
+    return await loadAttachmentResponse(ctx.db, existing.id, ctx.objectStorage);
   }),
 
   // ─────────────────────────────────────────────────────────────────────
@@ -417,7 +451,17 @@ export const attachmentRouter = router({
     ]);
     const coverAttachmentId = cardRow?.coverImageAttachmentId ?? null;
 
-    return rows.map((row) => toAttachmentResponse(row, row.id === coverAttachmentId));
+    // Image rows get a presigned GET URL (full object, TTL 1 saat) for the list
+    // tile preview. Presigning is local crypto (no network) — parallelised with
+    // Promise.all; non-image rows and an unconfigured objectStorage resolve to
+    // `null` without any presign call (graceful degradation).
+    const thumbnailUrls = await Promise.all(
+      rows.map((row) => imageThumbnailUrl(ctx.objectStorage, row.mimeType, row.storageKey)),
+    );
+
+    return rows.map((row, i) =>
+      toAttachmentResponse(row, row.id === coverAttachmentId, thumbnailUrls[i] ?? null),
+    );
   }),
 
   // ─────────────────────────────────────────────────────────────────────
@@ -466,7 +510,7 @@ export const attachmentRouter = router({
       await upsertSearchDocument(tx, { entityType: 'attachment', entityId: existing.id });
     });
 
-    return await loadAttachmentResponse(ctx.db, existing.id);
+    return await loadAttachmentResponse(ctx.db, existing.id, ctx.objectStorage);
   }),
 
   // ─────────────────────────────────────────────────────────────────────
@@ -632,6 +676,7 @@ export const attachmentRouter = router({
 async function loadAttachmentResponse(
   db: Database,
   attachmentId: string,
+  objectStorage?: ObjectStorage,
 ): Promise<AttachmentResponse> {
   const [row] = await db
     .select({
@@ -662,6 +707,9 @@ async function loadAttachmentResponse(
     .where(eq(cards.id, row.cardId))
     .limit(1);
   const isCover = (cardRow?.coverImageAttachmentId ?? null) === row.id;
-  return toAttachmentResponse(row, isCover);
+  // Image rows carry the same presigned-thumbnail field as `list` so the client
+  // can refresh the tile from a `commit`/`update` response without a re-fetch.
+  const thumbnailUrl = await imageThumbnailUrl(objectStorage, row.mimeType, row.storageKey);
+  return toAttachmentResponse(row, isCover, thumbnailUrl);
 }
 

@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-19
+updated: 2026-06-18
 ---
 
 # 09 — Depolama ve Arama
@@ -62,7 +62,7 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
 
 ### Liste / güncelleme / silme
 
-- **`attachment.list({ cardId })`** — board'a erişen herkes (admin/member/viewer); `committed_at IS NOT NULL` filtre; `committed_at DESC` sırada. Response her satır için `{ id, fileName, mimeType, size, kind: 'image'|'pdf'|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean }`. Cover-image picker bu listeyi `mimeType LIKE 'image/%'` ile filtreler.
+- **`attachment.list({ cardId })`** — board'a erişen herkes (admin/member/viewer); `committed_at IS NOT NULL` filtre; `committed_at DESC` sırada. Response her satır için `{ id, fileName, mimeType, size, kind: 'image'|'pdf'|'office', description?, uploader: { id, name, image? }, createdAt, isCover: boolean, thumbnailUrl: string | null }`. `thumbnailUrl` yalnız `kind === 'image'` satırları için **server-side** üretilen presigned GET URL'idir (kapak görseli pattern'iyle pariteli, TTL **1 saat**); diğer kind'ler ve `objectStorage` yapılandırılmamışsa `null` (liste tile'ı ikon fallback'i render eder). MVP: ayrı küçük thumbnail objesi **değil**, orijinal görselin presigned URL'i — tarayıcı 56×56 tile'a `object-cover` ile ölçekler (worker thumbnail üretimi kapsam dışı, bkz. [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.10.8). Cover-image picker bu listeyi `mimeType LIKE 'image/%'` ile filtreler.
 - **`attachment.update({ attachmentId, description, clientMutationId })`** — yalnız `description` alanı düzenlenir (dosya adı/MIME/size **immutable**; yeni yükleme = yeni initiate). Yetki: uploader **veya** board admin. Activity üretmez (düşük gürültü; UI inline edit'i şıracaktır); `realtime_events.attachment.updated` Faz 11.1'e ertelenebilir veya aynı tx'te yazılır (V1: yazılmaz — açıklama değişimi düşük sinyal; client mutation `attachment.list` invalidate ederse yeterli).
 - **`attachment.delete({ attachmentId, clientMutationId })`** — yetki: uploader **veya** board admin (viewer reject). Single transaction: `attachments` DELETE + `activity_events.attachment.removed` + `realtime_events` outbox + `boards.version + 1` + (`cards.coverImageAttachmentId` FK `ON DELETE SET NULL` otomatik tetiklenir — kartın kapak şeridi kaybolur). Post-commit `maybeEnqueueAttachmentCleanup(ctx, { attachmentId, storageKey })` worker MinIO `DeleteObject`. Soft-delete YOK.
 - **`attachment.getDownloadUrl({ attachmentId })`** — mevcut DEM-110 procedure korunur; board'a erişen herkes (viewer dahil); presigned GET TTL 10 dk. Attachment lightbox/viewer tüketir.
