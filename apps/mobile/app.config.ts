@@ -16,12 +16,13 @@ const config: ExpoConfig = {
   // = 'appVersion'` olduğundan bu bump aynı zamanda yeni runtime version
   // demektir — 1.0.0 OTA bundle'ları 1.1.0 client'a düşmez. Sonraki JS-only
   // fix'ler v1.1.x OTA (`eas update --branch production --platform ios`).
-  // NOT (2026-06-17): 1.1.2'ye bump edilmişti ama o sürümle hiç store build'i
-  // alınmadı; yayındaki son build 1.1.1 (1e403ec). 1e403ec→HEAD arası tüm
-  // değişiklikler JS-only (native dep/config/android değişimi yok), bu yüzden
-  // 1.1.1'e geri çekildi ki OTA yüklü 1.1.1 client'lara düşsün. Gerçek native
-  // değişiklikte sıradaki store build 1.1.2 olur.
-  version: '1.1.1',
+  // NOT (2026-06-17): yayındaki son STORE build 1.1.2 (EAS build #9, 2026-06-03;
+  // runtimeVersion policy=appVersion → 1.1.2). Bu build'den HEAD'e native
+  // değişiklik YOK (package.json native dep / app.config plugin-izin / android
+  // değişmedi), dolayısıyla biriken JS-only fix'ler 1.1.2 runtime'a OTA ile
+  // gönderilir (`eas update --branch production`). Update'in runtimeVersion'u
+  // yüklü build'le (1.1.2) eşleşmeli; aksi halde cihaza hiç düşmez.
+  version: '1.1.2',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
