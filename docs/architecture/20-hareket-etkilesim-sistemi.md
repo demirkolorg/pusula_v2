@@ -20,7 +20,7 @@ related:
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/architecture/02-teknoloji-kararlari|Teknoloji Kararları]]'
   - '[[docs/architecture/05-board-mekanigi|Board Mekaniği]]'
-updated: 2026-06-17
+updated: 2026-06-18
 ---
 
 # 20 — Hareket & Etkileşim Sistemi
@@ -35,7 +35,7 @@ updated: 2026-06-17
 > ayarlanabilir ama rol ve isim sabittir.
 >
 > **Motor kararı (kullanıcı seçimi, 2026-06-17):** Ağırlıklı **Framer Motion** (`motion` paketi — zaten kurulu).
-> "shadcn/ui-only" kuralıyla çelişmez: `motion` bir _component library_ değil, bir _animasyon motoru_dur (Tiptap'ın
+> "shadcn/ui-only" kuralıyla çelişmez: `motion` bir _component library_ değil, bir \_animasyon motoru_dur (Tiptap'ın
 > headless editör olarak kabul edilmesiyle aynı mantık). Bkz. `02-teknoloji-kararlari.md` Karar kaydı 2026-06-17.
 
 ## 20.0 Felsefe — 10 ilke
@@ -61,7 +61,7 @@ Tüm bu belge aşağıdaki 10 ilkenin sistematik hâlidir:
 9. **Erişilebilirlik.** `prefers-reduced-motion` her hareketli bileşende dikkate alınır; hareket azaltılır/kaldırılır
    ama işlev korunur (§20.8).
 10. **Tam state seti.** Bir bileşen yalnız görünümden ibaret değildir; `idle / hover / pressed / focus-visible /
-    loading / disabled / success` durumlarının tümü tasarlanır (§20.6).
+loading / disabled / success` durumlarının tümü tasarlanır (§20.6).
 
 ## 20.1 Zaman & easing token'ları
 
@@ -70,26 +70,26 @@ Tailwind utility'lerine map'lenir. Inline `cubic-bezier(...)` / ham `ms` değeri
 
 ### Easing kataloğu (`--ease-*`)
 
-| Token                | Değer (öneri)                       | Rol — ne zaman                                                                                          |
-| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `--ease-standard`    | `cubic-bezier(0.4, 0, 0.2, 1)`      | Genel amaçlı; renk/opaklık/küçük dönüşümler, hover/focus, çoğu UI geçişi. Şüphedeysen bunu kullan.       |
-| `--ease-out`         | `cubic-bezier(0.16, 1, 0.3, 1)`     | Güçlü yavaşlama (decelerate). **Giriş animasyonları** — öğe hızlı girer, yumuşak durur (§20.4).          |
-| `--ease-in`          | `cubic-bezier(0.4, 0, 1, 1)`        | Hızlanma (accelerate). **Çıkış animasyonları** — öğe ekrandan çıkarken ivmelenir.                        |
-| `--ease-spring`      | `cubic-bezier(0.34, 1.56, 0.64, 1)` | Overshoot/"pop". Basılma bırakma, toggle, küçük vurgular. Mevcut `card-complete` ailesinin akrabası.     |
-| `--ease-emphasized`  | `cubic-bezier(0.22, 1, 0.36, 1)`    | Vurgulu yüzeyler — modal/sheet/popover açılışı; belirgin ama yumuşak.                                    |
+| Token               | Değer (öneri)                       | Rol — ne zaman                                                                                       |
+| ------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `--ease-standard`   | `cubic-bezier(0.4, 0, 0.2, 1)`      | Genel amaçlı; renk/opaklık/küçük dönüşümler, hover/focus, çoğu UI geçişi. Şüphedeysen bunu kullan.   |
+| `--ease-out`        | `cubic-bezier(0.16, 1, 0.3, 1)`     | Güçlü yavaşlama (decelerate). **Giriş animasyonları** — öğe hızlı girer, yumuşak durur (§20.4).      |
+| `--ease-in`         | `cubic-bezier(0.4, 0, 1, 1)`        | Hızlanma (accelerate). **Çıkış animasyonları** — öğe ekrandan çıkarken ivmelenir.                    |
+| `--ease-spring`     | `cubic-bezier(0.34, 1.56, 0.64, 1)` | Overshoot/"pop". Basılma bırakma, toggle, küçük vurgular. Mevcut `card-complete` ailesinin akrabası. |
+| `--ease-emphasized` | `cubic-bezier(0.22, 1, 0.36, 1)`    | Vurgulu yüzeyler — modal/sheet/popover açılışı; belirgin ama yumuşak.                                |
 
 > Spring **fizik** (gerçek yay) için CSS `cubic-bezier` yetmez → Framer `spring` preset'leri kullanılır (§20.5).
 > `--ease-spring` yalnız tek-yönlü "pop" hissi gereken **CSS** geçişleri içindir.
 
 ### Süre ölçeği (`--duration-*`)
 
-| Token                 | Değer (öneri) | Rol                                                                                       |
-| --------------------- | ------------- | ----------------------------------------------------------------------------------------- |
-| `--duration-instant`  | `80ms`        | Micro-feedback: `pressed` ölçek, ripple başlangıcı. "Anlık" hissi.                          |
-| `--duration-fast`     | `140ms`       | Hover, focus halkası, küçük renk/opaklık değişimi, chip/badge.                              |
-| `--duration-base`     | `220ms`       | Varsayılan. Modal içerik, dropdown, accordion, kart hover elevation.                        |
-| `--duration-slow`     | `320ms`       | Büyük yüzey: modal kabuk, sidebar slide, liste collapse, sayfa düzeyi geçiş.                |
-| `--duration-slower`   | `480ms`       | Kutlama/vurgu: `card-complete`, success onay animasyonu.                                    |
+| Token                | Değer (öneri) | Rol                                                                          |
+| -------------------- | ------------- | ---------------------------------------------------------------------------- |
+| `--duration-instant` | `80ms`        | Micro-feedback: `pressed` ölçek, ripple başlangıcı. "Anlık" hissi.           |
+| `--duration-fast`    | `140ms`       | Hover, focus halkası, küçük renk/opaklık değişimi, chip/badge.               |
+| `--duration-base`    | `220ms`       | Varsayılan. Modal içerik, dropdown, accordion, kart hover elevation.         |
+| `--duration-slow`    | `320ms`       | Büyük yüzey: modal kabuk, sidebar slide, liste collapse, sayfa düzeyi geçiş. |
+| `--duration-slower`  | `480ms`       | Kutlama/vurgu: `card-complete`, success onay animasyonu.                     |
 
 Eşleştirme kılavuzu: küçük öğe + kısa süre + `--ease-standard`; giriş + `--duration-base/slow` + `--ease-out`;
 çıkış + `--ease-in`; modal + `--duration-slow` + `--ease-emphasized`; toggle/pop + `--ease-spring`.
@@ -123,9 +123,11 @@ shorthand'i (v4) veya component CSS'inde `var(--duration-base)` ile tüketilir.
 ```html
 <!-- Doğru: token'lı geçiş -->
 <button class="transition-transform duration-(--duration-instant) ease-spring active:scale-[0.97]">
-
-<!-- Yanlış: ham değer -->
-<button class="transition-transform duration-[83ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+  <!-- Yanlış: ham değer -->
+  <button
+    class="transition-transform duration-[83ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+  ></button>
+</button>
 ```
 
 Framer tarafında token'lar `packages/ui/src/lib/motion.ts`'ten okunur (§20.9) — JS'te de sihirli sayı yazılmaz.
@@ -137,11 +139,11 @@ korunur, roller netleşir:
 
 | Token                 | Elevation | Rol                                                                            |
 | --------------------- | --------- | ------------------------------------------------------------------------------ |
-| _(yok)_               | 0         | Düz yüzey — kolon zemini, inline alan. Gölge yok.                               |
-| `--shadow-card`       | 1         | Dinlenen kart, küçük yüzey. 2 katman.                                           |
+| _(yok)_               | 0         | Düz yüzey — kolon zemini, inline alan. Gölge yok.                              |
+| `--shadow-card`       | 1         | Dinlenen kart, küçük yüzey. 2 katman.                                          |
 | `--shadow-card-hover` | 2         | Hover'da yükselen kart; `--shadow-card` → bu, `--duration-base ease-standard`. |
-| `--shadow-popover`    | 3         | Dropdown / popover / tooltip / küçük modal.                                     |
-| `--shadow-drag`       | 4         | Sürüklenen öğe (drag overlay) — en yüksek, en derin gölge.                      |
+| `--shadow-popover`    | 3         | Dropdown / popover / tooltip / küçük modal.                                    |
+| `--shadow-drag`       | 4         | Sürüklenen öğe (drag overlay) — en yüksek, en derin gölge.                     |
 
 Kurallar: (1) elevation **bir basamak** atlanmaz (0→2 değil, hover ile 1→2). (2) Hover'da elevation artışı her zaman
 geçişli (`transition-shadow`), anlık değil. (3) Drag overlay daima `--shadow-drag` + hafif `rotate` (mevcut board
@@ -152,13 +154,13 @@ deseni — `card-drag-preview`/`renderLiftedPreview` korunur). (4) Yeni elevatio
 **Giriş yalnız `fade` olamaz.** Mount animasyonu: `opacity 0→1` **+** hafif `translateY` (8–12px aşağıdan yukarı) +
 ihtiyaç hâlinde `blur(4px)→0`. Easing `--ease-out`, süre `--duration-base` (küçük) / `--duration-slow` (büyük yüzey).
 
-| Bağlam                       | Giriş                                                            | Çıkış                                            |
-| ---------------------------- | --------------------------------------------------------------- | ------------------------------------------------ |
-| Liste içine yeni kart        | `opacity + translateY(8px→0)`, `--duration-base --ease-out`     | `opacity + scale(1→0.96)`, `--ease-in`           |
-| Kart detay modalı            | `opacity + translateY(12px→0) + blur(4px→0) + scale(0.98→1)`    | tersine, `--ease-in` `--duration-fast`           |
-| Dropdown / popover / tooltip | tw-animate-css `fade + zoom + slide-from-side` (token süreyle)  | `fade-out + zoom-out`                            |
-| Sidebar / panel              | `translateX` + `opacity` (kenardan), `--duration-slow`          | tersine                                          |
-| Toast (sonner)               | kenardan `translateY/X + opacity`                               | `opacity + scale`                                |
+| Bağlam                       | Giriş                                                          | Çıkış                                  |
+| ---------------------------- | -------------------------------------------------------------- | -------------------------------------- |
+| Liste içine yeni kart        | `opacity + translateY(8px→0)`, `--duration-base --ease-out`    | `opacity + scale(1→0.96)`, `--ease-in` |
+| Kart detay modalı            | `opacity + translateY(12px→0) + blur(4px→0) + scale(0.98→1)`   | tersine, `--ease-in` `--duration-fast` |
+| Dropdown / popover / tooltip | tw-animate-css `fade + zoom + slide-from-side` (token süreyle) | `fade-out + zoom-out`                  |
+| Sidebar / panel              | `translateX` + `opacity` (kenardan), `--duration-slow`         | tersine                                |
+| Toast (sonner)               | kenardan `translateY/X + opacity`                              | `opacity + scale`                      |
 
 Liste/akış girişlerinde 30–50ms **stagger** (sıralı gecikme) tercih edilir ama uzun listede (>~12 öğe) ilk ekranla
 sınırlı tut — her kartı tek tek canlandırma. Stagger Framer `staggerChildren` ile (§20.9).
@@ -182,41 +184,41 @@ bunun _üstüne_ his katar; pointer takibi/hit-test PDnD'de kalır.
 
 Spring preset'leri (`motion.ts`, §20.9):
 
-| Preset         | Karakter                          | Kullanım                                   |
-| -------------- | --------------------------------- | ------------------------------------------ |
-| `springSnappy` | sert, hızlı oturur (az overshoot) | küçük öğe, press release, toggle thumb     |
-| `springSmooth` | dengeli                           | kart snap, layout reorder, modal           |
-| `springGentle` | yumuşak, geniş                    | büyük panel, sidebar, sayfa düzeyi         |
+| Preset         | Karakter                          | Kullanım                               |
+| -------------- | --------------------------------- | -------------------------------------- |
+| `springSnappy` | sert, hızlı oturur (az overshoot) | küçük öğe, press release, toggle thumb |
+| `springSmooth` | dengeli                           | kart snap, layout reorder, modal       |
+| `springGentle` | yumuşak, geniş                    | büyük panel, sidebar, sayfa düzeyi     |
 
 ## 20.6 Component state matrisi (ZORUNLU)
 
 Her **interaktif** bileşen şu state'lerin tümünü tasarlar. Eksik state, eksik bileşen demektir.
 
-| State            | Görsel sözleşme                                                                                        |
-| ---------------- | ----------------------------------------------------------------------------------------------------- |
-| `idle`           | Dinlenme; elevation 0/1, nötr renk.                                                                    |
-| `hover`          | Hafif renk/elevation artışı, `--duration-fast --ease-standard`. (`touch:` cihazda hover'a bel bağlama.) |
-| `pressed`        | **Basılma hissi:** `scale(0.97)` veya elevation düşüşü, `--duration-instant`. `active:` ile.            |
-| `focus-visible`  | `ring-[3px] ring-ring` görünür halka (klavye erişilebilirliği — asla kaldırılmaz).                      |
-| `loading`        | Spinner/skeleton, `aria-busy`, etkileşim kilidi (pointer-events kapalı ama layout sabit).              |
-| `disabled`       | `opacity-50 pointer-events-none`, `aria-disabled`. İmleç `not-allowed`.                                 |
-| `success`        | Geçici onay (tik/renk), `--ease-spring`; sonra `idle`'a döner. (Örn. `CardCompleteToggle`.)            |
+| State           | Görsel sözleşme                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
+| `idle`          | Dinlenme; elevation 0/1, nötr renk.                                                                     |
+| `hover`         | Hafif renk/elevation artışı, `--duration-fast --ease-standard`. (`touch:` cihazda hover'a bel bağlama.) |
+| `pressed`       | **Basılma hissi:** `scale(0.97)` veya elevation düşüşü, `--duration-instant`. `active:` ile.            |
+| `focus-visible` | `ring-[3px] ring-ring` görünür halka (klavye erişilebilirliği — asla kaldırılmaz).                      |
+| `loading`       | Spinner/skeleton, `aria-busy`, etkileşim kilidi (pointer-events kapalı ama layout sabit).               |
+| `disabled`      | `opacity-50 pointer-events-none`, `aria-disabled`. İmleç `not-allowed`.                                 |
+| `success`       | Geçici onay (tik/renk), `--ease-spring`; sonra `idle`'a döner. (Örn. `CardCompleteToggle`.)             |
 
 **Basılma hissi** ilkesi: tıklanabilir her öğe (`button`, kart, menü öğesi, chip-buton, switch, checkbox) `pressed`
 feedback'i taşır. `pointer` cihazda `active:scale-[0.97]`, `touch:` cihazda da çalışır (active touch'ta tetiklenir).
 
 ### Primitive uygulama matrisi (`packages/ui`)
 
-| Bileşen          | Eklenecek                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------------- |
-| `button.tsx`     | `active:scale-[0.97]` (pressed) · `loading` prop (spinner + `aria-busy` + disabled) · `success` varyant |
-| `card.tsx`       | `interactive` varyantı: `hover:shadow-card-hover` + `active:scale-[0.99]` + `cursor-pointer`            |
-| `checkbox.tsx`   | `active:scale-90` press; check geçişi `--ease-spring`                                                  |
-| `switch.tsx`     | thumb `springSnappy`/`transition-transform`; press feedback                                            |
-| `tabs.tsx`       | aktif sekme geçişi token'lı smooth (`--duration-base ease-standard`; renk/bg/shadow). Tam **kayan pill** (Framer `layoutId`) bir follow-up'tır — Radix `Tabs`'ın aktif-değerini bileşene açmayı gerektirir; bu kapsamda yapılmadı |
-| `skeleton.tsx`   | `motion-reduce:animate-none`                                                                           |
-| `dialog/popover/dropdown/tooltip` | hardcoded `duration-200` → `duration-base`; easing token'a bağlı                       |
-| `progress.tsx`   | bar genişliği `--duration-base --ease-out`                                                             |
+| Bileşen                           | Eklenecek                                                                                                                                                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `button.tsx`                      | `active:scale-[0.97]` (pressed) · `loading` prop (spinner + `aria-busy` + disabled) · `success` varyant                                                                                                                           |
+| `card.tsx`                        | `interactive` varyantı: `hover:shadow-card-hover` + `active:scale-[0.99]` + `cursor-pointer`                                                                                                                                      |
+| `checkbox.tsx`                    | `active:scale-90` press; check geçişi `--ease-spring`                                                                                                                                                                             |
+| `switch.tsx`                      | thumb `springSnappy`/`transition-transform`; press feedback                                                                                                                                                                       |
+| `tabs.tsx`                        | aktif sekme geçişi token'lı smooth (`--duration-base ease-standard`; renk/bg/shadow). Tam **kayan pill** (Framer `layoutId`) bir follow-up'tır — Radix `Tabs`'ın aktif-değerini bileşene açmayı gerektirir; bu kapsamda yapılmadı |
+| `skeleton.tsx`                    | `motion-reduce:animate-none`                                                                                                                                                                                                      |
+| `dialog/popover/dropdown/tooltip` | hardcoded `duration-200` → `duration-base`; easing token'a bağlı                                                                                                                                                                  |
+| `progress.tsx`                    | bar genişliği `--duration-base --ease-out`                                                                                                                                                                                        |
 
 ## 20.7 Açılır/kapanır alanlar — `max-height` yasağı
 
@@ -264,13 +266,13 @@ modal yine görünür, drop yine olur.
 
 `motion` paketi resmî motion motorudur (Karar 2026-06-17). Hangi durumda hangisi:
 
-| Kullan **saf CSS / Tailwind**            | Kullan **Framer `motion`**                                    |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| hover / focus / pressed state geçişleri  | mount/unmount (`AnimatePresence`) — kart/modal/panel giriş    |
-| renk / opaklık / küçük transform         | layout animasyonu (reorder, `layoutId` tab indicator)         |
-| tw-animate-css ile Radix open/close      | gerçek **spring fizik** (snap, drag settle, rubber-band)      |
-| `card-complete` keyframe ailesi          | gesture (drag takip his katmanı), stagger                     |
-| basit `grid-rows` collapse               | `height: auto` collapse                                       |
+| Kullan **saf CSS / Tailwind**           | Kullan **Framer `motion`**                                 |
+| --------------------------------------- | ---------------------------------------------------------- |
+| hover / focus / pressed state geçişleri | mount/unmount (`AnimatePresence`) — kart/modal/panel giriş |
+| renk / opaklık / küçük transform        | layout animasyonu (reorder, `layoutId` tab indicator)      |
+| tw-animate-css ile Radix open/close     | gerçek **spring fizik** (snap, drag settle, rubber-band)   |
+| `card-complete` keyframe ailesi         | gesture (drag takip his katmanı), stagger                  |
+| basit `grid-rows` collapse              | `height: auto` collapse                                    |
 
 **Ortak yardımcılar** `packages/ui`'de tek yerde toplanır (kopyala-yapıştır animasyon yasak):
 
@@ -305,3 +307,47 @@ Bu belge "önce belge"dir; uygulama şu sırayla yapılır (kod değişikliği b
 
 İlgili: bileşen anatomisi/spec → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md); board mekaniği/DnD →
 [`05-board-mekanigi.md`](05-board-mekanigi.md); web pattern → [`08-web-ve-mobil.md`](08-web-ve-mobil.md).
+
+## 20.11 Mobil uygulama — Reanimated token & primitive katmanı
+
+> **Karar (kullanıcı seçimi, 2026-06-18):** Bu 10 ilke `apps/mobile` katmanının **tamamı için ana kuraldır**.
+> Web'in motoru Framer Motion + CSS `@theme inline`; mobilde karşılığı **React Native Reanimated 4 + worklets +
+> gesture-handler** (zaten kurulu) ve dokunsal geri bildirim için **`expo-haptics`** (2026-06-18'de eklendi —
+> native modül, OTA ile gitmez, store build gerektirir). Bkz. `02-teknoloji-kararlari.md` Karar kaydı 2026-06-18.
+
+Web `theme.css` `@theme inline` token'ları mobilde **TS token modülleri**ne karşılık gelir (NativeWind className
+
+- Reanimated worklet'lerinde ortak kullanım). Inline sihirli sayı (süre/easing/shadow/font-size) **yasak** — hepsi
+  token'dan gelir (ilke 1–2).
+
+**Token katmanı (`apps/mobile/src/theme/`):**
+
+| Eksen                  | Dosya                | İçerik                                                                                                                                                                                                                                     |
+| ---------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Süre & easing & spring | `motion.ts`          | `durations` (instant/fast/normal/slow), `easings` (`standard = bezier(0.22,1,0.36,1)` emphasized-decelerate, accelerate/decelerate/linear), `springs` (gentle/default/snappy/bouncy), `pressScale = 0.98`, `timing()`/`instantIf()` helper |
+| Elevation              | `elevation.ts`       | `elevation(level, scheme)` → platform-doğru (iOS shadow / Android `elevation`); **dark'ta gölge yerine yükselen yüzey rengi** (siyah gölge dark'ta görünmez). İlke 6 — ağır gölge değil yüzey+border+elevation                             |
+| Spacing/radius/tipo    | `tokens.ts`          | `spacing` 4px-grid + `space(n)`, `radius`, rol-tabanlı `typography` (caption/meta/body/…/display), `MIN_TOUCH_TARGET = 44`                                                                                                                 |
+| Tipografi className    | `tailwind.config.js` | `fontSize` token'ları (`text-caption` … `text-display`) — `text-[10px]`/`text-[11px]` yerine                                                                                                                                               |
+
+**Etkileşim primitive'leri (`apps/mobile/src/components/`):** İlke 3/7/10'un mobil zorunlu uygulaması.
+
+| Primitive               | İlke  | Davranış                                                                                                                                                                                |
+| ----------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PressableScale`        | 7     | Tüm tıklanabilir yüzeyin tabanı: basışta scale 0.98 + hafif opaklık, bırakışta `snappy` spring; default `hitSlop` 8 + `selection` haptic. `active:opacity-*` className'inin yerini alır |
+| `IconButton`            | 10    | İkon-buton standardı: `PressableScale` + `box`/`hitSlop` ile ≥44pt dokunma + zorunlu `accessibilityLabel` + loading/disabled                                                            |
+| `Button`                | 10    | `variant` (primary/secondary/ghost/destructive) + `state` (idle/loading/success/error — success check + `haptics.success`, error shake + `haptics.error`); min 48pt                     |
+| `Card` / `AnimatedCard` | 5/6   | Yüzey + ince border + elevation; `AnimatedCard` giriş = opacity + translateY + hafif scale (`FadeInDown.springify`), uzun listede kademe kapanır (ilke: liste performansı)              |
+| `TextField`/`TextArea`  | 10    | focused (animasyonlu border) / error / success / disabled state'leri                                                                                                                    |
+| `Sheet`                 | 3/4/5 | Native `Modal slide` yerine Reanimated spring; telefonda **drag-to-dismiss** (velocity + rubber-band/spring-back). Tüm `*-sheet.tsx` ortak kabuğu kullandığından otomatik kazanır       |
+
+**Fizik (ilke 3/4):** `swipe-row.tsx` (sola-kaydır aksiyon), `sortable-checklist-items.tsx` (long-press drag),
+`floating-pill-tab-bar.tsx` (snap) motion token'larına bağlandı; sınırlarda rubber-band direnç, bırakışta velocity +
+spring-back. Sürükleme tamamen UI-thread'inde (worklet).
+
+**Reduced-motion (ilke 9):** `src/lib/use-reduced-motion.ts` (Reanimated `useReducedMotion`) — tüm animasyonlu
+primitive scale/translate'i anlık geçişe indirir; işlev korunur.
+
+**Haptics:** `src/lib/haptics.ts` — `expo-haptics` üstüne no-op güvenli katman (`selection`/`impact`/`success`/
+`warning`/`error`); tek noktadan kapatılabilir, worklet'ten `runOnJS` ile.
+
+İlgili: mobil katman sorumlulukları → kök `CLAUDE.md` §3; web motor kararı → §20.9.

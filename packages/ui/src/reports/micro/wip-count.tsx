@@ -33,7 +33,7 @@ export function WipCount(props: MicroReportProps<WipCountData>) {
               <YAxis type="category" dataKey="listName" fontSize={11} width={110} />
               <Bar
                 dataKey="openCount"
-                fill="hsl(var(--primary))"
+                fill="var(--color-primary)"
                 radius={[0, 3, 3, 0]}
                 isAnimationActive={mode === 'panel'}
               />

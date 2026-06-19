@@ -32,8 +32,9 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
 
-  /* Brand & accents */
-  --primary: oklch(0.56 0.17 275);
+  /* Brand & accents — zümrüt yeşili. Hue 162 (mavi-yeşile kaymış zümrüt);
+     --success (hue 150) ile karışmasın diye bilinçli olarak daha koyu + ayrı ton. */
+  --primary: oklch(0.57 0.15 162);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -252,13 +253,13 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 14%);
 
-  --primary: oklch(0.62 0.15 275);
+  --primary: oklch(0.64 0.14 162);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.27 0.01 250);
   --secondary-foreground: oklch(0.97 0 0);
   --accent: oklch(0.3 0.02 250);
   --accent-foreground: oklch(0.97 0 0);
-  --ring: oklch(0.62 0.15 275);
+  --ring: oklch(0.64 0.14 162);
 
   --success: oklch(0.68 0.16 150);
   --success-foreground: oklch(0.16 0.02 150);
@@ -1280,6 +1281,50 @@
   --primary: oklch(0.82 0.15 80);
   --primary-foreground: oklch(0.18 0.02 80);
   --ring: oklch(0.82 0.15 80);
+}
+
+/* --- Emerald (zümrüt — PROJE VARSAYILANI) --------------------- *
+ * Pusula marka birincil rengi. DEFAULT_COLOR_THEME='emerald'
+ * (color-theme-provider.tsx). Hue 162 (mavi-yeşile kaymış zümrüt);
+ * --success (hue 150) ile karışmasın diye bilinçli ayrı ton. :root
+ * --primary ile aynı değer — tema set edilmeden önceki ilk an da tutarlı. */
+[data-color-theme='emerald'] {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.17 0.02 162);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.02 162);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.02 162);
+  --muted: oklch(0.96 0.012 162);
+  --muted-foreground: oklch(0.52 0.025 162);
+  --secondary: oklch(0.96 0.012 162);
+  --secondary-foreground: oklch(0.22 0.03 162);
+  --accent: oklch(0.95 0.025 162);
+  --accent-foreground: oklch(0.22 0.04 162);
+  --border: oklch(0.92 0.012 162);
+  --input: oklch(0.92 0.012 162);
+  --primary: oklch(0.57 0.15 162);
+  --primary-foreground: oklch(0.99 0.01 162);
+  --ring: oklch(0.57 0.15 162);
+}
+.dark[data-color-theme='emerald'] {
+  --background: oklch(0.22 0.02 162);
+  --foreground: oklch(0.98 0.01 162);
+  --card: oklch(0.27 0.025 162);
+  --card-foreground: oklch(0.98 0.01 162);
+  --popover: oklch(0.27 0.025 162);
+  --popover-foreground: oklch(0.98 0.01 162);
+  --muted: oklch(0.32 0.025 162);
+  --muted-foreground: oklch(0.74 0.025 162);
+  --secondary: oklch(0.32 0.025 162);
+  --secondary-foreground: oklch(0.98 0.01 162);
+  --accent: oklch(0.36 0.035 162);
+  --accent-foreground: oklch(0.98 0.01 162);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 16%);
+  --primary: oklch(0.64 0.14 162);
+  --primary-foreground: oklch(0.99 0.01 162);
+  --ring: oklch(0.64 0.14 162);
 }
 
 /* --- Green (yeşil accent) ------------------------------------- */

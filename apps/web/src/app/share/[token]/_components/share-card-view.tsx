@@ -83,18 +83,23 @@ const COVER_PALETTE: Record<string, string> = {
   siyah: 'bg-palet-siyah',
 };
 
-/** Label `color` → Tailwind class (LABEL_COLORS palette — İngilizce isim seti). */
+/**
+ * Label `color` (domain `LABEL_COLORS` — İngilizce isim seti) → design-token
+ * palet class'ı. `@pusula/ui` `theme.css` `--palet-*` token'larıyla light/dark
+ * uyumlu; foreground token'ı kontrastı korur. (Board tarafındaki
+ * `label-colors.ts` ile aynı eşleme.)
+ */
 const LABEL_PALETTE: Record<string, string> = {
-  green: 'bg-green-500 text-white',
-  yellow: 'bg-yellow-400 text-yellow-950',
-  orange: 'bg-orange-500 text-white',
-  red: 'bg-red-500 text-white',
-  purple: 'bg-purple-500 text-white',
-  blue: 'bg-blue-500 text-white',
-  sky: 'bg-sky-500 text-white',
-  lime: 'bg-lime-500 text-lime-950',
-  pink: 'bg-pink-500 text-white',
-  black: 'bg-zinc-800 text-white',
+  green: 'bg-palet-yesil text-palet-yesil-foreground',
+  yellow: 'bg-palet-sari text-palet-sari-foreground',
+  orange: 'bg-palet-turuncu text-palet-turuncu-foreground',
+  red: 'bg-palet-kirmizi text-palet-kirmizi-foreground',
+  purple: 'bg-palet-mor text-palet-mor-foreground',
+  blue: 'bg-palet-mavi text-palet-mavi-foreground',
+  sky: 'bg-palet-sky text-palet-sky-foreground',
+  lime: 'bg-palet-lime text-palet-lime-foreground',
+  pink: 'bg-palet-pembe text-palet-pembe-foreground',
+  black: 'bg-palet-siyah text-palet-siyah-foreground',
 };
 
 export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {

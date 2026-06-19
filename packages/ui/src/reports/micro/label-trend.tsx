@@ -59,7 +59,7 @@ export function LabelTrend(props: MicroReportProps<LabelTrendData>) {
                 key={s.labelId}
                 type="monotone"
                 dataKey={s.labelName}
-                stroke={s.color || 'hsl(var(--primary))'}
+                stroke={s.color || 'var(--color-primary)'}
                 strokeWidth={1.5}
                 dot={false}
                 isAnimationActive={mode === 'panel'}

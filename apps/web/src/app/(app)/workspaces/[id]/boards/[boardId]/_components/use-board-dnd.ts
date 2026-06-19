@@ -172,12 +172,9 @@ export function renderLiftedPreview({
   clone.style.pointerEvents = 'none';
   clone.style.transformOrigin = kind === 'card' ? '55% 35%' : '50% 18%';
   clone.style.transform = kind === 'card' ? 'rotate(2deg)' : 'rotate(1deg)';
-  clone.style.boxShadow =
-    kind === 'card'
-      ? 'none'
-      : '0 18px 36px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.12)';
-  clone.style.borderColor = 'rgba(15, 23, 42, 0.18)';
-  if (kind === 'card') clone.style.background = 'hsl(var(--card))';
+  clone.style.boxShadow = kind === 'card' ? 'none' : 'var(--shadow-drag)';
+  clone.style.borderColor = 'var(--board-list-border)';
+  if (kind === 'card') clone.style.background = 'var(--card)';
 
   for (const interactive of clone.querySelectorAll('button, input, textarea, [role="button"]')) {
     if (interactive instanceof HTMLElement) interactive.style.pointerEvents = 'none';

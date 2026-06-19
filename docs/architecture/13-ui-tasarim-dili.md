@@ -60,7 +60,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 | `--border`                 | `oklch(0.91 0.01 240)` | Kenarlıklar                                                                                                                                                                             |
 | `--input`                  | `oklch(0.91 0.01 240)` | Form kenarlığı                                                                                                                                                                          |
 | `--ring`                   | `oklch(0.55 0.16 245)` | Focus halkası (primary-türevli; görünür — a11y)                                                                                                                                         |
-| `--primary`                | `oklch(0.56 0.17 275)` | Ekte seçili indigo/mor-mavi — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme                                                                                          |
+| `--primary`                | `oklch(0.57 0.15 162)` | Zümrüt yeşili — buton/link, board üst bar vurgusu, progress dolgusu, aktif sekme. Hue 162 (`--success` hue 150 ile karışmasın diye ayrı ton)                                            |
 | `--primary-foreground`     | `oklch(0.99 0 0)`      | Primary üstü metin                                                                                                                                                                      |
 | `--secondary`              | `oklch(0.97 0.01 240)` | İkincil/ghost buton zemini                                                                                                                                                              |
 | `--secondary-foreground`   | `oklch(0.20 0.01 250)` |                                                                                                                                                                                         |
@@ -72,7 +72,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
 | `--destructive`            | `oklch(0.58 0.21 27)`  | Kırmızı — "GECİKTİ" rozeti/chip, sil, hata                                                                                                                                              |
 | `--destructive-foreground` | `oklch(0.99 0 0)`      |                                                                                                                                                                                         |
 
-`.dark`: aynı token seti, L değerleri yukarı/aşağı ayarlanır (background ≈ `oklch(0.18 0.01 250)`, card ≈ `oklch(0.22 0.01 250)`, foreground ≈ `oklch(0.97 0 0)`, primary ≈ `oklch(0.62 0.15 245)`); border `oklch(1 0 0 / 12%)`. Dark mode baştan desteklenir (token sistemi zaten her ikisini taşır).
+`.dark`: aynı token seti, L değerleri yukarı/aşağı ayarlanır (background ≈ `oklch(0.18 0.01 250)`, card ≈ `oklch(0.22 0.01 250)`, foreground ≈ `oklch(0.97 0 0)`, primary ≈ `oklch(0.64 0.14 162)`); border `oklch(1 0 0 / 12%)`. Dark mode baştan desteklenir (token sistemi zaten her ikisini taşır).
 
 ### Etiket paleti (12 renk)
 
@@ -106,7 +106,7 @@ Tailwind v4; tek `@import "tailwindcss"` + `@theme inline { ... }` (mevcut `pack
   --card: oklch(1 0 0);
   --muted: oklch(0.97 0.01 240);
   --foreground: oklch(0.18 0.01 250);
-  --primary: oklch(0.56 0.17 275);
+  --primary: oklch(0.57 0.15 162);
   --primary-foreground: oklch(0.99 0 0);
   --success: oklch(0.62 0.16 150);
   --success-foreground: oklch(0.99 0 0);

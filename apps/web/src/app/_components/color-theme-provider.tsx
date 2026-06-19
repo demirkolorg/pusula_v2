@@ -17,16 +17,18 @@ import { useCallback, useEffect, useState } from 'react';
 
 export const COLOR_THEME_STORAGE_KEY = 'pusula-color-theme';
 /**
- * Yeni kullanıcılar için varsayılan tema = `slate` (kullanıcıya "Varsayılan"
- * olarak görünür). Eski Pusula indigo'su `default` id'sinde kalır ama listede
- * "Arduvaz" adıyla yer alır. localStorage'da `default` kayıtlı eski
- * kullanıcılar otomatik olarak o temayı (yeni adıyla "Arduvaz") görür —
- * tercih korunur, sadece etiketler swap edildi.
+ * Yeni kullanıcılar için varsayılan tema = `emerald` (Pusula marka birincil
+ * rengi zümrüt; kullanıcıya "Varsayılan" olarak görünür). `slate` mavi-gri
+ * "Arduvaz". Eski Pusula indigo'su (`default`) listeden kaldırıldı: theme.css'te
+ * ayrı override'ı yoktu → `:root`'a (artık zümrüt) düşüp `emerald` ile aynı
+ * görünüyordu, ayrıca `slate` zaten benzer mavi-gri tonu sağlıyor.
+ * localStorage'da `default` (veya tanınmayan) tercihi kayıtlı kullanıcılar
+ * otomatik olarak `emerald`'e düşer (readStoredColorTheme fallback'i).
  */
-export const DEFAULT_COLOR_THEME = 'slate';
+export const DEFAULT_COLOR_THEME = 'emerald';
 
 export const COLOR_THEME_IDS = [
-  'default',
+  'emerald',
   'slate',
   'zinc',
   'stone',

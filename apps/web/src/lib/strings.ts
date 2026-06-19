@@ -427,8 +427,8 @@ export const strings = {
       trigger: 'Renk teması',
       label: 'Renk teması',
       themes: {
-        default: 'Arduvaz',
-        slate: 'Varsayılan',
+        emerald: 'Varsayılan',
+        slate: 'Arduvaz',
         zinc: 'Çinko',
         stone: 'Taş',
         neutral: 'Doğal',

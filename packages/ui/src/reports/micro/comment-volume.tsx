@@ -42,7 +42,7 @@ export function CommentVolume(props: MicroReportProps<CommentVolumeData>) {
               <YAxis fontSize={10} allowDecimals={false} />
               <Bar
                 dataKey="count"
-                fill="hsl(var(--primary))"
+                fill="var(--color-primary)"
                 radius={[3, 3, 0, 0]}
                 isAnimationActive={mode === 'panel'}
               />

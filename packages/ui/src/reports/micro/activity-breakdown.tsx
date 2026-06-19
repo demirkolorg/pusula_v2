@@ -10,8 +10,8 @@ export interface ActivityBreakdownData {
 }
 
 const COLORS = [
-  'hsl(var(--primary))',
-  'hsl(var(--accent-foreground))',
+  'var(--color-primary)',
+  'var(--color-accent-foreground)',
   '#6366f1',
   '#8b5cf6',
   '#ec4899',

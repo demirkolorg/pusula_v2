@@ -16,7 +16,7 @@ export interface StatusBreakdownData {
 
 const COLORS = {
   open: 'var(--color-primary)',
-  completed: 'var(--color-success, #10b981)',
+  completed: 'var(--color-success)',
   archived: 'var(--color-muted-foreground)',
 } as const;
 

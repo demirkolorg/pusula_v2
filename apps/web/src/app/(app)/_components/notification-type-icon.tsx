@@ -46,7 +46,7 @@ export function notificationTypeIcon(type: string, className?: string) {
     case 'due_reminder_1h':
       return <ClockIcon className={cn(iconClass, 'text-orange-500')} aria-hidden />;
     case 'due_overdue':
-      return <ClockIcon className={cn(iconClass, 'text-red-500')} aria-hidden />;
+      return <ClockIcon className={cn(iconClass, 'text-destructive')} aria-hidden />;
     case 'board_invitation':
     case 'board.member_invited':
     case 'workspace_invitation':
@@ -69,7 +69,7 @@ export function notificationTypeIcon(type: string, className?: string) {
     case 'card_completed':
     case 'checklist_item_completed':
     case 'card.completed':
-      return <CheckCircleIcon className={cn(iconClass, 'text-green-500')} aria-hidden />;
+      return <CheckCircleIcon className={cn(iconClass, 'text-success')} aria-hidden />;
     case 'card_due_changed':
     case 'card.due_set':
     case 'card.due_cleared':
@@ -93,7 +93,7 @@ export function notificationTypeIcon(type: string, className?: string) {
       return <AlignLeftIcon className={cn(iconClass, 'text-violet-500')} aria-hidden />;
     case 'card_label_added':
     case 'card.label_added':
-      return <TagIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
+      return <TagIcon className={cn(iconClass, 'text-success')} aria-hidden />;
     case 'card_label_removed':
     case 'card.label_removed':
       return <TagIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
@@ -104,10 +104,10 @@ export function notificationTypeIcon(type: string, className?: string) {
       return <MessageSquareIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
     case 'checklist_created':
     case 'checklist.created':
-      return <ListChecksIcon className={cn(iconClass, 'text-green-600')} aria-hidden />;
+      return <ListChecksIcon className={cn(iconClass, 'text-success')} aria-hidden />;
     case 'checklist_item_added':
     case 'checklist.item_added':
-      return <ListPlusIcon className={cn(iconClass, 'text-green-600')} aria-hidden />;
+      return <ListPlusIcon className={cn(iconClass, 'text-success')} aria-hidden />;
     case 'checklist_item_removed':
     case 'checklist.item_removed':
       return <ListXIcon className={cn(iconClass, 'text-muted-foreground')} aria-hidden />;
@@ -123,9 +123,9 @@ export function notificationTypeIcon(type: string, className?: string) {
     // DEM-276 follow-up — manuel/save rapor render sonucu. Completed yeşil
     // dosya simgesi, failed kırmızı uyarı üçgeni.
     case 'report_render_completed':
-      return <FileTextIcon className={cn(iconClass, 'text-emerald-500')} aria-hidden />;
+      return <FileTextIcon className={cn(iconClass, 'text-success')} aria-hidden />;
     case 'report_render_failed':
-      return <TriangleAlertIcon className={cn(iconClass, 'text-red-500')} aria-hidden />;
+      return <TriangleAlertIcon className={cn(iconClass, 'text-destructive')} aria-hidden />;
     // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
     // oluşturma + liste / board / etiket yaşam döngüsü; her tip kendi ikonu +
     // rengiyle. `payload.activityType` ile yön ayrımı (arşivle/geri al) özet

@@ -143,13 +143,13 @@ export function ActivityDetailDialog({
                       <p className="text-muted-foreground mb-1.5 font-medium">{change.label}</p>
                       {change.kind === 'diff' ? (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="rounded bg-rose-500/10 px-1.5 py-1 break-words text-rose-700 dark:text-rose-300">
+                          <span className="rounded bg-destructive/10 px-1.5 py-1 break-words text-destructive">
                             {change.from || copy.emptyValue}
                           </span>
                           <span className="text-muted-foreground" aria-hidden>
                             →
                           </span>
-                          <span className="rounded bg-emerald-500/10 px-1.5 py-1 break-words text-emerald-700 dark:text-emerald-300">
+                          <span className="rounded bg-success/10 px-1.5 py-1 break-words text-success">
                             {change.to || copy.emptyValue}
                           </span>
                         </div>

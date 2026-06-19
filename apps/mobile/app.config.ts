@@ -72,7 +72,7 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#5b51d8',
+      backgroundColor: '#008e5f',
     },
     // Faz 7L — Android App Links. `https://pusulaportal.com` linkleri uygulamada
     // açılır; `autoVerify` Digital Asset Links (`assetlinks.json`) ile doğrulanır
@@ -99,7 +99,7 @@ const config: ExpoConfig = {
         image: './assets/splash-icon.png',
         imageWidth: 200,
         resizeMode: 'contain',
-        backgroundColor: '#5b51d8',
+        backgroundColor: '#008e5f',
         dark: {
           backgroundColor: '#1d2125',
         },

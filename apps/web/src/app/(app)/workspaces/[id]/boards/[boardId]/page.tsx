@@ -338,7 +338,7 @@ export default function BoardDetailPage({
           <div
             role="status"
             aria-live="polite"
-            className="border-b border-dashed border-amber-500/50 bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-700 dark:text-amber-300"
+            className="border-b border-dashed border-warning/50 bg-warning/10 px-4 py-1 text-center text-xs text-warning"
           >
             {strings.realtime.disconnected}
           </div>

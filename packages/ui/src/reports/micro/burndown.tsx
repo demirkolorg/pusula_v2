@@ -39,7 +39,7 @@ export function Burndown(props: MicroReportProps<BurndownData>) {
               type="monotone"
               dataKey="remaining"
               name={t('reports.microReports.burndown.remaining')}
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-primary)"
               strokeWidth={2}
               dot={false}
               isAnimationActive={mode === 'panel'}
@@ -48,7 +48,7 @@ export function Burndown(props: MicroReportProps<BurndownData>) {
               type="monotone"
               dataKey="ideal"
               name={t('reports.microReports.burndown.ideal')}
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--color-muted-foreground)"
               strokeDasharray="4 4"
               strokeWidth={1}
               dot={false}

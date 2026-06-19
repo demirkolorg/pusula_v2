@@ -23,8 +23,8 @@ import { strings } from '@/lib/strings';
  * tarafıyla tek kaynaklı bağlama gerek yok çünkü swatch sabit referans renk.
  */
 const THEME_SWATCHES: Array<{ id: ColorThemeId; swatch: string }> = [
+  { id: 'emerald', swatch: 'oklch(0.57 0.15 162)' },
   { id: 'slate', swatch: 'oklch(0.46 0.17 265)' },
-  { id: 'default', swatch: 'oklch(0.56 0.17 275)' },
   { id: 'zinc', swatch: 'oklch(0.45 0.005 286)' },
   { id: 'stone', swatch: 'oklch(0.45 0.008 49)' },
   { id: 'neutral', swatch: 'oklch(0.45 0 0)' },

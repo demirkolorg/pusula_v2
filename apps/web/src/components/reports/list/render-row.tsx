@@ -205,13 +205,13 @@ const STATUS_CONFIG: Record<
   },
   rendering: {
     icon: Loader2Icon,
-    iconClassName: 'animate-spin text-blue-600',
-    className: 'border-blue-400/40 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200',
+    iconClassName: 'animate-spin text-primary',
+    className: 'border-primary/40 bg-primary/5 text-primary',
   },
   completed: {
     icon: CheckCircle2Icon,
-    iconClassName: 'text-green-600',
-    className: 'border-green-400/40 bg-green-50 text-green-900 dark:bg-green-950/40 dark:text-green-200',
+    iconClassName: 'text-success',
+    className: 'border-success/40 bg-success/5 text-success',
   },
   failed: {
     icon: XCircleIcon,
