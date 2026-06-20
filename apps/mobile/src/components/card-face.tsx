@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
-import { formatDueDate, isOverdue } from '@/lib/format-date';
+import { dueDateTone, formatDueDateSmart } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { strings } from '@/lib/strings';
@@ -50,7 +50,9 @@ function CardFaceImpl({
   onLongPress?: () => void;
 }) {
   const theme = themeFor(useColorScheme());
-  const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
+  // Vade aciliyet tonu (2026-06-20): geçmiş kırmızı, bugün/yarın amber, uzak nötr.
+  // Tamamlanan kartta nötr (vade artık önemli değil).
+  const dueTone = card.dueAt != null && !card.completed ? dueDateTone(card.dueAt) : 'normal';
   // Kapak görseli önceliklidir; yoksa kapak rengi varsa ince şerit çizilir (DEM-201).
   const coverColor = asCoverColor(card.coverColor);
   const visibleMembers = card.members.slice(0, MAX_VISIBLE_MEMBERS);
@@ -110,8 +112,14 @@ function CardFaceImpl({
             {card.dueAt != null ? (
               <MetaChip
                 icon="clock"
-                label={formatDueDate(card.dueAt)}
-                color={overdue ? theme.destructive : theme.mutedForeground}
+                label={formatDueDateSmart(card.dueAt)}
+                color={
+                  dueTone === 'overdue'
+                    ? theme.destructive
+                    : dueTone === 'soon'
+                      ? theme.warning
+                      : theme.mutedForeground
+                }
               />
             ) : null}
             {card.checklistTotal > 0 ? (

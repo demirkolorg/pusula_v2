@@ -104,6 +104,70 @@ export function DetailSection({
   );
 }
 
+/**
+ * Bölüm başlığı satırı (2026-06-20) — `DetailSection`'ın başlık satırıyla aynı
+ * görsel dil (ikon + küçük uppercase başlık), ama kendi kart yüzeyini sarmaz ve
+ * katlanma yönetmez. Sağ tarafta serbest aksiyon yuvası (`actions`) taşır —
+ * Açıklama bölümünde "Düzenle" + "Daha fazla göster", kontrol listelerinde
+ * "+ Ekle" gibi. İç durumu (editing/expanded) bileşenlerin kendisinde kaldığından
+ * her bölüm bu başlığı kendi içinde render eder (state lift gerekmez).
+ */
+export function SectionHeader({
+  icon,
+  title,
+  actions,
+}: {
+  icon: IconName;
+  title: string;
+  actions?: ReactNode;
+}) {
+  const theme = themeFor(useColorScheme());
+  return (
+    <View className="min-h-9 flex-row items-center gap-2">
+      <Icon name={icon} size={15} color={theme.mutedForeground} />
+      <Text weight="semibold" className="flex-1 text-xs uppercase text-muted-foreground">
+        {title}
+      </Text>
+      {actions}
+    </View>
+  );
+}
+
+/**
+ * `SectionHeader` sağındaki kompakt aksiyon — küçük ikon + primary etiket
+ * (Açıklama "Düzenle"/"Daha fazla göster" satır-içi linkleriyle aynı boyut).
+ * Dokunma hedefi `hitSlop` ile genişletilir.
+ */
+export function SectionHeaderAction({
+  icon,
+  label,
+  onPress,
+  disabled = false,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const theme = themeFor(useColorScheme());
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={8}
+      className={`flex-row items-center gap-1 ${disabled ? 'opacity-50' : 'active:opacity-70'}`}
+    >
+      <Icon name={icon} size={13} color={theme.primary} />
+      <Text weight="medium" className="text-xs text-primary">
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 /** Bölüm başlığı sağındaki özet rozeti — adet / ilerleme (örn. "2/4"). */
 export function SectionBadge({ label }: { label: string | number }) {
   return (

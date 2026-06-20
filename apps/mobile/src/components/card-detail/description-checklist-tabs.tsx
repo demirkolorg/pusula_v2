@@ -1,4 +1,6 @@
 import { View } from 'react-native';
+import type Animated from 'react-native-reanimated';
+import type { AnimatedRef } from 'react-native-reanimated';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { DescriptionEditor } from '@/components/card-detail/description-editor';
@@ -35,6 +37,12 @@ type DescriptionChecklistProps = {
    * çakışmasın diye.
    */
   onDragActiveChange?: (active: boolean) => void;
+  /**
+   * Dış scroll'un animated ref'i — `ChecklistSection` → `SortableChecklistItems`
+   * zincirine iletilir; sortable'ın uzun-bas Pan'ı bu ref ile koordine edilir
+   * (`simultaneousWithExternalGesture`), aksi halde native dikey scroll drag'i yutar.
+   */
+  scrollRef?: AnimatedRef<Animated.ScrollView>;
 };
 
 /**
@@ -47,13 +55,14 @@ type DescriptionChecklistProps = {
  * "navigation context" crash'ini tetikliyordu; sekmesiz yapı bu tetikleyiciyi de
  * ortadan kaldırır.
  *
+ * **2026-06-20 — her bölüm kendi başlıklı kartında.** `DescriptionEditor` ve
+ * `ChecklistSection` artık kendi `bg-card` yüzeyini + başlığını (solda ad, sağda
+ * aksiyonlar) taşır; bu bileşen yalnız yerleşim kapsayıcısıdır (ortak kart yok).
+ *
  * Yerleşim:
  * - **Tablet (≥768px):** yan-yana — sol `DescriptionEditor` + sağ
- *   `ChecklistSection`, eşit `flex-1` (web kart modali paritesi).
+ *   `ChecklistSection`, eşit `flex-1`, `items-start` (web kart modali paritesi).
  * - **Phone (<768px):** alt-alta (stacked) — açıklama üstte, yapılacaklar altta.
- *
- * Alt bileşenler kendilerini `DetailSection` ile sarmaz — bu kapsayıcı tek
- * `bg-card` yüzeyi sağlar.
  */
 export function DescriptionChecklistTabs({
   cardId,
@@ -64,11 +73,14 @@ export function DescriptionChecklistTabs({
   checklistComments,
   initialCommentItemId,
   onDragActiveChange,
+  scrollRef,
 }: DescriptionChecklistProps) {
   const isTablet = useIsTablet();
 
   const checklist = checklistsError ? (
-    <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
+    <View className="rounded-xl border border-border bg-card p-3.5">
+      <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
+    </View>
   ) : (
     <ChecklistSection
       cardId={cardId}
@@ -77,27 +89,25 @@ export function DescriptionChecklistTabs({
       comments={checklistComments}
       initialCommentItemId={initialCommentItemId}
       onDragActiveChange={onDragActiveChange}
+      scrollRef={scrollRef}
     />
   );
 
-  return (
-    <View className="gap-3 rounded-xl border border-border bg-card p-3.5">
-      {isTablet ? (
-        // Tablet: yan-yana, eşit genişlik (web kart modali paritesi). iPad mini
-        // portrait 768px'te sıkı kalır ama kabul edilir.
-        <View className="flex-row gap-3">
-          <View className="flex-1">
-            <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} />
-          </View>
-          <View className="flex-1">{checklist}</View>
-        </View>
-      ) : (
-        // Phone: alt-alta (açıklama → yapılacaklar).
-        <View className="gap-4">
-          <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} />
-          {checklist}
-        </View>
-      )}
+  return isTablet ? (
+    // Tablet: yan-yana, eşit genişlik (web kart modali paritesi). Her bölüm artık
+    // kendi kart yüzeyini + başlığını taşır; `items-start` ile kısa açıklama uzun
+    // checklist'e göre dikey gerilmez. iPad mini portrait 768px'te sıkı ama kabul.
+    <View className="flex-row items-start gap-3">
+      <View className="flex-1">
+        <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} />
+      </View>
+      <View className="flex-1">{checklist}</View>
+    </View>
+  ) : (
+    // Phone: alt-alta — her bölüm kendi kartı (12px ara, diğer bölümlerle aynı).
+    <View className="gap-3">
+      <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} />
+      {checklist}
     </View>
   );
 }

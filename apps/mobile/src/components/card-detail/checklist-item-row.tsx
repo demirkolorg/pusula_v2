@@ -1,12 +1,9 @@
-import { useRef, useState } from 'react';
-import { Pressable, TextInput, View, useColorScheme } from 'react-native';
+import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Icon } from '@/components/icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
-import { resolveChecklistItemRename } from '@/lib/checklist-item-edit';
 import { strings } from '@/lib/strings';
-import { defaultFontFamily } from '@/theme/fonts';
 import { themeFor } from '@/theme/tokens';
 
 type ChecklistItem = RouterOutputs['checklist']['list'][number]['items'][number];
@@ -18,7 +15,8 @@ type ChecklistItemRowProps = {
   /** Çağıran board `member+` mi — `false` ise salt-okunur. */
   canEdit: boolean;
   onToggle: (completed: boolean) => void;
-  onRename: (content: string) => void;
+  /** Metne dokununca — üst bileşen madde düzenleme sheet'ini açar. */
+  onEdit: () => void;
   onDelete: () => void;
   /**
    * Verilirse satır madde yorum rozetini gösterir; rozete (ya da `commentCount`
@@ -34,64 +32,38 @@ type ChecklistItemRowProps = {
  * butonu yok:
  *
  * - **Checkbox'a dokun** → tamamla / geri al (dokunma bölgesi ~48dp).
- * - **Metne dokun** → satır-içi yeniden adlandırma (`TextInput`'a dönüşür;
- *   `onSubmitEditing` / `onBlur` kaydeder — boş ya da değişmemiş içerik
- *   mutation atmaz, `resolveChecklistItemRename`).
+ * - **Metne dokun** → madde düzenleme sheet'ini açar (`onEdit` — üst bileşen
+ *   `ChecklistItemEditSheet`'i mount eder; maddeye yorum yazma akışıyla
+ *   simetrik modal düzenleme, satır-içi `TextInput` yerine).
  * - **Sola kaydır** → kırmızı "Sil" (`SwipeRow`).
  *
  * Satır min 48dp — mobil dokunma hedefi standardı. Salt-okunur (`canEdit=false`)
- * ya da optimistic satırda kaydırma ve yeniden adlandırma devre dışı; bu durumda
- * satır `SwipeRow` olmadan çizilir.
+ * ya da optimistic satırda kaydırma ve düzenleme devre dışı; bu durumda satır
+ * `SwipeRow` olmadan çizilir.
  */
 export function ChecklistItemRow({
   item,
   optimistic,
   canEdit,
   onToggle,
-  onRename,
+  onEdit,
   onDelete,
   onOpenComments,
 }: ChecklistItemRowProps) {
   const theme = themeFor(useColorScheme());
-  const [editing, setEditing] = useState(false);
-  // Düzenleme açılınca `startEdit` taslağı `item.content`'ten tazeler. Düzenleme
-  // *açıkken* madde başka bir istemciden değişirse (realtime) taslak eskiyi
-  // tutar; kaydetme `item.content` (güncel sunucu değeri) ile karşılaştırır —
-  // bilinçli son-yazan-kazanır davranışı (mobil realtime: tam canlı senkron yok).
-  const [draft, setDraft] = useState(item.content);
-  // `onSubmitEditing` + `onBlur` art arda tetiklenir; ikinci `commitEdit`
-  // `setEditing(false)` daha flush olmadan girebilir — çift mutation'ı
-  // senkron bir ref bayrağıyla engelle.
-  const committedRef = useRef(false);
 
   const interactive = canEdit && !optimistic;
 
-  const startEdit = () => {
-    if (!interactive) return;
-    committedRef.current = false;
-    setDraft(item.content);
-    setEditing(true);
-  };
-
-  const commitEdit = () => {
-    if (!editing || committedRef.current) return;
-    committedRef.current = true;
-    setEditing(false);
-    if (!interactive) return;
-    const next = resolveChecklistItemRename(item.content, draft);
-    if (next !== null) onRename(next);
-  };
-
   // Madde yorum rozeti — thread sheet'i açar. `onOpenComments` verilmeli
-  // (yorum bağlamı), satır optimistic olmamalı (madde sunucuda) ve düzenleme
-  // kapalı olmalı. `commentCount > 0` ise sayı görünür; 0 ise yalnız ikon
-  // (boş thread'i açıp ilk yorumu yazmak için). 44×44 dokunma hedefi.
-  // `?? 0` defansif: eski/yarı yüklenmiş cache satırında `commentCount`
-  // tanımsız olabilir (backend alanı yeni); tanımsız → rozet sayısı gizli.
+  // (yorum bağlamı) ve satır optimistic olmamalı (madde sunucuda). `commentCount
+  // > 0` ise sayı görünür; 0 ise yalnız ikon (boş thread'i açıp ilk yorumu
+  // yazmak için). 44×44 dokunma hedefi. `?? 0` defansif: eski/yarı yüklenmiş
+  // cache satırında `commentCount` tanımsız olabilir (backend alanı yeni);
+  // tanımsız → rozet sayısı gizli.
   const commentCount = item.commentCount ?? 0;
   const hasComments = commentCount > 0;
   const commentsBadge =
-    onOpenComments && !optimistic && !editing ? (
+    onOpenComments && !optimistic ? (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={strings.cardDetail.itemCommentsOpen}
@@ -129,44 +101,26 @@ export function ChecklistItemRow({
         />
       </Pressable>
 
-      {editing ? (
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          onBlur={commitEdit}
-          onSubmitEditing={commitEdit}
-          autoFocus
-          returnKeyType="done"
-          maxLength={2000}
-          accessibilityLabel={strings.cardDetail.checklistItemEdit}
-          selectionColor={theme.primary}
-          // `TextInput` `Text` değildir — Poppins'i style ile açıkça uygula.
-          style={{ fontFamily: defaultFontFamily }}
-          className="h-12 flex-1 pr-1 text-sm text-foreground"
-        />
-      ) : (
-        <Pressable
-          accessibilityRole={interactive ? 'button' : undefined}
-          accessibilityLabel={interactive ? strings.cardDetail.checklistItemEdit : undefined}
-          disabled={!interactive}
-          onPress={startEdit}
-          className="min-h-12 flex-1 justify-center py-2.5 pr-1 active:opacity-60"
+      <Pressable
+        accessibilityRole={interactive ? 'button' : undefined}
+        accessibilityLabel={interactive ? strings.cardDetail.checklistItemEdit : undefined}
+        disabled={!interactive}
+        onPress={onEdit}
+        className="min-h-12 flex-1 justify-center py-2.5 pr-1 active:opacity-60"
+      >
+        <Text
+          className={`text-sm ${
+            item.completed ? 'text-muted-foreground line-through' : 'text-foreground'
+          }`}
         >
-          <Text
-            className={`text-sm ${
-              item.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-            }`}
-          >
-            {item.content}
-          </Text>
-        </Pressable>
-      )}
+          {item.content}
+        </Text>
+      </Pressable>
 
       {/* Madde yorum rozeti — `commentCount > 0` ise mesaj ikonu + sayı, 0 ise
           yalnız ikon (boş thread'i açıp ilk yorumu yazmak için). Optimistic
-          satırda gizli (madde henüz sunucuda yok, thread çekilemez). Düzenleme
-          açıkken gizli — satır alanını yeniden adlandırma TextInput'una bırak.
-          Viewer da dokunabilir (salt-okunur thread). */}
+          satırda gizli (madde henüz sunucuda yok, thread çekilemez). Viewer da
+          dokunabilir (salt-okunur thread). */}
       {commentsBadge}
     </View>
   );
@@ -186,8 +140,6 @@ export function ChecklistItemRow({
           onPress: onDelete,
         },
       ]}
-      // Satır-içi düzenleme açıkken kaydırma devre dışı.
-      enabled={!editing}
     >
       {row}
     </SwipeRow>

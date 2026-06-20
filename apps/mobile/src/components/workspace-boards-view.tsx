@@ -1,15 +1,21 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { ListRenderItem } from 'react-native';
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
+import {
+  FlatList,
+  RefreshControl,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
+import { BoardCard } from '@/components/board-card';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
-import { EntityAvatar } from '@/components/entity-avatar';
-import { ListRow } from '@/components/list-row';
 import { LoadingScreen } from '@/components/loading-screen';
+import { useIsTablet } from '@/lib/use-device-class';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -44,27 +50,58 @@ export function WorkspaceBoardsView({ workspaceId }: WorkspaceBoardsViewProps) {
     ),
   );
 
+  // Board'lar artık zengin kart grid'inde (tek-sütun ListRow yerine). Sütun
+  // sayısı cihaza göre: phone & tablet portrait 2, tablet landscape 3 — geniş
+  // detail pane'in yatay alanını doldurur (DEM-303 tablet UI iyileştirmesi).
+  const isTablet = useIsTablet();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const numColumns = isTablet && viewportWidth > viewportHeight ? 3 : 2;
+
   // `useRouter` her render'da yeni nesne — board satırı render callback'ini
   // stabil tutmak için ref ile sabitleriz (DEM-226 #3 pattern'iyle uyumlu).
   const routerRef = useRef(router);
   routerRef.current = router;
 
-  const renderBoard = useCallback<ListRenderItem<Board>>(
-    ({ item }) => (
-      <ListRow
-        title={item.title}
-        subtitle={`${item.openCount} ${strings.boards.openSuffix} · ${item.doneCount} ${strings.boards.doneSuffix}`}
-        badge={item.archivedAt ? strings.boards.archivedBadge : undefined}
-        leading={<EntityAvatar name={item.title} icon={item.icon} />}
-        onPress={() =>
-          routerRef.current.push({
-            pathname: '/boards/[boardId]',
-            params: { boardId: item.id, title: item.title },
-          })
-        }
-      />
+  // Board'ları `numColumns`'luk satırlara böl (WorkspaceCard grid pattern'i);
+  // son satırda eksik hücreler boş `flex-1` View ile doldurularak kartlar
+  // tam genişliğe yayılmaz. `numColumns` rotasyonla değişince yeniden bölünür.
+  const rows = useMemo<Board[][]>(() => {
+    const data = query.data;
+    if (!data) return [];
+    const out: Board[][] = [];
+    for (let i = 0; i < data.length; i += numColumns) {
+      out.push(data.slice(i, i + numColumns));
+    }
+    return out;
+  }, [query.data, numColumns]);
+
+  const renderRow = useCallback<ListRenderItem<Board[]>>(
+    ({ item: row }) => (
+      <View className="flex-row gap-3">
+        {row.map((board) => (
+          <BoardCard
+            key={board.id}
+            title={board.title}
+            icon={board.icon}
+            background={board.background}
+            openCount={board.openCount}
+            doneCount={board.doneCount}
+            archived={Boolean(board.archivedAt)}
+            onPress={() =>
+              routerRef.current.push({
+                pathname: '/boards/[boardId]',
+                params: { boardId: board.id, title: board.title },
+              })
+            }
+          />
+        ))}
+        {/* Son satırdaki eksik hücreler — kartlar grid hizasında kalsın. */}
+        {Array.from({ length: numColumns - row.length }).map((_, i) => (
+          <View key={`spacer-${i}`} className="flex-1" />
+        ))}
+      </View>
     ),
-    [],
+    [numColumns],
   );
 
   if (!workspaceId) {
@@ -111,8 +148,8 @@ export function WorkspaceBoardsView({ workspaceId }: WorkspaceBoardsViewProps) {
 
   return (
     <FlatList
-      data={query.data}
-      keyExtractor={(board) => board.id}
+      data={rows}
+      keyExtractor={(row) => row[0]!.id}
       contentContainerClassName="gap-3 p-4"
       refreshControl={
         <RefreshControl
@@ -121,7 +158,7 @@ export function WorkspaceBoardsView({ workspaceId }: WorkspaceBoardsViewProps) {
           tintColor={theme.mutedForeground}
         />
       }
-      renderItem={renderBoard}
+      renderItem={renderRow}
     />
   );
 }

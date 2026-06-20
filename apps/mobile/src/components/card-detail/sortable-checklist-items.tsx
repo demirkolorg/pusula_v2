@@ -8,6 +8,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type AnimatedRef,
 } from 'react-native-reanimated';
 import type { RouterOutputs } from '@pusula/api';
 import {
@@ -77,6 +78,14 @@ export type SortableChecklistItemsProps = {
   }) => void;
   /** Sürükleme başlayınca/bitince — üst bileşen dış scroll'u kilitler/açar. */
   onDragActiveChange?: (active: boolean) => void;
+  /**
+   * Dış (kart detay) scroll'unun animated ref'i. Verilirse drag Pan'ı bu scroll
+   * ile `simultaneousWithExternalGesture` üzerinden koordine edilir — RNGH-aware
+   * olmayan native dikey `Animated.ScrollView` içinde `activateAfterLongPress`
+   * Pan'ı aksi halde aktive OLMAZ (scroll responder long-press timer'ını keser).
+   * Verilmezse koordinasyon atlanır (drag yine de denenir; salt-okunur/test).
+   */
+  scrollRef?: AnimatedRef<Animated.ScrollView>;
   /** Tek bir madde satırını çizer (içerikteki tap/swipe jestleri korunur). */
   renderItem: (item: ChecklistItem) => React.ReactNode;
 };
@@ -86,6 +95,7 @@ export function SortableChecklistItems({
   canDrag,
   onReorder,
   onDragActiveChange,
+  scrollRef,
   renderItem,
 }: SortableChecklistItemsProps) {
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
@@ -113,6 +123,7 @@ export function SortableChecklistItems({
       dragEnabled={dragEnabled}
       onReorder={onReorder}
       onDragActiveChange={onDragActiveChange}
+      scrollRef={scrollRef}
       renderItem={renderItem}
     />
   );
@@ -124,6 +135,7 @@ type SortableInnerProps = {
   dragEnabled: boolean;
   onReorder: SortableChecklistItemsProps['onReorder'];
   onDragActiveChange: SortableChecklistItemsProps['onDragActiveChange'];
+  scrollRef: SortableChecklistItemsProps['scrollRef'];
   renderItem: SortableChecklistItemsProps['renderItem'];
 };
 
@@ -133,6 +145,7 @@ function SortableInner({
   dragEnabled,
   onReorder,
   onDragActiveChange,
+  scrollRef,
   renderItem,
 }: SortableInnerProps) {
   const count = items.length;
@@ -248,6 +261,7 @@ function SortableInner({
           // worklet'inden `runOnJS` ile çağrılır (burada sarılmaz).
           onDragStart={() => setDraggingJS(true)}
           onDragEnd={finishReorder}
+          scrollRef={scrollRef}
         >
           {renderItem(item)}
         </SortableRow>
@@ -271,6 +285,7 @@ type SortableRowProps = {
   onLayout: (index: number, event: LayoutChangeEvent) => void;
   onDragStart: () => void;
   onDragEnd: (from: number, to: number) => void;
+  scrollRef: SortableChecklistItemsProps['scrollRef'];
   children: React.ReactNode;
 };
 
@@ -286,6 +301,7 @@ function SortableRow({
   onLayout,
   onDragStart,
   onDragEnd,
+  scrollRef,
   children,
 }: SortableRowProps) {
   // UI-thread: `dragY`'den hedef index'i türet — sürüklenen satırın merkezi
@@ -397,11 +413,22 @@ function SortableRow({
   //   `onUpdate`'te parmağı dikey takip eder.
   // `onStart` (aktivasyon anı) sürükleme state'ini kurar; her satırın kendi
   // `index`'i `activeIndex`'e yazılır.
-  const gesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .enabled(dragEnabled)
-        .activateAfterLongPress(LONG_PRESS_MS)
+  const gesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .enabled(dragEnabled)
+      .activateAfterLongPress(LONG_PRESS_MS);
+    // Dış scroll ile koordinasyon: RNGH-aware olmayan native dikey
+    // `Animated.ScrollView` içinde long-press Pan'ı, scroll responder'ı
+    // tarafından yutulmaması için scroll gesture'ıyla eşzamanlı tanınmalı.
+    // Bu olmadan `onStart` HİÇ tetiklenmez (madde kalkmaz). `scrollRef`
+    // verilmezse koordinasyon atlanır (eski davranış).
+    //
+    // `as never`: RNGH'nin `simultaneousWithExternalGesture` tip imzası
+    // reanimated `useAnimatedRef` (`current: T | null`) ile henüz uyumlu değil
+    // (RNGH `RefObject<ComponentType | undefined>` bekler); runtime'da
+    // AnimatedRef kabul edilir (RNGH scroll koordinasyon dokümanının deseni).
+    if (scrollRef) pan.simultaneousWithExternalGesture(scrollRef as never);
+    return pan
         .onStart(() => {
           'worklet';
           activeIndex.value = index;
@@ -440,9 +467,8 @@ function SortableRow({
             dragY.value = 0;
             runOnJS(onDragEnd)(index, index);
           }
-        }),
-    [dragEnabled, index, activeIndex, targetIndex, dragY, onDragStart, onDragEnd],
-  );
+        });
+  }, [dragEnabled, index, activeIndex, targetIndex, dragY, onDragStart, onDragEnd, scrollRef]);
 
   return (
     <Animated.View style={animatedStyle} onLayout={(e) => onLayout(index, e)}>

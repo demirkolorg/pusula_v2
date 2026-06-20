@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
 import {
   FlatList,
@@ -52,6 +52,16 @@ export default function WorkspacesScreen() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null,
   );
+
+  // Tablet'te detail pane açılışta boş kalmasın: hiçbir workspace seçili
+  // değilken listenin ilkini otomatik seç (DEM-303 tablet UI iyileştirmesi).
+  // Yalnızca seçim yokken çalışır — kullanıcı bir workspace'e dokununca ya da
+  // phone'dayken tetiklenmez; rotation/Split View'da seçim korunur.
+  useEffect(() => {
+    if (!isTablet || selectedWorkspaceId != null) return;
+    const first = query.data?.[0];
+    if (first) setSelectedWorkspaceId(first.id);
+  }, [isTablet, selectedWorkspaceId, query.data]);
 
   // Alta sabitlenen hızlı-not dock'unun ölçülen yüksekliği — kaydırılan
   // içeriğe bu kadar alt boşluk verilir ki son satır dock'un arkasında
@@ -124,10 +134,11 @@ export default function WorkspacesScreen() {
         role={workspace.role}
         boardCount={workspace.boardCount}
         memberCount={workspace.memberCount}
+        selected={workspace.id === selectedWorkspaceId}
         onPress={() => handleWorkspacePress(workspace)}
       />
     ),
-    [handleWorkspacePress],
+    [handleWorkspacePress, selectedWorkspaceId],
   );
 
   if (query.isPending) {

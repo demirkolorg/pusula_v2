@@ -5,6 +5,7 @@ import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
 import { AppSpinner } from '@/components/app-spinner';
 import { Button } from '@/components/button';
 import { Icon, type IconName } from '@/components/icon';
+import { RemoteImage } from '@/components/remote-image';
 import { Sheet } from '@/components/sheet';
 import { Text } from '@/components/text';
 import { TextArea } from '@/components/text-area';
@@ -155,9 +156,34 @@ function AttachmentTileImpl({
   return (
     <View className="rounded-lg border border-border bg-card p-3">
       <View className="flex-row items-center gap-3">
-        <View className="h-11 w-11 items-center justify-center rounded-md bg-muted">
-          <Icon name={attachmentIconName(attachment.kind)} size={20} color={theme.mutedForeground} />
-        </View>
+        {/* Resim ekleri için liste thumbnail'ı (presigned `thumbnailUrl`, TTL 1
+            saat; URL bayatlar/yoksa ikona düşülür). Thumbnail'a dokunmak da
+            önizlemeyi (lightbox) açar — eye ikonuyla aynı `handlePreview`. */}
+        {isImage && attachment.thumbnailUrl ? (
+          <Pressable
+            accessibilityRole={onPreview ? 'button' : undefined}
+            accessibilityLabel={onPreview ? strings.attachments.actionPreview : undefined}
+            disabled={!onPreview || downloading}
+            onPress={onPreview ? handlePreview : undefined}
+            className="h-11 w-11 overflow-hidden rounded-md bg-muted active:opacity-80"
+          >
+            <RemoteImage
+              uri={attachment.thumbnailUrl}
+              accessibilityLabel={attachment.fileName}
+              resizeMode="cover"
+              className="h-full w-full"
+              spinnerSize="xs"
+            />
+          </Pressable>
+        ) : (
+          <View className="h-11 w-11 items-center justify-center rounded-md bg-muted">
+            <Icon
+              name={attachmentIconName(attachment.kind)}
+              size={20}
+              color={theme.mutedForeground}
+            />
+          </View>
+        )}
 
         <View className="flex-1 gap-0.5">
           <View className="flex-row items-center gap-1.5">

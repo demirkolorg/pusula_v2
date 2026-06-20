@@ -522,6 +522,8 @@ export const strings = {
     // Bildirim merkezi ekranı (Faz 7K).
     title: 'Bildirimler',
     markAllRead: 'Tümünü okundu işaretle',
+    /** Tek bildirim satırını sola kaydırınca çıkan "okundu" aksiyonu. */
+    markReadAction: 'Okundu',
     openSettings: 'Bildirim ayarları',
     loadErrorTitle: 'Bildirimler yüklenemedi',
     loadErrorBody: 'Bağlantını kontrol edip tekrar dene.',
@@ -766,11 +768,46 @@ export const strings = {
     changePasswordRow: 'Şifre değiştir',
     deleteAccountRow: 'Hesabı sil',
     aboutTitle: 'Hakkında',
+    aboutRow: 'Hakkında',
     versionRow: 'Sürüm',
     privacyPolicyRow: 'Gizlilik Politikası',
     // Faz 15C (DEM-303) — tablet master-detail sağ pane empty state.
     detailEmptyTitle: 'Bir ayar seç',
     detailEmptyDescription: 'Soldaki listeden bir ayar başlığına dokunarak detayını aç.',
+  },
+  // "Hakkında" görünümü — uygulama kimliği + ürün anlatımı + öne çıkanlar +
+  // bilgi/bağlantılar. Metinler web landing (`apps/web` strings.signIn.landing
+  // + home.hero) anlatımıyla hizalıdır.
+  about: {
+    title: 'Hakkında',
+    intro:
+      'Pusula; çalışma alanı, pano ve kartlarınızı akıcı sürükle-bırak ' +
+      'deneyimiyle yönetmenizi sağlar. İşleriniz web, mobil ve masaüstünde her an ' +
+      'birbiriyle senkron.',
+    featuresTitle: 'Öne çıkanlar',
+    features: {
+      boards: {
+        title: 'Akıcı kanban panoları',
+        text: 'Kartları sürükle-bırak ile saniyeler içinde düzenleyin.',
+      },
+      permissions: {
+        title: 'Çalışma alanı ve yetki',
+        text: 'Her ekip için rol ve erişim düzeni net, sunucu tarafında denetimli.',
+      },
+      notifications: {
+        title: 'Anlık bildirimler',
+        text: 'Önemli her değişiklik bildirim ve aktivite geçmişiyle gelir.',
+      },
+      sync: {
+        title: 'Her yerde senkron',
+        text: 'Panolarınız web, mobil ve masaüstünde aynı anda güncel kalır.',
+      },
+    },
+    infoTitle: 'Bilgi',
+    versionLabel: 'Sürüm',
+    websiteRow: 'Web sitesi',
+    termsRow: 'Kullanım Şartları',
+    copyright: '© 2026 Pusula · Tüm hakları saklıdır.',
   },
   // Profil düzenleme ekranı (DEM-208 + DEM-212 avatar).
   profileEdit: {

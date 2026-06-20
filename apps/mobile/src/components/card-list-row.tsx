@@ -6,7 +6,8 @@ import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
 import { isPendingId } from '@/lib/client-mutation-id';
-import { formatDueDate, isOverdue } from '@/lib/format-date';
+import { hapticMedium } from '@/lib/haptics';
+import { dueDateTone, formatDueDateSmart } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
 import { themeFor } from '@/theme/tokens';
 
@@ -59,7 +60,8 @@ export const CardListRow = memo(function CardListRow({
   // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-` id ile
   // kart detayı / taşıma backend'de bulunamaz.
   const cardPending = isPendingId(card.id);
-  const overdue = card.dueAt != null && !card.completed && isOverdue(card.dueAt);
+  // Vade aciliyet tonu: geçmiş kırmızı, bugün/yarın amber, uzak nötr (2026-06-20).
+  const dueTone = card.dueAt != null && !card.completed ? dueDateTone(card.dueAt) : 'normal';
 
   const visibleLabels = card.labels.slice(0, MAX_VISIBLE_LABELS);
   const extraLabels = card.labels.length - visibleLabels.length;
@@ -73,7 +75,11 @@ export const CardListRow = memo(function CardListRow({
     });
   }, [router, card.id, card.title]);
 
-  const handleLongPress = useCallback(() => onMoveCard(card), [onMoveCard, card]);
+  // Uzun basma taşıma picker'ını açar — orta darbe ile tetiklendiğini onayla.
+  const handleLongPress = useCallback(() => {
+    hapticMedium();
+    onMoveCard(card);
+  }, [onMoveCard, card]);
 
   return (
     <Pressable
@@ -116,8 +122,14 @@ export const CardListRow = memo(function CardListRow({
         {card.dueAt != null ? (
           <Meta
             icon="clock"
-            label={formatDueDate(card.dueAt)}
-            color={overdue ? theme.destructive : theme.mutedForeground}
+            label={formatDueDateSmart(card.dueAt)}
+            color={
+              dueTone === 'overdue'
+                ? theme.destructive
+                : dueTone === 'soon'
+                  ? theme.warning
+                  : theme.mutedForeground
+            }
           />
         ) : null}
         {card.checklistTotal > 0 ? (

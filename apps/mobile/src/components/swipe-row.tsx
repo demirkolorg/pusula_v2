@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
+import { hapticLight } from '@/lib/haptics';
 import { themeFor } from '@/theme/tokens';
 
 /** Tek bir aksiyon yüzeyinin genişliği (px). */
@@ -159,6 +160,9 @@ export function SwipeRow({ children, actions, enabled = true }: SwipeRowProps) {
               accessibilityRole="button"
               accessibilityLabel={action.accessibilityLabel}
               onPress={() => {
+                // Swipe aksiyonu tetiklendi — hafif dokunsal onay (merkezi:
+                // tüm SwipeRow aksiyonları, ör. bildirim "Okundu").
+                hapticLight();
                 settle(false);
                 action.onPress();
               }}

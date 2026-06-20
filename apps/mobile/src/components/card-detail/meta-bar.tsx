@@ -11,7 +11,7 @@ import { MembersSheetBody } from '@/components/card-detail/members-sheet';
 import { CoverColorSheetBody } from '@/components/card-detail/cover-color-sheet';
 import { labelColorHex } from '@/lib/label-color';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
-import { formatDueDate, isOverdue } from '@/lib/format-date';
+import { dueDateTone, formatDueDateSmart } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
 
 type CardLabels = RouterOutputs['card']['labels']['list'];
@@ -113,7 +113,8 @@ export function CardMetaBar({
       return true;
     });
   }, [members]);
-  const overdue = dueAt != null && !completed && isOverdue(dueAt);
+  // Vade aciliyet tonu: geçmiş kırmızı, bugün/yarın amber, uzak nötr (2026-06-20).
+  const dueTone = dueAt != null && !completed ? dueDateTone(dueAt) : 'normal';
 
   return (
     <>
@@ -135,9 +136,9 @@ export function CardMetaBar({
 
         <CardMetaChip
           icon="clock"
-          label={dueAt != null ? formatDueDate(dueAt) : strings.cardDetail.metaDueEmpty}
+          label={dueAt != null ? formatDueDateSmart(dueAt) : strings.cardDetail.metaDueEmpty}
           muted={dueAt == null}
-          tone={overdue ? 'destructive' : 'default'}
+          tone={dueTone === 'overdue' ? 'destructive' : dueTone === 'soon' ? 'warning' : 'default'}
           onPress={() => setOpen('due')}
           accessibilityLabel={strings.cardDetail.dueTitle}
         />

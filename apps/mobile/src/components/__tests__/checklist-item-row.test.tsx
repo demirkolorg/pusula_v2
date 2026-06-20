@@ -30,7 +30,7 @@ describe('ChecklistItemRow', () => {
         optimistic={false}
         canEdit
         onToggle={noop}
-        onRename={noop}
+        onEdit={noop}
         onDelete={noop}
       />,
     );
@@ -45,12 +45,28 @@ describe('ChecklistItemRow', () => {
         optimistic={false}
         canEdit
         onToggle={onToggle}
-        onRename={noop}
+        onEdit={noop}
         onDelete={noop}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));
     expect(onToggle).toHaveBeenCalledWith(true);
+  });
+
+  it('metne dokununca onEdit çağrılır (düzenleme sheet sinyali)', () => {
+    const onEdit = vi.fn();
+    render(
+      <ChecklistItemRow
+        item={baseItem}
+        optimistic={false}
+        canEdit
+        onToggle={noop}
+        onEdit={onEdit}
+        onDelete={noop}
+      />,
+    );
+    fireEvent.click(screen.getByText('Kira sözleşmesi fotokopisi'));
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
   it('salt-okunur (canEdit=false) satırda kaydırarak sil aksiyonu render edilmez', () => {
@@ -60,7 +76,7 @@ describe('ChecklistItemRow', () => {
         optimistic={false}
         canEdit={false}
         onToggle={noop}
-        onRename={noop}
+        onEdit={noop}
         onDelete={noop}
       />,
     );
@@ -75,7 +91,7 @@ describe('ChecklistItemRow', () => {
         optimistic
         canEdit
         onToggle={noop}
-        onRename={noop}
+        onEdit={noop}
         onDelete={noop}
       />,
     );

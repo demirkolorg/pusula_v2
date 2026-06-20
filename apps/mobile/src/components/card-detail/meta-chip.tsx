@@ -12,8 +12,8 @@ type CardMetaChipProps = {
   accessory?: ReactNode;
   /** Verilmezse chip dokunulamaz (yalnız gösterim — örn. viewer için liste chip'i). */
   onPress?: () => void;
-  /** Gecikmiş son tarih gibi vurgulu durumlar. */
-  tone?: 'default' | 'destructive';
+  /** Vurgulu durumlar: `destructive` (gecikmiş — kırmızı), `warning` (yaklaşan — amber). */
+  tone?: 'default' | 'destructive' | 'warning';
   /** `true` ise metin soluk — değer atanmamış (placeholder). */
   muted?: boolean;
   accessibilityLabel: string;
@@ -34,19 +34,22 @@ export function CardMetaChip({
   accessibilityLabel,
 }: CardMetaChipProps) {
   const theme = themeFor(useColorScheme());
-  const destructive = tone === 'destructive';
-  const iconColor = destructive ? theme.destructive : theme.mutedForeground;
-  const textClass = destructive
-    ? 'text-destructive'
-    : muted
-      ? 'text-muted-foreground'
-      : 'text-foreground';
+  // Vurgu rengi (destructive/warning) ikon + metne inline uygulanır — sınıf
+  // bağımlılığı olmadan (robust). Nötr tonlarda sınıf-tabanlı renk korunur.
+  const accent = tone === 'destructive' ? theme.destructive : tone === 'warning' ? theme.warning : null;
+  const iconColor = accent ?? theme.mutedForeground;
+  const textClass = accent ? '' : muted ? 'text-muted-foreground' : 'text-foreground';
 
   const content = (
     <View className="flex-row items-center gap-1.5">
       <Icon name={icon} size={14} color={iconColor} />
       {accessory}
-      <Text weight="medium" numberOfLines={1} className={`max-w-44 text-sm ${textClass}`}>
+      <Text
+        weight="medium"
+        numberOfLines={1}
+        className={`max-w-44 text-sm ${textClass}`}
+        style={accent ? { color: accent } : undefined}
+      >
         {label}
       </Text>
     </View>

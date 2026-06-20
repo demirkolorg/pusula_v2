@@ -16,6 +16,12 @@ type WorkspaceCardProps = {
   role: WorkspaceRole;
   boardCount: number;
   memberCount: number;
+  /**
+   * Tablet master-detail sidebar'ında aktif (detail pane'de açık) workspace →
+   * vurgulu kenar + hafif primary arka plan. Phone grid'inde verilmez (seçim
+   * yok, route push edilir).
+   */
+  selected?: boolean;
   onPress: () => void;
 };
 
@@ -41,6 +47,7 @@ export function WorkspaceCard({
   role,
   boardCount,
   memberCount,
+  selected = false,
   onPress,
 }: WorkspaceCardProps) {
   const theme = themeFor(useColorScheme());
@@ -48,8 +55,11 @@ export function WorkspaceCard({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected }}
       onPress={onPress}
-      className="flex-1 gap-2.5 rounded-2xl border border-border bg-card p-3.5 active:opacity-80"
+      className={`flex-1 gap-2.5 rounded-2xl border p-3.5 active:opacity-80 ${
+        selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
+      }`}
     >
       {/* İkon + rol rozeti. */}
       <View className="flex-row items-start justify-between gap-2">

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import type Animated from 'react-native-reanimated';
+import type { AnimatedRef } from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -7,8 +9,9 @@ import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
-import { SectionAddTrigger } from '@/components/card-detail/section';
+import { SectionHeader, SectionHeaderAction } from '@/components/card-detail/section';
 import { ChecklistItemRow } from '@/components/card-detail/checklist-item-row';
+import { ChecklistItemEditSheet } from '@/components/card-detail/checklist-item-edit-sheet';
 import { SortableChecklistItems } from '@/components/card-detail/sortable-checklist-items';
 import {
   ChecklistItemThreadSheet,
@@ -54,6 +57,12 @@ type ChecklistSectionProps = {
    * dikey drag pan'i dış scroll ile çakışmaz.
    */
   onDragActiveChange?: (active: boolean) => void;
+  /**
+   * Dış scroll'un animated ref'i — `SortableChecklistItems`'a iletilir; madde
+   * sürükleme Pan'ı bu ref ile koordine edilir (uzun-bas dikey sürüklemenin
+   * native scroll tarafından yutulmaması için).
+   */
+  scrollRef?: AnimatedRef<Animated.ScrollView>;
 };
 
 /**
@@ -71,6 +80,7 @@ export function ChecklistSection({
   comments,
   initialCommentItemId,
   onDragActiveChange,
+  scrollRef,
 }: ChecklistSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -79,9 +89,23 @@ export function ChecklistSection({
   // Açık madde yorum thread'i — bir madde id'si tutar; tek sheet tüm satırlar
   // için paylaşılır (her satıra ayrı modal mount edilmez). `null` → kapalı.
   const [openThreadItemId, setOpenThreadItemId] = useState<string | null>(null);
+  // Açık madde düzenleme sheet'i — hedef madde (checklist + id + mevcut içerik).
+  // Tek sheet paylaşılır; `update` mutation `checklistId` istediğinden id'yle
+  // birlikte taşınır. `null` → kapalı.
+  const [editTarget, setEditTarget] = useState<{
+    checklistId: string;
+    itemId: string;
+    content: string;
+  } | null>(null);
   // Deep-link auto-open yalnız bir kez — kullanıcı sheet'i kapatınca tekrar
   // açılmamalı (madde checklist'te göründüğü ilk render'da tetiklenir).
   const autoOpenedRef = useRef(false);
+  // "Kontrol listesi ekle" composer'ı açık mı — tetikleyici artık bölüm
+  // başlığındaki "+ Ekle" aksiyonunda (2026-06-20); form gövdenin sonunda açılır.
+  const [addOpen, setAddOpen] = useState(false);
+  // Hangi kontrol listesinin "madde ekle" composer'ı açık (id) — tetikleyici o
+  // listenin kendi header'ındaki "+" aksiyonunda; aynı anda tek liste açık.
+  const [addItemChecklistId, setAddItemChecklistId] = useState<string | null>(null);
 
   useEffect(() => {
     if (autoOpenedRef.current) return;
@@ -305,8 +329,26 @@ export function ChecklistSection({
 
   return (
     <>
-    <View className="gap-4">
-      {checklists.length === 0 && !canEdit ? (
+    {/* Kendi kart yüzeyi + başlık (2026-06-20) — Açıklama bölümüyle aynı desen.
+        Başlıkta solda "Kontrol listeleri", sağda "+ Ekle" (member+); composer
+        gövdenin sonunda açılır. */}
+    <View className="gap-3 rounded-xl border border-border bg-card p-3.5">
+      <SectionHeader
+        icon="check-square"
+        title={strings.cardDetail.checklistsTitle}
+        actions={
+          canEdit && !addOpen ? (
+            <SectionHeaderAction
+              icon="plus"
+              label={strings.cardDetail.checklistAdd}
+              onPress={() => setAddOpen(true)}
+            />
+          ) : undefined
+        }
+      />
+
+      <View className="gap-4">
+      {checklists.length === 0 && !addOpen ? (
         <Text className="text-sm text-muted-foreground">
           {strings.cardDetail.checklistsEmpty}
         </Text>
@@ -316,8 +358,11 @@ export function ChecklistSection({
         const optimisticList = checklist.id.startsWith(OPTIMISTIC_PREFIX);
         const doneCount = checklist.items.filter((item) => item.completed).length;
         return (
-          <View key={checklist.id} className="gap-2">
-            <View className="min-h-11 flex-row items-center justify-between gap-2">
+          // Her kontrol listesi kendi bordürlü kartında + header'ında (2026-06-20)
+          // — bölüm/Açıklama deseninin alt seviyesi. Header: solda başlık + ilerleme,
+          // sağda "madde ekle" (+) ve sil. Madde composer'ı header "+"sıyla açılır.
+          <View key={checklist.id} className="gap-2 rounded-lg border border-border p-3">
+            <View className="min-h-9 flex-row items-center gap-2">
               <Text
                 weight="medium"
                 className="flex-1 text-sm text-foreground"
@@ -329,16 +374,28 @@ export function ChecklistSection({
                 {doneCount}/{checklist.items.length}
               </Text>
               {canEdit && !optimisticList ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.cardDetail.checklistDelete}
-                  disabled={deleteChecklist.isPending}
-                  onPress={() => confirmDeleteChecklist(checklist)}
-                  hitSlop={10}
-                  className="active:opacity-60"
-                >
-                  <Icon name="trash-2" size={16} color={theme.mutedForeground} />
-                </Pressable>
+                // Sabit 40×40 dokunma kutuları + aralarında boşluk (gap-1.5) —
+                // `hitSlop` çakışıp yanlış butona basılmasını önler (kutu sınırı
+                // net). "+" madde ekler, çöp sepeti listeyi siler.
+                <View className="flex-row items-center gap-1.5">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={strings.cardDetail.checklistItemAdd}
+                    onPress={() => setAddItemChecklistId(checklist.id)}
+                    className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
+                  >
+                    <Icon name="plus" size={18} color={theme.primary} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={strings.cardDetail.checklistDelete}
+                    disabled={deleteChecklist.isPending}
+                    onPress={() => confirmDeleteChecklist(checklist)}
+                    className="h-10 w-10 items-center justify-center rounded-md active:bg-muted"
+                  >
+                    <Icon name="trash-2" size={16} color={theme.mutedForeground} />
+                  </Pressable>
+                </View>
               ) : null}
             </View>
 
@@ -351,6 +408,7 @@ export function ChecklistSection({
                 canDrag={canEdit && !optimisticList}
                 onReorder={(args) => handleReorder(checklist.id, args)}
                 onDragActiveChange={onDragActiveChange}
+                scrollRef={scrollRef}
                 renderItem={(item) => (
                   <ChecklistItemRow
                     item={item}
@@ -365,13 +423,11 @@ export function ChecklistSection({
                         clientMutationId: newClientMutationId(),
                       })
                     }
-                    onRename={(content) =>
-                      updateItem.mutate({
-                        cardId,
+                    onEdit={() =>
+                      setEditTarget({
                         checklistId: checklist.id,
                         itemId: item.id,
-                        content,
-                        clientMutationId: newClientMutationId(),
+                        content: item.content,
                       })
                     }
                     onDelete={() =>
@@ -393,6 +449,8 @@ export function ChecklistSection({
 
             {canEdit && !optimisticList ? (
               <ChecklistItemComposer
+                open={addItemChecklistId === checklist.id}
+                onClose={() => setAddItemChecklistId(null)}
                 pending={createItem.isPending}
                 onCreate={(content) =>
                   createItem.mutate({
@@ -410,6 +468,8 @@ export function ChecklistSection({
 
       {canEdit ? (
         <ChecklistComposer
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
           pending={createChecklist.isPending}
           onCreate={(title) =>
             createChecklist.mutate({
@@ -420,6 +480,7 @@ export function ChecklistSection({
           }
         />
       ) : null}
+      </View>
     </View>
 
     {/* Madde yorum thread'i — KOŞULLU mount: yalnız bir madde thread'i açıkken
@@ -439,24 +500,51 @@ export function ChecklistSection({
         onClose={() => setOpenThreadItemId(null)}
       />
     ) : null}
+
+    {/* Madde düzenleme sheet'i — thread sheet gibi KOŞULLU mount (çakışan
+        her-zaman-mount Modal'ların iOS crash'ini önler). `key={itemId}` ile her
+        madde için taze taslak. `update` optimistic olduğundan kaydetme anında
+        sheet kapanır, değişiklik anında görünür. */}
+    {editTarget != null ? (
+      <ChecklistItemEditSheet
+        key={editTarget.itemId}
+        visible
+        initialContent={editTarget.content}
+        pending={updateItem.isPending}
+        onSave={(content) =>
+          updateItem.mutate({
+            cardId,
+            checklistId: editTarget.checklistId,
+            itemId: editTarget.itemId,
+            content,
+            clientMutationId: newClientMutationId(),
+          })
+        }
+        onClose={() => setEditTarget(null)}
+      />
+    ) : null}
     </>
   );
 }
 
 /**
- * Kart altındaki "kontrol listesi ekle" girişi (DEM-198 + DEM-204). Varsayılan
- * kapalı — kompakt "+ ekle" tetikleyicisi; dokununca satır-içi giriş açılır.
- * Gönderdikten sonra alan temizlenir ama composer açık kalır (art arda liste
- * eklemeye izin — Trello deseni); "Vazgeç" composer'ı kapatır.
+ * "Kontrol listesi ekle" satır-içi composer'ı (DEM-198 + DEM-204; 2026-06-20
+ * controlled). Tetikleyici artık bölüm başlığındaki "+ Ekle" aksiyonunda —
+ * bu bileşen yalnız FORM'u render eder, açık/kapalı durumu üstten (`open`)
+ * gelir. Gönderdikten sonra alan temizlenir ama form açık kalır (art arda liste
+ * eklemeye izin — Trello deseni); "Vazgeç" `onClose` ile kapatır.
  */
 function ChecklistComposer({
+  open,
+  onClose,
   pending,
   onCreate,
 }: {
+  open: boolean;
+  onClose: () => void;
   pending: boolean;
   onCreate: (title: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
 
   const submit = () => {
@@ -471,14 +559,10 @@ function ChecklistComposer({
 
   const close = () => {
     setTitle('');
-    setOpen(false);
+    onClose();
   };
 
-  if (!open) {
-    return (
-      <SectionAddTrigger label={strings.cardDetail.checklistAdd} onPress={() => setOpen(true)} />
-    );
-  }
+  if (!open) return null;
 
   return (
     <View className="gap-2">
@@ -515,18 +599,23 @@ function ChecklistComposer({
 }
 
 /**
- * Tek kontrol listesinin altındaki "madde ekle" girişi (DEM-204). Varsayılan
- * kapalı — "+ Madde ekle" tetikleyicisi; açılınca satır-içi giriş. Gönderim
- * sonrası alan temizlenir, composer açık kalır (art arda madde girişi).
+ * Tek kontrol listesinin "madde ekle" girişi (DEM-204; 2026-06-20 controlled).
+ * Tetikleyici artık o listenin kendi header'ındaki "+" aksiyonunda — bu bileşen
+ * yalnız FORM'u render eder, açık/kapalı durumu üstten (`open`) gelir. Gönderim
+ * sonrası alan temizlenir, form açık kalır (art arda madde girişi); "Vazgeç"
+ * `onClose` ile kapatır.
  */
 function ChecklistItemComposer({
+  open,
+  onClose,
   pending,
   onCreate,
 }: {
+  open: boolean;
+  onClose: () => void;
   pending: boolean;
   onCreate: (content: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [content, setContent] = useState('');
 
   const submit = () => {
@@ -542,19 +631,10 @@ function ChecklistItemComposer({
 
   const close = () => {
     setContent('');
-    setOpen(false);
+    onClose();
   };
 
-  if (!open) {
-    return (
-      <View className="mt-0.5">
-        <SectionAddTrigger
-          label={strings.cardDetail.checklistItemAdd}
-          onPress={() => setOpen(true)}
-        />
-      </View>
-    );
-  }
+  if (!open) return null;
 
   return (
     <View className="mt-1 gap-2">

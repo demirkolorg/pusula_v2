@@ -1,5 +1,6 @@
 import { Pressable, useColorScheme } from 'react-native';
 import { Icon } from '@/components/icon';
+import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -42,7 +43,12 @@ export function CardCompleteToggle({
       }
       disabled={pending}
       hitSlop={8}
-      onPress={onToggle}
+      onPress={() => {
+        // Tamamlama olumlu sonuç → başarı haptiği; geri alma nazik → hafif.
+        if (completed) hapticLight();
+        else hapticSuccess();
+        onToggle();
+      }}
       className={pending ? 'opacity-50' : 'active:opacity-60'}
     >
       <Icon name={iconName} size={22} color={iconColor} />

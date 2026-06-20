@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useScrollToTop } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -8,6 +9,7 @@ import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
+import { SwipeRow } from '@/components/swipe-row';
 import {
   NotificationRow,
   type NotificationItem,
@@ -44,6 +46,10 @@ export default function NotificationsScreen() {
   const trpc = useTRPC();
   const router = useRouter();
   const theme = themeFor(useColorScheme());
+  // Aktif "Bildirimler" sekmesine tekrar dokununca listeyi en üste kaydır
+  // (standart React Navigation deseni; floating pill `tabPress` yayar). 2026-06-20.
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
 
   const query = useQuery(
     trpc.notifications.list.queryOptions(LIST_INPUT, { placeholderData: keepPreviousData }),
@@ -162,6 +168,7 @@ export default function NotificationsScreen() {
         </ScrollView>
       ) : (
         <ScrollView
+          ref={scrollRef}
           className="flex-1"
           contentContainerClassName="gap-5 p-4"
           refreshControl={
@@ -186,13 +193,35 @@ export default function NotificationsScreen() {
                 </Text>
               </View>
               <View className="gap-2">
-                {group.items.map((notification) => (
-                  <NotificationRow
-                    key={notification.id}
-                    notification={notification}
-                    onPress={() => openNotification(notification)}
-                  />
-                ))}
+                {group.items.map((notification) => {
+                  const row = (
+                    <NotificationRow
+                      notification={notification}
+                      onPress={() => openNotification(notification)}
+                    />
+                  );
+                  // Okunmamışsa sola kaydır → "Okundu" (markRead, navigasyon yok).
+                  // Okunmuşta kaydırılacak aksiyon yok (sil mutation'ı yok).
+                  return notification.readAt == null ? (
+                    <SwipeRow
+                      key={notification.id}
+                      actions={[
+                        {
+                          key: 'read',
+                          label: strings.notifications.markReadAction,
+                          accessibilityLabel: strings.notifications.markReadAction,
+                          icon: 'check',
+                          variant: 'primary',
+                          onPress: () => markRead(notification.id),
+                        },
+                      ]}
+                    >
+                      {row}
+                    </SwipeRow>
+                  ) : (
+                    <View key={notification.id}>{row}</View>
+                  );
+                })}
               </View>
             </View>
           ))}

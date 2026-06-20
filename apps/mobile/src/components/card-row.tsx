@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
 import { CardFace } from '@/components/card-face';
 import { isPendingId } from '@/lib/client-mutation-id';
+import { hapticMedium } from '@/lib/haptics';
 
 type BoardCard = RouterOutputs['board']['get']['cards'][number];
 
@@ -38,7 +39,11 @@ export const CardRow = memo(function CardRow({
     });
   }, [router, card.id, card.title]);
 
-  const handleLongPress = useCallback(() => onMoveCard(card), [onMoveCard, card]);
+  // Uzun basma taşıma picker'ını açar — orta darbe ile tetiklendiğini onayla.
+  const handleLongPress = useCallback(() => {
+    hapticMedium();
+    onMoveCard(card);
+  }, [onMoveCard, card]);
 
   return (
     <CardFace

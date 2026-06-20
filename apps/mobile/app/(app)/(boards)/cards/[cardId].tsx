@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import Animated, {
+  useAnimatedRef,
   useAnimatedScrollHandler,
   useSharedValue,
   withTiming,
@@ -20,6 +21,7 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
+import { useIsTablet } from '@/lib/use-device-class';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { DetailSection, SectionBadge } from '@/components/card-detail/section';
 import { DescriptionChecklistTabs } from '@/components/card-detail/description-checklist-tabs';
@@ -73,6 +75,8 @@ export default function CardDetailScreen() {
   // Tablet floating pill nav son içeriği (yorum composer'ı, aktivite, +ekle)
   // örtmesin → scroll içeriğine alt boşluk (phone'da 0 → taban 16 korunur).
   const navInset = useFloatingNavInset();
+  // Tablet'te Yorumlar + Aktivite yan-yana 2 sütun; telefonda alt-alta.
+  const isTablet = useIsTablet();
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user.id;
   const enabled = Boolean(cardId);
@@ -136,6 +140,12 @@ export default function CardDetailScreen() {
   // Checklist madde sürükleme (sortable) aktifken dış scroll kilitlenir —
   // dikey drag pan'i dış `ScrollView` scroll'uyla çakışmasın.
   const [checklistDragging, setChecklistDragging] = useState(false);
+  // Dış scroll'un animated ref'i — sortable'ın dikey uzun-bas Pan'ı bu ref ile
+  // `simultaneousWithExternalGesture` üzerinden koordine edilir. Bu olmadan
+  // native dikey scroll, long-press Pan'ın aktivasyonunu yutuyordu (madde hiç
+  // kalkmıyordu); ref ile Pan + scroll aynı anda tanınır, long-press eşiği
+  // geçilince `checklistDragging` scroll'u kilitler.
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
 
   // Collapsing nav başlığı (DEM-228; 2026-06-20 shared-value refactor): 0 = liste
   // adı, 1 = kart başlığı. Reanimated shared value — eşik geçişi UI-thread'inde
@@ -287,6 +297,54 @@ export default function CardDetailScreen() {
   const currentListTitle =
     boardQuery.data?.lists.find((list) => list.id === card.listId)?.title ?? null;
 
+  // Yorumlar + Aktivite bölümleri değişkende — tablet'te 2 sütun, telefonda
+  // alt-alta render edilir (aşağıda `isTablet` ile konumlandırılır).
+  const commentsSection = (
+    <DetailSection
+      icon="message-square"
+      title={strings.cardDetail.commentsTitle}
+      collapsible
+      defaultCollapsed
+      trailing={comments.length > 0 ? <SectionBadge label={String(comments.length)} /> : undefined}
+    >
+      <View className="gap-4">
+        {commentsQuery.isError ? (
+          <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
+        ) : comments.length > 0 ? (
+          <CommentList
+            cardId={card.id}
+            comments={comments}
+            resolveAuthor={resolveAuthor}
+            currentUserId={currentUserId}
+            myBoardRole={myBoardRole}
+            canEdit={canEdit}
+          />
+        ) : (
+          <Text className="text-sm text-muted-foreground">{strings.cardDetail.noComments}</Text>
+        )}
+        {canEdit ? <CommentComposer cardId={card.id} /> : null}
+      </View>
+    </DetailSection>
+  );
+
+  const activitySection = (
+    <DetailSection
+      icon="activity"
+      title={strings.cardDetail.activityTitle}
+      collapsible
+      defaultCollapsed
+      trailing={activity.length > 0 ? <SectionBadge label={String(activity.length)} /> : undefined}
+    >
+      {activityQuery.isError ? (
+        <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
+      ) : activity.length > 0 ? (
+        <ActivityList events={activity} />
+      ) : (
+        <Text className="text-sm text-muted-foreground">{strings.cardDetail.noActivity}</Text>
+      )}
+    </DetailSection>
+  );
+
   return (
     <>
       <Stack.Screen
@@ -319,6 +377,7 @@ export default function CardDetailScreen() {
         }}
       />
       <Animated.ScrollView
+        ref={scrollRef}
         className="flex-1 bg-muted"
         // İçerik kapsayıcısı stilleri tek yerde (NativeWind `contentContainerClassName`
         // + ayrı `contentContainerStyle` çakışmasını önlemek için inline). `paddingBottom`
@@ -464,6 +523,9 @@ export default function CardDetailScreen() {
           initialCommentItemId={params.checklistItemId}
           // Madde sürükleme aktifken dış scroll kilitle (drag pan çakışması).
           onDragActiveChange={setChecklistDragging}
+          // Dış scroll ref'i — sortable Pan'ı bununla koordine edilir (uzun-bas
+          // dikey sürüklemenin native scroll tarafından yutulmaması için).
+          scrollRef={scrollRef}
         />
 
         {/* Faz 7J — kart eki "Ekler" bölümü. Liste tüm rollere açık; yükleme
@@ -476,53 +538,19 @@ export default function CardDetailScreen() {
           myBoardRole={myBoardRole}
         />
 
-        <DetailSection
-          icon="message-square"
-          title={strings.cardDetail.commentsTitle}
-          collapsible
-          defaultCollapsed
-          trailing={
-            comments.length > 0 ? <SectionBadge label={String(comments.length)} /> : undefined
-          }
-        >
-          <View className="gap-4">
-            {commentsQuery.isError ? (
-              <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
-            ) : comments.length > 0 ? (
-              <CommentList
-                cardId={card.id}
-                comments={comments}
-                resolveAuthor={resolveAuthor}
-                currentUserId={currentUserId}
-                myBoardRole={myBoardRole}
-                canEdit={canEdit}
-              />
-            ) : (
-              <Text className="text-sm text-muted-foreground">
-                {strings.cardDetail.noComments}
-              </Text>
-            )}
-            {canEdit ? <CommentComposer cardId={card.id} /> : null}
+        {/* Yorumlar + Aktivite — tablet'te yan-yana 2 sütun (eşit `flex-1`,
+            `items-start`), telefonda alt-alta. İkisi de katlanabilir bölüm. */}
+        {isTablet ? (
+          <View className="flex-row items-start gap-3">
+            <View className="flex-1">{commentsSection}</View>
+            <View className="flex-1">{activitySection}</View>
           </View>
-        </DetailSection>
-
-        <DetailSection
-          icon="activity"
-          title={strings.cardDetail.activityTitle}
-          collapsible
-          defaultCollapsed
-          trailing={
-            activity.length > 0 ? <SectionBadge label={String(activity.length)} /> : undefined
-          }
-        >
-          {activityQuery.isError ? (
-            <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
-          ) : activity.length > 0 ? (
-            <ActivityList events={activity} />
-          ) : (
-            <Text className="text-sm text-muted-foreground">{strings.cardDetail.noActivity}</Text>
-          )}
-        </DetailSection>
+        ) : (
+          <>
+            {commentsSection}
+            {activitySection}
+          </>
+        )}
       </Animated.ScrollView>
 
       {/* DEM-196 — başlık yanı ⋮ menüsü: kartı arşivle. */}

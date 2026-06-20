@@ -24,6 +24,12 @@ type SettingsRowProps = {
    * verilince satır `radio` rolü + `accessibilityState.selected` taşır.
    */
   selected?: boolean;
+  /**
+   * Görsel "aktif/seçili" vurgusu (kalıcı `bg-muted`) — tablet hesap master-detail
+   * nav listesinde o an detail pane'de açık olan satırı işaretler (DEM-303 V2).
+   * A11y'den bağımsız; telefon akışında kullanılmaz, davranışı değiştirmez.
+   */
+  active?: boolean;
 };
 
 /**
@@ -41,6 +47,7 @@ export function SettingsRow({
   hideChevron = false,
   pending = false,
   selected,
+  active = false,
 }: SettingsRowProps) {
   const theme = themeFor(useColorScheme());
   const iconColor = destructive ? theme.destructive : theme.mutedForeground;
@@ -48,7 +55,9 @@ export function SettingsRow({
   const interactive = onPress != null && !pending;
 
   const content = (
-    <View className="flex-row items-center gap-3 px-4 py-3.5">
+    <View
+      className={`flex-row items-center gap-3 px-4 py-3.5 ${active ? 'bg-muted' : ''}`}
+    >
       {icon ? <Icon name={icon} size={18} color={iconColor} /> : null}
       <Text weight="medium" numberOfLines={1} className={`flex-1 text-sm ${labelClass}`}>
         {label}

@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { StyleSheet, View, type ImageResizeMode, type StyleProp, type ViewStyle } from 'react-native';
-import { Image, type ImageContentFit } from 'expo-image';
+import { StyleSheet, View, Image, type ImageResizeMode, type StyleProp, type ViewStyle } from 'react-native';
 import { AppSpinner } from '@/components/app-spinner';
+// NOT (yerel build geçici): expo-image precompiled AAR yerel Android dev build'de
+// Fabric ViewManager kaydetmiyor → "ViewManagerAdapter_ExpoImage undefined" crash.
+// RN Image'a düşürüldü. COMMIT EDİLMEZ — EAS build expo-image ile çalışıyor.
 
 type RemoteImageProps = {
   /** Görsel kaynağı. `null`/`undefined` → URL henüz hazır değil (placeholder gösterilir). */
@@ -27,17 +29,6 @@ type RemoteImageProps = {
   spinnerSize?: 'xs' | 'sm' | 'md' | 'lg';
   /** Varsayılan spinner rengi (koyu zeminlerde — örn. lightbox). */
   spinnerColor?: string;
-};
-
-/** RN `resizeMode` → `expo-image` `contentFit` eşlemesi (geriye dönük uyum). */
-const CONTENT_FIT: Record<ImageResizeMode, ImageContentFit> = {
-  cover: 'cover',
-  contain: 'contain',
-  stretch: 'fill',
-  center: 'none',
-  none: 'none',
-  // `repeat` `expo-image`'te yok — Pusula hiç kullanmaz; en yakın davranış `cover`.
-  repeat: 'cover',
 };
 
 /**
@@ -86,13 +77,7 @@ export function RemoteImage({
           source={{ uri }}
           accessibilityLabel={accessibilityLabel}
           accessible={accessibilityLabel != null}
-          contentFit={CONTENT_FIT[resizeMode]}
-          // Disk + bellek cache — tekrar görüntülemede ağ isteği yok.
-          cachePolicy="memory-disk"
-          // Liste geri dönüşümünde (FlatList) doğru görselin gösterilmesi için.
-          recyclingKey={uri}
-          // Native fade-in — DEM-217'deki RN `Animated` opacity geçişinin yerini alır.
-          transition={200}
+          resizeMode={resizeMode}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
           style={StyleSheet.absoluteFill}

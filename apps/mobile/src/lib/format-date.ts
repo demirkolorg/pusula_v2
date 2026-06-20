@@ -29,6 +29,43 @@ export function formatDueDate(value: Date | string): string {
   return `${date.getDate()} ${TR_MONTHS_SHORT[date.getMonth()]}`;
 }
 
+/** İki tarih arası TAKVİM günü farkı (target − reference), saat bağımsız. */
+function calendarDayDiff(target: Date, now: Date): number {
+  const t = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const n = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.round((t - n) / 86_400_000);
+}
+
+/**
+ * Akıllı/göreli due tarihi (2026-06-20) — yakın günlerde aciliyeti net gösterir:
+ * "Bugün", "Yarın", "Dün", "3 gün sonra", "2 gün gecikti". Uzak tarihte kısa
+ * tarihe düşer ("12 May"); farklı yıl ise yılı da ekler ("12 May 2027"). Saat
+ * bağımsız (takvim günü) — "Bugün" gün boyu "Bugün" kalır. Geçersiz tarihte boş.
+ */
+export function formatDueDateSmart(value: Date | string, now: Date = new Date()): string {
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const days = calendarDayDiff(date, now);
+  if (days === 0) return 'Bugün';
+  if (days === 1) return 'Yarın';
+  if (days === -1) return 'Dün';
+  if (days > 1 && days <= 6) return `${days} gün sonra`;
+  if (days < -1 && days >= -6) return `${-days} gün gecikti`;
+  const base = `${date.getDate()} ${TR_MONTHS_SHORT[date.getMonth()]}`;
+  return date.getFullYear() !== now.getFullYear() ? `${base} ${date.getFullYear()}` : base;
+}
+
+/** Due tarihi aciliyet tonu (2026-06-20): geçmiş → `overdue`, bugün/yarın → `soon`, uzak → `normal`. */
+export type DueTone = 'overdue' | 'soon' | 'normal';
+
+/** Due chip rengi için aciliyet tonu. Geçersiz tarihte `normal`. */
+export function dueDateTone(value: Date | string, now: Date = new Date()): DueTone {
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return 'normal';
+  if (date.getTime() < now.getTime()) return 'overdue';
+  return calendarDayDiff(date, now) <= 1 ? 'soon' : 'normal';
+}
+
 function pad2(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatDueDate, formatRelativeTime, isOverdue } from '../lib/format-date';
+import {
+  dueDateTone,
+  formatDueDate,
+  formatDueDateSmart,
+  formatRelativeTime,
+  isOverdue,
+} from '../lib/format-date';
 import { labelColorHex } from '../lib/label-color';
 
 /** Faz 7E — kart yüzü saf helper birim testleri. */
@@ -16,6 +22,39 @@ describe('formatDueDate', () => {
 
   it('geçersiz tarihte boş string döndürür', () => {
     expect(formatDueDate('geçersiz')).toBe('');
+  });
+});
+
+describe('formatDueDateSmart', () => {
+  const now = new Date(2026, 4, 12, 15, 0); // 12 May 2026, 15:00
+
+  it('yakın günleri göreli gösterir', () => {
+    expect(formatDueDateSmart(new Date(2026, 4, 12, 9, 0), now)).toBe('Bugün');
+    expect(formatDueDateSmart(new Date(2026, 4, 13), now)).toBe('Yarın');
+    expect(formatDueDateSmart(new Date(2026, 4, 11), now)).toBe('Dün');
+    expect(formatDueDateSmart(new Date(2026, 4, 15), now)).toBe('3 gün sonra');
+    expect(formatDueDateSmart(new Date(2026, 4, 10), now)).toBe('2 gün gecikti');
+  });
+
+  it('uzak tarihte kısa tarihe düşer; farklı yıl yılı ekler', () => {
+    expect(formatDueDateSmart(new Date(2026, 5, 20), now)).toBe('20 Haz');
+    expect(formatDueDateSmart(new Date(2027, 4, 12), now)).toBe('12 May 2027');
+  });
+
+  it('geçersiz tarihte boş string', () => {
+    expect(formatDueDateSmart('geçersiz', now)).toBe('');
+  });
+});
+
+describe('dueDateTone', () => {
+  const now = new Date(2026, 4, 12, 15, 0);
+
+  it('geçmiş → overdue, bugün-ileride/yarın → soon, uzak → normal', () => {
+    expect(dueDateTone(new Date(2026, 4, 12, 10, 0), now)).toBe('overdue'); // bugün ama saat geçmiş
+    expect(dueDateTone(new Date(2026, 4, 11), now)).toBe('overdue'); // dün
+    expect(dueDateTone(new Date(2026, 4, 12, 20, 0), now)).toBe('soon'); // bugün ileride
+    expect(dueDateTone(new Date(2026, 4, 13), now)).toBe('soon'); // yarın
+    expect(dueDateTone(new Date(2026, 4, 20), now)).toBe('normal'); // uzak
   });
 });
 
