@@ -16,6 +16,36 @@ describe('deepLinkTarget', () => {
     });
   });
 
+  it('kart linkindeki fokus param\'larını (comment/item/attachment) kart hedefine taşır', () => {
+    expect(
+      deepLinkTarget(
+        'https://pusulaportal.com/workspaces/ws-1/boards/b-1?card=c-9&comment=cm-3',
+      ),
+    ).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-9', title: '', commentId: 'cm-3' },
+    });
+    expect(
+      deepLinkTarget('pusula://workspaces/ws-1/boards/b-1?card=c-9&attachment=at-2'),
+    ).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-9', title: '', attachmentId: 'at-2' },
+    });
+    expect(
+      deepLinkTarget(
+        'https://pusulaportal.com/workspaces/ws-1/boards/b-1?card=c-9&checklistItem=ci-1&item=it-5',
+      ),
+    ).toEqual({
+      pathname: '/cards/[cardId]',
+      params: {
+        cardId: 'c-9',
+        title: '',
+        checklistItemId: 'ci-1',
+        highlightItemId: 'it-5',
+      },
+    });
+  });
+
   it('kart paramı olmayan board URL\'sini board ekranına çevirir', () => {
     expect(deepLinkTarget('https://pusulaportal.com/workspaces/ws-1/boards/b-1')).toEqual({
       pathname: '/boards/[boardId]',

@@ -33,7 +33,24 @@ export function resolveNotificationLink(notification: NotificationRow): string |
   }
 
   if (payload.cardId && payload.boardId && payload.workspaceId) {
-    return `/workspaces/${pathPart(payload.workspaceId)}/boards/${pathPart(payload.boardId)}?card=${pathPart(payload.cardId)}`;
+    // Kart deep-link'i + opsiyonel in-card fokus parametreleri (yorum / checklist
+    // maddesi / ek). Anlamlı, paylaşılabilir query anahtarları; `card-detail-route`
+    // bunları okuyup modale geçirir, modal hedef öğeye scroll + flash uygular.
+    // Bildirim tipine göre worker payload'ı bunlardan en fazla birini taşır.
+    const focus = new URLSearchParams();
+    focus.set('card', payload.cardId);
+    if (payload.commentId) {
+      focus.set('comment', payload.commentId);
+      // Yorum hedefi sidebar'ın "Yorumlar" sekmesinde — sekmeyi açacak işaret.
+      focus.set('tab', 'comments');
+    } else if (payload.checklistItemId) {
+      focus.set('checklistItem', payload.checklistItemId);
+    } else if (payload.attachmentId) {
+      focus.set('attachment', payload.attachmentId);
+      // Ek hedefi sidebar'ın "Ekler" sekmesinde.
+      focus.set('tab', 'attachments');
+    }
+    return `/workspaces/${pathPart(payload.workspaceId)}/boards/${pathPart(payload.boardId)}?${focus.toString()}`;
   }
   if (payload.boardId && payload.workspaceId) {
     return `/workspaces/${pathPart(payload.workspaceId)}/boards/${pathPart(payload.boardId)}`;

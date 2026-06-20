@@ -81,7 +81,27 @@ export function deepLinkTarget(url: string | null | undefined): DeepLinkTarget |
 
     const cardId = segmentValue(parsed.searchParams.get('card') ?? undefined);
     if (cardId) {
-      return { pathname: '/cards/[cardId]', params: { cardId, title: '' } };
+      // Opsiyonel fokus param'ları — paylaşılan/universal link de bildirim
+      // deep-link'i gibi belirli bir öğeye scroll + flash yapsın (kart ekranı
+      // bu param'ları `notification-target.ts` ile aynı şekilde okur). Yalnız
+      // gerçekten gelen param eklenir; biri set ise kart o öğeye odaklanır.
+      const commentId = segmentValue(parsed.searchParams.get('comment') ?? undefined);
+      const checklistItemId = segmentValue(
+        parsed.searchParams.get('checklistItem') ?? undefined,
+      );
+      const highlightItemId = segmentValue(parsed.searchParams.get('item') ?? undefined);
+      const attachmentId = segmentValue(parsed.searchParams.get('attachment') ?? undefined);
+      return {
+        pathname: '/cards/[cardId]',
+        params: {
+          cardId,
+          title: '',
+          ...(checklistItemId ? { checklistItemId } : {}),
+          ...(highlightItemId ? { highlightItemId } : {}),
+          ...(commentId ? { commentId } : {}),
+          ...(attachmentId ? { attachmentId } : {}),
+        },
+      };
     }
     return { pathname: '/boards/[boardId]', params: { boardId, title: '' } };
   }

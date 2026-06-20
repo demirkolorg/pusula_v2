@@ -513,6 +513,14 @@
   --animate-card-complete-burst: card-complete-burst 640ms ease-out forwards;
   --animate-card-complete-check: card-complete-check 420ms cubic-bezier(0.34, 1.8, 0.5, 1) 70ms
     both;
+
+  /* Bildirim deep-link "kendini belli et" flash'ı — yorum / checklist maddesi /
+     ek hedefine scroll sonrası kısa bir success (emerald) vurgusu. Mobil
+     karşılığı (apps/mobile checklist-item-row flashOpacity, rgba(16,185,129))
+     ile aynı görsel dil. `--success` token'ı (hue 150) tema-uyumlu; reduced
+     motion'da global @media reset animasyonu ~0'a indirir (flash atlanır).
+     Bkz. docs/architecture/20-hareket-etkilesim-sistemi.md. */
+  --animate-target-flash: target-flash 1600ms var(--ease-out, ease-out) both;
 }
 
 /* Card-complete action keyframes — referenced by the --animate-card-complete-*
@@ -562,6 +570,35 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Deep-link hedef flash — `--animate-target-flash` tarafından referans alınır.
+   `--success` token'ı üzerinden color-mix ile saydam bir zemin + ring; hızla
+   belirir, yavaşça söner. `box-shadow` ring layout-shift yaratmaz (outline
+   yerine, focus halkalarıyla çakışmasın diye). */
+@keyframes target-flash {
+  0% {
+    background-color: color-mix(in oklch, var(--success) 26%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--success) 55%, transparent);
+  }
+  18% {
+    background-color: color-mix(in oklch, var(--success) 22%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--success) 50%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/* Deep-link hedef flash sınıfı — `useTargetFlash` (apps/web) imperatif olarak
+   ekler/çıkarır. `--animate-target-flash` token'ını çalıştırır; `border-radius`
+   ring'in köşelerini içeriğe oturtur. Plain CSS class (Tailwind utility değil)
+   çünkü hedef DOM'a geç (lazy modal + async query) mount olur ve sınıf React
+   state'i değil, doğrudan element üzerinde yönetilir. */
+.pusula-target-flash {
+  animation: var(--animate-target-flash);
+  border-radius: var(--radius, 0.625rem);
 }
 
 /* Reduced-motion global safety net. Even if a component forgets to gate its

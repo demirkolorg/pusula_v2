@@ -4,6 +4,7 @@ import type { LayoutChangeEvent } from 'react-native';
 import Animated, {
   useAnimatedRef,
   useAnimatedScrollHandler,
+  useReducedMotion,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
@@ -33,6 +34,7 @@ import { AttachmentsSection } from '@/components/card-detail/attachments-section
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
 import { CommentComposer } from '@/components/card-detail/comment-composer';
 import { ActivityList } from '@/components/card-detail/activity-list';
+import { ScrollHighlightProvider } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -150,6 +152,20 @@ export default function CardDetailScreen() {
   // kalkmıyordu); ref ile Pan + scroll aynı anda tanınır, long-press eşiği
   // geçilince `checklistDragging` scroll'u kilitler.
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  // Reduced-motion (Reanimated / OS erişilebilirlik) — deep-link scroll'u
+  // `animated:false` ile anında konumlanır (§20.11; flash bileşen-bazında zaten
+  // kısar). Provider'a iletilir.
+  const reduceMotion = useReducedMotion();
+  // Bildirim deep-link'iyle gelinen TEK vurgu hedefi (scroll + flash). Bir
+  // bildirim tipine göre bu param'lardan yalnız biri set olur; öncelik sırası
+  // çok-param savunması (normalde tek gelir). `checklistItemId` thread'i de açar
+  // ama maddenin görünür olması için yine scroll edilir.
+  const highlightTargetId =
+    params.commentId ??
+    params.highlightItemId ??
+    params.checklistItemId ??
+    params.attachmentId ??
+    null;
 
   // Collapsing nav başlığı (DEM-228; 2026-06-20 shared-value refactor): 0 = liste
   // adı, 1 = kart başlığı. Reanimated shared value — eşik geçişi UI-thread'inde
@@ -382,6 +398,11 @@ export default function CardDetailScreen() {
               : undefined,
         }}
       />
+      <ScrollHighlightProvider
+        targetId={highlightTargetId}
+        scrollRef={scrollRef}
+        reduceMotion={reduceMotion}
+      >
       <Animated.ScrollView
         ref={scrollRef}
         className="flex-1 bg-muted"
@@ -560,6 +581,7 @@ export default function CardDetailScreen() {
           </>
         )}
       </Animated.ScrollView>
+      </ScrollHighlightProvider>
 
       {/* DEM-196 — başlık yanı ⋮ menüsü: kartı arşivle. */}
       <CardActionsSheet

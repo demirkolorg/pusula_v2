@@ -12,6 +12,16 @@ export type NotificationPayload = {
   boardId?: string | null;
   cardId?: string | null;
   linkTo?: string | null;
+  /**
+   * In-card focus targets (web deep-link "kendini belli et" — mobil simetriği).
+   * Worker payload'ı bildirim tipine göre bunlardan birini taşır; modal açılınca
+   * ilgili öğeye scroll + flash uygulanır. `itemId` checklist maddesinin legacy
+   * anahtarı (mobil `notification-target.ts` ile aynı): `checklistItemId` yoksa
+   * yedek olarak okunur.
+   */
+  commentId?: string | null;
+  checklistItemId?: string | null;
+  attachmentId?: string | null;
 };
 
 function stringValue(value: unknown): string | null {
@@ -34,6 +44,11 @@ export function notificationPayload(notification: NotificationRow): Notification
     boardId: stringValue(raw.boardId) ?? notification.boardId,
     cardId: stringValue(raw.cardId) ?? notification.cardId,
     linkTo: stringValue(raw.linkTo),
+    commentId: stringValue(raw.commentId),
+    // `checklistItemId` öncelikli; worker bazı tiplerde `itemId` yazar (mobil
+    // `notification-target.ts` ile aynı yedek).
+    checklistItemId: stringValue(raw.checklistItemId) ?? stringValue(raw.itemId),
+    attachmentId: stringValue(raw.attachmentId),
   };
 }
 

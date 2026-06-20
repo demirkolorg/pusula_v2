@@ -20,9 +20,27 @@ vi.mock('@/lib/auth-client', () => ({
 
 // Stand in for the heavy dialog — we only care about the route glue here.
 vi.mock('./card-detail-dialog', () => ({
-  CardDetailDialog: ({ cardId, onClose }: { cardId: string; onClose: () => void }) => (
+  CardDetailDialog: ({
+    cardId,
+    highlightCommentId,
+    highlightChecklistItemId,
+    highlightAttachmentId,
+    initialTab,
+    onClose,
+  }: {
+    cardId: string;
+    highlightCommentId?: string | null;
+    highlightChecklistItemId?: string | null;
+    highlightAttachmentId?: string | null;
+    initialTab?: string | null;
+    onClose: () => void;
+  }) => (
     <div data-testid="card-detail-dialog">
       <span>card:{cardId}</span>
+      <span data-testid="highlight-comment">{highlightCommentId ?? ''}</span>
+      <span data-testid="highlight-checklist">{highlightChecklistItemId ?? ''}</span>
+      <span data-testid="highlight-attachment">{highlightAttachmentId ?? ''}</span>
+      <span data-testid="initial-tab">{initialTab ?? ''}</span>
       <button type="button" onClick={onClose}>
         close
       </button>
@@ -71,6 +89,29 @@ describe('<CardDetailRoute>', () => {
   it('closing the dialog keeps other query params, dropping only ?card', async () => {
     const user = userEvent.setup();
     h.searchParams = new URLSearchParams('filter=open&card=card1');
+    h.session = { data: { user: { id: 'u1' } } };
+    h.routerPush.mockReset();
+    render(<CardDetailRoute boardId="b1" />);
+    await user.click(await screen.findByRole('button', { name: 'close' }));
+    expect(h.routerPush).toHaveBeenCalledWith('/workspaces/w1/boards/b1?filter=open', {
+      scroll: false,
+    });
+  });
+
+  it('forwards the notification deep-link focus params to the dialog', async () => {
+    h.searchParams = new URLSearchParams('card=card1&comment=cm1&tab=comments');
+    h.session = { data: { user: { id: 'u1' } } };
+    render(<CardDetailRoute boardId="b1" />);
+    expect(await screen.findByTestId('card-detail-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('highlight-comment')).toHaveTextContent('cm1');
+    expect(screen.getByTestId('initial-tab')).toHaveTextContent('comments');
+    expect(screen.getByTestId('highlight-checklist')).toHaveTextContent('');
+    expect(screen.getByTestId('highlight-attachment')).toHaveTextContent('');
+  });
+
+  it('closing the dialog drops the focus params (comment/checklistItem/attachment/tab) too', async () => {
+    const user = userEvent.setup();
+    h.searchParams = new URLSearchParams('filter=open&card=card1&attachment=at1&tab=attachments');
     h.session = { data: { user: { id: 'u1' } } };
     h.routerPush.mockReset();
     render(<CardDetailRoute boardId="b1" />);

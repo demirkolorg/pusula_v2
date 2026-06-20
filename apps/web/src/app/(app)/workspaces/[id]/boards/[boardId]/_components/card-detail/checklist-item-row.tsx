@@ -119,6 +119,9 @@ export function ChecklistItemRow({
   return (
     <li
       ref={rowRef}
+      // Bildirim deep-link hedefi: `useTargetFlash` bu id ile maddeyi bulup
+      // scroll + flash uygular (apps/web card-detail-dialog).
+      data-checklist-item-id={item.id}
       className={cn(
         'group/item relative text-sm',
         dragging && 'opacity-40',

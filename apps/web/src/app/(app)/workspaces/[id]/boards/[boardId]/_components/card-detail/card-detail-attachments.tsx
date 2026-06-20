@@ -437,55 +437,59 @@ export function CardDetailAttachments({
             const canManage = (isUploader && canEdit) || isBoardAdmin;
             const canPreview = row.kind === 'image' || row.kind === 'pdf';
             return (
-              <AttachmentTile
-                key={row.id}
-                fileName={row.fileName}
-                kind={row.kind}
-                mimeType={row.mimeType}
-                thumbnailUrl={row.thumbnailUrl}
-                sizeLabel={formatBytes(row.size)}
-                uploaderName={row.uploader.name?.trim() || strings.share.guest.deletedUserLabel}
-                timeLabel={formatRelativeTime(row.committedAt ?? row.createdAt)}
-                description={row.description}
-                isCover={row.isCover}
-                descriptionMaxLength={ATTACHMENT_DESCRIPTION_MAX_LEN}
-                canEdit={canManage}
-                canDelete={canManage}
-                canSetCover={canEdit}
-                canPreview={canPreview}
-                onPreview={
-                  canPreview
-                    ? () =>
-                        setPreview({
-                          row,
-                          kind: row.kind === 'pdf' ? 'pdf' : 'image',
-                        })
-                    : undefined
-                }
-                onDownload={() => void handleDownload(row)}
-                onSaveDescription={
-                  canManage
-                    ? (next) =>
-                        update.mutate({
-                          attachmentId: row.id,
-                          description: next ? next : undefined,
-                          clientMutationId: cmid(),
-                        })
-                    : undefined
-                }
-                onToggleCover={
-                  canEdit && row.kind === 'image'
-                    ? () =>
-                        setCover.mutate({
-                          cardId,
-                          coverImageAttachmentId: row.isCover ? null : row.id,
-                          clientMutationId: cmid(),
-                        })
-                    : undefined
-                }
-                onDelete={canManage ? () => setConfirmDelete(row) : undefined}
-                labels={tileLabels}
-              />
+              // Bildirim deep-link hedefi: `useTargetFlash` bu id ile eki bulup
+              // scroll + flash uygular (apps/web card-detail-dialog). Tile shared
+              // `@pusula/ui` bileşeni olduğundan id'yi saran div taşır.
+              <div key={row.id} data-attachment-id={row.id}>
+                <AttachmentTile
+                  fileName={row.fileName}
+                  kind={row.kind}
+                  mimeType={row.mimeType}
+                  thumbnailUrl={row.thumbnailUrl}
+                  sizeLabel={formatBytes(row.size)}
+                  uploaderName={row.uploader.name?.trim() || strings.share.guest.deletedUserLabel}
+                  timeLabel={formatRelativeTime(row.committedAt ?? row.createdAt)}
+                  description={row.description}
+                  isCover={row.isCover}
+                  descriptionMaxLength={ATTACHMENT_DESCRIPTION_MAX_LEN}
+                  canEdit={canManage}
+                  canDelete={canManage}
+                  canSetCover={canEdit}
+                  canPreview={canPreview}
+                  onPreview={
+                    canPreview
+                      ? () =>
+                          setPreview({
+                            row,
+                            kind: row.kind === 'pdf' ? 'pdf' : 'image',
+                          })
+                      : undefined
+                  }
+                  onDownload={() => void handleDownload(row)}
+                  onSaveDescription={
+                    canManage
+                      ? (next) =>
+                          update.mutate({
+                            attachmentId: row.id,
+                            description: next ? next : undefined,
+                            clientMutationId: cmid(),
+                          })
+                      : undefined
+                  }
+                  onToggleCover={
+                    canEdit && row.kind === 'image'
+                      ? () =>
+                          setCover.mutate({
+                            cardId,
+                            coverImageAttachmentId: row.isCover ? null : row.id,
+                            clientMutationId: cmid(),
+                          })
+                      : undefined
+                  }
+                  onDelete={canManage ? () => setConfirmDelete(row) : undefined}
+                  labels={tileLabels}
+                />
+              </div>
             );
           })}
         </div>

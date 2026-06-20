@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -20,6 +20,7 @@ import { formatTimestamp } from '@/lib/format-date';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { bumpChecklistItemCommentCount } from '@/lib/checklist-comment-cache';
 import { serializeTiptapDoc, tiptapToPlainText } from '@/lib/tiptap';
+import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
 
 type Comments = RouterOutputs['comment']['list'];
@@ -257,14 +258,20 @@ const CommentRow = memo(function CommentRow({
   const flashStyle = useAnimatedStyle(() => ({
     backgroundColor: `rgba(16,185,129,${flashOpacity.value * 0.18})`,
   }));
+  // Flash bir kez oynasın — geri/ileri navigasyon veya re-render'da `highlighted`
+  // hâlâ true iken (aynı deep-link param'ı) tekrar tetiklenmesin.
+  const flashedRef = useRef(false);
   useEffect(() => {
-    if (highlighted) {
+    if (highlighted && !flashedRef.current) {
+      flashedRef.current = true;
       flashOpacity.value = withSequence(
         withTiming(1, { duration: 250 }),
         withDelay(700, withTiming(0, { duration: 500 })),
       );
     }
   }, [highlighted, flashOpacity]);
+  // Vurgu hedefiyse ölç + (provider üzerinden) bir kez scroll-to.
+  const scrollHighlight = useScrollHighlightTarget(comment.id, highlighted);
   const [draft, setDraft] = useState('');
 
   const deleted = comment.deletedAt != null;
@@ -287,7 +294,11 @@ const CommentRow = memo(function CommentRow({
   const bodyEditable = canManage && !deleted && !editing && !busy;
 
   const rowContent = (
-    <Animated.View style={[{ borderRadius: 8, overflow: 'hidden' }, flashStyle]}>
+    <Animated.View
+      ref={scrollHighlight.ref}
+      onLayout={scrollHighlight.onLayout}
+      style={[{ borderRadius: 8, overflow: 'hidden' }, flashStyle]}
+    >
     <View className="flex-row gap-3">
       <EntityAvatar name={authorName} image={authorImage} size={32} />
       <View className="flex-1 gap-1">

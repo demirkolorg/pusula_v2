@@ -41,9 +41,22 @@ export function CardDetailRoute({ boardId }: { boardId: string }) {
   const viewerUserId = session.data?.user?.id;
   if (!viewerUserId) return null;
 
+  // Bildirim deep-link fokus parametreleri (notification-link.ts üretir). En
+  // fazla biri set olur; modal bunları kart açılışında ilgili öğeye scroll +
+  // flash için kullanır. `tab` sidebar'ın hangi sekmesinin açılacağını söyler.
+  const highlightCommentId = searchParams.get('comment');
+  const highlightChecklistItemId = searchParams.get('checklistItem');
+  const highlightAttachmentId = searchParams.get('attachment');
+  const initialTab = searchParams.get('tab');
+
   const close = () => {
     const next = new URLSearchParams(searchParams);
+    // Kapanışta yalnız kart + fokus parametrelerini düşür; diğer query'ler kalır.
     next.delete('card');
+    next.delete('comment');
+    next.delete('checklistItem');
+    next.delete('attachment');
+    next.delete('tab');
     const qs = next.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
@@ -53,6 +66,10 @@ export function CardDetailRoute({ boardId }: { boardId: string }) {
       boardId={boardId}
       cardId={cardId}
       viewerUserId={viewerUserId}
+      highlightCommentId={highlightCommentId}
+      highlightChecklistItemId={highlightChecklistItemId}
+      highlightAttachmentId={highlightAttachmentId}
+      initialTab={initialTab}
       onClose={close}
     />
   );

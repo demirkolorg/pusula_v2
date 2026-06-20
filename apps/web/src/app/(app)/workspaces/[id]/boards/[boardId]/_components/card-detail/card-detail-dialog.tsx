@@ -54,6 +54,7 @@ import { CardModalAddPopover, type CardAddView } from './card-modal-add-popover'
 import { CardModalHeader } from './card-modal-header';
 import { CardModalMetaInfo } from './card-modal-meta-info';
 import { CardModalSidebar, type CardSidebarTab } from './card-modal-sidebar';
+import { useTargetFlash } from './use-target-flash';
 
 const cmid = () => crypto.randomUUID();
 
@@ -75,9 +76,30 @@ type CardDetailDialogProps = {
   cardId: string;
   /** The viewer's own user id (for self-watch + "you" badges + own-comment edits). */
   viewerUserId: string;
-  /** Closes the modal — the route component drops the `?card` param. */
+  /**
+   * Notification deep-link focus targets (notification-link.ts → card-detail-route).
+   * At most one is set; the modal scrolls the matching in-card item into view and
+   * plays a one-shot flash once its data has loaded. A comment / attachment target
+   * also forces the sidebar open on the right tab.
+   */
+  highlightCommentId?: string | null;
+  highlightChecklistItemId?: string | null;
+  highlightAttachmentId?: string | null;
+  /** Sidebar tab the deep-link wants open (`comments` / `attachments`). */
+  initialTab?: string | null;
+  /** Closes the modal — the route component drops the `?card` + focus params. */
   onClose: () => void;
 };
+
+/** Narrow an arbitrary `?tab=` string to a known sidebar tab, else `null`. */
+function asSidebarTab(value: string | null | undefined): CardSidebarTab | null {
+  return value === 'comments' ||
+    value === 'activity' ||
+    value === 'attachments' ||
+    value === 'all'
+    ? value
+    : null;
+}
 
 /**
  * Card detail modal — two-column layout over the board screen (`?card=<id>` in
@@ -98,6 +120,10 @@ export function CardDetailDialog({
   boardId,
   cardId,
   viewerUserId,
+  highlightCommentId,
+  highlightChecklistItemId,
+  highlightAttachmentId,
+  initialTab,
   onClose,
 }: CardDetailDialogProps) {
   const trpc = useTRPC();
@@ -107,8 +133,15 @@ export function CardDetailDialog({
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [titleFocusToken, setTitleFocusToken] = useState(0);
   const [addMenu, setAddMenu] = useState<CardAddView | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>('comments');
+  // Deep-link ile gelen yorum/ek hedefi sidebar'ı açar; checklist maddesi hedefi
+  // sol sütundadır (sidebar gerekmez). `useState` başlangıç değeri sabit prop'tan
+  // türetilir — bir kez; modal aynı kart için yeniden açılırsa route yeni bir
+  // dialog mount eder (cardId/key değişir), state taze başlar.
+  const requestedTab = asSidebarTab(initialTab);
+  const deepLinkWantsSidebar =
+    Boolean(highlightCommentId) || Boolean(highlightAttachmentId) || requestedTab != null;
+  const [sidebarOpen, setSidebarOpen] = useState(deepLinkWantsSidebar);
+  const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>(requestedTab ?? 'comments');
   const [fullscreen, setFullscreen] = useState(false);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
@@ -612,6 +645,20 @@ export function CardDetailDialog({
   const isNotFound =
     cardQ.isError &&
     (cardQ.error as { data?: { code?: string } } | null)?.data?.code === 'NOT_FOUND';
+
+  // --- Deep-link focus (scroll + flash) -----------------------------------
+  // Notification deep-links may target an in-card item. The matching DOM node
+  // carries a `data-*` id (comment / checklist item / attachment); `useTargetFlash`
+  // hunts for it once the relevant data is loaded and the target's container is
+  // mounted, then scrolls it to centre + flashes once. The hooks no-op when the
+  // target id is absent. The checklist target lives in the always-rendered left
+  // column; the comment/attachment targets only mount when the sidebar's matching
+  // tab is active — `deepLinkWantsSidebar` + the requested tab handle that above.
+  useTargetFlash(highlightChecklistItemId, 'checklist-item-id', !checklistsQ.isPending);
+  useTargetFlash(highlightCommentId, 'comment-id', sidebarOpen && !commentsQ.isPending);
+  // Attachments load inside the sidebar tab itself; the bounded RAF hunt waits
+  // for the tile to mount, so gating on `sidebarOpen` alone is enough.
+  useTargetFlash(highlightAttachmentId, 'attachment-id', sidebarOpen);
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>

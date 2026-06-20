@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -11,6 +11,7 @@ import type { RouterOutputs } from '@pusula/api';
 import { Icon } from '@/components/icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
+import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -76,14 +77,20 @@ export function ChecklistItemRow({
     backgroundColor: `rgba(16,185,129,${flashOpacity.value * 0.18})`,
     pointerEvents: 'none',
   }));
+  // Flash bir kez oynasın — geri/ileri navigasyon veya re-render'da `highlighted`
+  // hâlâ true iken (aynı deep-link param'ı) tekrar tetiklenmesin.
+  const flashedRef = useRef(false);
   useEffect(() => {
-    if (highlighted) {
+    if (highlighted && !flashedRef.current) {
+      flashedRef.current = true;
       flashOpacity.value = withSequence(
         withTiming(1, { duration: 250 }),
         withDelay(700, withTiming(0, { duration: 500 })),
       );
     }
   }, [highlighted, flashOpacity]);
+  // Vurgu hedefiyse ölç + (provider üzerinden) bir kez scroll-to.
+  const scrollHighlight = useScrollHighlightTarget(item.id, highlighted);
 
   // Madde yorum rozeti — thread sheet'i açar. `onOpenComments` verilmeli
   // (yorum bağlamı) ve satır optimistic olmamalı (madde sunucuda). `commentCount
@@ -116,7 +123,12 @@ export function ChecklistItemRow({
     ) : null;
 
   const row = (
-    <View className="min-h-12 flex-row items-start bg-card" style={{ position: 'relative' }}>
+    <View
+      ref={scrollHighlight.ref}
+      onLayout={scrollHighlight.onLayout}
+      className="min-h-12 flex-row items-start bg-card"
+      style={{ position: 'relative' }}
+    >
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.completed, disabled: !interactive }}

@@ -186,6 +186,9 @@ function CommentRow({
 
   return (
     <li
+      // Bildirim deep-link hedefi: `useTargetFlash` bu id ile satırı bulup
+      // scroll + flash uygular (apps/web card-detail-dialog).
+      data-comment-id={comment.id}
       className={cn(
         'group flex items-start gap-2 rounded-lg transition-colors',
         compact ? '' : 'bg-card/55 hover:bg-accent/35 border p-2',
