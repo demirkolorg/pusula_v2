@@ -173,6 +173,11 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
   if (cardId) data.cardId = cardId;
   if (boardId) data.boardId = boardId;
   if (listId) data.listId = listId;
+  // Push tap → `/cards/[cardId]` derin linkinde kart başlığı param'ı boş
+  // kalmasın (fallbackTitle yerine gerçek başlık). Mobil `notification-target`
+  // bu `cardTitle`'ı route `title` param'ına geçirir.
+  const cardTitleData = stringOr(ctx.payload, 'cardTitle', '');
+  if (cardTitleData) data.cardTitle = cardTitleData;
   // Deep link odak parametreleri.
   if (commentId) data.commentId = commentId;
   if (checklistItemId) data.checklistItemId = checklistItemId;
@@ -182,7 +187,11 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
 
   switch (ctx.type) {
     case 'card_assigned':
-      return { title: 'Yeni atama', body: `${actor}, "${subject}" kartına seni atadı.`, data };
+      return {
+        title: 'Yeni atama',
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${clip(subject)}" kartına seni atadı.`,
+        data,
+      };
     case 'mention': {
       const mentionPreview = stringOr(ctx.payload, 'commentPreview', '');
       return {
@@ -231,22 +240,32 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
     case 'watched_activity':
       return {
         title: 'Kart aktivitesi',
-        body: `${actor}, takip ettiğin "${subject}" kartında değişiklik yaptı.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartında değişiklik yaptı.`,
         data,
       };
     // DEM-152 — granular kart-aktivite tipleri. Yalnız `attachment_added` ve
     // `card_due_changed` push opt-in fire eder; geri kalanı in-app only —
     // case'ler `never` exhaustiveness için yine de tam.
-    case 'card_moved':
+    case 'card_moved': {
+      const from = stringOr(ctx.payload, 'fromListTitle', '');
+      const to = stringOr(ctx.payload, 'toListTitle', '');
+      const prefix = boardContextPrefix(ctx.payload);
+      const move =
+        from && to
+          ? `"${clip(from)}" listesinden "${clip(to)}" listesine taşıdı`
+          : to
+            ? `"${clip(to)}" listesine taşıdı`
+            : 'taşıdı';
       return {
         title: 'Kart taşındı',
-        body: `${actor}, takip ettiğin "${subject}" kartını taşıdı.`,
+        body: `${actor}, ${prefix}"${clip(subject)}" kartını ${move}.`,
         data,
       };
+    }
     case 'card_archived':
       return {
         title: 'Kart arşivlendi',
-        body: `${actor}, takip ettiğin "${subject}" kartını arşivledi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartını arşivledi.`,
         data,
       };
     case 'card_completed': {
@@ -254,25 +273,29 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: uncompleted ? 'Kart yeniden açıldı' : 'Kart tamamlandı',
         body: uncompleted
-          ? `${actor}, takip ettiğin "${subject}" kartının tamamlandı işaretini kaldırdı.`
-          : `${actor}, takip ettiğin "${subject}" kartını tamamlandı işaretledi.`,
+          ? `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartının tamamlandı işaretini kaldırdı.`
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartını tamamlandı işaretledi.`,
         data,
       };
     }
     case 'card_due_changed': {
       const cleared = stringOr(ctx.payload, 'activityType', '') === 'card.due_cleared';
+      const prefix = boardContextPrefix(ctx.payload);
+      const due = formatDueTr(ctx.payload);
       return {
         title: 'Teslim tarihi değişti',
         body: cleared
-          ? `${actor}, takip ettiğin "${subject}" kartının teslim tarihini kaldırdı.`
-          : `${actor}, takip ettiğin "${subject}" kartı için teslim tarihi belirledi.`,
+          ? `${actor}, ${prefix}"${clip(subject)}" kartının teslim tarihini kaldırdı.`
+          : due
+            ? `${actor}, ${prefix}"${clip(subject)}" kartının teslim tarihini ${due} olarak ayarladı.`
+            : `${actor}, ${prefix}"${clip(subject)}" kartı için teslim tarihi belirledi.`,
         data,
       };
     }
     case 'card_cover_changed':
       return {
         title: 'Kart kapağı değişti',
-        body: `${actor}, takip ettiğin "${subject}" kartının kapağını değiştirdi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartının kapağını değiştirdi.`,
         data,
       };
     case 'card_member_removed':
@@ -286,8 +309,8 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: 'Yeni dosya',
         body: fileName
-          ? `${actor}, takip ettiğin "${subject}" kartına "${fileName}" dosyasını ekledi.`
-          : `${actor}, takip ettiğin "${subject}" kartına bir dosya ekledi.`,
+          ? `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartına "${fileName}" dosyasını ekledi.`
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartına bir dosya ekledi.`,
         data,
       };
     }
@@ -297,43 +320,53 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
     case 'card_renamed':
       return {
         title: 'Kart başlığı değişti',
-        body: `${actor}, takip ettiğin "${subject}" kartının başlığını değiştirdi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartının başlığını değiştirdi.`,
         data,
       };
     case 'card_description_changed':
       return {
         title: 'Kart açıklaması değişti',
-        body: `${actor}, takip ettiğin "${subject}" kartının açıklamasını güncelledi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartının açıklamasını güncelledi.`,
         data,
       };
-    case 'card_label_added':
+    case 'card_label_added': {
+      const label = stringOr(ctx.payload, 'labelName', '');
+      const prefix = boardContextPrefix(ctx.payload);
       return {
         title: 'Etiket eklendi',
-        body: `${actor}, takip ettiğin "${subject}" kartına etiket ekledi.`,
+        body: label
+          ? `${actor}, ${prefix}"${clip(subject)}" kartına "${clip(label)}" etiketini ekledi.`
+          : `${actor}, ${prefix}"${clip(subject)}" kartına etiket ekledi.`,
         data,
       };
-    case 'card_label_removed':
+    }
+    case 'card_label_removed': {
+      const label = stringOr(ctx.payload, 'labelName', '');
+      const prefix = boardContextPrefix(ctx.payload);
       return {
         title: 'Etiket kaldırıldı',
-        body: `${actor}, takip ettiğin "${subject}" kartından etiket kaldırdı.`,
+        body: label
+          ? `${actor}, ${prefix}"${clip(subject)}" kartından "${clip(label)}" etiketini kaldırdı.`
+          : `${actor}, ${prefix}"${clip(subject)}" kartından etiket kaldırdı.`,
         data,
       };
+    }
     case 'comment_updated':
       return {
         title: 'Yorum düzenlendi',
-        body: `${actor}, takip ettiğin "${subject}" kartındaki bir yorumu düzenledi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartındaki bir yorumu düzenledi.`,
         data,
       };
     case 'comment_deleted':
       return {
         title: 'Yorum silindi',
-        body: `${actor}, takip ettiğin "${subject}" kartındaki bir yorumu sildi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartındaki bir yorumu sildi.`,
         data,
       };
     case 'checklist_created':
       return {
         title: 'Yapılacaklar listesi eklendi',
-        body: `${actor}, takip ettiğin "${subject}" kartına yapılacaklar listesi ekledi.`,
+        body: `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartına yapılacaklar listesi ekledi.`,
         data,
       };
     case 'checklist_item_added': {
@@ -341,8 +374,8 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: 'Yapılacaklar maddesi eklendi',
         body: addedContent
-          ? `${actor}, "${subject}" kartına "${addedContent}" maddesini ekledi.`
-          : `${actor}, takip ettiğin "${subject}" kartına yapılacaklar maddesi ekledi.`,
+          ? `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartına "${clip(addedContent)}" maddesini ekledi.`
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartına yapılacaklar maddesi ekledi.`,
         data,
       };
     }
@@ -351,8 +384,8 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: 'Yapılacaklar maddesi silindi',
         body: removedContent
-          ? `${actor}, "${subject}" kartından "${removedContent}" maddesini sildi.`
-          : `${actor}, takip ettiğin "${subject}" kartından yapılacaklar maddesi sildi.`,
+          ? `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartından "${clip(removedContent)}" maddesini sildi.`
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartından yapılacaklar maddesi sildi.`,
         data,
       };
     }
@@ -362,7 +395,7 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         title: 'Dosya kaldırıldı',
         body: removedFile
           ? `${actor}, "${subject}" kartından "${removedFile}" dosyasını kaldırdı.`
-          : `${actor}, takip ettiğin "${subject}" kartından bir dosya kaldırdı.`,
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartından bir dosya kaldırdı.`,
         data,
       };
     }
@@ -371,8 +404,8 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       return {
         title: 'Yapılacaklar güncellendi',
         body: completedContent
-          ? `${actor}, "${completedContent}" maddesini tamamladı.`
-          : `${actor}, takip ettiğin "${subject}" kartındaki bir maddeyi tamamladı.`,
+          ? `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartındaki "${clip(completedContent)}" maddesini tamamladı.`
+          : `${actor}, ${boardContextPrefix(ctx.payload)}"${subject}" kartındaki bir maddeyi tamamladı.`,
         data,
       };
     }
@@ -397,16 +430,18 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
       const scope = memberRoleChangedScope(ctx.payload);
       const target = pickMemberScopeTitle(ctx.payload, scope) || subject;
       const newRole = stringOr(ctx.payload, 'toRole', '');
-      const roleLabel = newRole ? roleLabelTr(newRole) : null;
+      const oldRole = stringOr(ctx.payload, 'fromRole', '');
+      const newLabel = newRole ? roleLabelTr(newRole) : null;
+      const oldLabel = oldRole ? roleLabelTr(oldRole) : null;
+      const scopeWord = scope === 'workspace' ? 'çalışma alanındaki' : 'panosundaki';
+      const change = newLabel
+        ? oldLabel
+          ? `rolünü "${oldLabel}" rolünden "${newLabel}" rolüne değiştirdi`
+          : `rolünü "${newLabel}" rolüne değiştirdi`
+        : 'rolünü değiştirdi';
       return {
         title: scope === 'workspace' ? 'Çalışma alanı rolün değişti' : 'Pano rolün değişti',
-        body: roleLabel
-          ? scope === 'workspace'
-            ? `${actor}, "${target}" çalışma alanındaki rolünü "${roleLabel}" yaptı.`
-            : `${actor}, "${target}" panosundaki rolünü "${roleLabel}" yaptı.`
-          : scope === 'workspace'
-            ? `${actor}, "${target}" çalışma alanındaki rolünü değiştirdi.`
-            : `${actor}, "${target}" panosundaki rolünü değiştirdi.`,
+        body: `${actor}, "${target}" ${scopeWord} ${change}.`,
         data,
       };
     }
@@ -611,14 +646,14 @@ function renderCommentReply(ctx: TemplateContext): RenderedEmail {
   return {
     subject,
     text: textShell(ctx.recipient.name, [
-      `${actor}, takip ettiğin "${cardTitle}" kartına yorum yazdı.`,
+      `${actor}, "${cardTitle}" kartına yorum yazdı.`,
       ...(preview ? ['', `"${preview}"`] : []),
       '',
       'Karta gitmek için:',
       link,
     ]),
     html: htmlShell(ctx.recipient.name, [
-      `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartına yorum yazdı.</p>`,
+      `<p>${esc(actor)}, <strong>${esc(cardTitle)}</strong> kartına yorum yazdı.</p>`,
       ...(preview
         ? [
             `<blockquote style="margin: 8px 0; padding: 8px 12px; border-left: 3px solid #d1d5db; color: #4b5563;">${esc(preview)}</blockquote>`,
@@ -738,13 +773,13 @@ function renderWatchedActivity(ctx: TemplateContext): RenderedEmail {
   return {
     subject,
     text: textShell(ctx.recipient.name, [
-      `${actor}, takip ettiğin "${cardTitle}" kartını ${verb}.`,
+      `${actor}, "${cardTitle}" kartını ${verb}.`,
       '',
       'Karta gitmek için:',
       link,
     ]),
     html: htmlShell(ctx.recipient.name, [
-      `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartını ${esc(verb)}.</p>`,
+      `<p>${esc(actor)}, <strong>${esc(cardTitle)}</strong> kartını ${esc(verb)}.</p>`,
       cardLinkBlock(link),
     ]),
   };
@@ -759,15 +794,15 @@ function renderChecklistCompleted(ctx: TemplateContext): RenderedEmail {
     ? `${actor}, "${itemContent}" maddesini tamamladı`
     : `${actor}, "${cardTitle}" kartındaki bir maddeyi tamamladı`;
   const bodyText = itemContent
-    ? `${actor}, takip ettiğin "${cardTitle}" kartındaki "${itemContent}" maddesini tamamladı.`
-    : `${actor}, takip ettiğin "${cardTitle}" kartındaki bir yapılacaklar maddesini tamamladı.`;
+    ? `${actor}, "${cardTitle}" kartındaki "${itemContent}" maddesini tamamladı.`
+    : `${actor}, "${cardTitle}" kartındaki bir yapılacaklar maddesini tamamladı.`;
   return {
     subject,
     text: textShell(ctx.recipient.name, [bodyText, '', 'Karta gitmek için:', link]),
     html: htmlShell(ctx.recipient.name, [
       itemContent
-        ? `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartındaki <strong>"${esc(itemContent)}"</strong> maddesini tamamladı.</p>`
-        : `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartındaki bir yapılacaklar maddesini tamamladı.</p>`,
+        ? `<p>${esc(actor)}, <strong>${esc(cardTitle)}</strong> kartındaki <strong>"${esc(itemContent)}"</strong> maddesini tamamladı.</p>`
+        : `<p>${esc(actor)}, <strong>${esc(cardTitle)}</strong> kartındaki bir yapılacaklar maddesini tamamladı.</p>`,
       cardLinkBlock(link),
     ]),
   };
@@ -1295,6 +1330,53 @@ function isPayloadArchived(payload: Record<string, unknown>): boolean {
 function stringOr(payload: Record<string, unknown>, key: string, fallback: string): string {
   const v = payload[key];
   return typeof v === 'string' && v.length > 0 ? v : fallback;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Metin içerik sözleşmesi yardımcıları (2026-06-20 — docs/domain/04 "Bildirim
+// metni içerik sözleşmesi"). "Tam bağlam" (pano adı + spesifik değişim) +
+// "takip ettiğin" ön ekinin kaldırılması kararının ortak araçları.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Uzun başlıkları push/satır için kırpar (kilit ekranı taşmasın). */
+function clip(value: string, max = 48): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+/**
+ * `"<pano>" panosunda ` öneki — locative ek jenerik **"pano"** kelimesine
+ * gelir (kullanıcı verisi pano adına değil), bu yüzden ek-uyumu her zaman
+ * doğru. Pano adı yoksa boş döner → cümle pano bağlamı olmadan da anlamlı.
+ */
+function boardContextPrefix(payload: Record<string, unknown>): string {
+  const board = stringOr(payload, 'boardName', '');
+  return board ? `"${clip(board)}" panosunda ` : '';
+}
+
+/**
+ * Teslim tarihini kısa TR biçimine çevirir ("25 Haz Cmt" / saatliyse
+ * "25 Haz 14:00"). Ürün TR; worker'da kullanıcı saat dilimi yok → Istanbul
+ * varsayılır (push/email kısa bilgi; cihaz-yerel in-app metni mobil/web'de
+ * ayrıca formatlanır). Geçersiz/boş `dueAt` → null (metin tarihsiz kalır).
+ */
+function formatDueTr(payload: Record<string, unknown>): string | null {
+  const raw = stringOr(payload, 'dueAt', '');
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  const tz = 'Europe/Istanbul';
+  const hhmm = new Intl.DateTimeFormat('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: tz,
+  }).format(d);
+  const hasTime = hhmm !== '00:00';
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric',
+    month: 'short',
+    ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short' }),
+    timeZone: tz,
+  }).format(d);
 }
 
 /**

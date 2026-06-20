@@ -221,6 +221,81 @@ function payloadText(payload: NotificationPayloadRecord, key: string): string | 
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+/**
+ * Pano bağlamı öneki (içerik sözleşmesi 2026-06-20). `boardName` payload'ta
+ * varsa `"<pano>" panosunda ` döner (ek-güvenli kalıp — locative ek jenerik
+ * "pano" kelimesine gelir), yoksa boş string → cümle graceful kalır. Eski
+ * bildirimlerde `boardName` olmayabilir → her zaman fallback. Worker
+ * `boardContextPrefix` + web simetriği.
+ */
+function boardCtxOf(payload: NotificationPayloadRecord): string {
+  return strings.notifications.summary.boardCtx(payloadText(payload, 'boardName'));
+}
+
+const TR_MONTHS_SHORT = [
+  'Oca',
+  'Şub',
+  'Mar',
+  'Nis',
+  'May',
+  'Haz',
+  'Tem',
+  'Ağu',
+  'Eyl',
+  'Eki',
+  'Kas',
+  'Ara',
+] as const;
+
+const TR_WEEKDAYS_SHORT = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'] as const;
+
+/**
+ * `card_due_changed` (set) için kısa, **cihaz-yerel** teslim tarihi metni:
+ * gün-içi saat yoksa "25 Haz Cmt" (gün + ay + kısa hafta günü), saat varsa
+ * "25 Haz 14:00". Worker `formatDueTr` ile simetrik **ama** cihaz saat dilimini
+ * kullanır (worker sabit Europe/Istanbul; mobil kullanıcının cihaz TZ'si).
+ *
+ * Tarih bileşenleri (gün/ay/hafta günü/saat) cihaz yerel saatinden okunur
+ * (`getDate`/`getMonth`/`getDay`/`getHours`); TR ay/gün kısaltmaları elle
+ * çevrilir — `format-date.ts` deseni (Hermes/`Intl` weekday tutarsızlığından
+ * bağımsız, deterministik, test edilebilir). `dueAt` yoksa/geçersizse `null`
+ * → metin tarihsiz (bağlamsız) yedeğe düşer.
+ */
+function formatDueLabel(payload: NotificationPayloadRecord): string | undefined {
+  const raw = payloadText(payload, 'dueAt');
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const day = d.getDate();
+  const month = TR_MONTHS_SHORT[d.getMonth()];
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  if (hasTime) {
+    const hh = d.getHours() < 10 ? `0${d.getHours()}` : String(d.getHours());
+    const mm = d.getMinutes() < 10 ? `0${d.getMinutes()}` : String(d.getMinutes());
+    return `${day} ${month} ${hh}:${mm}`;
+  }
+  return `${day} ${month} ${TR_WEEKDAYS_SHORT[d.getDay()]}`;
+}
+
+/** Türkçe rol etiketi — worker `roleLabelTr` ile aynı (sahip/yönetici/üye/...). */
+function roleLabel(role: string | undefined): string | undefined {
+  if (!role) return undefined;
+  switch (role) {
+    case 'owner':
+      return 'sahip';
+    case 'admin':
+      return 'yönetici';
+    case 'member':
+      return 'üye';
+    case 'viewer':
+      return 'görüntüleyici';
+    case 'guest':
+      return 'misafir';
+    default:
+      return role;
+  }
+}
+
 function cardTitleOf(payload: NotificationPayloadRecord): string {
   return (
     payloadText(payload, 'cardTitle') ??
@@ -272,16 +347,18 @@ export function notificationSummary(type: string, payload: unknown): string {
     typeof payload === 'object' && payload !== null ? (payload as NotificationPayloadRecord) : {};
   const copy = strings.notifications.summary;
 
+  const boardCtx = boardCtxOf(p);
+
   switch (type) {
     case 'card_assigned':
     case 'card.member_added':
-      return copy.cardMemberAdded(cardTitleOf(p));
+      return copy.cardMemberAdded(cardTitleOf(p), boardCtx);
     case 'mention':
     case 'comment.mentioned':
-      return copy.commentMentioned(cardTitleOf(p), payloadText(p, 'commentPreview'));
+      return copy.commentMentioned(cardTitleOf(p), payloadText(p, 'commentPreview'), boardCtx);
     case 'comment_reply':
     case 'comment.created':
-      return copy.commentCreated(cardTitleOf(p), payloadText(p, 'commentPreview'));
+      return copy.commentCreated(cardTitleOf(p), payloadText(p, 'commentPreview'), boardCtx);
     case 'due_approaching': {
       // DEM-170 — scheduler 1g/1s hatırlatmasının ikisine de `due_approaching`
       // tipini verir; tier-özel metni `reminderTier` payload alanından seç.
@@ -312,71 +389,85 @@ export function notificationSummary(type: string, payload: unknown): string {
       return copy.boardAccessRequested(boardNameOf(p));
     case 'card_moved':
     case 'card.moved':
-      return copy.cardMoved(cardTitleOf(p));
+      // Liste geçişi (`fromListTitle`/`toListTitle`) — worker `card_moved` ile
+      // simetrik; alanlar yoksa düz "taşıdı" yedeğine düşer.
+      return copy.cardMoved(
+        cardTitleOf(p),
+        payloadText(p, 'fromListTitle'),
+        payloadText(p, 'toListTitle'),
+        boardCtx,
+      );
     case 'card_archived':
     case 'card.archived':
-      return copy.cardArchived(cardTitleOf(p));
+      return copy.cardArchived(cardTitleOf(p), boardCtx);
     case 'card_completed':
     case 'card.completed':
       return payloadText(p, 'activityType') === 'card.uncompleted'
-        ? copy.cardUncompleted(cardTitleOf(p))
-        : copy.cardCompleted(cardTitleOf(p));
+        ? copy.cardUncompleted(cardTitleOf(p), boardCtx)
+        : copy.cardCompleted(cardTitleOf(p), boardCtx);
     case 'card_due_changed':
+      // Set durumunda yeni tarih cihaz-yerel kısa TR formatta; clear'da kaldırıldı.
       return payloadText(p, 'activityType') === 'card.due_cleared'
-        ? copy.cardDueCleared(cardTitleOf(p))
-        : copy.cardDueSet(cardTitleOf(p));
+        ? copy.cardDueCleared(cardTitleOf(p), boardCtx)
+        : copy.cardDueSet(cardTitleOf(p), formatDueLabel(p), boardCtx);
     case 'card_cover_changed':
-      return copy.cardCoverChanged(cardTitleOf(p));
+      return copy.cardCoverChanged(cardTitleOf(p), boardCtx);
     case 'card_member_removed':
     case 'card.member_removed':
       return copy.cardMemberRemoved(cardTitleOf(p));
     case 'member_removed':
       return copy.memberRemoved(boardNameOf(p));
     case 'member_role_changed':
-      return copy.memberRoleChanged(boardNameOf(p));
+      // Rol geçişi (`fromRole`→`toRole`, TR etiket); alanlar yoksa "rolünü değiştirdi".
+      return copy.memberRoleChanged(
+        boardNameOf(p),
+        roleLabel(payloadText(p, 'fromRole')),
+        roleLabel(payloadText(p, 'toRole')),
+      );
     case 'attachment_added':
     case 'attachment.added':
-      return copy.attachmentAdded(cardTitleOf(p), payloadText(p, 'fileName'));
+      return copy.attachmentAdded(cardTitleOf(p), payloadText(p, 'fileName'), boardCtx);
     case 'attachment_removed':
     case 'attachment.removed':
-      return copy.attachmentRemoved(cardTitleOf(p), payloadText(p, 'fileName'));
+      return copy.attachmentRemoved(cardTitleOf(p), payloadText(p, 'fileName'), boardCtx);
     case 'card_renamed':
     case 'card.renamed':
-      return copy.cardRenamed(cardTitleOf(p));
+      return copy.cardRenamed(cardTitleOf(p), boardCtx);
     case 'card_description_changed':
     case 'card.description_changed':
-      return copy.cardDescriptionChanged(cardTitleOf(p));
+      return copy.cardDescriptionChanged(cardTitleOf(p), boardCtx);
     case 'card_label_added':
     case 'card.label_added':
-      return copy.cardLabelAdded(cardTitleOf(p));
+      // Etiket adı (`labelName`) taşınır; yoksa jenerik "bir etiket".
+      return copy.cardLabelAdded(cardTitleOf(p), payloadText(p, 'labelName'), boardCtx);
     case 'card_label_removed':
     case 'card.label_removed':
-      return copy.cardLabelRemoved(cardTitleOf(p));
+      return copy.cardLabelRemoved(cardTitleOf(p), payloadText(p, 'labelName'), boardCtx);
     case 'comment_updated':
     case 'comment.updated':
-      return copy.commentUpdated(cardTitleOf(p));
+      return copy.commentUpdated(cardTitleOf(p), boardCtx);
     case 'comment_deleted':
     case 'comment.deleted':
-      return copy.commentDeleted(cardTitleOf(p));
+      return copy.commentDeleted(cardTitleOf(p), boardCtx);
     case 'checklist_created':
     case 'checklist.created':
-      return copy.checklistCreated(cardTitleOf(p));
+      return copy.checklistCreated(cardTitleOf(p), boardCtx);
     case 'checklist_item_added':
     case 'checklist.item_added':
-      return copy.checklistItemAdded(cardTitleOf(p), payloadText(p, 'content'));
+      return copy.checklistItemAdded(cardTitleOf(p), payloadText(p, 'content'), boardCtx);
     case 'checklist_item_removed':
     case 'checklist.item_removed':
-      return copy.checklistItemRemoved(cardTitleOf(p), payloadText(p, 'content'));
+      return copy.checklistItemRemoved(cardTitleOf(p), payloadText(p, 'content'), boardCtx);
     case 'checklist_item_completed':
-      return copy.checklistItemCompleted(cardTitleOf(p), payloadText(p, 'content'));
+      return copy.checklistItemCompleted(cardTitleOf(p), payloadText(p, 'content'), boardCtx);
     case 'watched_activity':
-      return copy.watchedActivity(cardTitleOf(p));
+      return copy.watchedActivity(cardTitleOf(p), boardCtx);
     // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart
     // oluşturma + liste / board / etiket yaşam döngüsü. Web `activity-summary.ts`
     // ile aynı metin seti (mobil `strings.notifications.summary` kopyası).
     case 'card_created':
     case 'card.created':
-      return copy.cardCreated(cardTitleOf(p));
+      return copy.cardCreated(cardTitleOf(p), boardCtx);
     case 'list_created':
     case 'list.created':
       return copy.listCreated(listNameOf(p));

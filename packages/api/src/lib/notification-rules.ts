@@ -44,6 +44,8 @@ import {
   boards,
   boardMembers,
   cards,
+  labels,
+  lists,
   notificationPreferences,
   users,
   workspaceMembers,
@@ -280,6 +282,16 @@ interface PayloadContext {
   cardTitle?: string;
   boardName?: string;
   workspaceName?: string;
+  // Bildirim metni içerik sözleşmesi (2026-06-20, docs/domain/04) — "tam bağlam"
+  // için liste/etiket adları. Producer activity payload yalnız id taşır
+  // (`fromListId` / `toListId` / `labelId`); adları burada `lists` / `labels`
+  // tablolarından transaction içinde çözeriz ki render katmanları (push/email +
+  // web/mobil in-app) "X'ten Y'ye taşıdı" / "'Acil' etiketini ekledi" cümlesini
+  // kurabilsin. Hepsi opsiyonel — kayıt silinmiş/ad boşsa metin bağlamsız hale
+  // graceful düşer.
+  fromListTitle?: string;
+  toListTitle?: string;
+  labelName?: string;
 }
 
 async function loadEventContext(
@@ -347,6 +359,40 @@ async function loadPayloadContext(
     .where(eq(workspaces.id, event.workspaceId))
     .limit(1);
   if (workspace?.name) context.workspaceName = workspace.name;
+
+  // Liste adları — `card.moved` / `card.movedToList` "X'ten Y'ye taşıdı"
+  // bağlamı. Producer payload yalnız `fromListId` / `toListId` taşır.
+  const fromListId = stringField(event.payload, 'fromListId');
+  if (fromListId) {
+    const [l] = await tx
+      .select({ title: lists.title })
+      .from(lists)
+      .where(eq(lists.id, fromListId))
+      .limit(1);
+    if (l?.title) context.fromListTitle = l.title;
+  }
+  const toListId = stringField(event.payload, 'toListId');
+  if (toListId) {
+    const [l] = await tx
+      .select({ title: lists.title })
+      .from(lists)
+      .where(eq(lists.id, toListId))
+      .limit(1);
+    if (l?.title) context.toListTitle = l.title;
+  }
+
+  // Etiket adı — `card.label_added` / `card.label_removed` bağlamı. Producer
+  // payload yalnız `labelId` taşır; `labels.name` boş olabilir (renk-only
+  // etiket) → o durumda alan set edilmez, metin "etiket ekledi"ye düşer.
+  const labelId = stringField(event.payload, 'labelId');
+  if (labelId) {
+    const [lb] = await tx
+      .select({ name: labels.name })
+      .from(labels)
+      .where(eq(labels.id, labelId))
+      .limit(1);
+    if (lb?.name) context.labelName = lb.name;
+  }
 
   return context;
 }
@@ -753,6 +799,12 @@ function buildPayload(
   if (context.cardTitle) payload.cardTitle = context.cardTitle;
   if (context.boardName) payload.boardName = context.boardName;
   if (context.workspaceName) payload.workspaceName = context.workspaceName;
+  // Metin içerik sözleşmesi (2026-06-20) — liste/etiket adı bağlamı. `loadPayloadContext`
+  // bunları `lists` / `labels`'tan çözer; render katmanları "X'ten Y'ye taşıdı" /
+  // "'Acil' etiketini ekledi" cümlesinde kullanır.
+  if (context.fromListTitle) payload.fromListTitle = context.fromListTitle;
+  if (context.toListTitle) payload.toListTitle = context.toListTitle;
+  if (context.labelName) payload.labelName = context.labelName;
   // Carry through the small handful of activity payload keys the UI uses for
   // links + previews. Whitelist over copy-everything — activity payloads
   // sometimes carry internal-only fields (clientMutationId, fromCoverColor)

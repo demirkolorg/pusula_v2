@@ -567,10 +567,19 @@ export const strings = {
     fallbackListName: 'bir liste',
     fallbackLabelName: 'bir etiket',
     summary: {
-      cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
-      commentMentioned: (cardTitle: string) =>
-        `"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
-      commentCreated: (cardTitle: string) => `"${cardTitle}" kartında yorum bıraktı`,
+      // Bildirim metni içerik sözleşmesi (2026-06-20, docs/domain/04). Worker
+      // `renderNotificationPush` ile simetrik: "takip ettiğin" yok, kart/
+      // checklist/etiket/yorum özetlerine ek-güvenli pano bağlamı (`boardCtx` —
+      // `activity-summary.ts`'te `"X" panosunda ` olarak kurulur, locative ek
+      // jenerik "pano" kelimesine gelir; pano adı yoksa boş string graceful
+      // düşer). Spesifik değişimler payload alanlarından gelir (liste geçişi,
+      // formatlı tarih, etiket adı).
+      cardMemberAdded: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}sana "${cardTitle}" kartını atadı`,
+      commentMentioned: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
+      commentCreated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartında yorum bıraktı`,
       dueApproaching: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi yaklaşıyor`,
       dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
       dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
@@ -581,35 +590,82 @@ export const strings = {
         `seni "${workspaceName}" çalışma alanına davet etti`,
       // DEM-154 — board erişim talebi bildirimi özeti (alıcı board admin'i).
       boardAccessRequested: (boardName: string) => `"${boardName}" panosuna erişim istedi`,
-      watchedActivity: (cardTitle: string) => `"${cardTitle}" kartında değişiklik yaptı`,
-      checklistItemCompleted: (cardTitle: string) =>
-        `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
-      cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
-      cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
+      watchedActivity: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartında değişiklik yaptı`,
+      checklistItemCompleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir maddeyi tamamladı`,
+      cardArchived: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartını arşivledi`,
+      cardCompleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartını tamamlandı işaretledi`,
       // DEM-152 — granular kart-aktivite özetleri.
-      cardMoved: (cardTitle: string) => `"${cardTitle}" kartını taşıdı`,
-      cardUncompleted: (cardTitle: string) =>
-        `"${cardTitle}" kartının tamamlandı işaretini kaldırdı`,
-      cardDueSet: (cardTitle: string) => `"${cardTitle}" kartı için teslim tarihi belirledi`,
-      cardDueCleared: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihini kaldırdı`,
-      cardCoverChanged: (cardTitle: string) => `"${cardTitle}" kartının kapağını değiştirdi`,
+      // Liste geçişi: kaynak + hedef varsa "'A' listesinden 'B' listesine",
+      // yalnız hedef varsa "'B' listesine", hiçbiri yoksa jenerik "taşıdı".
+      cardMoved: (cardTitle: string, boardCtx = '', fromList = '', toList = '') => {
+        const move =
+          fromList && toList
+            ? `"${fromList}" listesinden "${toList}" listesine taşıdı`
+            : toList
+              ? `"${toList}" listesine taşıdı`
+              : 'taşıdı';
+        return `${boardCtx}"${cardTitle}" kartını ${move}`;
+      },
+      cardUncompleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının tamamlandı işaretini kaldırdı`,
+      // Yeni tarih kısa TR formatında (`formatDueShort`, cihaz-yerel); yoksa
+      // tarihsiz jenerik metne düşer.
+      cardDueSet: (cardTitle: string, boardCtx = '', dueLabel = '') =>
+        dueLabel
+          ? `${boardCtx}"${cardTitle}" kartının teslim tarihini ${dueLabel} olarak ayarladı`
+          : `${boardCtx}"${cardTitle}" kartı için teslim tarihi belirledi`,
+      cardDueCleared: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının teslim tarihini kaldırdı`,
+      cardCoverChanged: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının kapağını değiştirdi`,
       cardMemberRemoved: (cardTitle: string) => `seni "${cardTitle}" kartından çıkardı`,
-      attachmentAdded: (cardTitle: string) => `"${cardTitle}" kartına bir dosya ekledi`,
+      // Faz 10A (DEM-135) — üyelik çıkarma / rol değişimi. Mobil
+      // `notifications.summary.memberRemoved/memberRoleChanged` + worker
+      // `renderNotificationPush` ile simetrik; rol etiketi `roleLabelTr`'den
+      // gelir, ek-güvenli `"X" rolünden "Y" rolüne` kalıbı.
+      memberRemoved: (boardName: string) => `seni "${boardName}" panosundan çıkardı`,
+      memberRoleChanged: (boardName: string, fromRole = '', toRole = '') => {
+        const change = toRole
+          ? fromRole
+            ? `rolünü "${fromRole}" rolünden "${toRole}" rolüne değiştirdi`
+            : `rolünü "${toRole}" rolüne değiştirdi`
+          : 'rolünü değiştirdi';
+        return `"${boardName}" panosundaki ${change}`;
+      },
+      attachmentAdded: (cardTitle: string, boardCtx = '', fileName = '') =>
+        fileName
+          ? `${boardCtx}"${cardTitle}" kartına "${fileName}" dosyasını ekledi`
+          : `${boardCtx}"${cardTitle}" kartına bir dosya ekledi`,
       // DEM-153 — kartla ilgili kalan granular aksiyon özetleri.
-      cardRenamed: (cardTitle: string) => `"${cardTitle}" kartının başlığını değiştirdi`,
-      cardDescriptionChanged: (cardTitle: string) =>
-        `"${cardTitle}" kartının açıklamasını güncelledi`,
-      cardLabelAdded: (cardTitle: string) => `"${cardTitle}" kartına bir etiket ekledi`,
-      cardLabelRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir etiket kaldırdı`,
-      commentUpdated: (cardTitle: string) => `"${cardTitle}" kartındaki bir yorumu düzenledi`,
-      commentDeleted: (cardTitle: string) => `"${cardTitle}" kartındaki bir yorumu sildi`,
-      checklistCreated: (cardTitle: string) =>
-        `"${cardTitle}" kartına bir yapılacaklar listesi ekledi`,
-      checklistItemAdded: (cardTitle: string) =>
-        `"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
-      checklistItemRemoved: (cardTitle: string) =>
-        `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
-      attachmentRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir dosya kaldırdı`,
+      cardRenamed: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının başlığını değiştirdi`,
+      cardDescriptionChanged: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının açıklamasını güncelledi`,
+      // Etiket adı payload'dan (`labelName`); yoksa jenerik "bir etiket".
+      cardLabelAdded: (cardTitle: string, boardCtx = '', labelName = '') =>
+        labelName
+          ? `${boardCtx}"${cardTitle}" kartına "${labelName}" etiketini ekledi`
+          : `${boardCtx}"${cardTitle}" kartına bir etiket ekledi`,
+      cardLabelRemoved: (cardTitle: string, boardCtx = '', labelName = '') =>
+        labelName
+          ? `${boardCtx}"${cardTitle}" kartından "${labelName}" etiketini kaldırdı`
+          : `${boardCtx}"${cardTitle}" kartından bir etiket kaldırdı`,
+      commentUpdated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir yorumu düzenledi`,
+      commentDeleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir yorumu sildi`,
+      checklistCreated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartına bir yapılacaklar listesi ekledi`,
+      checklistItemAdded: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
+      checklistItemRemoved: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
+      attachmentRemoved: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartından bir dosya kaldırdı`,
       // DEM-276 follow-up — manuel/save tetik rapor render sonucu. Sistem
       // bildirimi (aktör yok) — `isSystemNotification` set'inde tutulur.
       reportRenderCompleted: (format: string) => `${format.toUpperCase()} raporun hazır`,

@@ -376,6 +376,100 @@ describe('notificationSummary', () => {
     );
   });
 
+  // İçerik sözleşmesi (2026-06-20) — pano bağlamı + spesifik değişim zenginleştirmesi.
+  describe('içerik sözleşmesi zenginleştirme (2026-06-20)', () => {
+    it('boardName varsa pano bağlamı öneki eklenir (ek-güvenli kalıp)', () => {
+      const ctx = copy.boardCtx('Sprint Panosu');
+      expect(ctx).toBe('"Sprint Panosu" panosunda ');
+      expect(
+        notificationSummary('card_assigned', { cardTitle: 'Login bug', boardName: 'Sprint Panosu' }),
+      ).toBe(copy.cardMemberAdded('Login bug', ctx));
+      expect(
+        notificationSummary('card_archived', { cardTitle: 'Login bug', boardName: 'Sprint Panosu' }),
+      ).toBe(copy.cardArchived('Login bug', ctx));
+    });
+
+    it('boardName yoksa pano bağlamı düşer (graceful)', () => {
+      expect(copy.boardCtx(undefined)).toBe('');
+      expect(copy.boardCtx('   ')).toBe('');
+      expect(notificationSummary('card_archived', { cardTitle: 'X' })).toBe(copy.cardArchived('X'));
+    });
+
+    it('card_moved: liste geçişi (fromListTitle + toListTitle)', () => {
+      expect(
+        notificationSummary('card_moved', {
+          cardTitle: 'Login bug',
+          fromListTitle: 'Yapılacak',
+          toListTitle: 'Devam Eden',
+        }),
+      ).toBe(copy.cardMoved('Login bug', 'Yapılacak', 'Devam Eden'));
+    });
+
+    it('card_moved: yalnız hedef liste varsa hedefe taşıma metni', () => {
+      expect(
+        notificationSummary('card_moved', { cardTitle: 'X', toListTitle: 'Bitti' }),
+      ).toBe(copy.cardMoved('X', undefined, 'Bitti'));
+    });
+
+    it('card_due_changed (set): yeni tarih cihaz-yerel kısa formatta', () => {
+      // 14:30 yerel saat → "gün ay HH:MM"; saatsiz (00:00) → "gün ay HafGün".
+      const withTime = notificationSummary('card_due_changed', {
+        cardTitle: 'X',
+        dueAt: new Date(2026, 5, 25, 14, 30).toISOString(),
+      });
+      expect(withTime).toBe(copy.cardDueSet('X', '25 Haz 14:30'));
+      const dateOnly = notificationSummary('card_due_changed', {
+        cardTitle: 'X',
+        dueAt: new Date(2026, 5, 25, 0, 0).toISOString(),
+      });
+      // 25 Haz 2026 = Perşembe → "Per".
+      expect(dateOnly).toBe(copy.cardDueSet('X', '25 Haz Per'));
+    });
+
+    it('card_due_changed (set): dueAt yoksa tarihsiz yedeğe düşer', () => {
+      expect(notificationSummary('card_due_changed', { cardTitle: 'X' })).toBe(
+        copy.cardDueSet('X', undefined),
+      );
+    });
+
+    it('card_label_added/removed: etiket adı taşınır', () => {
+      expect(
+        notificationSummary('card_label_added', { cardTitle: 'X', labelName: 'Acil' }),
+      ).toBe(copy.cardLabelAdded('X', 'Acil'));
+      expect(
+        notificationSummary('card_label_removed', { cardTitle: 'X', labelName: 'Acil' }),
+      ).toBe(copy.cardLabelRemoved('X', 'Acil'));
+    });
+
+    it('card_label_added: labelName yoksa jenerik etiket metni', () => {
+      expect(notificationSummary('card_label_added', { cardTitle: 'X' })).toBe(
+        copy.cardLabelAdded('X', undefined),
+      );
+    });
+
+    it('member_role_changed: rol geçişi TR etiketle (fromRole→toRole)', () => {
+      expect(
+        notificationSummary('member_role_changed', {
+          boardName: 'Pano A',
+          fromRole: 'member',
+          toRole: 'admin',
+        }),
+      ).toBe(copy.memberRoleChanged('Pano A', 'üye', 'yönetici'));
+    });
+
+    it('member_role_changed: yalnız toRole varsa "rolünü X yaptı"', () => {
+      expect(
+        notificationSummary('member_role_changed', { boardName: 'Pano A', toRole: 'admin' }),
+      ).toBe(copy.memberRoleChanged('Pano A', undefined, 'yönetici'));
+    });
+
+    it('member_role_changed: rol alanları yoksa jenerik "rolünü değiştirdi"', () => {
+      expect(notificationSummary('member_role_changed', { boardName: 'Pano A' })).toBe(
+        copy.memberRoleChanged('Pano A'),
+      );
+    });
+  });
+
   it('cardTitle yoksa title alanına düşer', () => {
     expect(notificationSummary('card_moved', { title: 'Yedek başlık' })).toBe(
       copy.cardMoved('Yedek başlık'),

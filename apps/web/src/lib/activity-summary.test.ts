@@ -81,6 +81,65 @@ describe('activitySummary', () => {
     expect(activitySummary('card.renamed', { cardTitle: 'Eski' })).toContain('Eski');
   });
 
+  it('2026-06-20 content contract — board context + specific change, worker-symmetric', () => {
+    // Pano bağlamı ek-güvenli "X panosunda" kalıbıyla eklenir.
+    expect(
+      activitySummary('card_archived', { cardTitle: 'Login bug', boardName: 'Sprint Panosu' }),
+    ).toContain('"Sprint Panosu" panosunda');
+
+    // card_moved → kaynak + hedef liste geçişi.
+    const moved = activitySummary('card_moved', {
+      cardTitle: 'Login bug',
+      boardName: 'Sprint Panosu',
+      fromListTitle: 'Yapılacak',
+      toListTitle: 'Devam Eden',
+    });
+    expect(moved).toContain('"Yapılacak" listesinden "Devam Eden" listesine taşıdı');
+
+    // card_moved → yalnız hedef liste.
+    expect(
+      activitySummary('card_moved', { cardTitle: 'Login bug', toListTitle: 'Bitti' }),
+    ).toContain('"Bitti" listesine taşıdı');
+
+    // card_due_changed → formatlı (cihaz-yerel) tarih; tarih metnin içinde geçer.
+    const due = activitySummary('card_due_changed', {
+      cardTitle: 'Rapor',
+      dueAt: '2026-06-25T00:00:00.000Z',
+    });
+    expect(due).toContain('teslim tarihini');
+    expect(due).toContain('olarak ayarladı');
+
+    // card_label_added/removed → etiket adı.
+    expect(
+      activitySummary('card_label_added', { cardTitle: 'Login bug', labelName: 'Acil' }),
+    ).toContain('"Acil" etiketini ekledi');
+    expect(
+      activitySummary('card_label_removed', { cardTitle: 'Login bug', labelName: 'Acil' }),
+    ).toContain('"Acil" etiketini kaldırdı');
+
+    // attachment_added → dosya adı.
+    expect(
+      activitySummary('attachment_added', { cardTitle: 'Login bug', fileName: 'log.txt' }),
+    ).toContain('"log.txt" dosyasını ekledi');
+  });
+
+  it('2026-06-20 content contract — graceful fallback when new fields are absent', () => {
+    // Eski payload: boardName/fromListTitle/toListTitle yok → pano kısmı düşer,
+    // jenerik "taşıdı" kalır (cümle yine anlamlı).
+    const movedOld = activitySummary('card_moved', { cardTitle: 'Eski kart' });
+    expect(movedOld).toBe('"Eski kart" kartını taşıdı');
+
+    // dueAt yok → tarihsiz jenerik metin.
+    expect(activitySummary('card_due_changed', { cardTitle: 'Eski' })).toContain(
+      'teslim tarihi belirledi',
+    );
+
+    // labelName yok → jenerik "bir etiket".
+    expect(activitySummary('card_label_added', { cardTitle: 'Eski' })).toContain(
+      'bir etiket ekledi',
+    );
+  });
+
   it('DEM-170 — due_approaching picks tier-specific copy from reminderTier', () => {
     // Tier yoksa jenerik "yaklaşıyor".
     expect(activitySummary('due_approaching', { cardTitle: 'Plan' })).toContain(

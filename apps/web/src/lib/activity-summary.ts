@@ -1,3 +1,4 @@
+import { formatDueShort } from './format';
 import { strings } from './strings';
 
 type ActivityPayload = Record<string, unknown>;
@@ -5,6 +6,46 @@ type ActivityPayload = Record<string, unknown>;
 function text(payload: ActivityPayload, key: string): string | undefined {
   const value = payload[key];
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * Ek-güvenli pano bağlamı öneki — `"<pano>" panosunda `. Worker'ın
+ * `boardContextPrefix`'iyle birebir simetrik: locative ek jenerik **"pano"**
+ * kelimesine gelir (kullanıcı verisi pano adına değil), bu yüzden ek-uyumu her
+ * zaman doğru. Pano adı yoksa boş string döner → cümle pano bağlamı olmadan da
+ * anlamlı kalır (graceful fallback, eski payload'larda `boardName` olmayabilir).
+ */
+function boardContext(payload: ActivityPayload): string {
+  const board = text(payload, 'boardName');
+  return board ? `"${board}" panosunda ` : '';
+}
+
+/** `card_moved` liste geçişi alanları (`fromListTitle` / `toListTitle`). */
+function fromListTitle(payload: ActivityPayload): string {
+  return text(payload, 'fromListTitle') ?? '';
+}
+
+function toListTitle(payload: ActivityPayload): string {
+  return text(payload, 'toListTitle') ?? '';
+}
+
+/** Etiket adı — `labelName` payload alanı (`card_label_*`); yoksa boş string. */
+function cardLabelName(payload: ActivityPayload): string {
+  return text(payload, 'labelName') ?? '';
+}
+
+/** Ek (attachment) dosya adı — `fileName` payload alanı; yoksa boş string. */
+function attachmentFileName(payload: ActivityPayload): string {
+  return text(payload, 'fileName') ?? '';
+}
+
+/**
+ * Yeni teslim tarihi kısa, **cihaz-yerel** TR etiketi (`formatDueShort`). Worker
+ * push/email'i sabit Europe/Istanbul kullanır; in-app metin kullanıcının
+ * tarayıcı saat dilimine göre formatlanır. Geçersiz/eksik `dueAt` → boş string.
+ */
+function dueLabel(payload: ActivityPayload): string {
+  return formatDueShort(text(payload, 'dueAt')) ?? '';
 }
 
 function cardTitle(payload: ActivityPayload): string {
@@ -48,6 +89,28 @@ function isArchived(payload: ActivityPayload): boolean {
 }
 
 /**
+ * Rol kodunu TR etiketine çevirir — worker `roleLabelTr` + mobil `roleLabel`
+ * ile birebir. `member_role_changed` özetinde "üye → yönetici" geçişini yazar.
+ * Bilinmeyen/boş rol → boş string (metin "rolünü değiştirdi"ye düşer).
+ */
+function roleLabelTr(role: string | undefined): string {
+  switch (role) {
+    case 'owner':
+      return 'sahip';
+    case 'admin':
+      return 'yönetici';
+    case 'member':
+      return 'üye';
+    case 'viewer':
+      return 'görüntüleyici';
+    case 'guest':
+      return 'misafir';
+    default:
+      return role ?? '';
+  }
+}
+
+/**
  * Notification summary copy without the actor prefix. Notification rows render
  * the actor separately so the name can stay bold while the action text remains
  * reusable and testable.
@@ -59,13 +122,13 @@ export function activitySummary(type: string, payload: unknown): string {
   switch (type) {
     case 'card_assigned':
     case 'card.member_added':
-      return copy.cardMemberAdded(cardTitle(p));
+      return copy.cardMemberAdded(cardTitle(p), boardContext(p));
     case 'mention':
     case 'comment.mentioned':
-      return copy.commentMentioned(cardTitle(p));
+      return copy.commentMentioned(cardTitle(p), boardContext(p));
     case 'comment_reply':
     case 'comment.created':
-      return copy.commentCreated(cardTitle(p));
+      return copy.commentCreated(cardTitle(p), boardContext(p));
     case 'due_approaching': {
       // DEM-170 — scheduler 1g/1s hatırlatmasının ikisine de `due_approaching`
       // tipini verir; tier-özel metni `reminderTier` payload alanından seç.
@@ -101,76 +164,90 @@ export function activitySummary(type: string, payload: unknown): string {
     // `card_due_changed`) `activityType` payload alanı doğru fiili seçer.
     case 'card_moved':
     case 'card.moved':
-      return copy.cardMoved(cardTitle(p));
+      return copy.cardMoved(cardTitle(p), boardContext(p), fromListTitle(p), toListTitle(p));
     case 'card_archived':
-      return copy.cardArchived(cardTitle(p));
+      return copy.cardArchived(cardTitle(p), boardContext(p));
     case 'card_completed':
       return text(p, 'activityType') === 'card.uncompleted'
-        ? copy.cardUncompleted(cardTitle(p))
-        : copy.cardCompleted(cardTitle(p));
+        ? copy.cardUncompleted(cardTitle(p), boardContext(p))
+        : copy.cardCompleted(cardTitle(p), boardContext(p));
     case 'card_due_changed':
       return text(p, 'activityType') === 'card.due_cleared'
-        ? copy.cardDueCleared(cardTitle(p))
-        : copy.cardDueSet(cardTitle(p));
+        ? copy.cardDueCleared(cardTitle(p), boardContext(p))
+        : copy.cardDueSet(cardTitle(p), boardContext(p), dueLabel(p));
     case 'card_cover_changed':
-      return copy.cardCoverChanged(cardTitle(p));
+      return copy.cardCoverChanged(cardTitle(p), boardContext(p));
     case 'card_member_removed':
     case 'card.member_removed':
       return copy.cardMemberRemoved(cardTitle(p));
+    // Faz 10A (DEM-135) — board/workspace üyelikten çıkarma + rol değişimi.
+    // Worker push/email + mobil in-app ile simetrik (board-merkezli metin).
+    case 'member_removed':
+    case 'board.member_removed':
+    case 'workspace.member_removed':
+      return copy.memberRemoved(boardName(p));
+    case 'member_role_changed':
+    case 'board.member_role_changed':
+    case 'workspace.member_role_changed':
+      return copy.memberRoleChanged(
+        boardName(p),
+        roleLabelTr(text(p, 'fromRole')),
+        roleLabelTr(text(p, 'toRole')),
+      );
     case 'attachment_added':
     case 'attachment.added':
-      return copy.attachmentAdded(cardTitle(p));
+      return copy.attachmentAdded(cardTitle(p), boardContext(p), attachmentFileName(p));
     // DEM-153 — kartla ilgili kalan granular tipler (notification tipi +
     // activity-type alias'ı eski payload'lar için birlikte tutulur).
     case 'card_renamed':
     case 'card.renamed':
-      return copy.cardRenamed(cardTitle(p));
+      return copy.cardRenamed(cardTitle(p), boardContext(p));
     case 'card_description_changed':
     case 'card.description_changed':
-      return copy.cardDescriptionChanged(cardTitle(p));
+      return copy.cardDescriptionChanged(cardTitle(p), boardContext(p));
     case 'card_label_added':
     case 'card.label_added':
-      return copy.cardLabelAdded(cardTitle(p));
+      return copy.cardLabelAdded(cardTitle(p), boardContext(p), cardLabelName(p));
     case 'card_label_removed':
     case 'card.label_removed':
-      return copy.cardLabelRemoved(cardTitle(p));
+      return copy.cardLabelRemoved(cardTitle(p), boardContext(p), cardLabelName(p));
     case 'comment_updated':
     case 'comment.updated':
-      return copy.commentUpdated(cardTitle(p));
+      return copy.commentUpdated(cardTitle(p), boardContext(p));
     case 'comment_deleted':
     case 'comment.deleted':
-      return copy.commentDeleted(cardTitle(p));
+      return copy.commentDeleted(cardTitle(p), boardContext(p));
     case 'checklist_created':
     case 'checklist.created':
-      return copy.checklistCreated(cardTitle(p));
+      return copy.checklistCreated(cardTitle(p), boardContext(p));
     case 'checklist_item_added':
     case 'checklist.item_added':
-      return copy.checklistItemAdded(cardTitle(p));
+      return copy.checklistItemAdded(cardTitle(p), boardContext(p));
     case 'checklist_item_removed':
     case 'checklist.item_removed':
-      return copy.checklistItemRemoved(cardTitle(p));
+      return copy.checklistItemRemoved(cardTitle(p), boardContext(p));
     case 'attachment_removed':
     case 'attachment.removed':
-      return copy.attachmentRemoved(cardTitle(p));
+      return copy.attachmentRemoved(cardTitle(p), boardContext(p));
     // `watched_activity` artık üretilmiyor (DEM-152) ama eski satırlar için
     // fallback olarak korunur — `activityType`'a göre çözer.
     case 'watched_activity':
       switch (text(p, 'activityType')) {
         case 'card.archived':
-          return copy.cardArchived(cardTitle(p));
+          return copy.cardArchived(cardTitle(p), boardContext(p));
         case 'card.completed':
-          return copy.cardCompleted(cardTitle(p));
+          return copy.cardCompleted(cardTitle(p), boardContext(p));
         case 'card.moved':
-          return copy.cardMoved(cardTitle(p));
+          return copy.cardMoved(cardTitle(p), boardContext(p), fromListTitle(p), toListTitle(p));
         default:
-          return copy.watchedActivity(cardTitle(p));
+          return copy.watchedActivity(cardTitle(p), boardContext(p));
       }
     case 'checklist_item_completed':
-      return copy.checklistItemCompleted(cardTitle(p));
+      return copy.checklistItemCompleted(cardTitle(p), boardContext(p));
     case 'card.archived':
-      return copy.cardArchived(cardTitle(p));
+      return copy.cardArchived(cardTitle(p), boardContext(p));
     case 'card.completed':
-      return copy.cardCompleted(cardTitle(p));
+      return copy.cardCompleted(cardTitle(p), boardContext(p));
     // DEM-276 follow-up — manuel/save rapor render bildirimleri. Worker
     // payload'a `format` koyar ('pdf' | 'xlsx' | 'png' | 'svg'); fallback
     // 'pdf'. Sistem bildirimi olduğundan `actorName` yok — UI satırı

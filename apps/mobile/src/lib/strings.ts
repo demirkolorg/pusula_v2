@@ -550,16 +550,31 @@ export const strings = {
       earlier: 'Daha eski',
     },
     // Aktör-prefixsiz özet metinleri (web `activity-summary.ts` ile aynı).
+    //
+    // İçerik sözleşmesi (2026-06-20, `docs/domain/04-bildirim-kurallari.md`):
+    // "takip ettiğin" ön eki yok; karta/listeye/etikete ilişkin metinler
+    // mümkünse **pano bağlamı** taşır. Pano bağlamı ek-güvenli kalıpla
+    // (`"<pano>" panosunda `) jenerik "pano" kelimesine ek getirir — board adı
+    // boşsa `boardCtx` boş string döner, cümle graceful kalır. Worker
+    // `renderNotificationPush` ile simetrik.
     summary: {
-      cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
-      commentMentioned: (cardTitle: string, commentPreview?: string) =>
+      /**
+       * Ek-güvenli pano bağlamı öneki. Doluysa `"<pano>" panosunda ` döner
+       * (locative ek jenerik "pano" kelimesine gelir → ek-uyumu hep doğru);
+       * boşsa boş string (pano kısmı düşer). Worker `boardContextPrefix` eşleniği.
+       */
+      boardCtx: (boardName?: string) =>
+        boardName && boardName.trim().length > 0 ? `"${boardName}" panosunda ` : '',
+      cardMemberAdded: (cardTitle: string, boardCtx = '') =>
+        `sana ${boardCtx}"${cardTitle}" kartını atadı`,
+      commentMentioned: (cardTitle: string, commentPreview?: string, boardCtx = '') =>
         commentPreview
-          ? `"${cardTitle}" kartında senden bahsetti: "${commentPreview}"`
-          : `"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
-      commentCreated: (cardTitle: string, commentPreview?: string) =>
+          ? `${boardCtx}"${cardTitle}" kartında senden bahsetti: "${commentPreview}"`
+          : `${boardCtx}"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
+      commentCreated: (cardTitle: string, commentPreview?: string, boardCtx = '') =>
         commentPreview
-          ? `"${cardTitle}" kartında yorum bıraktı: "${commentPreview}"`
-          : `"${cardTitle}" kartında yorum bıraktı`,
+          ? `${boardCtx}"${cardTitle}" kartında yorum bıraktı: "${commentPreview}"`
+          : `${boardCtx}"${cardTitle}" kartında yorum bıraktı`,
       dueApproaching: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi yaklaşıyor`,
       dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
       dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
@@ -569,49 +584,103 @@ export const strings = {
       workspaceMemberInvited: (workspaceName: string) =>
         `seni "${workspaceName}" çalışma alanına davet etti`,
       boardAccessRequested: (boardName: string) => `"${boardName}" panosuna erişim istedi`,
-      watchedActivity: (cardTitle: string) => `"${cardTitle}" kartında değişiklik yaptı`,
-      checklistItemCompleted: (cardTitle: string, itemContent?: string) =>
+      watchedActivity: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartında değişiklik yaptı`,
+      checklistItemCompleted: (cardTitle: string, itemContent?: string, boardCtx = '') =>
         itemContent
           ? `"${itemContent}" maddesini tamamladı`
-          : `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
-      cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
-      cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
-      cardMoved: (cardTitle: string) => `"${cardTitle}" kartını taşıdı`,
-      cardUncompleted: (cardTitle: string) =>
-        `"${cardTitle}" kartının tamamlandı işaretini kaldırdı`,
-      cardDueSet: (cardTitle: string) => `"${cardTitle}" kartı için teslim tarihi belirledi`,
-      cardDueCleared: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihini kaldırdı`,
-      cardCoverChanged: (cardTitle: string) => `"${cardTitle}" kartının kapağını değiştirdi`,
+          : `${boardCtx}"${cardTitle}" kartındaki bir maddeyi tamamladı`,
+      cardArchived: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartını arşivledi`,
+      cardCompleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartını tamamlandı işaretledi`,
+      /**
+       * card_moved — liste geçişi: kaynak + hedef liste adı varsa
+       * "'Yapılacak' listesinden 'Devam Eden' listesine taşıdı"; yalnız hedef
+       * varsa "'Devam Eden' listesine taşıdı"; ikisi de yoksa düz "taşıdı".
+       * Worker `card_moved` push gövdesi ile simetrik.
+       */
+      cardMoved: (cardTitle: string, fromList?: string, toList?: string, boardCtx = '') => {
+        const move =
+          fromList && toList
+            ? `"${fromList}" listesinden "${toList}" listesine taşıdı`
+            : toList
+              ? `"${toList}" listesine taşıdı`
+              : 'taşıdı';
+        return `${boardCtx}"${cardTitle}" kartını ${move}`;
+      },
+      cardUncompleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının tamamlandı işaretini kaldırdı`,
+      /**
+       * card_due_changed (set) — yeni teslim tarihi cihaz-yerel kısa TR formatta
+       * ("25 Haz Cmt" / saatliyse "25 Haz 14:00"). Tarih çözülemezse bağlamsız
+       * yedek metne düşer. Worker `formatDueTr` eşleniği (cihaz TZ farkıyla).
+       */
+      cardDueSet: (cardTitle: string, dueLabel?: string, boardCtx = '') =>
+        dueLabel
+          ? `${boardCtx}"${cardTitle}" kartının teslim tarihini ${dueLabel} olarak ayarladı`
+          : `${boardCtx}"${cardTitle}" kartı için teslim tarihi belirledi`,
+      cardDueCleared: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının teslim tarihini kaldırdı`,
+      cardCoverChanged: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının kapağını değiştirdi`,
       cardMemberRemoved: (cardTitle: string) => `seni "${cardTitle}" kartından çıkardı`,
       memberRemoved: (boardName: string) => `seni "${boardName}" panosundan çıkardı`,
-      memberRoleChanged: (boardName: string) => `"${boardName}" panosundaki rolünü değiştirdi`,
-      attachmentAdded: (cardTitle: string, fileName?: string) =>
+      /**
+       * member_role_changed — rol geçişi: eski + yeni rol varsa
+       * "rolünü 'üye'den 'yönetici'e değiştirdi"; yalnız yeni rol varsa
+       * "rolünü 'yönetici' yaptı"; hiçbiri yoksa "rolünü değiştirdi". Rol
+       * etiketleri TR (`roleLabel`). Worker `member_role_changed` ile simetrik.
+       */
+      memberRoleChanged: (boardName: string, fromRole?: string, toRole?: string) => {
+        const change = toRole
+          ? fromRole
+            ? `rolünü "${fromRole}" rolünden "${toRole}" rolüne değiştirdi`
+            : `rolünü "${toRole}" rolüne değiştirdi`
+          : 'rolünü değiştirdi';
+        return `"${boardName}" panosundaki ${change}`;
+      },
+      attachmentAdded: (cardTitle: string, fileName?: string, boardCtx = '') =>
         fileName
-          ? `"${cardTitle}" kartına "${fileName}" ekledi`
-          : `"${cardTitle}" kartına bir dosya ekledi`,
-      cardRenamed: (cardTitle: string) => `"${cardTitle}" kartının başlığını değiştirdi`,
-      cardDescriptionChanged: (cardTitle: string) =>
-        `"${cardTitle}" kartının açıklamasını güncelledi`,
-      cardLabelAdded: (cardTitle: string) => `"${cardTitle}" kartına bir etiket ekledi`,
-      cardLabelRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir etiket kaldırdı`,
-      commentUpdated: (cardTitle: string) => `"${cardTitle}" kartındaki bir yorumu düzenledi`,
-      commentDeleted: (cardTitle: string) => `"${cardTitle}" kartındaki bir yorumu sildi`,
-      checklistCreated: (cardTitle: string) =>
-        `"${cardTitle}" kartına bir yapılacaklar listesi ekledi`,
-      checklistItemAdded: (cardTitle: string, itemContent?: string) =>
+          ? `${boardCtx}"${cardTitle}" kartına "${fileName}" ekledi`
+          : `${boardCtx}"${cardTitle}" kartına bir dosya ekledi`,
+      cardRenamed: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının başlığını değiştirdi`,
+      cardDescriptionChanged: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartının açıklamasını güncelledi`,
+      /**
+       * card_label_added / removed — etiket adı taşınır ("'Acil' etiketini
+       * ekledi"); ad yoksa jenerik "bir etiket". Worker `card_label_*` eşleniği.
+       */
+      cardLabelAdded: (cardTitle: string, labelName?: string, boardCtx = '') =>
+        labelName
+          ? `${boardCtx}"${cardTitle}" kartına "${labelName}" etiketini ekledi`
+          : `${boardCtx}"${cardTitle}" kartına bir etiket ekledi`,
+      cardLabelRemoved: (cardTitle: string, labelName?: string, boardCtx = '') =>
+        labelName
+          ? `${boardCtx}"${cardTitle}" kartından "${labelName}" etiketini kaldırdı`
+          : `${boardCtx}"${cardTitle}" kartından bir etiket kaldırdı`,
+      commentUpdated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir yorumu düzenledi`,
+      commentDeleted: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartındaki bir yorumu sildi`,
+      checklistCreated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartına bir yapılacaklar listesi ekledi`,
+      checklistItemAdded: (cardTitle: string, itemContent?: string, boardCtx = '') =>
         itemContent
           ? `"${itemContent}" maddesini ekledi`
-          : `"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
-      checklistItemRemoved: (cardTitle: string, itemContent?: string) =>
+          : `${boardCtx}"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
+      checklistItemRemoved: (cardTitle: string, itemContent?: string, boardCtx = '') =>
         itemContent
           ? `"${itemContent}" maddesini sildi`
-          : `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
-      attachmentRemoved: (cardTitle: string, fileName?: string) =>
+          : `${boardCtx}"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
+      attachmentRemoved: (cardTitle: string, fileName?: string, boardCtx = '') =>
         fileName
-          ? `"${cardTitle}" kartından "${fileName}" kaldırdı`
-          : `"${cardTitle}" kartından bir dosya kaldırdı`,
+          ? `${boardCtx}"${cardTitle}" kartından "${fileName}" kaldırdı`
+          : `${boardCtx}"${cardTitle}" kartından bir dosya kaldırdı`,
       // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
-      cardCreated: (cardTitle: string) => `"${cardTitle}" kartını oluşturdu`,
+      cardCreated: (cardTitle: string, boardCtx = '') =>
+        `${boardCtx}"${cardTitle}" kartını oluşturdu`,
       listCreated: (listName: string) => `"${listName}" listesini oluşturdu`,
       listRenamed: (listName: string) => `bir listenin adını "${listName}" yaptı`,
       listMoved: (listName: string) => `"${listName}" listesini taşıdı`,
@@ -939,6 +1008,60 @@ export const strings = {
         'Bu sıfırlama bağlantısı eksik ya da bozuk görünüyor. Yeni bir bağlantı isteyebilirsin.',
       requestNewLink: 'Yeni bağlantı iste',
       backToSignIn: 'Giriş ekranına dön',
+    },
+    // Giriş ekranı (`/sign-in`) landing görselleri — web `apps/web` strings
+    // `auth.landing` ile birebir hizalı. Tümü dekoratif/sahte örnek içerik
+    // (entity-bağımsız, gerçek veri DEĞİL); yalnızca giriş ekranı vitrini için.
+    landing: {
+      heroEyebrow: 'Pusula ile tanışın',
+      // Hero başlık — sabit ön/son metin + dönen kelime listesi. Görünen kelime
+      // değişir; ekran okuyucuya `heroHeadlineFull` sabit tam metin sunulur.
+      heroHeadline: {
+        prefix: 'Ekibinizin',
+        rotatingWords: ['işleri', 'planları', 'kartları', 'panoları'],
+        suffix: 'tek pusulada.',
+      },
+      heroHeadlineFull: 'Ekibinizin işleri tek pusulada.',
+      // Dekoratif (a11y-gizli) mini kanban önizlemesi içeriği.
+      boardMockup: {
+        columns: {
+          todo: {
+            title: 'Yapılacaklar',
+            cards: {
+              first: 'Çeyrek planını ekiple paylaş',
+              second: 'Yeni başvuruları değerlendir',
+            },
+          },
+          inProgress: {
+            title: 'Devam Edenler',
+            cards: {
+              first: 'Açılış sayfası tasarımını hazırla',
+              second: 'Müşteri geri bildirimlerini derle',
+              third: 'Haftalık rapor taslağı',
+            },
+          },
+          done: {
+            title: 'Tamamlananlar',
+            cards: {
+              first: 'Sprint toplantısı notlarını yaz',
+              second: 'Bütçe onayını al',
+            },
+          },
+        },
+      },
+      // Board mockup çevresinde yüzen dekoratif (a11y-gizli) mini aktivite kartları.
+      floatingActivity: {
+        cardMoved: 'kartı "Tamamlananlar"a taşıdı',
+        newComment: 'yeni bir yorum ekledi',
+        dueSoon: 'son tarih yaklaşıyor',
+        timeMovedAgo: '2 dk önce',
+        timeCommentAgo: '5 dk önce',
+        timeDueAgo: 'Bugün',
+      },
+      // Cam kartın altındaki sosyal-proof şeridi — sahte/örnek metin.
+      socialProof: {
+        text: 'Yüzlerce ekip işlerini Pusula ile yönetiyor.',
+      },
     },
   },
   // Faz 13S (DEM-275) — mobil rapor entegrasyonu (saved + scheduled liste,

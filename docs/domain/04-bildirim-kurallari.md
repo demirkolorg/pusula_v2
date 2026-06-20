@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-06-01
+updated: 2026-06-20
 ---
 
 # 04 — Bildirim Kuralları
@@ -202,6 +202,25 @@ Gerekçe: Kullanıcı şikayeti "iPhone bildirim merkezinde sadece atama + menti
 **Mute-bypass değişmedi:** `mention` + `board_invitation` + `workspace_invitation` her zaman geçer (kullanıcı tam mute'ta olsa bile). Diğer tipler `mute_level=all` veya `mention_only` ayarına tabidir.
 
 **Mobile değişikliği yok:** Push expansion backend-only (`packages/api/src/lib/notification-rules.ts`). Mevcut mobile push handler tüm tipleri gösterir; yeni `eas build` veya OTA gerekmez — yalnız API + worker Dokploy redeploy.
+
+## Bildirim metni içerik sözleşmesi (2026-06-20)
+
+> _Kullanıcı kararı (`AskUserQuestion`, 2026-06-20): "**tam bağlam**" + "**takip ettiğin** ön ekini kaldır"._
+> Bildirim metni hem **daha çok detay** taşımalı (kullanıcı kilitten/merkeze bakınca ne olduğunu tek satırda anlamalı) hem **sade** olmalı. Bu sözleşme push / e-posta / in-app (web + mobil) **dört kanalın da** uyduğu ortak kuraldır; üç render katmanı (`apps/worker/.../notification-templates.ts` push+email, `apps/web/src/lib/activity-summary.ts`, `apps/mobile/src/lib/notification-display.ts` + `strings.ts`) **simetrik** kalmalı.
+
+**Temel kalıp:** `<aktör> <fiil + bağlam>`. Aktörsüz (sistem) bildirimlerde aktör/avatar prefix'i yoktur (mevcut kural — bkz. Genel kurallar).
+
+1. **"takip ettiğin" / "takip ettiğin … kartı" ifadesi kaldırıldı.** Cümle kısalır, bağlama yer açılır. (Önce: _"Ali, takip ettiğin 'Login bug' kartını taşıdı."_ → Sonra: _"Ali, 'Login bug' kartını … taşıdı."_)
+2. **Pano bağlamı:** Bir karta/listeye/etikete ilişkin bildirim, mümkünse **pano adını** taşır — _"Ali, **'Sprint Panosu'nda** 'Login bug' kartını …"_. Pano adı yoksa graceful olarak pano kısmı düşer (cümle yine anlamlı kalır).
+3. **Spesifik değişim taşınır** (jenerik fiil değil):
+   - `card_moved`: kaynak→hedef **liste adı** — _"… 'Yapılacak'tan 'Devam Eden'e taşıdı."_ (cross-board `card.movedToList` → ayrıca **pano değişimi** belirtilir).
+   - `card_due_changed`: **yeni tarih** kısa TR formatında — _"… teslim tarihini **25 Haz Cmt** olarak ayarladı."_ (saatli ise _"25 Haz 14:00"_); temizlemede _"teslim tarihini kaldırdı"_.
+   - `card_label_added` / `card_label_removed`: **etiket adı** — _"… 'Acil' etiketini ekledi."_ (adsız renk-only etikette renk adı/yedek).
+   - `member_role_changed`: rol **geçişi** — _"… rolünü 'üye'den 'yönetici'e değiştirdi."_ (eski rol yoksa yalnız yeni rol).
+   - `checklist_item_*` / `attachment_*` / `comment_*`: madde içeriği / dosya adı / yorum önizlemesi (mevcut davranış korunur, pano bağlamıyla zenginleşir).
+4. **Bağlam verisi `notification_outbox.payload`'ta taşınır.** Kök kaynak `loadPayloadContext` (`packages/api/src/lib/notification-rules.ts`): liste adları (`fromListTitle` / `toListTitle` / `listTitle`), etiket adı (`labelName`) bu katmanda `lists` / `labels` tablolarından **transaction içinde** çözülür; `dueAt` / `fromRole` / `toRole` zaten producer activity payload'ından gelir. Append-only disiplin: yalnız **yeni opsiyonel** payload alanları eklenir → eski bildirimler bozulmaz, alan yoksa metin eski (bağlamsız) haline graceful düşer.
+5. **Push gövdesi sınırı:** Push gövdesi iki satıra sığacak yoğunlukta kalmalı; uzun kart/pano/liste başlıkları render katmanında kırpılır (kilit ekranında taşmasın). In-app ve e-postada kırpma yok.
+6. **i18n / hardcode yasağı:** Tüm metin `strings.ts` (mobil) / template fonksiyonları (worker) / `activity-summary.ts` (web) içinde kalır; UI bileşenleri hardcode bildirim metni içermez.
 
 ## Genel kurallar
 

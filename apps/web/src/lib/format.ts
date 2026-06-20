@@ -11,6 +11,27 @@ const dateTimeFormatter = new Intl.DateTimeFormat('tr-TR', {
 });
 const relativeFormatter = new Intl.RelativeTimeFormat('tr-TR', { numeric: 'auto' });
 
+// Notification due-date copy: short date (gün + kısa ay) + a weekday or time
+// suffix. Device-local on purpose — unlike the worker (fixed Europe/Istanbul for
+// push/email), the in-app notification center renders in the viewer's browser
+// timezone. `dueShort*` mirror the worker's `formatDueTr` shape ("25 Haz Cmt" /
+// "25 Haz 14:00") so the two channels read identically apart from the TZ.
+const dueShortWeekdayFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'short',
+  weekday: 'short',
+});
+const dueShortTimeFormatter = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const midnightProbeFormatter = new Intl.DateTimeFormat('tr-TR', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 /** Format a date for display (medium, Turkish locale). Accepts a `Date` or ISO string. */
 export function formatDate(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -91,6 +112,23 @@ export function formatRemainingTime(value: Date | string, now: Date = new Date()
     return `${Math.round(diffSeconds / (30 * 86400))} ay kaldı`;
   }
   return `${Math.round(diffSeconds / (365 * 86400))} yıl kaldı`;
+}
+
+/**
+ * Format a due date as compact notification copy, device-local. Returns
+ * "25 Haz Cmt" for a midnight (date-only) due date and "25 Haz 14:00" when a
+ * time component is set — mirroring the worker's `formatDueTr` so push/email and
+ * the in-app notification center read the same (the only difference is the
+ * timezone: this one follows the viewer's browser). Returns `null` for nullish
+ * or invalid input so callers can fall back to date-less copy.
+ */
+export function formatDueShort(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const hasTime = midnightProbeFormatter.format(date) !== '00:00';
+  if (hasTime) return dueShortTimeFormatter.format(date);
+  return dueShortWeekdayFormatter.format(date);
 }
 
 /** Format a timestamp as a compact Turkish relative time, e.g. "2 dakika önce". */
