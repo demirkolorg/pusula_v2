@@ -7,6 +7,8 @@
  *  - `AUDIT_TARGET_TYPES` — hedef entity türü enum
  *  - `auditLogEntrySchema` — Zod şeması (API çıkış doğrulaması için)
  *  - `truncateForAudit`    — activity before/after metin alanı kırpma (≤2KB)
+ *  - `buildActivityChanges` — payload → yapılandırılmış before/after diff
+ *    (web + mobil detay ekranının paylaşılan saf mantığı)
  *
  * Detay: `docs/architecture/17-audit-log-mimarisi.md` +
  * `docs/architecture/06-bildirim-altyapisi.md` "Bildirim detay / audit ekranı".
@@ -23,3 +25,8 @@ export {
   truncateForAudit,
   type TruncatedAuditText,
 } from './truncate';
+export {
+  buildActivityChanges,
+  type ActivityChange,
+  type ActivityChangesOptions,
+} from './activity-changes';

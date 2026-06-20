@@ -36,12 +36,14 @@
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, isNull, lt, or, sql } from '@pusula/db';
 import {
+  activityEvents,
   boardMembers,
   boards,
   cardMembers,
   cards,
   notificationPreferences,
   notifications,
+  users,
   workspaceMembers,
   workspaces,
 } from '@pusula/db';
@@ -89,6 +91,36 @@ const notificationCols = {
   payload: notifications.payload,
   readAt: notifications.readAt,
   createdAt: notifications.createdAt,
+} as const;
+
+const byIdInput = z.object({
+  id: z.string().min(1),
+});
+
+/**
+ * Bildirim detay / audit (2026-06-20) — `byId` projection. The base
+ * `notificationCols` plus the new `activity_event_id` link and the joined
+ * audit handles. Each joined column is `LEFT JOIN`-sourced and therefore
+ * nullable:
+ *  - `actorName` / `actorImage` — null for system notifications (`actor_id`
+ *    NULL) or if the actor account was deleted (`onDelete: 'set null'`).
+ *  - `cardTitle` / `boardTitle` / `workspaceName` — null when the row has no
+ *    such scope, or the target was cascaded away.
+ *  - `activityEventPayload` — the *full* originating activity event payload
+ *    (before/after diff lives here; the client derives the change list via
+ *    `buildActivityChanges`). Null for older notifications written before the
+ *    link existed, scheduler-fired rows (`due_*` — no activity event), or if
+ *    the event row was deleted (`onDelete: 'set null'`).
+ */
+const notificationDetailCols = {
+  ...notificationCols,
+  activityEventId: notifications.activityEventId,
+  actorName: users.name,
+  actorImage: users.image,
+  cardTitle: cards.title,
+  boardTitle: boards.title,
+  workspaceName: workspaces.name,
+  activityEventPayload: activityEvents.payload,
 } as const;
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -885,6 +917,44 @@ export const notificationsRouter = router({
       .where(and(eq(notifications.recipientId, userId), isNull(notifications.readAt)))
       .returning({ id: notifications.id });
     return { marked: updated.length };
+  }),
+
+  /**
+   * Bildirim detay / audit (2026-06-20) — fetch a single notification with
+   * its full audit context for the detail screen.
+   *
+   * Recipient-guard: `WHERE id = ? AND recipient_id = ?`. A miss (row absent
+   * *or* not the caller's) is `NOT_FOUND` — same no-leak discipline as
+   * `markRead` / the rest of this router; `FORBIDDEN` would confirm the row
+   * exists for someone else.
+   *
+   * Does NOT mark the row read: surfacing the detail is a read-only audit
+   * action; the client fires the separate `markRead` mutation on open if it
+   * wants to clear the badge. Keeping them separate means opening the detail
+   * to inspect history never mutates state.
+   *
+   * Joins (all `LEFT JOIN`, all nullable — see `notificationDetailCols`):
+   * actor user, card, board, workspace, and the originating activity event
+   * (`activity_events.id = notifications.activity_event_id`) for its full
+   * before/after payload.
+   */
+  byId: protectedProcedure.input(byIdInput).query(async ({ ctx, input }) => {
+    const userId = ctx.session.user.id;
+    const [row] = await ctx.db
+      .select(notificationDetailCols)
+      .from(notifications)
+      .leftJoin(users, eq(users.id, notifications.actorId))
+      .leftJoin(cards, eq(cards.id, notifications.cardId))
+      .leftJoin(boards, eq(boards.id, notifications.boardId))
+      .leftJoin(workspaces, eq(workspaces.id, notifications.workspaceId))
+      .leftJoin(activityEvents, eq(activityEvents.id, notifications.activityEventId))
+      .where(and(eq(notifications.id, input.id), eq(notifications.recipientId, userId)))
+      .limit(1);
+
+    if (!row) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Bildirim bulunamadı.' });
+    }
+    return row;
   }),
 
   // Faz 10B (DEM-136) — see header doc-comment for the nested router shape.

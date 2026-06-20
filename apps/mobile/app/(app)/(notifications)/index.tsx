@@ -1,5 +1,12 @@
-import { useCallback, useRef } from 'react';
-import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScrollToTop } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -8,6 +15,8 @@ import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { MasterDetailLayout } from '@/components/master-detail-layout';
+import { NotificationDetail } from '@/components/notifications/notification-detail';
 import { Text } from '@/components/text';
 import { SwipeRow } from '@/components/swipe-row';
 import {
@@ -15,8 +24,9 @@ import {
   type NotificationItem,
 } from '@/components/notifications/notification-row';
 import { groupNotificationsByDate } from '@/lib/notification-grouping';
-import { notificationTarget } from '@/lib/notification-target';
 import { strings } from '@/lib/strings';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
+import { useIsTablet } from '@/lib/use-device-class';
 import { useNotificationMutations } from '@/lib/use-notification-mutations';
 import { themeFor } from '@/theme/tokens';
 
@@ -46,6 +56,14 @@ export default function NotificationsScreen() {
   const trpc = useTRPC();
   const router = useRouter();
   const theme = themeFor(useColorScheme());
+  const isTablet = useIsTablet();
+  const navInset = useFloatingNavInset();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  // Tablet sidebar genişliği — hesap ekranıyla simetri (landscape geniş, portrait dar).
+  const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
+  // Tablet master-detail'de sağ pane'de açık bildirim; ilk açılışta seçim yok
+  // (boş durum gösterilir). Telefonda kullanılmaz (satır `router.push` eder).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // Aktif "Bildirimler" sekmesine tekrar dokununca listeyi en üste kaydır
   // (standart React Navigation deseni; floating pill `tabPress` yayar). 2026-06-20.
   const scrollRef = useRef<ScrollView>(null);
@@ -68,17 +86,26 @@ export default function NotificationsScreen() {
   const loading = query.isPending;
   const errored = query.isError && !query.isFetching && !query.data;
 
+  // Bir bildirime dokunma → kart DEĞİL, bildirim detay ekranı (Faz 5+6).
+  // Telefonda tam-sayfa route push; tablette sağ pane'de seçili kıl. markRead
+  // detay ekranı açılınca orada da yapılır (idempotent) — burada eager yapıp
+  // satırın okunmuş görünmesini hızlandırırız.
   const openNotification = useCallback(
     (notification: NotificationItem) => {
       if (notification.readAt == null) markRead(notification.id);
-      const target = notificationTarget(notification);
-      if (target) router.push(target);
+      if (isTablet) {
+        setSelectedId(notification.id);
+      } else {
+        router.push({ pathname: '/notifications/[id]', params: { id: notification.id } });
+      }
     },
-    [markRead, router],
+    [isTablet, markRead, router],
   );
 
-  return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+  // Liste gövdesi — telefonda tam ekran, tablette master-detail sol pane.
+  // (`SafeAreaView` ve master-detail sarmalı en altta uygulanır.)
+  const listBody = (
+    <>
       {/* Ekran-içi başlık + aksiyonlar (sekme ekranı — native header yok).
           Modern UI 2026-06-20: başlık yanında okunmamış sayısı pill rozeti,
           aksiyon ikonları yuvarlak `bg-muted` chip içinde (daha tappable). */}
@@ -152,6 +179,7 @@ export default function NotificationsScreen() {
         <ScrollView
           className="flex-1"
           contentContainerClassName="flex-1"
+          contentContainerStyle={{ paddingBottom: navInset || 0 }}
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching}
@@ -171,6 +199,7 @@ export default function NotificationsScreen() {
           ref={scrollRef}
           className="flex-1"
           contentContainerClassName="gap-5 p-4"
+          contentContainerStyle={{ paddingBottom: navInset || 16 }}
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching}
@@ -227,6 +256,29 @@ export default function NotificationsScreen() {
           ))}
         </ScrollView>
       )}
+    </>
+  );
+
+  // ───────────────────────── Tablet master-detail ─────────────────────────
+  // Hesap ekranıyla simetrik (DEM-303): sol liste (master) + sağ detay pane.
+  // Seçili bildirim yoksa pane boş durum gösterir (`NotificationDetail` içinde).
+  if (isTablet) {
+    return (
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+        <MasterDetailLayout
+          master={listBody}
+          detail={<NotificationDetail notificationId={selectedId} />}
+          sidebarWidth={sidebarWidth}
+          testID="notifications-master-detail"
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // ───────────────────────── Telefon (tam ekran liste) ─────────────────────────
+  return (
+    <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+      {listBody}
     </SafeAreaView>
   );
 }

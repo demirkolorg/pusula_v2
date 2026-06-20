@@ -5,10 +5,12 @@ import { themeFor } from '@/theme/tokens';
 
 /**
  * "Bildirimler" sekmesinin stack'i (Faz 7K) — bildirim merkezi (kök) →
- * bildirim ayarları (push, geri butonu otomatik).
+ * bildirim detay ([id]) + bildirim ayarları (push, geri butonu otomatik).
  *
  * Bildirim merkezi ekranı kendi ekran-içi başlığını çizdiği için kökte native
- * header gizlidir; ayarlar ekranı native header + geri butonu kullanır.
+ * header gizlidir; detay ([id], Faz 5+6) ve ayarlar ekranı native header
+ * kullanır. Tablet'te detay master-detail sağ pane'inde açılır (route push'a
+ * yine düşülebilir ama index ekranı tablet'te push etmez).
  */
 export default function NotificationsLayout() {
   const theme = themeFor(useColorScheme());
@@ -31,6 +33,7 @@ export default function NotificationsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="[id]" />
       <Stack.Screen name="notification-settings" />
     </Stack>
   );

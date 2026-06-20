@@ -7,7 +7,10 @@
  *  (a) Push'a dokunma — cold-start `getLastNotificationResponseAsync()` (uygulama
  *      kapalıyken bildirime dokunulup açıldıysa, bir kez işlenir) + sıcak
  *      `addNotificationResponseReceivedListener`. Bildirimin `request.content.data`'sı
- *      (`{ type, cardId?, boardId? }`) `notification-target.ts` ile hedefe çevrilir.
+ *      (`{ type, notificationId?, cardId?, boardId? }`) `notification-target.ts` ile
+ *      hedefe çevrilir. Faz 5+6: `data.notificationId` varsa hedef **bildirim detay
+ *      ekranıdır** (`/notifications/[id]`); yoksa (eski push) doğrudan kart hedefine
+ *      düşülür (geri uyum).
  *  (b) Universal/şema URL — `expo-linking` `getInitialURL()` (cold) +
  *      `addEventListener('url', …)` (warm). URL `deep-link.ts` ile hedefe çevrilir.
  *
@@ -30,11 +33,18 @@ function navigateFromResponse(
 ): void {
   if (!response) return;
   const data = response.notification.request.content.data;
+  // Push `data.notificationId` varsa bildirim detay ekranı hedeflenir (Faz 6);
+  // yoksa `notificationTarget` kart hedefine düşer (eski push payload'ları).
+  const notificationId =
+    data && typeof data === 'object' && typeof (data as Record<string, unknown>).notificationId === 'string'
+      ? ((data as Record<string, unknown>).notificationId as string)
+      : null;
   const target = notificationTarget({
     workspaceId: null,
     boardId: null,
     cardId: null,
     payload: data,
+    notificationId,
   });
   if (target) router.navigate(target);
 }

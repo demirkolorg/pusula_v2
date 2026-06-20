@@ -1,11 +1,13 @@
 /**
- * Pure helpers for the activity detail modal: turn an `activity_events` row's
- * `type` + `payload` into a category and a structured before/after change list.
- * No React / tRPC so it can be unit-tested in isolation (mirrors the sibling
- * `activity-summary.ts`). Payload shapes follow what the routers write
- * (`packages/api/src/routers/*`); unrecognised keys still surface generically
- * so the detail view stays self-contained for any event type.
+ * Web-side helpers for the activity detail modal: category + Turkish label
+ * mapping, plus a thin wrapper over the shared `@pusula/domain`
+ * `buildActivityChanges` diff engine. The pure before/after diff logic lives in
+ * the domain `audit/` lib (so web + mobile share it); this file injects the
+ * web-specific copy (Turkish field labels, `formatBytes`, boolean/role wording).
+ * No tRPC so it can be unit-tested in isolation (mirrors `activity-summary.ts`).
  */
+
+import { buildActivityChanges as buildActivityChangesDomain } from '@pusula/domain';
 
 import { formatBytes } from '@/lib/format';
 
@@ -53,10 +55,14 @@ export function activityCategoryLabel(type: string): string {
   return CATEGORY_LABELS[activityCategory(type)];
 }
 
-/** A single payload-derived row in the detail modal's "Değişiklikler" section. */
+/**
+ * A single payload-derived row in the detail modal's "Değişiklikler" section.
+ * Web-facing shape (Turkish `label` already resolved); `truncated` is surfaced
+ * only when the source field was clipped to the 2KB audit limit.
+ */
 export type ActivityChange =
-  | { kind: 'diff'; label: string; from: string; to: string }
-  | { kind: 'value'; label: string; value: string };
+  | { kind: 'diff'; label: string; from: string; to: string; truncated?: true }
+  | { kind: 'value'; label: string; value: string; truncated?: true };
 
 /** Turkish labels for known field suffixes (`fromTitle`/`toTitle` → "Başlık"). */
 const FIELD_LABELS: Record<string, string> = {
@@ -92,12 +98,6 @@ const VALUE_LABELS: Record<string, string> = {
   hasdescription: 'Açıklama',
   email: 'E-posta',
 };
-
-/** Keys that hold opaque identifiers — surfaced only in the raw payload view. */
-function isIdLike(key: string): boolean {
-  const lower = key.toLowerCase();
-  return lower === 'id' || lower.endsWith('id');
-}
 
 /** Insert spaces before capitals and title-case — fallback for unknown keys. */
 function humanize(key: string): string {
@@ -138,56 +138,35 @@ function formatCell(name: string, raw: unknown): string {
   return '';
 }
 
-type DetectedPair = { fromKey: string; toKey: string; suffix: string };
-
-/** Detect a `from*`/`to*` or `old*`/`new*` counterpart for a payload key. */
-function detectPair(key: string, entries: Record<string, unknown>): DetectedPair | null {
-  if (key.startsWith('from')) {
-    const suffix = key.slice(4);
-    const toKey = `to${suffix}`;
-    if (toKey in entries) return { fromKey: key, toKey, suffix };
-  }
-  if (key.startsWith('old')) {
-    const suffix = key.slice(3);
-    const newKey = `new${suffix}`;
-    if (newKey in entries) return { fromKey: key, toKey: newKey, suffix };
-  }
-  return null;
-}
-
 /**
- * Build the structured change list for an activity payload. Pairs (`from`/`to`,
- * `old`/`new`) become `diff` rows; remaining non-identifier scalars become
- * `value` rows. Anything that is not a plain object yields an empty list.
+ * Build the structured change list for an activity payload. Thin web wrapper
+ * over `@pusula/domain`'s shared `buildActivityChanges`: the pair detection /
+ * scalar collection / truncated-flag logic is domain-side; here we inject the
+ * Turkish field labels, `formatBytes`, and boolean/role wording. The returned
+ * shape is web-facing (`label` resolved, no `field` key) so existing consumers
+ * and tests stay unchanged.
  */
 export function buildActivityChanges(payload: unknown): ActivityChange[] {
-  if (typeof payload !== 'object' || payload === null) return [];
-  const entries = payload as Record<string, unknown>;
-  const consumed = new Set<string>();
-  const changes: ActivityChange[] = [];
+  const changes = buildActivityChangesDomain(payload, {
+    fieldLabel,
+    valueLabel,
+    formatBytes,
+    formatCell,
+  });
 
-  for (const key of Object.keys(entries)) {
-    if (consumed.has(key)) continue;
-    const pair = detectPair(key, entries);
-    if (!pair) continue;
-    consumed.add(pair.fromKey);
-    consumed.add(pair.toKey);
-    changes.push({
-      kind: 'diff',
-      label: fieldLabel(pair.suffix),
-      from: formatCell(pair.suffix, entries[pair.fromKey]),
-      to: formatCell(pair.suffix, entries[pair.toKey]),
-    });
-  }
-
-  for (const key of Object.keys(entries)) {
-    if (consumed.has(key) || isIdLike(key)) continue;
-    const raw = entries[key];
-    if (raw == null || typeof raw === 'object') continue;
-    const value = formatCell(key, raw);
-    if (value === '') continue;
-    changes.push({ kind: 'value', label: valueLabel(key), value });
-  }
-
-  return changes;
+  return changes.map((change) => {
+    if (change.kind === 'diff') {
+      const row: ActivityChange = {
+        kind: 'diff',
+        label: change.label,
+        from: change.from,
+        to: change.to,
+      };
+      if (change.truncated) row.truncated = true;
+      return row;
+    }
+    const row: ActivityChange = { kind: 'value', label: change.label, value: change.value };
+    if (change.truncated) row.truncated = true;
+    return row;
+  });
 }

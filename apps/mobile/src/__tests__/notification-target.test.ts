@@ -1,13 +1,58 @@
 import { describe, expect, it } from 'vitest';
-import { notificationTarget } from '@/lib/notification-target';
+import { notificationCardTarget, notificationTarget } from '@/lib/notification-target';
 
 /**
- * `notification-target.ts` birim testleri (Faz 7K) — bildirim satırının
- * Expo Router hedefine deterministik çevrimi.
+ * `notification-target.ts` birim testleri.
+ *
+ * Faz 5+6 (bildirim detay ekranı) ayrımı:
+ *  - `notificationTarget` → liste/push tıklamasının **birincil** hedefi. `notificationId`
+ *    set ise detay ekranı (`/notifications/[id]`), yoksa kart hedefine düşer (geri uyum).
+ *  - `notificationCardTarget` → detay ekranındaki "Karta git" butonunun hedefi
+ *    (eski `notificationTarget` davranışı: kart/board/workspace daralması).
  */
-describe('notificationTarget', () => {
-  it('kart + board olduğunda kart detayına yönlendirir', () => {
+describe('notificationTarget — detay öncelikli (liste/push tıklaması)', () => {
+  it('notificationId set ise bildirim detay ekranına yönlendirir', () => {
     const target = notificationTarget({
+      workspaceId: 'ws-1',
+      boardId: 'b-1',
+      cardId: 'c-1',
+      payload: { cardTitle: 'Sprint planı' },
+      notificationId: 'n-1',
+    });
+    expect(target).toEqual({ pathname: '/notifications/[id]', params: { id: 'n-1' } });
+  });
+
+  it('notificationId boş string ise kart hedefine düşer (defansif)', () => {
+    const target = notificationTarget({
+      workspaceId: 'ws-1',
+      boardId: 'b-1',
+      cardId: 'c-1',
+      payload: { cardTitle: 'X' },
+      notificationId: '   ',
+    });
+    expect(target).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-1', title: 'X' },
+    });
+  });
+
+  it('notificationId yoksa kart hedefine düşer (eski push payloadları — geri uyum)', () => {
+    const target = notificationTarget({
+      workspaceId: null,
+      boardId: null,
+      cardId: null,
+      payload: { type: 'card_member_added', cardId: 'c-5', boardId: 'b-5' },
+    });
+    expect(target).toEqual({
+      pathname: '/cards/[cardId]',
+      params: { cardId: 'c-5', title: '' },
+    });
+  });
+});
+
+describe('notificationCardTarget — kart hedefi ("Karta git")', () => {
+  it('kart + board olduğunda kart detayına yönlendirir', () => {
+    const target = notificationCardTarget({
       workspaceId: 'ws-1',
       boardId: 'b-1',
       cardId: 'c-1',
@@ -20,7 +65,7 @@ describe('notificationTarget', () => {
   });
 
   it('kart başlığı yoksa boş başlıkla kart detayına gider', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: 'b-1',
       cardId: 'c-1',
@@ -33,7 +78,7 @@ describe('notificationTarget', () => {
   });
 
   it('board var kart yoksa board ekranına yönlendirir', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: 'ws-1',
       boardId: 'b-1',
       cardId: null,
@@ -46,7 +91,7 @@ describe('notificationTarget', () => {
   });
 
   it('board başlığı payload `boardTitle` alanından da okunur', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: 'b-2',
       cardId: null,
@@ -59,7 +104,7 @@ describe('notificationTarget', () => {
   });
 
   it('yalnız workspace varsa workspace ekranına yönlendirir', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: 'ws-9',
       boardId: null,
       cardId: null,
@@ -72,7 +117,7 @@ describe('notificationTarget', () => {
   });
 
   it('üst-seviye id boşsa payload içindeki id yedek olarak kullanılır', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -86,20 +131,20 @@ describe('notificationTarget', () => {
 
   it('hedef türetilemezse null döner', () => {
     expect(
-      notificationTarget({ workspaceId: null, boardId: null, cardId: null, payload: {} }),
+      notificationCardTarget({ workspaceId: null, boardId: null, cardId: null, payload: {} }),
     ).toBeNull();
   });
 
   it('payload nesne değilse güvenle null döner', () => {
     expect(
-      notificationTarget({ workspaceId: null, boardId: null, cardId: null, payload: 'bozuk' }),
+      notificationCardTarget({ workspaceId: null, boardId: null, cardId: null, payload: 'bozuk' }),
     ).toBeNull();
   });
 
   it('push data (type+cardId+boardId) kart detayına çözülür (Faz 7L)', () => {
     // Worker push payload'ı `data: { type, cardId?, boardId? }` taşır;
     // `use-notification-deep-link` üst-seviye id'leri null verip payload'a koyar.
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -114,7 +159,7 @@ describe('notificationTarget', () => {
   it('madde yorum payloadı (checklistItemId) kart hedefine taşınır', () => {
     // Bir kontrol listesi maddesi yorum bildirimi push'unda `checklistItemId`
     // varsa kart açılınca o maddenin thread'i açılsın diye param'a taşınır.
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -133,7 +178,7 @@ describe('notificationTarget', () => {
   });
 
   it('checklistItemId yoksa kart hedefi alanı taşımaz (kart-seviyesi)', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -148,7 +193,7 @@ describe('notificationTarget', () => {
   });
 
   it('push data yalnız boardId taşıyorsa board ekranına çözülür (Faz 7L)', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -163,7 +208,7 @@ describe('notificationTarget', () => {
   it('kart payloadda olsa board yoksa board hedefi üretilmez (kart detayına da gitmez)', () => {
     // `cardId` var ama `boardId` yok → kart detayı koşulu (cardId && boardId)
     // sağlanmaz; workspace de yoksa hedef null.
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: 'c-1',
@@ -175,7 +220,7 @@ describe('notificationTarget', () => {
   // ─── Faz 13S (DEM-275) — saved-report varyantı ─────────────────────────
 
   it('savedReportId + workspaceId payloadda varsa saved-report ekranına yönlendirir (Faz 13S)', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -193,7 +238,7 @@ describe('notificationTarget', () => {
   });
 
   it('savedReportId varsa rapor başlığı boş gelse de saved-report hedefi üretilir', () => {
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: 'ws-1', // üst-seviye olarak da gelebilir
       boardId: null,
       cardId: null,
@@ -208,7 +253,7 @@ describe('notificationTarget', () => {
   it('savedReportId var ama workspaceId yoksa target null döner (defansif)', () => {
     // Production'da bu durum olmaz — worker payload ikisini de yazar.
     // Defansif: kullanıcı uygulamada bir şey yapamaz, hedef null.
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: null,
       boardId: null,
       cardId: null,
@@ -220,7 +265,7 @@ describe('notificationTarget', () => {
   it('savedReportId + kart/board id taşıyorsa rapor önceliği yoktur (kart kazanır)', () => {
     // Mevcut sıra: cardId+boardId → saved-report → workspace. Kart bağlamı
     // varsa o gösterilir (rapor bildirimi push'unda kart id'leri olmaz; defansif).
-    const target = notificationTarget({
+    const target = notificationCardTarget({
       workspaceId: 'ws-1',
       boardId: 'b-1',
       cardId: 'c-1',

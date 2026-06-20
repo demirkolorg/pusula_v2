@@ -691,6 +691,40 @@ export const strings = {
     },
   },
   /**
+   * Bildirim detay / audit ekranı (Faz 4, 2026-06-21). `(app)/notifications/[id]`
+   * sayfası — bildirim merkezindeki satıra tıklayınca karta değil bu ekrana
+   * gidilir; aktör + özet + önce/sonra diff + katlanır ham JSON + "Karta git".
+   * Bkz. `docs/architecture/06-bildirim-altyapisi.md` "Bildirim detay / audit
+   * ekranı" + `docs/domain/04-bildirim-kurallari.md` "Bildirim detay ekranı".
+   */
+  notificationDetail: {
+    backToList: 'Bildirimlere dön',
+    pageTitle: 'Bildirim detayı',
+    systemActorName: 'Sistem bildirimi',
+    actionTitle: 'Ne oldu',
+    typeLabel: 'Bildirim türü',
+    contextTitle: 'Bağlam',
+    contextCard: 'Kart',
+    contextBoard: 'Pano',
+    contextWorkspace: 'Çalışma alanı',
+    changesTitle: 'Değişiklikler',
+    changesEmpty: 'Bu bildirim için önce/sonra verisi yok.',
+    emptyValue: '—',
+    truncatedHint: 'kısaltıldı',
+    rawTitle: 'Ham veriyi göster',
+    rawActivityLabel: 'Olay verisi (activity event)',
+    rawNotificationLabel: 'Bildirim verisi (notification)',
+    goToCard: 'Karta git',
+    goToBoard: 'Panoya git',
+    goToTarget: 'İlgili ekrana git',
+    markReadAria: 'Bildirim okundu olarak işaretlendi',
+    loading: 'Bildirim yükleniyor…',
+    notFoundTitle: 'Bildirim bulunamadı',
+    notFoundHint: 'Bu bildirim silinmiş veya erişiminiz olmayabilir.',
+    loadErrorTitle: 'Bildirim yüklenemedi',
+    loadErrorHint: 'Bağlantını kontrol edip tekrar dene.',
+  },
+  /**
    * Copy for the `(app)` landing page — 4-sütun "Gezgin" drill-down (§13.11,
    * karar 2026-06-01). Her alt-namespace tek bir sütuna karşılık gelir; eski
    * Variant A artıkları (`rail` / `overview` / `stats` / `boards`) component'leri

@@ -334,7 +334,9 @@ describe('<NotificationCenter>', () => {
 
     await user.click(await screen.findByTestId('notification-row-n1'));
 
-    expect(routerPush).toHaveBeenCalledWith('/workspaces/ws1/boards/b1?card=c1');
+    // Faz 4 (2026-06-21) — satıra tıklama artık doğrudan karta DEĞİL, bildirim
+    // detay / audit ekranına gider. "Karta git" o sayfada.
+    expect(routerPush).toHaveBeenCalledWith('/notifications/n1');
     expect(markReadCalls).toEqual([{ id: 'n1' }]);
     expect(onClose).toHaveBeenCalled();
   });

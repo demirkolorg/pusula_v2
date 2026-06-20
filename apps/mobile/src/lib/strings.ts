@@ -698,6 +698,108 @@ export const strings = {
       labelDeleted: (labelName: string) => `"${labelName}" etiketini sildi`,
       default: 'bir işlem yaptı',
     },
+    // Bildirim detay / audit ekranı (Faz 5+6 — 2026-06-21). Bir bildirime
+    // dokununca açılan tam dökümün metinleri. Sözleşme:
+    // `docs/architecture/06-bildirim-altyapisi.md` + `docs/domain/04-bildirim-kurallari.md`.
+    detail: {
+      title: 'Bildirim',
+      loadErrorTitle: 'Bildirim yüklenemedi',
+      loadErrorBody: 'Bağlantını kontrol edip tekrar dene.',
+      /** Tablet master-detail sağ pane'i — henüz bir bildirim seçilmedi. */
+      emptyTitle: 'Bir bildirim seç',
+      emptyBody: 'Soldaki listeden bir bildirime dokun, ayrıntıları burada görünsün.',
+      /** "Ne yaptı" bölüm başlığı (aktör + özet). */
+      whatHappened: 'Ne oldu',
+      /** Sistem (aktörsüz) bildirim rozeti — satırdaki ile aynı. */
+      systemActor: 'Sistem bildirimi',
+      /** Tip etiketi başlığı (örn. "Kart taşındı"). */
+      typeLabel: 'Bildirim tipi',
+      /** Tip kategori etiketleri (web `activityCategoryLabel` simetriği). */
+      categories: {
+        workspace: 'Çalışma alanı',
+        board: 'Pano',
+        list: 'Liste',
+        card: 'Kart',
+        comment: 'Yorum',
+        checklist: 'Yapılacaklar',
+        attachment: 'Ek dosya',
+        dueDate: 'Teslim tarihi',
+        membership: 'Üyelik',
+        other: 'Diğer',
+      },
+      /** "Değişiklikler" (before/after) bölüm başlığı. */
+      changesTitle: 'Değişiklikler',
+      /** Önce/sonra verisi olmayan (eski) bildirimlerde. */
+      changesEmpty: 'Bu bildirim için önce/sonra verisi yok.',
+      /** Diff satırında önce → sonra etiketleri (erişilebilirlik + dar ekran). */
+      changeFrom: 'Önce',
+      changeTo: 'Sonra',
+      /** 2KB sınırını aşıp kırpılan metin alanı işareti. */
+      truncated: '(kırpıldı)',
+      /** Boş/temizlenmiş değer (örn. son tarih kaldırıldı). */
+      emptyValue: '—',
+      /** Katlanır ham JSON bölümü başlığı (varsayılan kapalı). */
+      rawTitle: 'Ham veriyi göster',
+      rawHide: 'Ham veriyi gizle',
+      /** Ham JSON alt başlıkları — activity event payload + bildirim payload. */
+      rawEventPayload: 'Olay verisi (activity event)',
+      rawNotificationPayload: 'Bildirim verisi',
+      rawNone: 'Ham veri yok.',
+      /** "Karta git" butonu — kart yoksa pano/çalışma alanı hedefine gider. */
+      goToCard: 'Karta git',
+      goToBoard: 'Panoya git',
+      goToWorkspace: 'Çalışma alanına git',
+      /** Bildirimin oluşturulma zamanı tam damga başlığı. */
+      receivedAt: 'Ulaştığı zaman',
+    },
+    // Bildirim detayı "Değişiklikler" alan etiketleri (audit diff). Web
+    // `activity-detail.ts` FIELD_LABELS/VALUE_LABELS simetriği — `@pusula/domain`
+    // `buildActivityChanges`'e enjekte edilir.
+    audit: {
+      // `from*`/`to*` (veya `old*`/`new*`) çiftinin alan etiketi (suffix → başlık).
+      fields: {
+        '': 'Değer',
+        title: 'Başlık',
+        name: 'Ad',
+        slug: 'Slug',
+        color: 'Renk',
+        icon: 'Simge',
+        iconcolor: 'Simge rengi',
+        background: 'Arka plan',
+        position: 'Konum',
+        listid: 'Liste',
+        list: 'Liste',
+        due: 'Son tarih',
+        dueat: 'Son tarih',
+        description: 'Açıklama',
+        content: 'İçerik',
+        body: 'Metin',
+        text: 'Metin',
+        role: 'Rol',
+      } as Record<string, string>,
+      // Tekil skaler alanların etiketi (key → başlık).
+      values: {
+        title: 'Başlık',
+        content: 'İçerik',
+        body: 'Metin',
+        text: 'Metin',
+        filename: 'Dosya',
+        mimetype: 'Dosya türü',
+        sizebytes: 'Boyut',
+        role: 'Rol',
+        archived: 'Arşiv durumu',
+        hasdescription: 'Açıklama',
+        email: 'E-posta',
+        labelname: 'Etiket',
+      } as Record<string, string>,
+      // Skaler hücre Türkçeleştirme (boolean / rol değerleri).
+      archivedYes: 'Arşivlendi',
+      archivedNo: 'Geri yüklendi',
+      booleanYes: 'Evet',
+      booleanNo: 'Hayır',
+      roleAssignee: 'Sorumlu',
+      roleWatcher: 'İzleyen',
+    },
   },
   notificationSettings: {
     // Bildirim ayarları ekranı (pushed route — Faz 7K).

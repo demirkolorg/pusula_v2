@@ -18,7 +18,6 @@ import { activitySummary } from '@/lib/activity-summary';
 import { formatRelativeTime } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/client';
-import { resolveNotificationLink } from './notification-link';
 import type { NotificationGroupKey, NotificationRow } from './notification-types';
 import { groupNotificationsByDate, notificationPayload } from './notification-types';
 import { notificationTypeIcon } from './notification-type-icon';
@@ -191,8 +190,12 @@ export function NotificationCenter({ onClose }: { onClose: () => void }) {
   const groups = groupNotificationsByDate(items);
 
   const handleOpen = (notification: NotificationRow): void => {
-    const link = resolveNotificationLink(notification);
-    if (link) router.push(link);
+    // Faz 4 (2026-06-21) — bildirim merkezinden artık doğrudan karta DEĞİL,
+    // bildirim detay / audit ekranına gidilir. "Karta git" o sayfada;
+    // `resolveNotificationLink` orada yeniden kullanılır. Okundu işareti
+    // detay sayfası açılınca da atılır, ama burada da optimistic atıp sayacı
+    // anında düşürürüz (çift `markRead` idempotent).
+    router.push(`/notifications/${encodeURIComponent(notification.id)}`);
     if (isUnread(notification)) markRead.mutate({ id: notification.id });
     onClose();
   };

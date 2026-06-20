@@ -22,6 +22,14 @@ export type NotificationTargetInput = {
   boardId: string | null;
   cardId: string | null;
   payload: unknown;
+  /**
+   * Bildirim satırının kendi kimliği (Faz 6 — bildirim detay ekranı). Set ise
+   * `notificationTarget` (liste/push tıklamasının hedefi) **detay ekranını**
+   * (`/notifications/[id]`) açar; kart hedefi yalnızca "Karta git" butonunda
+   * (`notificationCardTarget`) kullanılır. In-app liste verisinde her zaman
+   * vardır; push `data.notificationId` taşıyorsa cold/warm dokunmada da gelir.
+   */
+  notificationId?: string | null;
 };
 
 /** Expo Router hedefi — `notificationTarget` dört mobil rotadan birini döndürür.
@@ -34,6 +42,11 @@ export type NotificationTargetInput = {
  *  bu alanı henüz yazmıyorsa undefined kalır (yalnız karta gidilir) — ileriye
  *  dönük, mobil-tarafı eklenti (yeni bağımlılık yok). */
 export type NotificationTarget =
+  | {
+      /** Bildirim detay / audit ekranı (Faz 5+6) — liste/push tıklamasının asıl hedefi. */
+      pathname: '/notifications/[id]';
+      params: { id: string };
+    }
   | {
       pathname: '/cards/[cardId]';
       params: {
@@ -69,7 +82,32 @@ function asRecord(payload: unknown): Record<string, unknown> {
 }
 
 /**
- * Bir bildirim satırını açılacak mobil rotaya çevirir.
+ * Bir bildirim satırının **birincil** navigasyon hedefi (Faz 5+6 — bildirim
+ * detay ekranı). Liste satırına dokunma ve push'a dokunma bunu kullanır.
+ *
+ * `notificationId` set ise (in-app liste verisinde her zaman, push
+ * `data.notificationId` taşıyorsa dokunmada da) **detay ekranını**
+ * (`/notifications/[id]`) açar — kart/board/workspace hedefi yalnızca detay
+ * ekranındaki "Karta git" butonunda (`notificationCardTarget`) kullanılır.
+ *
+ * `notificationId` yoksa (ör. eski push payload'ları, kimliksiz tetikleyici)
+ * geriye dönük uyumluluk için doğrudan kart hedefine (`notificationCardTarget`)
+ * düşer — kullanıcı yine de bir yere gidebilir.
+ */
+export function notificationTarget(
+  notification: NotificationTargetInput,
+): NotificationTarget | null {
+  const notificationId = stringValue(notification.notificationId);
+  if (notificationId) {
+    return { pathname: '/notifications/[id]', params: { id: notificationId } };
+  }
+  return notificationCardTarget(notification);
+}
+
+/**
+ * Bir bildirimi **kart/board/workspace** hedefine çevirir (detay ekranının
+ * "Karta git" butonu). Eski `notificationTarget` davranışıdır — detay ekranı
+ * ayrımından önce liste/push tıklamasının hedefiydi.
  *
  * Öncelik sırası (web `notification-link.ts` ile aynı daralma mantığı):
  *  - `cardId` + `boardId` → kart detayı.
@@ -80,10 +118,10 @@ function asRecord(payload: unknown): Record<string, unknown> {
  * yedek olarak kullanılır. Başlık metinleri payload'tan okunur; yoksa boş
  * string (ekranların `fallbackTitle`'ı devreye girer).
  *
- * Hedef türetilemezse `null` döner (çağıran navigasyon yapmaz — örn. ileride
- * eklenebilecek hesap-seviyesi sistem bildirimleri).
+ * Hedef türetilemezse `null` döner — detay ekranında "Karta git" butonu gizli
+ * kalır (örn. hesap-seviyesi sistem bildirimleri).
  */
-export function notificationTarget(
+export function notificationCardTarget(
   notification: NotificationTargetInput,
 ): NotificationTarget | null {
   const raw = asRecord(notification.payload);
