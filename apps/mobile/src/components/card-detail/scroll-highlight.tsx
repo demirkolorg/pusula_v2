@@ -40,7 +40,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { findNodeHandle, type LayoutChangeEvent, type View } from 'react-native';
+import { type LayoutChangeEvent, type View } from 'react-native';
 import type Animated from 'react-native-reanimated';
 import type { AnimatedRef } from 'react-native-reanimated';
 import { resolveHighlightScroll } from '@/components/card-detail/scroll-highlight-logic';
@@ -54,10 +54,18 @@ type ScrollHighlightContextValue = {
    */
   registerOffset: (id: string, y: number) => void;
   /**
-   * Dış scroll'un iç içerik node handle'ı (`measureLayout`'ın `relativeTo`'su).
-   * ScrollView henüz bağlı değilse `null`.
+   * Dış scroll konteynerinin ekran-mutlak üst (pageY) konumunu `measure` ile
+   * ölçüp callback'e verir. Hedef satır kendi pageY'sini bununla farklayıp
+   * scroll-içi y'yi hesaplar. ScrollView bağlı değilse callback çağrılmaz.
    */
-  getInnerNode: () => number | null;
+  measureScrollTop: (cb: (pageY: number) => void) => void;
+};
+
+/** Bir host component ref'inin `measure` imzası (Fabric/eski mimari ortak). */
+type Measurable = {
+  measure?: (
+    f: (x: number, y: number, w: number, h: number, px: number, py: number) => void,
+  ) => void;
 };
 
 const ScrollHighlightContext = createContext<ScrollHighlightContextValue | null>(null);
@@ -115,23 +123,17 @@ export function ScrollHighlightProvider({
     [targetId, scrollRef, reduceMotion],
   );
 
-  const getInnerNode = useCallback((): number | null => {
-    const scroll = scrollRef.current as unknown as
-      | { getInnerViewNode?: () => number | null }
-      | null;
-    if (!scroll) return null;
-    // RN ScrollView: `getInnerViewNode()` iç içerik View'ının node handle'ı —
-    // `measureLayout`'ın relativeTo'su. Yoksa scroll node'una düş.
-    if (typeof scroll.getInnerViewNode === 'function') {
-      const node = scroll.getInnerViewNode();
-      if (node != null) return node;
-    }
-    return findNodeHandle(scrollRef.current as never);
-  }, [scrollRef]);
+  const measureScrollTop = useCallback(
+    (cb: (pageY: number) => void) => {
+      const scroll = scrollRef.current as unknown as Measurable | null;
+      scroll?.measure?.((_x, _y, _w, _h, _px, py) => cb(py));
+    },
+    [scrollRef],
+  );
 
   const value = useMemo<ScrollHighlightContextValue>(
-    () => ({ targetId, registerOffset, getInnerNode }),
-    [targetId, registerOffset, getInnerNode],
+    () => ({ targetId, registerOffset, measureScrollTop }),
+    [targetId, registerOffset, measureScrollTop],
   );
 
   return (
@@ -179,22 +181,21 @@ export function useScrollHighlightTarget(
 
   const runMeasure = useCallback(() => {
     if (!ctx || !active || measuredRef.current) return;
-    const node = nodeRef.current;
-    const innerNode = ctx.getInnerNode();
-    if (!node || innerNode == null) return;
+    const node = nodeRef.current as unknown as Measurable | null;
+    if (!node?.measure) return;
     measuredRef.current = true;
-    // `measureLayout(relativeTo, onSuccess, onFail)` — y dış scroll içerik
-    // koordinat sisteminde döner (`scrollTo` için doğru hedef). Hata olursa
-    // (node henüz bağlı değil) yeniden ölçmeye izin verip sessizce çık.
-    node.measureLayout(
-      innerNode,
-      (_x, y) => {
-        ctx.registerOffset(id, y);
-      },
-      () => {
-        measuredRef.current = false;
-      },
-    );
+    // Fabric-uyumlu ölçüm: `measureLayout` New Architecture'da `relativeTo`
+    // olarak number node handle kabul etmiyor ("ref to a native component"
+    // hatası). Bunun yerine hedefin ve scroll konteynerinin ekran-mutlak
+    // pageY'lerini `measure` ile alıp farkını scroll-içi y olarak kullanırız.
+    // Deep-link açılışında scroll offset 0'dır (kart yeni mount edilir), bu
+    // yüzden fark doğrudan içerik koordinatına denk gelir. `measure` host
+    // ref'lerinde (View + Animated.View) çalışır; node handle gerektirmez.
+    ctx.measureScrollTop((scrollPageY) => {
+      node.measure?.((_x, _y, _w, _h, _px, targetPageY) => {
+        ctx.registerOffset(id, Math.max(0, targetPageY - scrollPageY));
+      });
+    });
   }, [ctx, active, id]);
 
   const onLayout = useCallback(() => {
