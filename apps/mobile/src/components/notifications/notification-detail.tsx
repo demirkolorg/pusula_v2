@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -106,7 +106,6 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
   const detail = strings.notifications.detail;
   const navInset = useFloatingNavInset();
   const { markRead } = useNotificationMutations(LIST_INPUT);
-  const [rawOpen, setRawOpen] = useState(false);
 
   const hasId = notificationId != null && notificationId.length > 0;
   const query = useQuery(
@@ -114,12 +113,22 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
   );
   const notification = query.data ?? null;
 
-  // Açılınca okunmamışsa okundu işaretle. `readAt == null` guard'ı idempotent
-  // kılar: markRead optimistic cache'i günceller → `notification.readAt` dolar →
-  // sonraki render'da guard durur (çift çağrı/döngü yok). `markRead` her render
-  // yeni referans olsa da guard sayesinde tekrar tetiklenmez.
+  // Açılınca okunmamışsa okundu işaretle — bildirim id'si başına YALNIZ BİR KEZ
+  // (`markedRef`). `markRead` optimistic'i `byId` cache'ini güncellemediğinden
+  // `notification.readAt` null kalabilir; salt `readAt` guard'ı tablet master-
+  // detail'de (liste unreadCount değişimiyle sürekli re-render) sonsuz markRead
+  // döngüsüne girip okunmamış sayacını "eritiyordu". id-başına ref guard döngüyü
+  // kırar (web `notifications/[id]/page.tsx` `firedForRef` ile simetrik).
+  const markedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (notification && notification.readAt == null) markRead(notification.id);
+    if (
+      notification &&
+      notification.readAt == null &&
+      markedRef.current !== notification.id
+    ) {
+      markedRef.current = notification.id;
+      markRead(notification.id);
+    }
   }, [notification, markRead]);
 
   // Tablet pane ilk açılış (henüz seçim yok) → boş durum.
@@ -169,13 +178,13 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
         : detail.goToWorkspace;
 
   // Before/after — activity event payload yeğlenir (tam diff); yoksa bildirim
-  // payload'ı denenir (eski bildirimlerde activity bağı olmayabilir).
+  // payload'ı denenir (eski bildirimlerde activity bağı olmayabilir). Yalnız
+  // gerçek "önce → sonra" değişiklikleri gösterilir; tek-skaler teknik bağlam
+  // alanları (activityType, cardId, actorName … kullanıcıya anlamsız anahtarlar)
+  // gizlenir.
   const changes = buildNotificationChanges(
     notification.activityEventPayload ?? notification.payload,
-  );
-
-  const rawEvent = notification.activityEventPayload;
-  const rawPayload = notification.payload;
+  ).filter((change) => change.kind === 'diff');
 
   return (
     <ScrollView
@@ -203,9 +212,13 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
         </View>
       </View>
 
-      {/* Ne oldu — özet + tip kategorisi. */}
+      {/* Ne oldu — özet + tip kategorisi. Özet bölümün başrolü olduğundan
+          (kullanıcı bu ekrana "ne oldu?" sorusuyla gelir) metni daha büyük +
+          medium ağırlıkla öne çıkarırız (text-base / leading-relaxed). */}
       <Section title={detail.whatHappened}>
-        <Text className="text-sm leading-snug text-foreground">{summary}</Text>
+        <Text weight="medium" className="text-base leading-relaxed text-foreground">
+          {summary}
+        </Text>
         <View className="flex-row items-center gap-2">
           <View
             className="h-7 w-7 items-center justify-center rounded-full"
@@ -219,18 +232,19 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
         </View>
       </Section>
 
-      {/* Değişiklikler — before/after diff. */}
-      <Section title={detail.changesTitle}>
-        {changes.length > 0 ? (
+      {/* Değişiklikler — before/after diff. Gösterilecek "önce → sonra" yoksa
+          bölüm hiç render edilmez (boş "değişiklik yok" metni göstermek yerine
+          gürültüyü azalt). Çoğu bildirim tipi diff taşımaz; bu satırlarda bölüm
+          tamamen gizli kalır. */}
+      {changes.length > 0 ? (
+        <Section title={detail.changesTitle}>
           <View className="gap-3">
             {changes.map((change, index) => (
               <ChangeRow key={`${change.label}-${index}`} change={change} />
             ))}
           </View>
-        ) : (
-          <Text className="text-sm text-muted-foreground">{detail.changesEmpty}</Text>
-        )}
-      </Section>
+        </Section>
+      ) : null}
 
       {/* Ulaştığı zaman — tam damga. */}
       {fullTime ? (
@@ -238,46 +252,6 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
           <Text className="text-sm text-foreground">{fullTime}</Text>
         </Section>
       ) : null}
-
-      {/* Katlanır ham JSON — varsayılan kapalı. */}
-      <View className="gap-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: rawOpen }}
-          onPress={() => setRawOpen((prev) => !prev)}
-          hitSlop={8}
-          className="flex-row items-center gap-2 px-0.5 py-1 active:opacity-60"
-        >
-          <Icon
-            name={rawOpen ? 'chevron-down' : 'chevron-right'}
-            size={16}
-            color={theme.mutedForeground}
-          />
-          <Text weight="medium" className="text-xs uppercase text-muted-foreground">
-            {rawOpen ? detail.rawHide : detail.rawTitle}
-          </Text>
-        </Pressable>
-        {rawOpen ? (
-          <View className="gap-3 rounded-2xl bg-muted p-4">
-            <View className="gap-1.5">
-              <Text weight="medium" className="text-xs text-muted-foreground">
-                {detail.rawEventPayload}
-              </Text>
-              <Text style={{ fontFamily: 'monospace' }} className="text-xs text-foreground">
-                {rawEvent != null ? JSON.stringify(rawEvent, null, 2) : detail.rawNone}
-              </Text>
-            </View>
-            <View className="gap-1.5">
-              <Text weight="medium" className="text-xs text-muted-foreground">
-                {detail.rawNotificationPayload}
-              </Text>
-              <Text style={{ fontFamily: 'monospace' }} className="text-xs text-foreground">
-                {rawPayload != null ? JSON.stringify(rawPayload, null, 2) : detail.rawNone}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-      </View>
 
       {/* Karta git — kart/board/workspace hedefi; hedef yoksa gizli. */}
       {cardTarget ? (
