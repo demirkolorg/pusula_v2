@@ -1,10 +1,13 @@
+import { memo } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
+import { EntityAvatar } from '@/components/entity-avatar';
 import { formatRelativeTime } from '@/lib/format-date';
 import {
   isSystemNotification,
+  notificationActorImage,
   notificationActorName,
   notificationSummary,
   notificationTypeIcon,
@@ -18,7 +21,9 @@ export type NotificationItem = RouterOutputs['notifications']['list']['items'][n
 
 type NotificationRowProps = {
   notification: NotificationItem;
-  onPress: () => void;
+  /** Satıra dokununca seçim — stabil referans (memo'yu korur; satır içinde
+   *  `notification` ile çağrılır, böylece her render yeni closure üretilmez). */
+  onSelect: (notification: NotificationItem) => void;
 };
 
 /**
@@ -33,7 +38,10 @@ type NotificationRowProps = {
  * tonlanır (`notificationTypeTone` → tinted zemin + renkli ikon). Okunmamış
  * satır sağda primary nokta taşır.
  */
-export function NotificationRow({ notification, onPress }: NotificationRowProps) {
+export const NotificationRow = memo(function NotificationRow({
+  notification,
+  onSelect,
+}: NotificationRowProps) {
   const theme = themeFor(useColorScheme());
   const unread = notification.readAt == null;
   const system = isSystemNotification(notification.type);
@@ -42,24 +50,43 @@ export function NotificationRow({ notification, onPress }: NotificationRowProps)
   const summary = notificationSummary(notification.type, notification.payload);
   const actorName =
     notificationActorName(notification.payload) ?? strings.notifications.fallbackActorName;
+  const actorImage = notificationActorImage(notification.payload);
   const relativeTime = formatRelativeTime(notification.createdAt);
 
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={() => onSelect(notification)}
       className={`flex-row items-start gap-3 rounded-2xl px-3.5 py-3 active:opacity-70 ${
         unread ? 'bg-primary/10' : 'bg-muted'
       }`}
     >
-      {/* Tip ikonu — kategori rengiyle tonlu yuvarlak chip (tinted zemin + renkli
-          ikon). `${tone}22` = ~%13 alfa (RN #RRGGBBAA). */}
-      <View
-        className="h-10 w-10 items-center justify-center rounded-full"
-        style={{ backgroundColor: `${tone}22` }}
-      >
-        <Icon name={iconName} size={17} color={tone} />
-      </View>
+      {/* Sol görsel:
+          - Sistem (aktörsüz) bildirim → kategori rengiyle tonlu ikon chip'i.
+          - Kişi bildirimi → aktör avatarı + sağ-alt köşede küçük tip-ikonu rozeti.
+            Avatar "kim" sorusunu, rozet "ne tür" sorusunu aynı anda yanıtlar
+            (web `notification-center.tsx` deseni). `${tone}22` = ~%13 alfa
+            (RN #RRGGBBAA). */}
+      {system ? (
+        <View
+          className="h-10 w-10 items-center justify-center rounded-full"
+          style={{ backgroundColor: `${tone}22` }}
+        >
+          <Icon name={iconName} size={17} color={tone} />
+        </View>
+      ) : (
+        <View className="relative">
+          <EntityAvatar name={actorName} image={actorImage} size={40} />
+          {/* Rozet opak (bg-background) + satır zemininde 2px halka → hem avatar
+              fotoğrafından hem satır zemininden net ayrışır; içte tonlu ikon. */}
+          <View
+            className="absolute -bottom-1 -right-1 h-5 w-5 items-center justify-center rounded-full bg-background"
+            style={{ borderWidth: 2, borderColor: unread ? `${theme.primary}1a` : theme.muted }}
+          >
+            <Icon name={iconName} size={11} color={tone} />
+          </View>
+        </View>
+      )}
       <View className="flex-1 gap-1 pt-0.5">
         <Text className="text-sm leading-snug text-foreground" numberOfLines={4}>
           {system ? (
@@ -84,4 +111,4 @@ export function NotificationRow({ notification, onPress }: NotificationRowProps)
       ) : null}
     </Pressable>
   );
-}
+});

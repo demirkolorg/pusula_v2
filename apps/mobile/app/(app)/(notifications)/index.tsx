@@ -3,6 +3,8 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
+  type SectionListData,
   View,
   useColorScheme,
   useWindowDimensions,
@@ -41,6 +43,15 @@ const NOTIFICATIONS_LIMIT = 25;
  * türetilirse `useNotificationMutations` cache anahtarı kayar). */
 const LIST_INPUT = { limit: NOTIFICATIONS_LIMIT } as const;
 
+/** `SectionList` section meta — tarih grubu başlığı (`data` SectionBase'ten gelir). */
+type NotificationSection = { key: string; title: string };
+
+/** Satır arası boşluk — `SectionList` separator'ı (modül seviyesi = stabil
+ *  referans, gereksiz yeniden bağlamayı önler). */
+function ItemSeparator() {
+  return <View className="h-2" />;
+}
+
 /**
  * "Bildirimler" sekmesi (Faz 7K) — bildirim merkezi.
  *
@@ -66,7 +77,7 @@ export default function NotificationsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Aktif "Bildirimler" sekmesine tekrar dokununca listeyi en üste kaydır
   // (standart React Navigation deseni; floating pill `tabPress` yayar). 2026-06-20.
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<SectionList<NotificationItem, NotificationSection>>(null);
   useScrollToTop(scrollRef);
 
   const query = useQuery(
@@ -100,6 +111,53 @@ export default function NotificationsScreen() {
       }
     },
     [isTablet, markRead, router],
+  );
+
+  // SectionList kaynağı — tarih grupları (Bugün/Dün/…) section'a çevrilir.
+  // Virtualization: yalnız görünür satırlar (+ Reanimated SwipeRow'ları) mount
+  // edilir; ScrollView'da 25 satırın tümü birden mount oluyordu.
+  const sections = groups.map((group) => ({
+    key: group.key,
+    title: strings.notifications.groups[group.key],
+    data: group.items,
+  }));
+
+  const renderItem = useCallback(
+    ({ item }: { item: NotificationItem }) => {
+      const row = <NotificationRow notification={item} onSelect={openNotification} />;
+      // Okunmamışsa sola kaydır → "Okundu" (navigasyon yok). Okunmuşta aksiyon yok.
+      return item.readAt == null ? (
+        <SwipeRow
+          actions={[
+            {
+              key: 'read',
+              label: strings.notifications.markReadAction,
+              accessibilityLabel: strings.notifications.markReadAction,
+              icon: 'check',
+              variant: 'primary',
+              onPress: () => markRead(item.id),
+            },
+          ]}
+        >
+          {row}
+        </SwipeRow>
+      ) : (
+        row
+      );
+    },
+    [openNotification, markRead],
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: SectionListData<NotificationItem, NotificationSection> }) => (
+      <View className="flex-row items-center gap-2 bg-background px-0.5 pb-1 pt-4">
+        <Text weight="semibold" className="text-xs uppercase text-muted-foreground">
+          {section.title}
+        </Text>
+        <Text className="text-xs text-muted-foreground">{section.data.length}</Text>
+      </View>
+    ),
+    [],
   );
 
   // Liste gövdesi — telefonda tam ekran, tablette master-detail sol pane.
@@ -195,11 +253,19 @@ export default function NotificationsScreen() {
           />
         </ScrollView>
       ) : (
-        <ScrollView
+        <SectionList<NotificationItem, NotificationSection>
           ref={scrollRef}
+          sections={sections}
+          keyExtractor={(item) => item.id}
           className="flex-1"
-          contentContainerClassName="gap-5 p-4"
-          contentContainerStyle={{ paddingBottom: navInset || 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: navInset || 16 }}
+          renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          ItemSeparatorComponent={ItemSeparator}
+          stickySectionHeadersEnabled={false}
+          initialNumToRender={10}
+          windowSize={7}
+          removeClippedSubviews
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching}
@@ -207,54 +273,7 @@ export default function NotificationsScreen() {
               tintColor={theme.mutedForeground}
             />
           }
-        >
-          {groups.map((group) => (
-            <View key={group.key} className="gap-2">
-              <View className="flex-row items-center gap-2 px-0.5">
-                <Text
-                  weight="semibold"
-                  className="text-xs uppercase text-muted-foreground"
-                >
-                  {strings.notifications.groups[group.key]}
-                </Text>
-                <Text className="text-xs text-muted-foreground">
-                  {group.items.length}
-                </Text>
-              </View>
-              <View className="gap-2">
-                {group.items.map((notification) => {
-                  const row = (
-                    <NotificationRow
-                      notification={notification}
-                      onPress={() => openNotification(notification)}
-                    />
-                  );
-                  // Okunmamışsa sola kaydır → "Okundu" (markRead, navigasyon yok).
-                  // Okunmuşta kaydırılacak aksiyon yok (sil mutation'ı yok).
-                  return notification.readAt == null ? (
-                    <SwipeRow
-                      key={notification.id}
-                      actions={[
-                        {
-                          key: 'read',
-                          label: strings.notifications.markReadAction,
-                          accessibilityLabel: strings.notifications.markReadAction,
-                          icon: 'check',
-                          variant: 'primary',
-                          onPress: () => markRead(notification.id),
-                        },
-                      ]}
-                    >
-                      {row}
-                    </SwipeRow>
-                  ) : (
-                    <View key={notification.id}>{row}</View>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        />
       )}
     </>
   );

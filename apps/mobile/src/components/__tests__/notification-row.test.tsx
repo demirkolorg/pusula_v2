@@ -18,7 +18,7 @@ function makeNotification(over: Partial<NotificationItem> = {}): NotificationIte
 
 describe('NotificationRow', () => {
   it('aktör adı ve özet metnini birlikte gösterir', () => {
-    render(<NotificationRow notification={makeNotification()} onPress={() => {}} />);
+    render(<NotificationRow notification={makeNotification()} onSelect={() => {}} />);
     expect(screen.getByText('Ayşe Demir')).toBeTruthy();
     expect(screen.getByText(/Tasarım revizyonu/)).toBeTruthy();
   });
@@ -28,25 +28,26 @@ describe('NotificationRow', () => {
       type: 'due_overdue',
       payload: { cardTitle: 'Rapor teslimi' },
     });
-    render(<NotificationRow notification={notification} onPress={() => {}} />);
+    render(<NotificationRow notification={notification} onSelect={() => {}} />);
     expect(screen.getByText('Sistem')).toBeTruthy();
   });
 
   it('okunmamış bildirim için okunmamış göstergesi render edilir', () => {
-    render(<NotificationRow notification={makeNotification({ readAt: null })} onPress={() => {}} />);
+    render(<NotificationRow notification={makeNotification({ readAt: null })} onSelect={() => {}} />);
     expect(screen.getByLabelText('Okunmamış')).toBeTruthy();
   });
 
   it('okunmuş bildirimde okunmamış göstergesi gösterilmez', () => {
     const read = makeNotification({ readAt: new Date('2026-05-18T11:00:00.000Z') });
-    render(<NotificationRow notification={read} onPress={() => {}} />);
+    render(<NotificationRow notification={read} onSelect={() => {}} />);
     expect(screen.queryByLabelText('Okunmamış')).toBeNull();
   });
 
-  it('satıra dokunulduğunda onPress çağrılır', () => {
-    const onPress = vi.fn();
-    render(<NotificationRow notification={makeNotification()} onPress={onPress} />);
+  it('satıra dokunulduğunda onSelect bildirimle çağrılır', () => {
+    const onSelect = vi.fn();
+    const notification = makeNotification();
+    render(<NotificationRow notification={notification} onSelect={onSelect} />);
     fireEvent.click(screen.getByRole('button'));
-    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(notification);
   });
 });

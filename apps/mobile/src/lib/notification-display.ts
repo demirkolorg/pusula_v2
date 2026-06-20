@@ -519,3 +519,15 @@ export function notificationActorName(payload: unknown): string | null {
     typeof payload === 'object' && payload !== null ? (payload as NotificationPayloadRecord) : {};
   return payloadText(p, 'actorName') ?? null;
 }
+
+/**
+ * Bildirim payload'ından aktör profil görselini okur (yoksa `null`). Liste
+ * satırı avatarında kullanılır — `byId` üst-seviye `actorImage` taşır ama
+ * `notifications.list` satırı taşımaz; görsel yalnız payload'tan gelir (web
+ * `notification-center.tsx` `payload.actorImage` ile simetrik).
+ */
+export function notificationActorImage(payload: unknown): string | null {
+  const p: NotificationPayloadRecord =
+    typeof payload === 'object' && payload !== null ? (payload as NotificationPayloadRecord) : {};
+  return payloadText(p, 'actorImage') ?? null;
+}
