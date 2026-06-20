@@ -2,6 +2,16 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Tek React sürümü (2026-06-20) — Expo SDK 54 react@19.1.0 ister; apps/web
+# (Next 16) react@^19.2.6 çekiyordu → monorepo'da iki React + iki
+# @react-navigation/core + iki react-native kopyası → mobil bundle'da
+# NavigationContext iki ayrı obje olduğundan "Couldn't find a navigation
+# context" crash (kart detay sekme değişimi). Next 16 react peer'i ^19.0.0
+# olduğundan 19.1.0 web için de geçerli; override hepsini tek React'e kilitler.
+overrides:
+  react: 19.1.0
+  react-dom: 19.1.0
+
 # Dependencies whose install/postinstall scripts are allowed to run.
 # (pnpm 10+ blocks build scripts by default.)
 allowBuilds:
