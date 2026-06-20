@@ -3,14 +3,6 @@ import { useFocusEffect } from 'expo-router';
 import { QuickNoteDockView } from '@/components/quick-note-dock-view';
 import { useQuickNoteDraft } from '@/lib/quick-note-draft';
 
-type QuickNoteDockProps = {
-  /**
-   * Dock'un ölçülen yüksekliği değişince çağrılır — anasayfa kaydırılan
-   * içeriğine bu kadar alt boşluk verilir, böylece son satır dock'un arkasında
-   * gizli kalmaz (içerik dock'un altından kayar).
-   */
-  onHeightChange: (height: number) => void;
-};
 
 /**
  * Anasayfa hızlı-not dock'u (DEM-230) — veri katmanı.
@@ -24,7 +16,7 @@ type QuickNoteDockProps = {
  *   ile dock odaktayken "+"yu kendine yönlendirir (`useFocusEffect`); başka
  *   ekrana geçince "+" normal işine (Hızlı Notlar ekranı) döner.
  */
-export function QuickNoteDock({ onHeightChange }: QuickNoteDockProps) {
+export function QuickNoteDock() {
   const { draft, setDraft, setActive, submit } = useQuickNoteDraft();
 
   useFocusEffect(
@@ -40,7 +32,6 @@ export function QuickNoteDock({ onHeightChange }: QuickNoteDockProps) {
       onChangeText={setDraft}
       onSubmit={submit}
       canSubmit={draft.trim().length > 0}
-      onHeightChange={onHeightChange}
     />
   );
 }

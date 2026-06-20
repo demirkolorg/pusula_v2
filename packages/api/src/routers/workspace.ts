@@ -712,14 +712,16 @@ export const workspaceRouter = router({
 
     type CountRow = { workspaceId: string; value: number };
     type LastActivityRow = { workspaceId: string; lastActivityAt: Date | null };
+    type BoardPreviewRow = { workspaceId: string; title: string; icon: string };
     const workspaceIds = rows.map((row) => row.id);
-    const [boardCountRows, memberCountRows, activityRows]: [
+    const [boardCountRows, memberCountRows, activityRows, boardPreviewRows]: [
       CountRow[],
       CountRow[],
       LastActivityRow[],
+      BoardPreviewRow[],
     ] =
       workspaceIds.length === 0
-        ? [[], [], []]
+        ? [[], [], [], []]
         : await Promise.all([
             ctx.db
               .select({ workspaceId: boards.workspaceId, value: count() })
@@ -739,6 +741,15 @@ export const workspaceRouter = router({
               .from(activityEvents)
               .where(inArray(activityEvents.workspaceId, workspaceIds))
               .groupBy(activityEvents.workspaceId),
+            ctx.db
+              .select({
+                workspaceId: boards.workspaceId,
+                title: boards.title,
+                icon: boards.icon,
+              })
+              .from(boards)
+              .where(and(inArray(boards.workspaceId, workspaceIds), isNull(boards.archivedAt)))
+              .orderBy(boards.workspaceId, asc(boards.createdAt)),
           ]);
 
     const boardCountByWorkspace = new Map<string, number>();
@@ -752,11 +763,21 @@ export const workspaceRouter = router({
       lastActivityByWorkspace.set(row.workspaceId, row.lastActivityAt);
     }
 
+    const boardPreviewsByWorkspace = new Map<string, BoardPreviewRow[]>();
+    for (const row of boardPreviewRows) {
+      const existing = boardPreviewsByWorkspace.get(row.workspaceId) ?? [];
+      if (existing.length < 5) {
+        existing.push(row);
+        boardPreviewsByWorkspace.set(row.workspaceId, existing);
+      }
+    }
+
     return rows.map((row) => ({
       ...row,
       boardCount: boardCountByWorkspace.get(row.id) ?? 0,
       memberCount: memberCountByWorkspace.get(row.id) ?? 0,
       lastActivityAt: lastActivityByWorkspace.get(row.id) ?? null,
+      previewBoards: boardPreviewsByWorkspace.get(row.id) ?? [],
     }));
   }),
 

@@ -1,5 +1,12 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type { RouterOutputs } from '@pusula/api';
 import { ATTACHMENT_DESCRIPTION_MAX_LEN } from '@pusula/domain';
 import { AppSpinner } from '@/components/app-spinner';
@@ -48,6 +55,8 @@ type AttachmentTileProps = {
    * Stabil callback: argüman olarak `attachment` alır (DEM-226 #2).
    */
   onToggleCover: (attachment: Attachment) => void;
+  /** Bildirim deep-link'iyle gelinince bu tile flash vurgulanır (bir kez). */
+  highlighted?: boolean;
 };
 
 /** Kebab menüsündeki tek aksiyon satırı. */
@@ -98,8 +107,28 @@ function AttachmentTileImpl({
   onDelete,
   onSaveDescription,
   onToggleCover,
+  highlighted = false,
 }: AttachmentTileProps) {
   const theme = themeFor(useColorScheme());
+  const flashOpacity = useSharedValue(0);
+  const flashStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    backgroundColor: `rgba(16,185,129,${flashOpacity.value * 0.18})`,
+    pointerEvents: 'none',
+  }));
+  useEffect(() => {
+    if (highlighted) {
+      flashOpacity.value = withSequence(
+        withTiming(1, { duration: 250 }),
+        withDelay(700, withTiming(0, { duration: 500 })),
+      );
+    }
+  }, [highlighted, flashOpacity]);
   const isImage = attachment.kind === 'image';
   const uploaderName = attachment.uploader.name ?? strings.cardDetail.unknownUser;
   // committedAt her zaman dolu (`list` yalnız commit edilmiş ekleri döndürür);
@@ -154,7 +183,8 @@ function AttachmentTileImpl({
   };
 
   return (
-    <View className="rounded-lg border border-border bg-card p-3">
+    <View className="rounded-lg border border-border bg-card p-3" style={{ position: 'relative' }}>
+      <Animated.View style={flashStyle} />
       <View className="flex-row items-center gap-3">
         {/* Resim ekleri için liste thumbnail'ı (presigned `thumbnailUrl`, TTL 1
             saat; URL bayatlar/yoksa ikona düşülür). Thumbnail'a dokunmak da

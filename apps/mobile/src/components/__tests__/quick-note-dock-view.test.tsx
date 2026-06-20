@@ -19,7 +19,6 @@ function renderDock(props: Partial<Parameters<typeof QuickNoteDockView>[0]> = {}
       onChangeText={vi.fn()}
       onSubmit={vi.fn()}
       canSubmit={false}
-      onHeightChange={vi.fn()}
       {...props}
     />,
   );

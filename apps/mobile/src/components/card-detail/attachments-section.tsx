@@ -40,6 +40,8 @@ type AttachmentsSectionProps = {
   currentUserId: string | undefined;
   /** Çağıranın board rolü — `admin` tüm ekleri silebilir/düzenleyebilir. */
   myBoardRole: 'admin' | 'member' | 'viewer' | undefined;
+  /** Bildirim deep-link'iyle gelinince bu id'li ek tile'ı flash vurgulanır. */
+  highlightAttachmentId?: string;
 };
 
 /** Yükleme kaynağı seçenekleri — bottom sheet satırları. */
@@ -70,6 +72,7 @@ export function AttachmentsSection({
   canEdit,
   currentUserId,
   myBoardRole,
+  highlightAttachmentId,
 }: AttachmentsSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -362,6 +365,7 @@ export function AttachmentsSection({
       title={strings.attachments.title}
       collapsible
       defaultCollapsed
+      forceExpand={!!highlightAttachmentId}
       trailing={
         attachments.length > 0 ? <SectionBadge label={String(attachments.length)} /> : undefined
       }
@@ -412,6 +416,7 @@ export function AttachmentsSection({
                 canSetCover={canEdit}
                 downloading={downloadingId === attachment.id}
                 busy={busyAttachmentId === attachment.id}
+                highlighted={attachment.id === highlightAttachmentId}
                 onPreview={isPreviewable(attachment) ? handlePreview : undefined}
                 onDownload={handleDownload}
                 onDelete={confirmDelete}

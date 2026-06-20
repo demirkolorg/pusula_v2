@@ -264,6 +264,7 @@ const itemRouter = router({
         checklistId: input.checklistId,
         itemId: item.id,
         cardId: ctx.card.id,
+        content: item.content,
       };
       const toggleType = input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked';
       const [activity] = await tx

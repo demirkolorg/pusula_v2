@@ -166,19 +166,43 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
   const cardId = stringOr(ctx.payload, 'cardId', '');
   const boardId = stringOr(ctx.payload, 'boardId', '');
   const listId = stringOr(ctx.payload, 'listId', '');
+  const commentId = stringOr(ctx.payload, 'commentId', '');
+  const checklistItemId = stringOr(ctx.payload, 'checklistItemId', '');
+  const itemId = stringOr(ctx.payload, 'itemId', '');
+  const attachmentId = stringOr(ctx.payload, 'attachmentId', '');
   if (cardId) data.cardId = cardId;
   if (boardId) data.boardId = boardId;
-  // Faz 2 (2026-06-03) — liste yaşam döngüsü bildirimleri ilgili listeye derin
-  // link verebilsin diye `listId` taşınır (payload whitelist'te mevcut).
   if (listId) data.listId = listId;
+  // Deep link odak parametreleri.
+  if (commentId) data.commentId = commentId;
+  if (checklistItemId) data.checklistItemId = checklistItemId;
+  // itemId: checklist toggle/add/remove — highlight için (thread açmaz).
+  if (itemId) data.itemId = itemId;
+  if (attachmentId) data.attachmentId = attachmentId;
 
   switch (ctx.type) {
     case 'card_assigned':
       return { title: 'Yeni atama', body: `${actor}, "${subject}" kartına seni atadı.`, data };
-    case 'mention':
-      return { title: 'Senden söz edildi', body: `${actor} bir yorumda senden bahsetti.`, data };
-    case 'comment_reply':
-      return { title: 'Yeni yorum', body: `${actor}, "${subject}" kartına yorum yazdı.`, data };
+    case 'mention': {
+      const mentionPreview = stringOr(ctx.payload, 'commentPreview', '');
+      return {
+        title: 'Senden söz edildi',
+        body: mentionPreview
+          ? `${actor}: "${mentionPreview}"`
+          : `${actor}, "${subject}" kartındaki bir yorumda senden bahsetti.`,
+        data,
+      };
+    }
+    case 'comment_reply': {
+      const replyPreview = stringOr(ctx.payload, 'commentPreview', '');
+      return {
+        title: 'Yeni yorum',
+        body: replyPreview
+          ? `${actor}: "${replyPreview}"`
+          : `${actor}, "${subject}" kartına yorum yazdı.`,
+        data,
+      };
+    }
     case 'due_approaching': {
       const due = dueApproachingParts(ctx.payload);
       return { title: due.pushTitle, body: `${due.phrase(subject)}.`, data };
@@ -312,30 +336,46 @@ export function renderNotificationPush(ctx: TemplateContext): RenderedPush {
         body: `${actor}, takip ettiğin "${subject}" kartına yapılacaklar listesi ekledi.`,
         data,
       };
-    case 'checklist_item_added':
+    case 'checklist_item_added': {
+      const addedContent = stringOr(ctx.payload, 'content', '');
       return {
         title: 'Yapılacaklar maddesi eklendi',
-        body: `${actor}, takip ettiğin "${subject}" kartına yapılacaklar maddesi ekledi.`,
+        body: addedContent
+          ? `${actor}, "${subject}" kartına "${addedContent}" maddesini ekledi.`
+          : `${actor}, takip ettiğin "${subject}" kartına yapılacaklar maddesi ekledi.`,
         data,
       };
-    case 'checklist_item_removed':
+    }
+    case 'checklist_item_removed': {
+      const removedContent = stringOr(ctx.payload, 'content', '');
       return {
         title: 'Yapılacaklar maddesi silindi',
-        body: `${actor}, takip ettiğin "${subject}" kartından yapılacaklar maddesi sildi.`,
+        body: removedContent
+          ? `${actor}, "${subject}" kartından "${removedContent}" maddesini sildi.`
+          : `${actor}, takip ettiğin "${subject}" kartından yapılacaklar maddesi sildi.`,
         data,
       };
-    case 'attachment_removed':
+    }
+    case 'attachment_removed': {
+      const removedFile = stringOr(ctx.payload, 'fileName', '');
       return {
         title: 'Dosya kaldırıldı',
-        body: `${actor}, takip ettiğin "${subject}" kartından bir dosya kaldırdı.`,
+        body: removedFile
+          ? `${actor}, "${subject}" kartından "${removedFile}" dosyasını kaldırdı.`
+          : `${actor}, takip ettiğin "${subject}" kartından bir dosya kaldırdı.`,
         data,
       };
-    case 'checklist_item_completed':
+    }
+    case 'checklist_item_completed': {
+      const completedContent = stringOr(ctx.payload, 'content', '');
       return {
-        title: 'Liste güncellemesi',
-        body: `${actor}, takip ettiğin "${subject}" kartındaki bir maddeyi tamamladı.`,
+        title: 'Yapılacaklar güncellendi',
+        body: completedContent
+          ? `${actor}, "${completedContent}" maddesini tamamladı.`
+          : `${actor}, takip ettiğin "${subject}" kartındaki bir maddeyi tamamladı.`,
         data,
       };
+    }
     case 'member_removed': {
       // Faz 10A (DEM-135) — scope (board / workspace / card) `activityType`
       // alanından çözülür; başlık + gövde mantığı `renderMemberRemoved` ile
@@ -713,18 +753,21 @@ function renderWatchedActivity(ctx: TemplateContext): RenderedEmail {
 function renderChecklistCompleted(ctx: TemplateContext): RenderedEmail {
   const actor = pickActorName(ctx.payload);
   const cardTitle = pickSubject(ctx.payload);
+  const itemContent = stringOr(ctx.payload, 'content', '');
   const link = cardDeepLink(ctx);
-  const subject = `${actor}, "${cardTitle}" kartındaki bir maddeyi tamamladı`;
+  const subject = itemContent
+    ? `${actor}, "${itemContent}" maddesini tamamladı`
+    : `${actor}, "${cardTitle}" kartındaki bir maddeyi tamamladı`;
+  const bodyText = itemContent
+    ? `${actor}, takip ettiğin "${cardTitle}" kartındaki "${itemContent}" maddesini tamamladı.`
+    : `${actor}, takip ettiğin "${cardTitle}" kartındaki bir yapılacaklar maddesini tamamladı.`;
   return {
     subject,
-    text: textShell(ctx.recipient.name, [
-      `${actor}, takip ettiğin "${cardTitle}" kartındaki bir yapılacaklar maddesini tamamladı.`,
-      '',
-      'Karta gitmek için:',
-      link,
-    ]),
+    text: textShell(ctx.recipient.name, [bodyText, '', 'Karta gitmek için:', link]),
     html: htmlShell(ctx.recipient.name, [
-      `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartındaki bir yapılacaklar maddesini tamamladı.</p>`,
+      itemContent
+        ? `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartındaki <strong>"${esc(itemContent)}"</strong> maddesini tamamladı.</p>`
+        : `<p>${esc(actor)}, takip ettiğin <strong>${esc(cardTitle)}</strong> kartındaki bir yapılacaklar maddesini tamamladı.</p>`,
       cardLinkBlock(link),
     ]),
   };

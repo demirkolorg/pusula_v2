@@ -63,6 +63,11 @@ type ChecklistSectionProps = {
    * native scroll tarafından yutulmaması için).
    */
   scrollRef?: AnimatedRef<Animated.ScrollView>;
+  /**
+   * Bildirim deep-link'iyle gelinince bu id'li madde flash vurgulanır (bir kez).
+   * `initialCommentItemId`'den farklı: thread açmaz, yalnız görsel vurgu yapar.
+   */
+  highlightItemId?: string;
 };
 
 /**
@@ -81,6 +86,7 @@ export function ChecklistSection({
   initialCommentItemId,
   onDragActiveChange,
   scrollRef,
+  highlightItemId,
 }: ChecklistSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -442,6 +448,7 @@ export function ChecklistSection({
                     onOpenComments={
                       comments ? () => setOpenThreadItemId(item.id) : undefined
                     }
+                    highlighted={item.id === highlightItemId}
                   />
                 )}
               />

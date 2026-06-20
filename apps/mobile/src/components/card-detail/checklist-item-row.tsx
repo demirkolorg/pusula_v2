@@ -1,4 +1,12 @@
+import { useEffect } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type { RouterOutputs } from '@pusula/api';
 import { Icon } from '@/components/icon';
 import { SwipeRow } from '@/components/swipe-row';
@@ -25,6 +33,8 @@ type ChecklistItemRowProps = {
    * Optimistic satırda rozet gizlenir (madde henüz sunucuda yok).
    */
   onOpenComments?: () => void;
+  /** Bildirim deep-link'iyle gelinince bu satır flash vurgulanır (bir kez). */
+  highlighted?: boolean;
 };
 
 /**
@@ -49,10 +59,31 @@ export function ChecklistItemRow({
   onEdit,
   onDelete,
   onOpenComments,
+  highlighted = false,
 }: ChecklistItemRowProps) {
   const theme = themeFor(useColorScheme());
 
   const interactive = canEdit && !optimistic;
+
+  const flashOpacity = useSharedValue(0);
+  const flashStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    backgroundColor: `rgba(16,185,129,${flashOpacity.value * 0.18})`,
+    pointerEvents: 'none',
+  }));
+  useEffect(() => {
+    if (highlighted) {
+      flashOpacity.value = withSequence(
+        withTiming(1, { duration: 250 }),
+        withDelay(700, withTiming(0, { duration: 500 })),
+      );
+    }
+  }, [highlighted, flashOpacity]);
 
   // Madde yorum rozeti — thread sheet'i açar. `onOpenComments` verilmeli
   // (yorum bağlamı) ve satır optimistic olmamalı (madde sunucuda). `commentCount
@@ -85,7 +116,7 @@ export function ChecklistItemRow({
     ) : null;
 
   const row = (
-    <View className="min-h-12 flex-row items-start bg-card">
+    <View className="min-h-12 flex-row items-start bg-card" style={{ position: 'relative' }}>
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.completed, disabled: !interactive }}
@@ -122,6 +153,7 @@ export function ChecklistItemRow({
           satırda gizli (madde henüz sunucuda yok, thread çekilemez). Viewer da
           dokunabilir (salt-okunur thread). */}
       {commentsBadge}
+      <Animated.View style={flashStyle} />
     </View>
   );
 

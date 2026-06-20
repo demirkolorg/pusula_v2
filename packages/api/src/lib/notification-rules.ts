@@ -763,6 +763,9 @@ function buildPayload(
     'mentionText',
     'checklistId',
     'itemId',
+    // Checklist madde metni — bildirim özet metninde madde içeriği gösterilebilsin
+    // (toggle + item_added + item_removed payload'larından gelir).
+    'content',
     // Checklist madde yorumu: in-app bildirim ilgili maddenin thread'ine
     // derin link verebilsin diye hedef madde id'si taşınır.
     'checklistItemId',

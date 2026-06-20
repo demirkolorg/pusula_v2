@@ -1,5 +1,12 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -42,6 +49,8 @@ type CommentListProps = {
    * maddenin `checklist.list` cache'indeki `commentCount`'u -1 yamalanır.
    */
   checklistItemId?: string;
+  /** Bildirim deep-link'iyle gelinince bu id'li yorum flash vurgulanır. */
+  highlightCommentId?: string;
 };
 
 /**
@@ -61,6 +70,7 @@ export function CommentList({
   myBoardRole,
   canEdit,
   checklistItemId,
+  highlightCommentId,
 }: CommentListProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -202,6 +212,7 @@ export function CommentList({
             authorImage={author.image}
             canManage={canManage}
             busy={busyCommentId === comment.id}
+            highlighted={comment.id === highlightCommentId}
             onEdit={handleEdit}
             onDelete={confirmDelete}
           />
@@ -226,6 +237,7 @@ const CommentRow = memo(function CommentRow({
   authorImage,
   canManage,
   busy,
+  highlighted = false,
   onEdit,
   onDelete,
 }: {
@@ -234,12 +246,25 @@ const CommentRow = memo(function CommentRow({
   authorImage: string | null;
   canManage: boolean;
   busy: boolean;
+  highlighted?: boolean;
   /** Yorumu ilgili `comment` ile düzenler (stabil callback — DEM-226 #3). */
   onEdit: (comment: Comment, plainText: string) => void;
   /** Yorumu ilgili `comment` ile siler (stabil callback — DEM-226 #3). */
   onDelete: (comment: Comment) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const flashOpacity = useSharedValue(0);
+  const flashStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(16,185,129,${flashOpacity.value * 0.18})`,
+  }));
+  useEffect(() => {
+    if (highlighted) {
+      flashOpacity.value = withSequence(
+        withTiming(1, { duration: 250 }),
+        withDelay(700, withTiming(0, { duration: 500 })),
+      );
+    }
+  }, [highlighted, flashOpacity]);
   const [draft, setDraft] = useState('');
 
   const deleted = comment.deletedAt != null;
@@ -262,6 +287,7 @@ const CommentRow = memo(function CommentRow({
   const bodyEditable = canManage && !deleted && !editing && !busy;
 
   const rowContent = (
+    <Animated.View style={[{ borderRadius: 8, overflow: 'hidden' }, flashStyle]}>
     <View className="flex-row gap-3">
       <EntityAvatar name={authorName} image={authorImage} size={32} />
       <View className="flex-1 gap-1">
@@ -328,6 +354,7 @@ const CommentRow = memo(function CommentRow({
         )}
       </View>
     </View>
+    </Animated.View>
   );
 
   // Yetkili + silinmemiş yorum → kaydırarak sil; aksi halde düz satır.

@@ -278,10 +278,10 @@ export function notificationSummary(type: string, payload: unknown): string {
       return copy.cardMemberAdded(cardTitleOf(p));
     case 'mention':
     case 'comment.mentioned':
-      return copy.commentMentioned(cardTitleOf(p));
+      return copy.commentMentioned(cardTitleOf(p), payloadText(p, 'commentPreview'));
     case 'comment_reply':
     case 'comment.created':
-      return copy.commentCreated(cardTitleOf(p));
+      return copy.commentCreated(cardTitleOf(p), payloadText(p, 'commentPreview'));
     case 'due_approaching': {
       // DEM-170 — scheduler 1g/1s hatırlatmasının ikisine de `due_approaching`
       // tipini verir; tier-özel metni `reminderTier` payload alanından seç.
@@ -336,10 +336,10 @@ export function notificationSummary(type: string, payload: unknown): string {
       return copy.memberRoleChanged(boardNameOf(p));
     case 'attachment_added':
     case 'attachment.added':
-      return copy.attachmentAdded(cardTitleOf(p));
+      return copy.attachmentAdded(cardTitleOf(p), payloadText(p, 'fileName'));
     case 'attachment_removed':
     case 'attachment.removed':
-      return copy.attachmentRemoved(cardTitleOf(p));
+      return copy.attachmentRemoved(cardTitleOf(p), payloadText(p, 'fileName'));
     case 'card_renamed':
     case 'card.renamed':
       return copy.cardRenamed(cardTitleOf(p));
@@ -363,12 +363,12 @@ export function notificationSummary(type: string, payload: unknown): string {
       return copy.checklistCreated(cardTitleOf(p));
     case 'checklist_item_added':
     case 'checklist.item_added':
-      return copy.checklistItemAdded(cardTitleOf(p));
+      return copy.checklistItemAdded(cardTitleOf(p), payloadText(p, 'content'));
     case 'checklist_item_removed':
     case 'checklist.item_removed':
-      return copy.checklistItemRemoved(cardTitleOf(p));
+      return copy.checklistItemRemoved(cardTitleOf(p), payloadText(p, 'content'));
     case 'checklist_item_completed':
-      return copy.checklistItemCompleted(cardTitleOf(p));
+      return copy.checklistItemCompleted(cardTitleOf(p), payloadText(p, 'content'));
     case 'watched_activity':
       return copy.watchedActivity(cardTitleOf(p));
     // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart

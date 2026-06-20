@@ -552,9 +552,14 @@ export const strings = {
     // Aktör-prefixsiz özet metinleri (web `activity-summary.ts` ile aynı).
     summary: {
       cardMemberAdded: (cardTitle: string) => `sana "${cardTitle}" kartını atadı`,
-      commentMentioned: (cardTitle: string) =>
-        `"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
-      commentCreated: (cardTitle: string) => `"${cardTitle}" kartında yorum bıraktı`,
+      commentMentioned: (cardTitle: string, commentPreview?: string) =>
+        commentPreview
+          ? `"${cardTitle}" kartında senden bahsetti: "${commentPreview}"`
+          : `"${cardTitle}" kartındaki bir yorumda senden bahsetti`,
+      commentCreated: (cardTitle: string, commentPreview?: string) =>
+        commentPreview
+          ? `"${cardTitle}" kartında yorum bıraktı: "${commentPreview}"`
+          : `"${cardTitle}" kartında yorum bıraktı`,
       dueApproaching: (cardTitle: string) => `"${cardTitle}" kartının teslim tarihi yaklaşıyor`,
       dueReminder1d: (cardTitle: string) => `"${cardTitle}" kartı yarın teslim ediliyor`,
       dueReminder1h: (cardTitle: string) => `"${cardTitle}" kartı 1 saat sonra teslim ediliyor`,
@@ -565,8 +570,10 @@ export const strings = {
         `seni "${workspaceName}" çalışma alanına davet etti`,
       boardAccessRequested: (boardName: string) => `"${boardName}" panosuna erişim istedi`,
       watchedActivity: (cardTitle: string) => `"${cardTitle}" kartında değişiklik yaptı`,
-      checklistItemCompleted: (cardTitle: string) =>
-        `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
+      checklistItemCompleted: (cardTitle: string, itemContent?: string) =>
+        itemContent
+          ? `"${itemContent}" maddesini tamamladı`
+          : `"${cardTitle}" kartındaki bir maddeyi tamamladı`,
       cardArchived: (cardTitle: string) => `"${cardTitle}" kartını arşivledi`,
       cardCompleted: (cardTitle: string) => `"${cardTitle}" kartını tamamlandı işaretledi`,
       cardMoved: (cardTitle: string) => `"${cardTitle}" kartını taşıdı`,
@@ -578,7 +585,10 @@ export const strings = {
       cardMemberRemoved: (cardTitle: string) => `seni "${cardTitle}" kartından çıkardı`,
       memberRemoved: (boardName: string) => `seni "${boardName}" panosundan çıkardı`,
       memberRoleChanged: (boardName: string) => `"${boardName}" panosundaki rolünü değiştirdi`,
-      attachmentAdded: (cardTitle: string) => `"${cardTitle}" kartına bir dosya ekledi`,
+      attachmentAdded: (cardTitle: string, fileName?: string) =>
+        fileName
+          ? `"${cardTitle}" kartına "${fileName}" ekledi`
+          : `"${cardTitle}" kartına bir dosya ekledi`,
       cardRenamed: (cardTitle: string) => `"${cardTitle}" kartının başlığını değiştirdi`,
       cardDescriptionChanged: (cardTitle: string) =>
         `"${cardTitle}" kartının açıklamasını güncelledi`,
@@ -588,11 +598,18 @@ export const strings = {
       commentDeleted: (cardTitle: string) => `"${cardTitle}" kartındaki bir yorumu sildi`,
       checklistCreated: (cardTitle: string) =>
         `"${cardTitle}" kartına bir yapılacaklar listesi ekledi`,
-      checklistItemAdded: (cardTitle: string) =>
-        `"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
-      checklistItemRemoved: (cardTitle: string) =>
-        `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
-      attachmentRemoved: (cardTitle: string) => `"${cardTitle}" kartından bir dosya kaldırdı`,
+      checklistItemAdded: (cardTitle: string, itemContent?: string) =>
+        itemContent
+          ? `"${itemContent}" maddesini ekledi`
+          : `"${cardTitle}" kartına bir yapılacaklar maddesi ekledi`,
+      checklistItemRemoved: (cardTitle: string, itemContent?: string) =>
+        itemContent
+          ? `"${itemContent}" maddesini sildi`
+          : `"${cardTitle}" kartından bir yapılacaklar maddesi sildi`,
+      attachmentRemoved: (cardTitle: string, fileName?: string) =>
+        fileName
+          ? `"${cardTitle}" kartından "${fileName}" kaldırdı`
+          : `"${cardTitle}" kartından bir dosya kaldırdı`,
       // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03).
       cardCreated: (cardTitle: string) => `"${cardTitle}" kartını oluşturdu`,
       listCreated: (listName: string) => `"${listName}" listesini oluşturdu`,

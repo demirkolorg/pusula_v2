@@ -24,6 +24,11 @@ type DetailSectionProps = {
   collapsible?: boolean;
   /** `collapsible` iken ilk render katlı mı (default `false` = açık). */
   defaultCollapsed?: boolean;
+  /**
+   * `true` iken bölüm `defaultCollapsed` değerinden bağımsız açık başlar.
+   * Bildirim deep-link'iyle hedeflenen bölümü otomatik açmak için kullanılır.
+   */
+  forceExpand?: boolean;
   children: ReactNode;
 };
 
@@ -43,14 +48,16 @@ export function DetailSection({
   trailing,
   collapsible = false,
   defaultCollapsed = false,
+  forceExpand = false,
   children,
 }: DetailSectionProps) {
   const theme = themeFor(useColorScheme());
   const reduceMotion = useReducedMotion();
-  const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
+  const initialCollapsed = collapsible && !forceExpand && defaultCollapsed;
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
 
   // chevron dönüşü: katlı = 0 (aşağı bakar), açık = 1 (180° → yukarı bakar).
-  const open = useSharedValue(collapsed ? 0 : 1);
+  const open = useSharedValue(initialCollapsed ? 0 : 1);
   const chevronStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${open.value * 180}deg` }],
   }));

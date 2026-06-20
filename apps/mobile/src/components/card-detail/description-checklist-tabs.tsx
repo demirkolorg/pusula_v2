@@ -32,6 +32,11 @@ type DescriptionChecklistProps = {
    */
   initialCommentItemId?: string;
   /**
+   * Bildirim deep-link'iyle gelinince bu id'li checklist maddesi flash vurgulanır.
+   * `initialCommentItemId`'den farklı: thread açmaz, yalnız görsel vurgu yapar.
+   */
+  highlightItemId?: string;
+  /**
    * Checklist madde sürükleme aktif/pasif → kart detay ekranına iletilir
    * (dış `ScrollView` scroll kilidi). Sortable dikey drag pan'i dış scroll'la
    * çakışmasın diye.
@@ -72,6 +77,7 @@ export function DescriptionChecklistTabs({
   checklistsError,
   checklistComments,
   initialCommentItemId,
+  highlightItemId,
   onDragActiveChange,
   scrollRef,
 }: DescriptionChecklistProps) {
@@ -88,6 +94,7 @@ export function DescriptionChecklistTabs({
       canEdit={canEdit}
       comments={checklistComments}
       initialCommentItemId={initialCommentItemId}
+      highlightItemId={highlightItemId}
       onDragActiveChange={onDragActiveChange}
       scrollRef={scrollRef}
     />

@@ -17,36 +17,86 @@
 
 @layer base {
   :root {
-    --color-background: 255 255 255;
-    --color-foreground: 31 32 36;
+    /* Arka plan */
+    --color-background: 244 251 248;
+    --color-foreground: 6 35 28;
     --color-card: 255 255 255;
-    --color-card-foreground: 37 39 43;
-    --color-muted: 247 247 247;
-    --color-muted-foreground: 124 124 132;
-    --color-border: 233 233 233;
-    /* Zümrüt birincil (web :root --primary oklch(0.57 0.15 162) = #008e5f). */
-    --color-primary: 0 142 95;
+    --color-card-foreground: 6 35 28;
+    --color-card-border: 224 240 235;
+    --color-muted: 238 248 244;
+    --color-muted-foreground: 79 116 106;
+    --color-surface-strong: 223 241 235;
+    /* Birincil (#0f9171) */
+    --color-primary: 15 145 113;
+    --color-primary-light: 27 168 130;
+    --color-primary-dark: 11 115 90;
     --color-primary-foreground: 255 255 255;
-    --color-success: 34 160 107;
-    --color-warning: 217 155 0;
+    /* Durum */
+    --color-success: 22 163 74;
+    --color-success-soft: #dcfce7;
+    --color-warning: 217 119 6;
+    --color-warning-soft: #fef3c7;
     --color-destructive: 226 72 61;
+    --color-danger: 220 38 38;
+    --color-danger-soft: #fee2e2;
+    --color-info: 37 99 235;
+    --color-info-soft: #dbeafe;
+    /* Sınır */
+    --color-border: 200 229 220;
+    --color-border-soft: 224 240 235;
+    --color-divider: 217 238 231;
+    /* Metin */
+    --color-text-disabled: 141 173 164;
+    /* Form */
+    --color-input-bg: 255 255 255;
+    /* Navigasyon */
+    --color-tab-bar-bg: 255 255 255;
+    --color-tab-inactive: 141 173 164;
+    /* Skeleton */
+    --color-skeleton-base: 224 240 235;
+    --color-skeleton-highlight: 244 251 248;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --color-background: 29 33 37;
-      --color-foreground: 247 247 247;
-      --color-card: 40 44 51;
-      --color-card-foreground: 247 247 247;
-      --color-muted: 49 54 60;
-      --color-muted-foreground: 169 176 184;
-      --color-border: 58 63 69;
-      /* Zümrüt birincil dark (web .dark --primary oklch(0.64 0.14 162) = #02a671). */
-      --color-primary: 2 166 113;
+      /* Arka plan */
+      --color-background: 6 17 14;
+      --color-foreground: 232 251 246;
+      --color-card: 10 28 23;
+      --color-card-foreground: 232 251 246;
+      --color-card-border: 29 75 64;
+      --color-muted: 14 42 35;
+      --color-muted-foreground: 159 201 190;
+      --color-surface-strong: 18 56 47;
+      /* Birincil dark (#1ba882) */
+      --color-primary: 27 168 130;
+      --color-primary-light: 36 201 157;
+      --color-primary-dark: 15 145 113;
       --color-primary-foreground: 255 255 255;
-      --color-success: 75 206 151;
-      --color-warning: 226 162 0;
+      /* Durum */
+      --color-success: 34 197 94;
+      --color-success-soft: rgba(34, 197, 94, 0.14);
+      --color-warning: 245 158 11;
+      --color-warning-soft: rgba(245, 158, 11, 0.16);
       --color-destructive: 226 88 77;
+      --color-danger: 239 68 68;
+      --color-danger-soft: rgba(239, 68, 68, 0.16);
+      --color-info: 56 189 248;
+      --color-info-soft: rgba(56, 189, 248, 0.14);
+      /* Sınır */
+      --color-border: 29 75 64;
+      --color-border-soft: 22 56 47;
+      --color-divider: 22 56 47;
+      /* Metin */
+      --color-text-disabled: 95 143 132;
+      /* Form */
+      --color-input-bg: 10 28 23;
+      /* Navigasyon */
+      --color-tab-bar-bg: 8 23 19;
+      --color-tab-inactive: 111 169 154;
+      /* Skeleton */
+      --color-skeleton-base: 14 42 35;
+      --color-skeleton-highlight: 18 56 47;
     }
   }
 }

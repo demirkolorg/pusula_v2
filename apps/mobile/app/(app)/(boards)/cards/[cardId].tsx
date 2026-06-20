@@ -64,10 +64,14 @@ export default function CardDetailScreen() {
   const params = useLocalSearchParams<{
     cardId: string;
     title?: string;
-    // Madde yorum bildirimi/deep-link'iyle gelinince açılacak kontrol listesi
-    // maddesinin id'si — kart yüklenince o maddenin yorum thread'i (bottom
-    // sheet) otomatik açılır.
+    // Madde yorum thread'ini açar (comment-on-checklist-item bildirimleri).
     checklistItemId?: string;
+    // Checklist maddesini scroll + flash vurgular (toggle/add bildirimleri).
+    highlightItemId?: string;
+    // Yorum listesinde o yorumu scroll + flash vurgular.
+    commentId?: string;
+    // Ekler listesinde o dosyayı scroll + flash vurgular.
+    attachmentId?: string;
   }>();
   const cardId = params.cardId;
   const trpc = useTRPC();
@@ -305,6 +309,7 @@ export default function CardDetailScreen() {
       title={strings.cardDetail.commentsTitle}
       collapsible
       defaultCollapsed
+      forceExpand={!!params.commentId}
       trailing={comments.length > 0 ? <SectionBadge label={String(comments.length)} /> : undefined}
     >
       <View className="gap-4">
@@ -318,6 +323,7 @@ export default function CardDetailScreen() {
             currentUserId={currentUserId}
             myBoardRole={myBoardRole}
             canEdit={canEdit}
+            highlightCommentId={params.commentId}
           />
         ) : (
           <Text className="text-sm text-muted-foreground">{strings.cardDetail.noComments}</Text>
@@ -521,6 +527,7 @@ export default function CardDetailScreen() {
           // Deep-link / madde yorum bildirimiyle gelinmişse o maddenin yorum
           // thread'i otomatik açılır (bir kez).
           initialCommentItemId={params.checklistItemId}
+          highlightItemId={params.highlightItemId}
           // Madde sürükleme aktifken dış scroll kilitle (drag pan çakışması).
           onDragActiveChange={setChecklistDragging}
           // Dış scroll ref'i — sortable Pan'ı bununla koordine edilir (uzun-bas
@@ -536,6 +543,7 @@ export default function CardDetailScreen() {
           canEdit={canEdit}
           currentUserId={currentUserId}
           myBoardRole={myBoardRole}
+          highlightAttachmentId={params.attachmentId}
         />
 
         {/* Yorumlar + Aktivite — tablet'te yan-yana 2 sütun (eşit `flex-1`,

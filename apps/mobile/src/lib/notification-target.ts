@@ -36,7 +36,18 @@ export type NotificationTargetInput = {
 export type NotificationTarget =
   | {
       pathname: '/cards/[cardId]';
-      params: { cardId: string; title: string; checklistItemId?: string };
+      params: {
+        cardId: string;
+        title: string;
+        /** Checklist madde yorum thread'ini otomatik aç. */
+        checklistItemId?: string;
+        /** Checklist maddesi scroll + vurgu (thread açmaz — toggle/add bildirimleri). */
+        highlightItemId?: string;
+        /** Yorum bölümüne scroll + vurgu. */
+        commentId?: string;
+        /** Ekler bölümüne scroll + vurgu. */
+        attachmentId?: string;
+      };
     }
   | { pathname: '/boards/[boardId]'; params: { boardId: string; title: string } }
   | { pathname: '/workspaces/[id]'; params: { id: string; name: string } }
@@ -84,9 +95,11 @@ export function notificationTarget(
   const boardTitle = stringValue(raw.boardName) ?? stringValue(raw.boardTitle) ?? '';
   const workspaceName = stringValue(raw.workspaceName) ?? '';
   const reportTitle = stringValue(raw.reportTitle) ?? '';
-  // Madde yorum bildirimi payload'ında varsa kart açılınca o maddenin yorum
-  // thread'i açılır. Yoksa undefined — yalnız karta gidilir.
+  // Spesifik öğe odak parametreleri — bildirim tipine göre biri set olur.
   const checklistItemId = stringValue(raw.checklistItemId);
+  const highlightItemId = stringValue(raw.itemId);
+  const commentId = stringValue(raw.commentId);
+  const attachmentId = stringValue(raw.attachmentId);
 
   if (cardId && boardId) {
     return {
@@ -95,6 +108,9 @@ export function notificationTarget(
         cardId,
         title: cardTitle,
         ...(checklistItemId ? { checklistItemId } : {}),
+        ...(highlightItemId ? { highlightItemId } : {}),
+        ...(commentId ? { commentId } : {}),
+        ...(attachmentId ? { attachmentId } : {}),
       },
     };
   }
