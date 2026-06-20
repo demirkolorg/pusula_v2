@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Pressable,
   View,
@@ -9,12 +9,19 @@ import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Text } from '@/components/text';
+import {
+  DEFAULT_NAV_PILL_POSITION,
+  loadNavPillPosition,
+  saveNavPillPosition,
+  type NavPillPosition,
+} from '@/lib/nav-pill-preference';
 import { themeFor } from '@/theme/tokens';
 
 /** Pill kenar boşluğu (snap uçlarında ekran kenarıyla pill arası px). */
@@ -73,14 +80,36 @@ export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTab
     setPillWidth(e.nativeEvent.layout.width);
   };
 
-  // Pill genişliği veya ekran (rotasyon/Split View) değişince azami sapmayı
-  // yeniden hesapla ve mevcut konumu yeni sınıra geri kelepçele.
+  // Kalıcılık (2026-06-19) — bırakılan konumu (sol/orta/sağ) hatırla. Açılışta
+  // yükle; sürükleme bitince (snap) yaz. Konum bir faktör (-1/0/+1) olarak
+  // saklanır; gerçek translateX = faktör × güncel maxShift, böylece
+  // rotation/Split View'da da doğru kenara yapışık kalır.
+  const [position, setPosition] = useState<NavPillPosition>(DEFAULT_NAV_PILL_POSITION);
+  useEffect(() => {
+    let active = true;
+    void loadNavPillPosition().then((stored) => {
+      if (active) setPosition(stored);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Konum (yüklenince/değişince) ya da ekran/pill genişliği (rotasyon/Split View)
+  // değişince azami sapmayı yeniden hesapla ve pill'i konumuna yayla. Hem ilk
+  // restorasyonu hem yeniden boyutlandırmada doğru kenarı korur.
   useEffect(() => {
     const m = Math.max(0, (screenWidth - pillWidth) / 2 - EDGE_MARGIN);
     maxShift.value = m;
-    if (translateX.value > m) translateX.value = withSpring(m);
-    else if (translateX.value < -m) translateX.value = withSpring(-m);
-  }, [screenWidth, pillWidth, maxShift, translateX]);
+    const factor = position === 'left' ? -1 : position === 'right' ? 1 : 0;
+    translateX.value = withSpring(factor * m, { damping: 18, stiffness: 180 });
+  }, [position, screenWidth, pillWidth, maxShift, translateX]);
+
+  // Snap sonrası konumu kaydet (UI thread'den `runOnJS` ile çağrılır).
+  const persistPosition = useCallback((next: NavPillPosition) => {
+    setPosition(next);
+    void saveNavPillPosition(next);
+  }, []);
 
   const panGesture = Gesture.Pan()
     // Yatay eşik: pill içindeki sekme dokunuşlarını/dikey hareketi çalmadan
@@ -102,9 +131,18 @@ export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTab
       const m = maxShift.value;
       const x = translateX.value;
       let nearest = 0;
-      if (x <= -m / 2) nearest = -m;
-      else if (x >= m / 2) nearest = m;
+      let next: NavPillPosition = 'center';
+      if (x <= -m / 2) {
+        nearest = -m;
+        next = 'left';
+      } else if (x >= m / 2) {
+        nearest = m;
+        next = 'right';
+      }
       translateX.value = withSpring(nearest, { damping: 18, stiffness: 180 });
+      // Konumu kalıcı yaz — `setPosition` state'i de senkron tutar (apply effect
+      // aynı değere idempotent yaylar). UI thread → JS thread köprüsü.
+      runOnJS(persistPosition)(next);
     });
 
   const pillStyle = useAnimatedStyle(() => ({

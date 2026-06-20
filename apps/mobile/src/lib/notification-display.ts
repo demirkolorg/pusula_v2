@@ -10,6 +10,7 @@
  * Saf modül — RN/Expo importu yok; birim test edilir.
  */
 import type { IconName } from '@/components/icon';
+import { paletteColors, type ThemeTokens } from '@/theme/tokens';
 import { strings } from '@/lib/strings';
 
 /**
@@ -154,6 +155,62 @@ export function notificationTypeIcon(type: string): IconName {
       return 'tag';
     default:
       return 'message-square';
+  }
+}
+
+/**
+ * Bildirim tipi → ikon vurgu rengi (2026-06-20 modern bildirim UI). En sık /
+ * önemli kategoriler renklendirilir, kalan tipler nötr (`mutedForeground`).
+ * Satırda renkli yuvarlak chip (tinted zemin + renkli ikon) için kullanılır;
+ * görsel hiyerarşi + tarama kolaylığı sağlar. Tema-duyarlı token'lar (`theme`)
+ * + tema-bağımsız palet (`paletteColors`) karışımı. Web bildirim merkezindeki
+ * tip-renk mantığının mobil karşılığı. Saf fonksiyon — birim test edilir.
+ */
+export function notificationTypeTone(type: string, theme: ThemeTokens): string {
+  switch (type) {
+    case 'due_overdue':
+      return theme.destructive;
+    case 'due_approaching':
+    case 'due_reminder_1d':
+    case 'due_reminder_1h':
+    case 'card_due_changed':
+    case 'card.due_set':
+    case 'card.due_cleared':
+      return theme.warning;
+    case 'card_completed':
+    case 'card.completed':
+    case 'checklist_item_completed':
+      return theme.success;
+    case 'card_assigned':
+    case 'card.member_added':
+    case 'board_member_added':
+    case 'board.member_added':
+      return paletteColors.mavi;
+    case 'mention':
+    case 'comment.mentioned':
+      return paletteColors.mor;
+    case 'comment_reply':
+    case 'comment.created':
+    case 'comment_updated':
+    case 'comment.updated':
+    case 'watched_activity':
+      return paletteColors.sky;
+    case 'board_invitation':
+    case 'board.member_invited':
+    case 'workspace_invitation':
+    case 'workspace.member_invited':
+    case 'board_access_requested':
+    case 'board.access_requested':
+      return paletteColors.indigo;
+    case 'card_created':
+    case 'card.created':
+    case 'list_created':
+    case 'list.created':
+    case 'board_created':
+    case 'board.created':
+      return theme.primary;
+    default:
+      return theme.mutedForeground;
   }
 }
 

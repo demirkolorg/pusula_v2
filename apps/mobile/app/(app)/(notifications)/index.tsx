@@ -73,19 +73,30 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
-      {/* Ekran-içi başlık + aksiyonlar (sekme ekranı — native header yok). */}
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-2">
-        <View>
-          <Text weight="semibold" className="text-2xl text-foreground">
-            {strings.notifications.title}
-          </Text>
+      {/* Ekran-içi başlık + aksiyonlar (sekme ekranı — native header yok).
+          Modern UI 2026-06-20: başlık yanında okunmamış sayısı pill rozeti,
+          aksiyon ikonları yuvarlak `bg-muted` chip içinde (daha tappable). */}
+      <View className="flex-row items-center justify-between px-4 pb-3 pt-2">
+        <View className="flex-1">
+          <View className="flex-row items-center gap-2">
+            <Text weight="semibold" className="text-2xl text-foreground">
+              {strings.notifications.title}
+            </Text>
+            {unreadCount > 0 ? (
+              <View className="min-w-6 items-center rounded-full bg-primary px-2 py-0.5">
+                <Text weight="semibold" className="text-[11px] text-primary-foreground">
+                  {unreadCount}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {unreadCount > 0 ? (
             <Text className="text-xs text-muted-foreground">
               {strings.notifications.unreadSummary(unreadCount)}
             </Text>
           ) : null}
         </View>
-        <View className="flex-row items-center gap-4">
+        <View className="flex-row items-center gap-2">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={strings.notifications.markAllRead}
@@ -93,18 +104,20 @@ export default function NotificationsScreen() {
             disabled={!hasUnread || isMarkingAll}
             hitSlop={8}
             onPress={markAllRead}
-            className={!hasUnread || isMarkingAll ? 'opacity-40' : 'active:opacity-60'}
+            className={`h-10 w-10 items-center justify-center rounded-full bg-muted ${
+              !hasUnread || isMarkingAll ? 'opacity-40' : 'active:opacity-60'
+            }`}
           >
-            <Icon name="check-circle" size={21} color={theme.foreground} />
+            <Icon name="check-circle" size={20} color={theme.foreground} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={strings.notificationSettings.title}
             hitSlop={8}
             onPress={() => router.push('/notification-settings')}
-            className="active:opacity-60"
+            className="h-10 w-10 items-center justify-center rounded-full bg-muted active:opacity-60"
           >
-            <Icon name="settings" size={21} color={theme.foreground} />
+            <Icon name="settings" size={20} color={theme.foreground} />
           </Pressable>
         </View>
       </View>
@@ -161,12 +174,17 @@ export default function NotificationsScreen() {
         >
           {groups.map((group) => (
             <View key={group.key} className="gap-2">
-              <Text
-                weight="semibold"
-                className="text-xs uppercase text-muted-foreground"
-              >
-                {strings.notifications.groups[group.key]}
-              </Text>
+              <View className="flex-row items-center gap-2 px-0.5">
+                <Text
+                  weight="semibold"
+                  className="text-xs uppercase text-muted-foreground"
+                >
+                  {strings.notifications.groups[group.key]}
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  {group.items.length}
+                </Text>
+              </View>
               <View className="gap-2">
                 {group.items.map((notification) => (
                   <NotificationRow

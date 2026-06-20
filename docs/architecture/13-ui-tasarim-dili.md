@@ -20,7 +20,7 @@ related:
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/architecture/20-hareket-etkilesim-sistemi|Hareket & Etkileşim Sistemi]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-06-18
+updated: 2026-06-19
 ---
 
 # 13 — UI Tasarım Dili
@@ -888,6 +888,7 @@ Faz 15 ([DEM-299](https://linear.app/demirkol/issue/DEM-299)) ile `apps/mobile` 
 - Tablet: `flex-row` (sidebar sabit `md:w-80` ~ `md:w-96` + main `flex-1`)
 - Phone: tek view — `selectedDetail` varsa detail, yoksa master (history stack ile geri)
 - SafeAreaInsets + landscape padding `md:landscape:px-6`
+- **Daraltılabilir sidebar (`collapsible`, 2026-06-17; kontrollü + kalıcı toggle 2026-06-19):** board ekranında sol sidebar daraltılabilir (reanimated `width` 0 ↔ sidebarWidth, 240ms). Daralt/aç **toggle'ı board header'ında** (`sidebar` ikonu, view-toggle'ın solunda); açıkken `foreground`, kapalıyken `mutedForeground`. Durum **global + kalıcı** (`pusula:board-sidebar-collapsed` · `useBoardSidebarCollapsed`) — kullanıcı en son hangi durumda bıraktıysa her board o şekilde açılır (her açılışta zorla açık gelmez). `MasterDetailLayout`'a `collapsed` prop'u verilince **kontrollü** çalışır ve eski iç **kenar tutamacını çizmez** (toggle header'a taşındı).
 
 ### 13.12.5 Sheet → popover branch
 
@@ -925,6 +926,7 @@ Faz 15 ([DEM-299](https://linear.app/demirkol/issue/DEM-299)) ile `apps/mobile` 
 | Aktif tint | `tabBarActiveTintColor` (mevcut tema `primary`) | İkon + label rengi |
 | Inactive tint | `tabBarInactiveTintColor` (mevcut tema `mutedForeground`) | İkon + label rengi |
 | Badge | Bildirim sekmesi `tabBarBadge` overlay sağ-üst | Mevcut `<Tabs.Screen>` `tabBarBadge` prop'unu okur |
+| Konum (sürükle) | sol / orta / sağ — 3 sabit snap | Pan ile yatay sürüklenir (DEM-303 V2, 2026-06-17); merkezden ±`maxShift` (`(screen−pill)/2 − 8`), m/2 eşiğinde en yakına yaylanır. Konum **kalıcı** (`pusula:nav-pill-position`, 2026-06-19) — `runOnJS` ile snap'te yazılır, açılışta restore. Gerekçe: ortadaki pill alttaki "Kart ekle"yi örtüyordu → pill kaydırılabilir + ayrıca **mobil kart-ekle liste header satırına `+` butonu olarak alındı** (`board-column.tsx`, 2026-06-20; açık composer kartların üstünde) — çift çözüm. |
 
 #### 13.12.6.2 Scroll content padding (her ekranda uygula)
 

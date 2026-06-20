@@ -7,6 +7,7 @@ import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { Text } from '@/components/text';
 import { isPendingId } from '@/lib/client-mutation-id';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
@@ -205,6 +206,8 @@ export function BoardListView({
   onRefresh,
 }: BoardListViewProps) {
   const theme = themeFor(useColorScheme());
+  // Tablet floating pill nav son içeriği ("Liste ekle"/son kart) örtmesin.
+  const navInset = useFloatingNavInset();
 
   const sections = useMemo<BoardSection[]>(
     () =>
@@ -250,7 +253,8 @@ export function BoardListView({
       sections={sections}
       keyExtractor={(card) => card.id}
       className="flex-1"
-      contentContainerClassName="pb-2"
+      // Alt boşluk: tablet'te pill'i temizler, phone'da taban `pb-2` (8).
+      contentContainerStyle={{ paddingBottom: navInset || 8 }}
       stickySectionHeadersEnabled={false}
       renderItem={renderItem}
       renderSectionHeader={renderSectionHeader}

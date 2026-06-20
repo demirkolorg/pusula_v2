@@ -1,5 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, View, useColorScheme } from 'react-native';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
 import { themeFor } from '@/theme/tokens';
@@ -9,6 +16,14 @@ type DetailSectionProps = {
   title: string;
   /** Başlığın sağındaki özet rozeti — ilerleme (2/4) / adet. */
   trailing?: ReactNode;
+  /**
+   * Başlığa dokununca içerik açılıp katlanır (DEM-249). `false` (default) ise
+   * bölüm her zaman açık — eski davranış. Rozet (`trailing`) katlı durumda da
+   * görünür; kullanıcı açmadan kaç eleman olduğunu görür.
+   */
+  collapsible?: boolean;
+  /** `collapsible` iken ilk render katlı mı (default `false` = açık). */
+  defaultCollapsed?: boolean;
   children: ReactNode;
 };
 
@@ -16,19 +31,75 @@ type DetailSectionProps = {
  * Kart detay ekranında bir bölümü saran kart yüzeyi (DEM-204). `bg-muted` sayfa
  * zemini üzerinde `bg-card` yuvarlatılmış kapsayıcı — her bölüm görsel olarak
  * ayrışır. Başlık satırı: ikon + başlık + sağda opsiyonel özet rozeti.
+ *
+ * DEM-249 — `collapsible` ile bölüm katlanabilir: başlık dokunulabilir olur,
+ * sağda dönen bir chevron belirir, içerik koşullu render edilir (katlıyken
+ * mount edilmez — alttaki ağır listeler boşuna çizilmez). Animasyon
+ * `useReducedMotion` ile anlık geçişe iner (ilke 9).
  */
-export function DetailSection({ icon, title, trailing, children }: DetailSectionProps) {
+export function DetailSection({
+  icon,
+  title,
+  trailing,
+  collapsible = false,
+  defaultCollapsed = false,
+  children,
+}: DetailSectionProps) {
   const theme = themeFor(useColorScheme());
+  const reduceMotion = useReducedMotion();
+  const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
+
+  // chevron dönüşü: katlı = 0 (aşağı bakar), açık = 1 (180° → yukarı bakar).
+  const open = useSharedValue(collapsed ? 0 : 1);
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${open.value * 180}deg` }],
+  }));
+
+  function toggle() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      const target = next ? 0 : 1;
+      open.value = reduceMotion ? target : withTiming(target, { duration: 180 });
+      return next;
+    });
+  }
+
+  const headerRow = (
+    <View className="flex-row items-center gap-2">
+      <Icon name={icon} size={15} color={theme.mutedForeground} />
+      <Text weight="semibold" className="flex-1 text-xs uppercase text-muted-foreground">
+        {title}
+      </Text>
+      {trailing}
+      {collapsible ? (
+        <Animated.View style={chevronStyle}>
+          <Icon name="chevron-down" size={18} color={theme.mutedForeground} />
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+
   return (
     <View className="gap-3 rounded-xl border border-border bg-card p-3.5">
-      <View className="flex-row items-center gap-2">
-        <Icon name={icon} size={15} color={theme.mutedForeground} />
-        <Text weight="semibold" className="flex-1 text-xs uppercase text-muted-foreground">
-          {title}
-        </Text>
-        {trailing}
-      </View>
-      {children}
+      {collapsible ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !collapsed }}
+          accessibilityLabel={title}
+          onPress={toggle}
+          hitSlop={8}
+          className="active:opacity-70"
+        >
+          {headerRow}
+        </Pressable>
+      ) : (
+        headerRow
+      )}
+      {collapsible && collapsed ? null : (
+        <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(160)}>
+          {children}
+        </Animated.View>
+      )}
     </View>
   );
 }

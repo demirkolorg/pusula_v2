@@ -31,6 +31,13 @@ export interface MasterDetailLayoutProps {
    * collapsible vermeyen ekranlar etkilenmez. OTA-uyumlu, saf JS (reanimated).
    */
   collapsible?: boolean;
+  /**
+   * Daraltma durumunu **dışarıdan** yönetmek için (2026-06-19). Verilirse bileşen
+   * kontrollü çalışır: iç state yerine bu değeri kullanır ve **kenar tutamacını
+   * çizmez** (toggle'ı çağıran ekran kendi header'ında gösterir; bkz. board
+   * ekranı). Verilmezse eski davranış: iç state + yüzen kenar tutamacı.
+   */
+  collapsed?: boolean;
   /** Test/E2E erişimi için ekran kökü id'si; `${testID}-master` / `${testID}-detail` alt slot id'leri tablet branch'inde üretilir. */
   testID?: string;
 }
@@ -58,6 +65,7 @@ export function MasterDetailLayout({
   selectedDetail = false,
   sidebarWidth = 320,
   collapsible = false,
+  collapsed: collapsedProp,
   testID,
 }: MasterDetailLayoutProps) {
   const isTablet = useIsTablet();
@@ -66,16 +74,19 @@ export function MasterDetailLayout({
   // Hook'lar koşulsuz çağrılır (Rules of Hooks). Phone/non-collapsible branch'te
   // kullanılmasalar da ucuzdur. `width` shared value sidebar genişliğini taşır;
   // toggle'da 0 ↔ sidebarWidth arası withTiming.
-  const [collapsed, setCollapsed] = useState(false);
+  // `collapsedProp` verilirse kontrollü (dış state); yoksa iç state + kenar
+  // tutamacı (eski davranış).
+  const controlled = collapsedProp !== undefined;
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const collapsed = controlled ? collapsedProp : internalCollapsed;
   const width = useSharedValue(sidebarWidth);
 
-  // Rotasyon/Split View ile `sidebarWidth` değişirse açık panelin genişliğini
-  // senkronla (board ekranı landscape'te 384, portrait'te 320 verir). Kapalıyken
-  // dokunma — kullanıcı niyeti (kapalı) korunur.
+  // Genişliği hem daraltma durumuna hem rotasyon/Split View'a (sidebarWidth)
+  // göre senkronla: kapalı → 0, açık → güncel sidebarWidth (board ekranı
+  // landscape'te 384, portrait'te 320 verir). Kontrollü modda tercih async
+  // yüklenince (kapalı) tek seferlik aç→kapa animasyonu görünebilir — kabul.
   useEffect(() => {
-    if (!collapsed) {
-      width.value = withTiming(sidebarWidth, { duration: 200 });
-    }
+    width.value = withTiming(collapsed ? 0 : sidebarWidth, { duration: 240 });
   }, [sidebarWidth, collapsed, width]);
 
   const sidebarAnimStyle = useAnimatedStyle(() => ({ width: width.value }));
@@ -86,11 +97,9 @@ export function MasterDetailLayout({
   }));
 
   if (isTablet && collapsible) {
-    const toggle = () => {
-      const next = !collapsed;
-      setCollapsed(next);
-      width.value = withTiming(next ? 0 : sidebarWidth, { duration: 240 });
-    };
+    // Yalnız kontrolsüz modda kullanılır (iç kenar tutamacı). Genişlik
+    // animasyonunu yukarıdaki effect `collapsed`'a bakarak yürütür.
+    const toggle = () => setInternalCollapsed((prev) => !prev);
 
     return (
       <View testID={testID} className="flex-1 flex-row bg-background">
@@ -118,38 +127,41 @@ export function MasterDetailLayout({
         >
           {detail}
         </View>
-        {/* Kenar tutamacı — sidebar/detail sınırında dikey ortada yüzer.
-            Kapalıyken de erişilebilir (sol kenarda kalır). */}
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            { position: 'absolute', top: '50%', left: 0, marginTop: -18 },
-            handleAnimStyle,
-          ]}
-        >
-          <Pressable
-            onPress={toggle}
-            accessibilityRole="button"
-            accessibilityLabel={collapsed ? 'Paneli aç' : 'Paneli kapat'}
-            accessibilityState={{ expanded: !collapsed }}
-            hitSlop={8}
-            className="h-9 w-9 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
-            style={{
-              marginLeft: -18,
-              shadowColor: '#000',
-              shadowOpacity: 0.18,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 8,
-            }}
+        {/* Kenar tutamacı — yalnız KONTROLSÜZ modda. Kontrollü modda (board
+            ekranı) toggle header'a taşındığından (2026-06-19) tutamaç çizilmez.
+            Sidebar/detail sınırında dikey ortada yüzer; kapalıyken de erişilebilir. */}
+        {!controlled ? (
+          <Animated.View
+            pointerEvents="box-none"
+            style={[
+              { position: 'absolute', top: '50%', left: 0, marginTop: -18 },
+              handleAnimStyle,
+            ]}
           >
-            <Icon
-              name={collapsed ? 'chevron-right' : 'chevron-left'}
-              size={20}
-              color={theme.mutedForeground}
-            />
-          </Pressable>
-        </Animated.View>
+            <Pressable
+              onPress={toggle}
+              accessibilityRole="button"
+              accessibilityLabel={collapsed ? 'Paneli aç' : 'Paneli kapat'}
+              accessibilityState={{ expanded: !collapsed }}
+              hitSlop={8}
+              className="h-9 w-9 items-center justify-center rounded-full border border-border bg-card active:opacity-70"
+              style={{
+                marginLeft: -18,
+                shadowColor: '#000',
+                shadowOpacity: 0.18,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 8,
+              }}
+            >
+              <Icon
+                name={collapsed ? 'chevron-right' : 'chevron-left'}
+                size={20}
+                color={theme.mutedForeground}
+              />
+            </Pressable>
+          </Animated.View>
+        ) : null}
       </View>
     );
   }

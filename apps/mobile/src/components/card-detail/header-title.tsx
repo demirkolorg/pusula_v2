@@ -1,28 +1,39 @@
-import { useEffect, useRef } from 'react';
-import { Animated, useWindowDimensions, View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
 
 type CardDetailHeaderTitleProps = {
-  /** Gövde başlığı nav bar'a kayınca `true` — kart başlığına geçilir. */
-  collapsed: boolean;
+  /**
+   * Collapse ilerlemesi (Reanimated shared value): 0 = liste adı görünür,
+   * 1 = kart başlığı görünür. Scroll worklet'i UI-thread'inde set eder; React
+   * state'i / `Stack.Screen` options'ını YENİDEN OLUŞTURMAZ (native-stack header
+   * re-process'i + "navigation context" hatasını tetiklemez — bkz. [cardId].tsx).
+   */
+  progress: SharedValue<number>;
   /** Kartın bulunduğu liste adı — başlık görünürken nav bar bunu gösterir. */
   listTitle: string | null;
   cardTitle: string;
 };
 
 /**
- * Kart detay ekranının collapsing nav başlığı (Faz 7G-3). Gövdedeki büyük kart
- * başlığı ekranda görünürken nav bar kartın listesini gösterir; başlık yukarı
- * kayınca kısa bir çapraz-geçişle kart başlığına döner. Böylece üst nav ile
- * gövde başlığı arasındaki metin tekrarı ortadan kalkar, nav bar her durumda
- * bağlam taşır (liste adı veya kart başlığı).
+ * Kart detay ekranının collapsing nav başlığı (Faz 7G-3; 2026-06-20 shared-value
+ * refactor). Gövdedeki büyük kart başlığı görünürken nav bar kartın listesini
+ * gösterir; başlık yukarı kayınca kısa bir çapraz-geçişle kart başlığına döner.
+ * Böylece üst nav ile gövde başlığı arasındaki metin tekrarı kalkar.
  *
- * Geçiş scroll'a bağlı değil tek seferlik bir `collapsed` eşiğine bağlıdır —
- * scroll sırasında ekran yeniden render olmaz, yalnızca eşik geçilince 1 kez.
+ * Geçiş tamamen Reanimated shared value (`progress`) ile UI-thread'inde yapılır;
+ * eşik geçişi React render'ı tetiklemez. Önceki `collapsed` React state'i,
+ * `Stack.Screen` `headerTitle` closure'unu her toggle'da yeniden oluşturup
+ * native-stack header/getState pipeline'ını çalıştırıyor ve "Couldn't find a
+ * navigation context" hatasına yol açıyordu (tablet sekme değişimi reprosu).
  */
 export function CardDetailHeaderTitle({
-  collapsed,
+  progress,
   listTitle,
   cardTitle,
 }: CardDetailHeaderTitleProps) {
@@ -35,32 +46,21 @@ export function CardDetailHeaderTitle({
   // belirler — hangisi görünürse görünsün metin gereksiz yere kırpılmaz.
   const sizerText = cardTitle.length >= listLabel.length ? cardTitle : listLabel;
 
-  // 0 = liste adı görünür, 1 = kart başlığı görünür.
-  const progress = useRef(new Animated.Value(collapsed ? 1 : 0)).current;
-  useEffect(() => {
-    Animated.timing(progress, {
-      toValue: collapsed ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [collapsed, progress]);
-
-  const listOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  // 0 = liste adı görünür, 1 = kart başlığı görünür (UI-thread'inde sürülür).
+  const listStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [1, 0]),
+  }));
+  const cardStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
 
   return (
     <View style={{ maxWidth }}>
       {/* Görünmez ölçüm — yalnızca konteyner boyutunu belirler. */}
-      <Text
-        weight="semibold"
-        numberOfLines={1}
-        className="text-base"
-        style={{ opacity: 0 }}
-      >
+      <Text weight="semibold" numberOfLines={1} className="text-base" style={{ opacity: 0 }}>
         {sizerText}
       </Text>
 
       <Animated.View
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: listOpacity }}
+        style={[{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }, listStyle]}
       >
         <Text weight="medium" numberOfLines={1} className="text-base text-muted-foreground">
           {listLabel}
@@ -68,7 +68,7 @@ export function CardDetailHeaderTitle({
       </Animated.View>
 
       <Animated.View
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: progress }}
+        style={[{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }, cardStyle]}
       >
         <Text weight="semibold" numberOfLines={1} className="text-base text-foreground">
           {cardTitle}

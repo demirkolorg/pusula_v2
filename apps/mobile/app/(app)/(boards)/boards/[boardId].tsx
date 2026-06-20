@@ -31,6 +31,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { canEditBoard, canManageBoard } from '@/lib/member-roles';
 import { strings } from '@/lib/strings';
 import { useBoardMutations } from '@/lib/use-board-mutations';
+import { useBoardSidebarCollapsed } from '@/lib/use-board-sidebar-collapsed';
 import { useBoardViewMode } from '@/lib/use-board-view-mode';
 import { useDownloadBoardReport } from '@/lib/use-download-board-report';
 import { useIsTablet } from '@/lib/use-device-class';
@@ -74,6 +75,10 @@ export default function BoardScreen() {
   const mutations = useBoardMutations(boardId);
   // Görünüm modu (DEM-233) — kanban kolon / dikey liste. Global + kalıcı tercih.
   const { mode: viewMode, setMode: setViewMode } = useBoardViewMode();
+  // Sidebar daraltma (2026-06-19) — global + kalıcı; toggle header'da. Yalnız
+  // tablet master-detail'de anlamlı (phone'da sidebar yok).
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } =
+    useBoardSidebarCollapsed();
   // Faz 14F (DEM-296) — klasik pano PDF indir/paylaş; board ⋮ menüsünden tetiklenir.
   const { download: downloadReport, isDownloading: isDownloadingReport } =
     useDownloadBoardReport(boardId, query.data?.board.title);
@@ -181,6 +186,26 @@ export default function BoardScreen() {
         headerRight: boardId
           ? () => (
               <View className="flex-row items-center gap-4">
+                {/* Sidebar aç/kapa (2026-06-19) — yalnız tablet master-detail'de
+                    + board yüklendiğinde. Kenar tutamacının yerini alır; durum
+                    global + kalıcı (en son bırakılan şekilde gelir). Açıkken
+                    vurgulu (foreground), kapalıyken sönük (mutedForeground). */}
+                {isTablet && query.data ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={sidebarCollapsed ? 'Paneli aç' : 'Paneli kapat'}
+                    accessibilityState={{ expanded: !sidebarCollapsed }}
+                    hitSlop={8}
+                    onPress={toggleSidebar}
+                    className="active:opacity-60"
+                  >
+                    <Icon
+                      name="sidebar"
+                      size={21}
+                      color={sidebarCollapsed ? theme.mutedForeground : theme.foreground}
+                    />
+                  </Pressable>
+                ) : null}
                 {/* Görünüm modu (DEM-233) — kanban kolon / dikey liste; yalnız
                     board yüklendiğinde gösterilir (mod seçimi içerikle anlamlı). */}
                 {query.data ? (
@@ -367,6 +392,7 @@ export default function BoardScreen() {
       detail={mainContent}
       sidebarWidth={sidebarWidth}
       collapsible
+      collapsed={sidebarCollapsed}
       testID="board-master-detail"
     />
   ) : (

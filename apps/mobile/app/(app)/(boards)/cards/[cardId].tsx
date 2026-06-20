@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
-import Animated, { runOnJS, useAnimatedScrollHandler } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -15,6 +19,7 @@ import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { DetailSection, SectionBadge } from '@/components/card-detail/section';
 import { DescriptionChecklistTabs } from '@/components/card-detail/description-checklist-tabs';
@@ -65,6 +70,9 @@ export default function CardDetailScreen() {
   const cardId = params.cardId;
   const trpc = useTRPC();
   const theme = themeFor(useColorScheme());
+  // Tablet floating pill nav son içeriği (yorum composer'ı, aktivite, +ekle)
+  // örtmesin → scroll içeriğine alt boşluk (phone'da 0 → taban 16 korunur).
+  const navInset = useFloatingNavInset();
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user.id;
   const enabled = Boolean(cardId);
@@ -124,28 +132,35 @@ export default function CardDetailScreen() {
   // geçilmez). Eşik geçişi UI-thread'inde tespit edilir, yalnız değer
   // değişince `runOnJS` ile `setCollapsed` çağrılır — React render'ı yine
   // yalnız 1 kez tetiklenir.
-  const [collapsed, setCollapsed] = useState(false);
   const [titleThreshold, setTitleThreshold] = useState(96);
   // Checklist madde sürükleme (sortable) aktifken dış scroll kilitlenir —
   // dikey drag pan'i dış `ScrollView` scroll'uyla çakışmasın.
   const [checklistDragging, setChecklistDragging] = useState(false);
+
+  // Collapsing nav başlığı (DEM-228; 2026-06-20 shared-value refactor): 0 = liste
+  // adı, 1 = kart başlığı. Reanimated shared value — eşik geçişi UI-thread'inde
+  // yapılır, React state'i DEĞİŞMEZ ve `runOnJS`/`setState` yoktur. Böylece
+  // `collapsed`'a bağlı `Stack.Screen` `headerTitle` closure'u yeniden oluşmaz;
+  // scroll ya da (tablet) sekme değişimi kaynaklı içerik-yüksekliği değişimi
+  // native-stack header / getState pipeline'ını yeniden çalıştırmaz → "Couldn't
+  // find a navigation context" hatası kökten ortadan kalkar. (sleuth teşhisi
+  // 2026-06-20 — tablet 'both'→'description' sekme değişimi reprosu.)
+  const collapseProgress = useSharedValue(0);
 
   function handleTitleLayout(event: LayoutChangeEvent) {
     const { y, height } = event.nativeEvent.layout;
     setTitleThreshold(Math.max(y + height - 16, 0));
   }
 
-  function applyCollapsed(next: boolean) {
-    // Eşik geçilmediyse setState aynı değeri döndürür → React render'ı atlar.
-    setCollapsed((prev) => (prev === next ? prev : next));
-  }
-
   const scrollHandler = useAnimatedScrollHandler(
     {
       onScroll: (event) => {
         'worklet';
-        const next = event.contentOffset.y > titleThreshold;
-        runOnJS(applyCollapsed)(next);
+        const next = event.contentOffset.y > titleThreshold ? 1 : 0;
+        // Yalnız eşik durumu değişince çapraz-geçişi başlat (her frame değil).
+        if (collapseProgress.value !== next) {
+          collapseProgress.value = withTiming(next, { duration: 180 });
+        }
       },
     },
     [titleThreshold],
@@ -272,21 +287,13 @@ export default function CardDetailScreen() {
   const currentListTitle =
     boardQuery.data?.lists.find((list) => list.id === card.listId)?.title ?? null;
 
-  // Bölüm başlığı özet rozetleri (DEM-204) — kontrol listeleri ilerlemesi
-  // tüm listelerin maddeleri üzerinden toplanır.
-  const checklistItemsTotal = checklists.reduce((sum, cl) => sum + cl.items.length, 0);
-  const checklistItemsDone = checklists.reduce(
-    (sum, cl) => sum + cl.items.filter((item) => item.completed).length,
-    0,
-  );
-
   return (
     <>
       <Stack.Screen
         options={{
           headerTitle: () => (
             <CardDetailHeaderTitle
-              collapsed={collapsed}
+              progress={collapseProgress}
               listTitle={currentListTitle}
               cardTitle={card.title}
             />
@@ -313,7 +320,11 @@ export default function CardDetailScreen() {
       />
       <Animated.ScrollView
         className="flex-1 bg-muted"
-        contentContainerClassName="gap-3 p-4"
+        // İçerik kapsayıcısı stilleri tek yerde (NativeWind `contentContainerClassName`
+        // + ayrı `contentContainerStyle` çakışmasını önlemek için inline). `paddingBottom`
+        // floating pill nav'ın arkasında kalan içeriği erişilebilir kılar (tablet);
+        // `padding`'in bottom'unu ezer (2026-06-20).
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: navInset || 16 }}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         // Checklist madde sürüklenirken dış dikey scroll kilitli (drag pan ↔
@@ -439,8 +450,6 @@ export default function CardDetailScreen() {
           canEdit={canEdit}
           checklists={checklists}
           checklistsError={checklistsQuery.isError}
-          checklistItemsDone={checklistItemsDone}
-          checklistItemsTotal={checklistItemsTotal}
           // Madde yorum thread'i bağlamı — kart yorumlarıyla aynı yazar
           // çözümleyici + yetki. Viewer da thread açıp okuyabilir; yazma
           // `canEdit` (board member+) ister.
@@ -470,6 +479,8 @@ export default function CardDetailScreen() {
         <DetailSection
           icon="message-square"
           title={strings.cardDetail.commentsTitle}
+          collapsible
+          defaultCollapsed
           trailing={
             comments.length > 0 ? <SectionBadge label={String(comments.length)} /> : undefined
           }
@@ -498,6 +509,8 @@ export default function CardDetailScreen() {
         <DetailSection
           icon="activity"
           title={strings.cardDetail.activityTitle}
+          collapsible
+          defaultCollapsed
           trailing={
             activity.length > 0 ? <SectionBadge label={String(activity.length)} /> : undefined
           }

@@ -10,7 +10,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import * as WebBrowser from 'expo-web-browser';
 import { useMutation } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
@@ -29,9 +28,6 @@ import type { ThemePreference } from '@/theme/theme-preference';
 import { useThemePreference } from '@/theme/theme-provider';
 import { themeFor } from '@/theme/tokens';
 import { useTRPC } from '@/trpc/provider';
-
-/** Gizlilik politikası — web'deki public sayfa (App Store gizlilik URL'i). */
-const PRIVACY_POLICY_URL = 'https://pusulaportal.com/gizlilik';
 
 /** Görünüm grubundaki tema seçenekleri — sırası UI'da da bu sıradır. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; icon: 'sun' | 'moon' | 'smartphone' }> =
@@ -169,15 +165,14 @@ export default function AccountScreen() {
           />
         </SettingsGroup>
 
-        {/* Hakkında — uygulama sürümü + gizlilik politikası (tarayıcıda açılır). */}
+        {/* Hakkında — uygulama sürümü + gizlilik politikası (uygulama içi
+            WebView ekranında açılır, harici tarayıcı değil — 2026-06-20). */}
         <SettingsGroup title={strings.account.aboutTitle}>
           <SettingsRow icon="info" label={strings.account.versionRow} value={appVersion} />
           <SettingsRow
             icon="shield"
             label={strings.account.privacyPolicyRow}
-            onPress={() => {
-              void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL);
-            }}
+            onPress={() => router.push('/privacy-policy')}
           />
         </SettingsGroup>
 

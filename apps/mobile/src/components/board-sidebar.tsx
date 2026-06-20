@@ -5,6 +5,7 @@ import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
 import { isPendingId } from '@/lib/client-mutation-id';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { strings } from '@/lib/strings';
 import { themeFor } from '@/theme/tokens';
 
@@ -43,6 +44,8 @@ export function BoardSidebar({
 }: BoardSidebarProps) {
   const router = useRouter();
   const theme = themeFor(useColorScheme());
+  // Sidebar yalnız tablet'te; alttaki floating pill nav son kartı örtmesin.
+  const navInset = useFloatingNavInset();
 
   // `useRouter` her render'da yeni nesne döndürür — handler'ı stabil tutmak
   // için ref üzerinden okuruz (board ekranı `BoardColumn` `React.memo`
@@ -65,7 +68,10 @@ export function BoardSidebar({
   }, []);
 
   return (
-    <ScrollView className="flex-1" contentContainerClassName="gap-3 p-3">
+    <ScrollView
+      className="flex-1"
+      contentContainerStyle={{ gap: 12, padding: 12, paddingBottom: navInset || 12 }}
+    >
       {lists.map((list) => {
         const cards = cardsByList.get(list.id) ?? [];
         return (

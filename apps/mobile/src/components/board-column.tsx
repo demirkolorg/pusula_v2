@@ -9,6 +9,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
 import { useDeviceClass, useIsLandscape } from '@/lib/use-device-class';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { themeFor } from '@/theme/tokens';
 import { CardRow } from './card-row';
 
@@ -69,6 +70,8 @@ function BoardColumnImpl({
   const isTablet = useDeviceClass() === 'tablet';
   const isLandscape = useIsLandscape();
   const widthClass = isTablet ? (isLandscape ? 'w-96' : 'w-80') : 'w-72';
+  // Tablet floating pill nav son kartı örtmesin → kolon listesine alt boşluk.
+  const navInset = useFloatingNavInset();
 
   // Composer / ⋮ callback'leri — `list.id` sabit kaldığı sürece stabil
   // (DEM-226 #3): `FlatList renderItem` ve alt bileşenler bunlara bağlı.
@@ -96,26 +99,18 @@ function BoardColumnImpl({
   // İkon rengi: `iconColor` set ise palet hex'i, değilse nötr (mutedForeground).
   const iconHex = listIconColorToHex(list.iconColor) ?? theme.mutedForeground;
 
-  const footer = !canEdit ? null : composerOpen ? (
-    <InlineComposer
-      placeholder={strings.board.addCardPlaceholder}
-      submitLabel={strings.board.addCardSubmit}
-      onSubmit={handleCreateCard}
-      onCancel={() => setComposerOpen(false)}
-    />
-  ) : (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={strings.board.addCard}
-      onPress={() => setComposerOpen(true)}
-      className="flex-row items-center gap-2 rounded-lg px-1 py-2 active:opacity-60"
-    >
-      <Icon name="plus" size={16} color={theme.mutedForeground} />
-      <Text weight="medium" className="text-sm text-muted-foreground">
-        {strings.board.addCard}
-      </Text>
-    </Pressable>
-  );
+  // Kart ekle tetikleyicisi liste header'ına alındı (2026-06-20); burada yalnız
+  // AÇIK composer kartların üstünde render edilir. Kapalıyken yer kaplamaz —
+  // tetikleyici header'daki "+" butonu (önceki tam-genişlik satır kaldırıldı).
+  const composerRow =
+    canEdit && composerOpen ? (
+      <InlineComposer
+        placeholder={strings.board.addCardPlaceholder}
+        submitLabel={strings.board.addCardSubmit}
+        onSubmit={handleCreateCard}
+        onCancel={() => setComposerOpen(false)}
+      />
+    ) : null;
 
   return (
     <View className={`h-full ${widthClass} overflow-hidden rounded-xl bg-muted`}>
@@ -125,32 +120,53 @@ function BoardColumnImpl({
         <View className="h-1.5" style={{ backgroundColor: accentHex }} />
       ) : null}
       <View className="flex-1 p-2">
-        <View className="flex-row items-center gap-1 px-1 py-2">
+        <View className="flex-row items-center gap-2 px-1 py-2">
           {/* Liste ikonu — `icon` token'ı geçerliyse başlığın önünde çizilir
               (DEM-209). Bilinmeyen / `null` token → ikon çizilmez. */}
           {listIcon != null ? (
             <Icon name={featherForListIcon(listIcon)} size={15} color={iconHex} />
           ) : null}
-          <Text weight="semibold" className="flex-1 text-sm text-foreground" numberOfLines={1}>
+          {/* `shrink` (flex-1 değil): uzun başlık kısalır ama sayıyı sağa itmez. */}
+          <Text weight="semibold" className="shrink text-sm text-foreground" numberOfLines={1}>
             {list.title}
           </Text>
+          {/* Kart sayısı başlığın HEMEN ardında (2026-06-20) — sağa yaslı değil. */}
           <Text className="text-xs text-muted-foreground">{cards.length}</Text>
+          {/* Boşluk: aksiyon butonlarını sağa yaslar (sayı solda kalır). */}
+          <View className="flex-1" />
+          {/* Aksiyon butonları (2026-06-20) — dokunmatik için ferah aralık
+              (`gap-4` = 16px, hitSlop'lar çakışmasın) + büyük dokunma alanı
+              (`p-1` + `hitSlop`). `+` composer'ı açar, `⋮` liste menüsü. */}
           {canEdit && !listPending ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.board.listActions}
-              hitSlop={8}
-              onPress={handleOpenListActions}
-              className="ml-1 active:opacity-60"
-            >
-              <Icon name="more-vertical" size={18} color={theme.mutedForeground} />
-            </Pressable>
+            <View className="flex-row items-center gap-4">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.board.addCard}
+                hitSlop={8}
+                onPress={() => setComposerOpen(true)}
+                className="p-1 active:opacity-60"
+              >
+                <Icon name="plus" size={18} color={theme.mutedForeground} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.board.listActions}
+                hitSlop={8}
+                onPress={handleOpenListActions}
+                className="p-1 active:opacity-60"
+              >
+                <Icon name="more-vertical" size={18} color={theme.mutedForeground} />
+              </Pressable>
+            </View>
           ) : null}
         </View>
         <FlatList
           data={cards}
           keyExtractor={(card) => card.id}
-          contentContainerClassName="gap-2 pb-2"
+          // gap + alt boşluk tek `contentContainerStyle`'da (NativeWind className +
+          // ayrı style çakışmasını önlemek için). `navInset` tablet'te pill'i temizler;
+          // phone'da 0 → taban `pb-2` (8) korunur.
+          contentContainerStyle={{ gap: 8, paddingBottom: navInset || 8 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -159,12 +175,14 @@ function BoardColumnImpl({
             />
           }
           renderItem={renderItem}
+          // Açık composer kartların üstünde (2026-06-20) — tetikleyici header'da.
+          // İçerik kapsayıcısının `gap-2`'si composer ile ilk kart arası boşluğu verir.
+          ListHeaderComponent={composerRow}
           ListEmptyComponent={
             <Text className="px-1 py-3 text-xs text-muted-foreground">
               {strings.board.emptyList}
             </Text>
           }
-          ListFooterComponent={footer}
           showsVerticalScrollIndicator={false}
         />
       </View>

@@ -184,7 +184,9 @@ export default function WorkspacesScreen() {
             />
           </View>
         </ScrollView>
-        <QuickNoteDock onHeightChange={setDockHeight} />
+        {/* Boş anasayfa da tablette dock'suz (yukarıdaki tablet kararıyla
+            tutarlı) — yalnız phone'da gösterilir. */}
+        {!isTablet ? <QuickNoteDock onHeightChange={setDockHeight} /> : null}
       </>
     );
   }
@@ -245,7 +247,9 @@ export default function WorkspacesScreen() {
           sidebarWidth={sidebarWidth}
           testID="workspaces-master-detail"
         />
-        <QuickNoteDock onHeightChange={setDockHeight} />
+        {/* Hızlı-not dock'u tablet anasayfasında gizli (kullanıcı kararı
+            2026-06-20). Hızlı not'a tablette merkezi "+" / Hızlı Notlar ekranı
+            üzerinden erişilir; phone anasayfasında dock korunur. */}
       </>
     );
   }

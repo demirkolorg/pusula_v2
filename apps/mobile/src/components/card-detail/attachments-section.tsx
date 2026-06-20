@@ -360,6 +360,8 @@ export function AttachmentsSection({
     <DetailSection
       icon="paperclip"
       title={strings.attachments.title}
+      collapsible
+      defaultCollapsed
       trailing={
         attachments.length > 0 ? <SectionBadge label={String(attachments.length)} /> : undefined
       }
