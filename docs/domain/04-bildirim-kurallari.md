@@ -222,6 +222,23 @@ Gerekçe: Kullanıcı şikayeti "iPhone bildirim merkezinde sadece atama + menti
 5. **Push gövdesi sınırı:** Push gövdesi iki satıra sığacak yoğunlukta kalmalı; uzun kart/pano/liste başlıkları render katmanında kırpılır (kilit ekranında taşmasın). In-app ve e-postada kırpma yok.
 6. **i18n / hardcode yasağı:** Tüm metin `strings.ts` (mobil) / template fonksiyonları (worker) / `activity-summary.ts` (web) içinde kalır; UI bileşenleri hardcode bildirim metni içermez.
 
+## Bildirim detay ekranı (2026-06-20)
+
+> Eksen: **iş / domain** — bir bildirimin "tam hikâyesi" kullanıcıya neyi gösterir.
+> Mekanizma (migration, payload genişletme, route, procedure) → [`../architecture/06-bildirim-altyapisi.md`](../architecture/06-bildirim-altyapisi.md) "Bildirim detay / audit ekranı".
+
+Bir bildirime tıklamak artık doğrudan kartı **açmaz**; önce **bildirim detay ekranı** açılır. Bu ekran o bildirimin kaynağı olan olayın tam dökümüdür:
+
+- **Kim / ne zaman / ne yaptı** — aktör (sistem/aktörsüz bildirimlerde aktör prefix'i yok — bkz. Genel kurallar), zaman ve insan-okunur özet (`activitySummary`).
+- **Etkilenen verinin önceki ve sonraki hali** — olayın `from*`/`to*` çiftleri "**önce → sonra**" diff'i olarak; teknik **ham JSON** ise **katlanır** bir bölümde (varsayılan kapalı, "Ham veriyi göster").
+- **Karta git** — ilgili karta (kartı yoksa board/workspace'e) gider ve hedef öğeye (yorum / checklist maddesi / ek) **scroll + flash** uygular (mevcut deep-link davranışı).
+
+**Before/after kapsamı (iş kuralı):** Olayın "önce/sonra"sı anlamlı olsun diye olay üretimi genişletilir. Tam metin alanları (kart açıklaması, yorum body) **tam, en çok ~2KB** taşınır (aşınca kırpılır + "kırpıldı" işareti). Bu yalnız **bu karardan sonraki** olaylarda dolar; daha eski bildirimlerde "önce/sonra verisi yok" gösterilir — geçmişe dönük üretilemez (activity payload'ı o an ne yazdıysa o). Hangi olayın ne taşıdığı → architecture doc tablosu.
+
+**Gizlilik:** Detay ekranı yalnız bildirimin **alıcısına** görünür (recipient-guard; `notifications.byId` recipient dışını `NOT_FOUND` ile gizler). Ham JSON içerik taşıyabileceğinden katlanır tutulur ve alıcı-özel kalır.
+
+**Push eşitliği:** Telefon bildirim merkezindeki bir push'a dokunmak, uygulama içi bildirim satırına dokunmakla **aynı** detay ekranını açar (push payload'ı `notificationId` taşır).
+
 ## Genel kurallar
 
 - **Actor self-skip:** Actor'ın kendisine bildirim **gönderilmez** (kendi yaptığın işten bildirim almazsın).

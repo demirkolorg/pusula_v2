@@ -38,6 +38,11 @@ export const notifications = pgTable(
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     boardId: text().references(() => boards.id, { onDelete: 'cascade' }),
     cardId: text().references(() => cards.id, { onDelete: 'cascade' }),
+    // Bildirim detay / audit (2026-06-20) — bu bildirimin doğduğu activity event.
+    // Detay ekranı olayın tam payload'ına (before/after) bu bağdan ulaşır; outbox→
+    // notification dönüşümünde `notification_outbox.event_id` buraya kopyalanır.
+    // Scheduler kaynaklı bildirimlerde (due_*) activity event yok → null kalır.
+    activityEventId: text().references(() => activityEvents.id, { onDelete: 'set null' }),
     payload: jsonb().notNull().default({}),
     readAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -148,6 +153,11 @@ export const notificationOutbox = pgTable(
   {
     id: primaryId(),
     eventId: text().references(() => activityEvents.id, { onDelete: 'set null' }),
+    // Bildirim detay / audit (2026-06-20) — push tap'i in-app satıra dokunmakla
+    // aynı detay ekranına götürmek için, `in_app` fan-out'ta üretilen
+    // `notifications.id` aynı event'in `push` outbox satırına yazılır → push
+    // `data.notificationId`. Yalnız push kanalı satırlarında dolu.
+    inAppNotificationId: text().references(() => notifications.id, { onDelete: 'set null' }),
     channel: notificationChannelEnum().notNull(),
     // Nullable: an email invitation can target an address with no account yet —
     // the recipient address then lives in `payload.email`. In-app rows always

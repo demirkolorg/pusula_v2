@@ -396,6 +396,9 @@ const itemRouter = router({
         checklistId: input.checklistId,
         itemId: item.id,
         cardId: ctx.card.id,
+        // Bildirim detay / audit (2026-06-20) — silinen maddenin metni (madde
+        // başlığı kısa; ≤2KB sınırına takılmaz, item.content silmeden önce okundu).
+        content: item.content,
       };
       const [activity] = await tx
         .insert(activityEvents)

@@ -74,6 +74,7 @@ import {
   moveCardInput,
   moveCardToListInput,
   positionBetween,
+  truncateForAudit,
   uncompleteCardInput,
   updateCardInput,
 } from '@pusula/domain';
@@ -455,7 +456,18 @@ export const cardRouter = router({
         if (dispatched.inserted > 0) notificationEventId = renameActivity.id;
       }
       if (descriptionChanged) {
-        const descriptionPayload = { cardId: card.id, clientMutationId: ctx.clientMutationId };
+        // Bildirim detay / audit (2026-06-20) — before/after açıklama ≤2KB
+        // kırpılarak payload'a gömülür (kırpılınca `truncated:true`). Eski
+        // değer `card.description` (update öncesi okunan satır), yeni değer
+        // `updated.description`. Boş/null açıklama → alan eklenmez ("değer yok").
+        const fromDescription = truncateForAudit(card.description);
+        const toDescription = truncateForAudit(updated.description);
+        const descriptionPayload = {
+          cardId: card.id,
+          ...(fromDescription ? { fromDescription } : {}),
+          ...(toDescription ? { toDescription } : {}),
+          clientMutationId: ctx.clientMutationId,
+        };
         const [descriptionActivity] = await tx
           .insert(activityEvents)
           .values({
@@ -483,8 +495,16 @@ export const cardRouter = router({
       }
       if (dueAtChanged) {
         const dueType = updated.dueAt ? 'card.due_set' : 'card.due_cleared';
+        // Bildirim detay / audit (2026-06-20) — her iki yön de karşı tarafı
+        // taşır: due_set → `fromDueAt` (önceki tarih, ilk kez set'te null),
+        // due_cleared → `fromDueAt` (temizlenen tarih) zaten vardı.
         const duePayload = updated.dueAt
-          ? { cardId: card.id, dueAt: updated.dueAt, clientMutationId: ctx.clientMutationId }
+          ? {
+              cardId: card.id,
+              fromDueAt: card.dueAt,
+              dueAt: updated.dueAt,
+              clientMutationId: ctx.clientMutationId,
+            }
           : { cardId: card.id, fromDueAt: card.dueAt, clientMutationId: ctx.clientMutationId };
         const [activity] = await tx
           .insert(activityEvents)
@@ -514,9 +534,12 @@ export const cardRouter = router({
       }
       if (coverColorChanged) {
         const coverColorType = updated.coverColor ? 'card.cover_changed' : 'card.cover_cleared';
+        // Bildirim detay / audit (2026-06-20) — cover_changed karşı tarafı
+        // (`fromCoverColor`) taşır; cover_cleared'de zaten `fromCoverColor` var.
         const coverColorPayload = updated.coverColor
           ? {
               cardId: card.id,
+              fromCoverColor: card.coverColor,
               coverColor: updated.coverColor,
               clientMutationId: ctx.clientMutationId,
             }
@@ -555,9 +578,12 @@ export const cardRouter = router({
         const coverImageType = updated.coverImageAttachmentId
           ? 'card.cover_image_changed'
           : 'card.cover_image_cleared';
+        // Bildirim detay / audit (2026-06-20) — cover_image_changed karşı tarafı
+        // (`fromCoverImageAttachmentId`) taşır; cleared'de zaten mevcut.
         const coverImagePayload = updated.coverImageAttachmentId
           ? {
               cardId: card.id,
+              fromCoverImageAttachmentId: card.coverImageAttachmentId,
               coverImageAttachmentId: updated.coverImageAttachmentId,
               clientMutationId: ctx.clientMutationId,
             }
@@ -1195,7 +1221,12 @@ export const cardRouter = router({
       }
 
       const [toList] = await tx
-        .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
+        .select({
+          id: lists.id,
+          boardId: lists.boardId,
+          archivedAt: lists.archivedAt,
+          title: lists.title,
+        })
         .from(lists)
         .where(eq(lists.id, input.toListId))
         .limit(1);
@@ -1281,10 +1312,25 @@ export const cardRouter = router({
         .returning(cardCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
+      // Bildirim detay / audit (2026-06-20) — `card.moved` liste ADLARINI taşır
+      // (detay ekranı "X listesinden Y listesine" gösterir). `toList.title`
+      // zaten yukarıda yüklendi; `fromList` başlığını aynı tx'te çek (cross-list
+      // ise gerçek başlık, same-list reorder'da from===to). Liste silinmişse
+      // (yarış) başlık `undefined` kalır — detay ekranı id fallback'ine düşer.
+      const [fromList] =
+        input.fromListId === input.toListId
+          ? [{ title: toList.title }]
+          : await tx
+              .select({ title: lists.title })
+              .from(lists)
+              .where(eq(lists.id, input.fromListId))
+              .limit(1);
       const movePayload = {
         cardId: card.id,
         fromListId: input.fromListId,
         toListId: input.toListId,
+        ...(fromList ? { fromListTitle: fromList.title } : {}),
+        toListTitle: toList.title,
         fromPosition: card.position,
         toPosition: updated.position,
         clientMutationId: ctx.clientMutationId,
@@ -1406,7 +1452,12 @@ export const cardRouter = router({
     let notificationEventId: string | undefined;
     const result = await ctx.db.transaction(async (tx) => {
       const [toList] = await tx
-        .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
+        .select({
+          id: lists.id,
+          boardId: lists.boardId,
+          archivedAt: lists.archivedAt,
+          title: lists.title,
+        })
         .from(lists)
         .where(eq(lists.id, input.toListId))
         .limit(1);
@@ -1510,10 +1561,23 @@ export const cardRouter = router({
         await tx.delete(cardLabels).where(eq(cardLabels.cardId, card.id));
       }
 
+      // Bildirim detay / audit (2026-06-20) — `card.moved` liste ADLARINI taşır.
+      // `toList.title` yukarıda yüklendi; `fromList` başlığını aynı tx'te çek
+      // (same-list reorder'da from===to). Liste silinmişse başlık `undefined`.
+      const [fromList] =
+        card.listId === input.toListId
+          ? [{ title: toList.title }]
+          : await tx
+              .select({ title: lists.title })
+              .from(lists)
+              .where(eq(lists.id, card.listId))
+              .limit(1);
       const moveToListPayload = {
         cardId: card.id,
         fromListId: card.listId,
         toListId: input.toListId,
+        ...(fromList ? { fromListTitle: fromList.title } : {}),
+        toListTitle: toList.title,
         fromPosition: card.position,
         toPosition: updated.position,
         clientMutationId: ctx.clientMutationId,

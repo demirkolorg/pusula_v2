@@ -457,13 +457,15 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v0 + 1);
 
     const acts = await actsFor(boardId);
-    expect(
-      acts.filter(
-        (x) =>
-          x.type === 'checklist.item_removed' &&
-          (x.payload as { itemId?: string }).itemId === item.id,
-      ),
-    ).toHaveLength(1);
+    const removedActs = acts.filter(
+      (x) =>
+        x.type === 'checklist.item_removed' &&
+        (x.payload as { itemId?: string }).itemId === item.id,
+    );
+    expect(removedActs).toHaveLength(1);
+    // Bildirim detay / audit (2026-06-20) — item_removed now carries the
+    // deleted item's text (read before deletion).
+    expect(removedActs[0]?.payload).toMatchObject({ content: 'remove me' });
 
     await expect(
       callerFor(memberId).checklist.item.delete({

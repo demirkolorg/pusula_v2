@@ -871,6 +871,33 @@ function buildPayload(
     // (activity'de) ama notification template'leri yalniz fileName kullanir.
     'attachmentId',
     'fileName',
+    // Bildirim detay / audit ekranı (2026-06-20) — before/after diff'in veri
+    // kaynağı. Producer activity payload'ı bu `from*`/`to*` çiftlerini taşır;
+    // detay ekranı hem `notification.payload` hem activity payload'a bakar ama
+    // tutarlılık için whitelist'ten de geçirilir. Tam metin alanları (kart
+    // açıklaması / yorum body) producer tarafında `truncateForAudit` ile ≤2KB
+    // kırpılmış `{ value, truncated? }` nesnesi olarak gelir — burada olduğu
+    // gibi taşınır (render katmanı `truncated` bayrağına bakıp "…" gösterir).
+    // `card.moved` liste adları:
+    'fromListTitle',
+    'toListTitle',
+    // `card.description_changed` (≤2KB truncated nesne):
+    'fromDescription',
+    'toDescription',
+    // `comment.updated` / `comment.deleted` (≤2KB truncated nesne):
+    'fromBody',
+    'toBody',
+    'deletedBody',
+    // `card.member_added/removed`, `card.renamed` adları:
+    'targetUserName',
+    'fromTitle',
+    // `card.due_set/cleared` karşı tarafı:
+    'fromDueAt',
+    // `card.cover_*` karşı tarafı:
+    'coverColor',
+    'fromCoverColor',
+    'coverImageAttachmentId',
+    'fromCoverImageAttachmentId',
   ] as const) {
     const v = event.payload[key];
     if (v !== undefined && v !== null) payload[key] = v;

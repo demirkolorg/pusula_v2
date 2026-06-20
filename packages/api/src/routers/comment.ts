@@ -36,6 +36,7 @@ import {
   createCommentInput,
   deleteCommentInput,
   listCommentsInput,
+  truncateForAudit,
   updateCommentInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
@@ -394,6 +395,18 @@ export const commentRouter = router({
         .returning(commentCols);
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
+      // Bildirim detay / audit (2026-06-20) — before/after yorum gövdesi ≤2KB
+      // kırpılarak payload'a gömülür (Tiptap JSON ham string olarak; parse yok,
+      // yalnız uzunluk sınırı + `truncated:true`). Eski değer `comment.body`
+      // (update öncesi), yeni değer `updated.body`.
+      const fromBody = truncateForAudit(comment.body);
+      const toBody = truncateForAudit(updated.body);
+      const updatePayload = {
+        commentId: comment.id,
+        cardId: ctx.card.id,
+        ...(fromBody ? { fromBody } : {}),
+        ...(toBody ? { toBody } : {}),
+      };
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -402,7 +415,7 @@ export const commentRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'comment.updated',
-          payload: { commentId: comment.id, cardId: ctx.card.id },
+          payload: updatePayload,
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -415,7 +428,7 @@ export const commentRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { commentId: comment.id, cardId: ctx.card.id },
+        payload: updatePayload,
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 
@@ -470,6 +483,9 @@ export const commentRouter = router({
           checklistItemId: comments.checklistItemId,
           authorId: comments.authorId,
           deletedAt: comments.deletedAt,
+          // Bildirim detay / audit (2026-06-20) — silinmeden ÖNCE gövdeyi oku;
+          // update `body=''` ile temizliyor, sonra okumak boş döner.
+          body: comments.body,
         })
         .from(comments)
         .where(eq(comments.id, input.commentId))
@@ -503,6 +519,14 @@ export const commentRouter = router({
         .returning({ id: comments.id, deletedAt: comments.deletedAt });
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
+      // Bildirim detay / audit (2026-06-20) — silinen yorumun gövdesi ≤2KB
+      // kırpılarak payload'a gömülür (Tiptap JSON ham string; parse yok).
+      const deletedBody = truncateForAudit(comment.body);
+      const deletePayload = {
+        commentId: comment.id,
+        cardId: ctx.card.id,
+        ...(deletedBody ? { deletedBody } : {}),
+      };
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -511,7 +535,7 @@ export const commentRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'comment.deleted',
-          payload: { commentId: comment.id, cardId: ctx.card.id },
+          payload: deletePayload,
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -524,7 +548,7 @@ export const commentRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { commentId: comment.id, cardId: ctx.card.id },
+        payload: deletePayload,
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 

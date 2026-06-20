@@ -1,0 +1,4 @@
+ALTER TABLE "notification_outbox" ADD COLUMN "in_app_notification_id" text;--> statement-breakpoint
+ALTER TABLE "notifications" ADD COLUMN "activity_event_id" text;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_in_app_notification_id_notifications_id_fk" FOREIGN KEY ("in_app_notification_id") REFERENCES "public"."notifications"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_activity_event_id_activity_events_id_fk" FOREIGN KEY ("activity_event_id") REFERENCES "public"."activity_events"("id") ON DELETE set null ON UPDATE no action;

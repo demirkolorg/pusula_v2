@@ -150,6 +150,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     type?: dbMod.NotificationOutboxRow['type'];
     channel?: 'in_app' | 'email' | 'push';
     payload?: Record<string, unknown>;
+    inAppNotificationId?: string;
   }): Promise<string> {
     const [row] = await db()
       .insert(notificationOutbox)
@@ -159,6 +160,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
         type: opts.type ?? 'card_assigned',
         channel: opts.channel ?? 'push',
         payload: opts.payload ?? {},
+        inAppNotificationId: opts.inAppNotificationId ?? null,
       })
       .returning({ id: notificationOutbox.id });
     return row!.id;
@@ -227,6 +229,41 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     const tokenRow = await readToken(token);
     expect(tokenRow?.lastUsedAt).not.toBeNull();
     expect(tokenRow?.revokedAt).toBeNull();
+  });
+
+  it('routes the linked in-app notification id onto push data.notificationId', async () => {
+    // Bildirim detay / audit (2026-06-20) — publish job bu push satırına
+    // bağladığı `notifications.id`'yi push `data`'ya geçirmeli (tap → detay).
+    const token = await seedToken(aliceId);
+    const [inApp] = await db()
+      .insert(notifications)
+      .values({ recipientId: aliceId, type: 'card_assigned', payload: {} })
+      .returning({ id: notifications.id });
+    const inAppId = inApp!.id;
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'X', cardId: 'c1' },
+      inAppNotificationId: inAppId,
+    });
+
+    const client = capturingClient();
+    const outcome = await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+    expect(outcome.kind).toBe('sent');
+    const msg = client.sentChunks[0]![0]!;
+    expect(msg.data?.notificationId).toBe(inAppId);
+    expect(msg.to).toBe(token);
+  });
+
+  it('omits data.notificationId when the push row has no in-app link', async () => {
+    await seedToken(aliceId);
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'X', cardId: 'c1' },
+    });
+    const client = capturingClient();
+    await processNotificationPushJob(db() as never, client, CONFIG, { outboxId });
+    const msg = client.sentChunks[0]![0]!;
+    expect(msg.data?.notificationId).toBeUndefined();
   });
 
   it('no active tokens: stamps outbox + skips (no SDK call)', async () => {

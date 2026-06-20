@@ -155,7 +155,15 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
         a.type === 'card.label_added' && (a.payload as { labelId?: string }).labelId === labelId,
     );
     expect(addedActs).toHaveLength(1);
-    expect(addedActs[0]?.payload).toMatchObject({ cardId, labelId });
+    // Bildirim detay / audit (2026-06-20) — label_added carries the label's
+    // name + colour so the detail screen can render it even if the label is
+    // later deleted.
+    expect(addedActs[0]?.payload).toMatchObject({
+      cardId,
+      labelId,
+      labelName: 'Bug',
+      color: 'green',
+    });
     expect(addedActs[0]?.cardId).toBe(cardId);
 
     const v1 = await boardVersion(boardId);
@@ -217,13 +225,15 @@ describe.runIf(dbAvailable)('card-labels router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v1);
 
     const acts = await actsFor(boardId);
-    expect(
-      acts.filter(
-        (a) =>
-          a.type === 'card.label_removed' &&
-          (a.payload as { labelId?: string }).labelId === labelId,
-      ),
-    ).toHaveLength(1);
+    const removedActs = acts.filter(
+      (a) =>
+        a.type === 'card.label_removed' &&
+        (a.payload as { labelId?: string }).labelId === labelId,
+    );
+    expect(removedActs).toHaveLength(1);
+    // Bildirim detay / audit (2026-06-20) — label_removed reads the label's
+    // name + colour before detaching so the detail screen names it.
+    expect(removedActs[0]?.payload).toMatchObject({ labelName: 'Bug', color: 'green' });
   });
 
   it('remove: a board viewer is FORBIDDEN', async () => {

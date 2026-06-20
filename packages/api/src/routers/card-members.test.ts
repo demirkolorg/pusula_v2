@@ -136,7 +136,14 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
         (a.payload as { role?: string }).role === 'assignee',
     );
     expect(addedActs).toHaveLength(1);
-    expect(addedActs[0]?.payload).toMatchObject({ cardId, userId: ownerId, role: 'assignee' });
+    // Bildirim detay / audit (2026-06-20) — member_added carries the target
+    // user's display name (the seed sets `name === id`).
+    expect(addedActs[0]?.payload).toMatchObject({
+      cardId,
+      userId: ownerId,
+      role: 'assignee',
+      targetUserName: ownerId,
+    });
     expect(addedActs[0]?.cardId).toBe(cardId);
 
     const v1 = await boardVersion(boardId);
@@ -297,14 +304,16 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     expect(await boardVersion(boardId)).toBe(v1);
 
     const acts = await actsFor(boardId);
-    expect(
-      acts.filter(
-        (a) =>
-          a.type === 'card.member_removed' &&
-          (a.payload as { userId?: string }).userId === memberId &&
-          (a.payload as { role?: string }).role === 'assignee',
-      ),
-    ).toHaveLength(1);
+    const removedActs = acts.filter(
+      (a) =>
+        a.type === 'card.member_removed' &&
+        (a.payload as { userId?: string }).userId === memberId &&
+        (a.payload as { role?: string }).role === 'assignee',
+    );
+    expect(removedActs).toHaveLength(1);
+    // Bildirim detay / audit (2026-06-20) — member_removed reads the removed
+    // user's display name before/while detaching (seed sets `name === id`).
+    expect(removedActs[0]?.payload).toMatchObject({ targetUserName: memberId });
   });
 
   it('remove: a board viewer may remove *themselves* (a watcher someone else added) — self-leave still allowed (DEM-298)', async () => {

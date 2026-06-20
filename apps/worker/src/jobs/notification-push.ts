@@ -180,6 +180,11 @@ type OutboxRow = {
   recipientId: string | null;
   type: NotificationType;
   payload: unknown;
+  // Bildirim detay / audit (2026-06-20) — the in-app `notifications.id` the
+  // publish job back-linked onto this push row. Routed into push `data` so a
+  // tap on the notification opens the same in-app detail screen. NULL for
+  // scheduler-fired rows (no in-app sibling) → omitted from `data`.
+  inAppNotificationId: string | null;
 };
 
 export async function processNotificationPushJob(
@@ -195,6 +200,7 @@ export async function processNotificationPushJob(
         recipientId: notificationOutbox.recipientId,
         type: notificationOutbox.type,
         payload: notificationOutbox.payload,
+        inAppNotificationId: notificationOutbox.inAppNotificationId,
       })
       .from(notificationOutbox)
       .where(
@@ -260,6 +266,13 @@ export async function processNotificationPushJob(
       payload: (row.payload ?? {}) as Record<string, unknown>,
       appUrl: config.appUrl,
     });
+    // Bildirim detay / audit (2026-06-20) — push tap → in-app detay ekranı.
+    // Publish job bu push satırına bağladığı `notifications.id`'yi `data`'ya
+    // geçiriyoruz; mobil `notification-target` bunu okuyup ilgili kaydı açar.
+    // Scheduler-fired satırlarda (event_id NULL) bağ kurulamaz → alan eklenmez.
+    if (row.inAppNotificationId) {
+      rendered.data.notificationId = row.inAppNotificationId;
+    }
 
     // iOS app-icon badge = recipient's total unread count. The in-app
     // `notifications` row for this event was already written synchronously by

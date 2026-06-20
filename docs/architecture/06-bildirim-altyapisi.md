@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-31
+updated: 2026-06-20
 ---
 
 # 06 — Bildirim Altyapısı (Outbox + Worker)
@@ -358,6 +358,38 @@ Kullanıcı geçici bir süre (örn. 1 saat, 1 gün, hafta sonu) belirli bir kar
 - **Türkçe mesaj standardı:** Reject mesajları `packages/api/src/lib/permission-strings.ts:INVITATION_MESSAGES` sözlüğünden gelir (`expired` = "Davet süresi doldu. Davet edenden yeni link isteyin." + `notFound`/`noLongerValid`/`wrongEmail`). 8F öncesi 8 yerde elle yazılmış literal'ler bu sözlüğe taşındı.
 - **Job payload:** `{}` (boş; tüm DB'yi tarayıp UPDATE eder).
 - **Domain referansı:** [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md) Faz 8F edge case 2.
+
+## Bildirim detay / audit ekranı (2026-06-20)
+
+> Eksen: **tasarım / teknik** — detay ekranının verisi nereden gelir, hangi şema / route / procedure. İş anlamı (ne gösterir, gizlilik, before/after sözleşmesi) → [`../domain/04-bildirim-kurallari.md`](../domain/04-bildirim-kurallari.md) "Bildirim detay ekranı". Karar kaydı → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) "2026-06-20".
+
+Bildirime tıklama → kart yerine **bildirim detay ekranı**; "Karta git" mevcut deep-link scroll+flash'a köprüler. Hedef: kim / ne zaman / ne yaptı + **etkilenen verinin önceki/sonraki hali** + **katlanır ham JSON**. Planlama aşaması (henüz wire edilmedi); fazlar aşağıda.
+
+**notification ↔ activity bağı.** Bir `notification` bir `activity_events` satırından doğar ama `notifications` tablosunda bağ **yoktu** (yalnız `payload` alt-kümesi; `event_id` sadece `notification_outbox`'ta). Eklenecek: `notifications.activity_event_id text REFERENCES activity_events(id) ON DELETE SET NULL` (migration). Outbox→notification dönüşümünde (`notification-publish.ts` `in_app` fan-out) `notification_outbox.event_id` bu kolona kopyalanır. Detay ekranı `notifications.byId` ile activity event'in **tam payload**'ına ulaşır.
+
+**Before/after payload genişletme.** Mutation üreticileri (card / comment / list / board / checklist / label router'ları) eksik `from*`/`to*` çiftlerini `activity_events.payload`'a yazacak şekilde genişletilir + Zod tipleri (`@pusula/domain`). Tam metin alanları (kart açıklaması, yorum body) **≤2KB** (ortak `truncate` helper'ı; aşınca `truncated: true` işareti). Yalnız bu karardan sonraki olaylarda dolar; eski bildirimlerde "veri yok" zarifçe gösterilir.
+
+| Olay | Bugün | Faz 1'de eklenecek |
+| --- | --- | --- |
+| `card.renamed`, `board/list.renamed`, `board/workspace.member_role_changed` | tam `from*`/`to*` | — (korunur) |
+| `card.moved` | `fromListId`/`toListId` | `fromListTitle`/`toListTitle` |
+| `card.description_changed` | yalnız `cardId` | `fromDescription`/`toDescription` (≤2KB) |
+| `comment.updated` | yalnız id'ler | `fromBody`/`toBody` (≤2KB) |
+| `comment.deleted` | yalnız `commentId` | `deletedBody` (≤2KB, silinmeden önce) |
+| `card.label_added/removed` | `labelId` | `labelName` (+ `color`) |
+| `card.member_added/removed` | `userId` | `targetUserName` |
+| `card.due_set/cleared`, `card.cover_*` | tek taraf | karşı taraf (`fromDueAt`/`dueAt` vb.) |
+| `checklist.item_*`, `attachment.*` | id | `content` / `fileName` (varsa korunur) |
+
+**Push → detay.** Push `data`'da `notifications.id` **yoktu**. `notification_outbox`'a `in_app_notification_id text REFERENCES notifications(id) ON DELETE SET NULL` (migration); `in_app` fan-out elde ettiği `notificationId`'yi aynı event'in `push` outbox satırına yazar; push processor (`notification-push.ts`) `data.notificationId`'yi iletir. Mobil `notificationTarget` → `notificationId` varsa `/notifications/[id]` dalı (cardId'den **önce** — detay ekranı asıl hedef). In-app tıklamada `notification.id` zaten elde (liste verisi).
+
+**API.** `notifications.byId(id)` (`protectedProcedure`, recipient-guard → recipient dışı `NOT_FOUND`): `notificationCols` + actor/card/board LEFT JOIN (ad/avatar) + `activity_event_id` üzerinden activity event `payload`. Before/after diff verisi client'ta `buildActivityChanges` ile türetilir.
+
+**Paylaşılan audit lib.** `activitySummary` + `buildActivityChanges` (+ rol/tarih/etiket biçimleyiciler) `@pusula/domain`'e taşınır (framework-bağımsız); web mevcut `apps/web/src/lib/activity-summary.ts` + `activity-detail.ts` import'ları güncellenir, mobil de aynı kaynağı kullanır.
+
+**Route / UI.** Web `/notifications/[id]` (+ notification center'dan geçiş). Mobil `app/(app)/(notifications)/[id].tsx`; tablet **master-detail** (`MasterDetailLayout` + `useIsTablet`, hesap sayfası şablonu — sol liste / sağ detay), telefon/dar ekran tam sayfa. Mobil bildirimler listesine + detayına `useFloatingNavInset()` bottom inset eklenir (şu an eksik — floating tab bar son satırı örtüyor).
+
+**Faz sırası.** 0 belge → 1 migration + payload + worker bağ → 2 `notifications.byId` → 3 audit lib `@pusula/domain`'e → 4 web detay → 5 mobil detay + bottom inset → 6 push entegrasyonu → 7 QA. Etkilenen katmanlar: `packages/db` (migration), `packages/api` (mutation payload + procedure), `packages/domain` (Zod + audit lib), `apps/worker` (bağ doldurma + push data), `apps/web` + `apps/mobile` (detay UI).
 
 ## Worker job'ları (özet — güncel)
 

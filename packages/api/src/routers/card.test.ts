@@ -360,8 +360,19 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       toTitle: 'Renamed card',
     });
     expect(forCard('card.description_changed')).toHaveLength(1);
+    // Bildirim detay / audit (2026-06-20) — description null → text: only
+    // `toDescription` is present (truncated wrapper), `fromDescription` absent.
+    expect(forCard('card.description_changed')[0]?.payload).toMatchObject({
+      toDescription: { value: 'Some details here.' },
+    });
+    expect(forCard('card.description_changed')[0]?.payload).not.toHaveProperty('fromDescription');
     expect(forCard('card.due_set')).toHaveLength(1);
+    // due_set carries the previous value (`fromDueAt` = null on first set).
+    expect(forCard('card.due_set')[0]?.payload).toMatchObject({ fromDueAt: null });
     expect(forCard('card.due_cleared')).toHaveLength(1);
+    // due_cleared carries the cleared timestamp in `fromDueAt`.
+    expect(forCard('card.due_cleared')[0]?.payload).toHaveProperty('fromDueAt');
+    expect((forCard('card.due_cleared')[0]?.payload as { fromDueAt?: unknown }).fromDueAt).not.toBeNull();
     // every activity row for this card carries cardId on the column too
     expect(acts.filter((a) => a.cardId === card.id).length).toBeGreaterThanOrEqual(5);
   });
@@ -725,8 +736,15 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     const forCard = (t: string) =>
       acts.filter((a) => a.type === t && (a.payload as { cardId?: string }).cardId === card.id);
     expect(forCard('card.cover_changed')).toHaveLength(1);
-    expect(forCard('card.cover_changed')[0]?.payload).toMatchObject({ coverColor: 'mavi' });
+    // Bildirim detay / audit (2026-06-20) — cover_changed now carries the
+    // previous colour (`fromCoverColor` = null on first set); cover_cleared
+    // already carried `fromCoverColor` (the colour being removed).
+    expect(forCard('card.cover_changed')[0]?.payload).toMatchObject({
+      coverColor: 'mavi',
+      fromCoverColor: null,
+    });
     expect(forCard('card.cover_cleared')).toHaveLength(1);
+    expect(forCard('card.cover_cleared')[0]?.payload).toMatchObject({ fromCoverColor: 'mavi' });
   });
 
   it('update: coverImageAttachmentId set, no-op, clear and same-card validation follow cover update semantics', async () => {
@@ -1011,7 +1029,14 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
       (e) => e.type === 'card.moved' && (e.payload as { cardId?: string }).cardId === card.id,
     );
     expect(movedActs).toHaveLength(1);
-    expect(movedActs[0]?.payload).toMatchObject({ fromListId: src.id, toListId: dst.id });
+    // Bildirim detay / audit (2026-06-20) — `card.moved` now carries the list
+    // *titles* (not just ids) so the detail screen reads "Src List → Dst List".
+    expect(movedActs[0]?.payload).toMatchObject({
+      fromListId: src.id,
+      toListId: dst.id,
+      fromListTitle: 'Src List',
+      toListTitle: 'Dst List',
+    });
 
     // and card.get reflects the new parent
     const fetched = await callerFor(ownerId).card.get({ cardId: card.id });

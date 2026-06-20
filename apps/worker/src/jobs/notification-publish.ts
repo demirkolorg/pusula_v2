@@ -68,6 +68,11 @@ export interface NotificationPublisher {
 /** What we pull from `notification_outbox` per job. */
 type OutboxRow = {
   id: string;
+  // The triggering `activity_events.id` (NULL for scheduler-fired due_* rows).
+  // Bildirim detay / audit (2026-06-20): in_app fan-out copies this onto
+  // `notifications.activity_event_id`, and uses it to find the sibling `push`
+  // outbox rows of the *same* event to back-link the new `notifications.id`.
+  eventId: string | null;
   channel: 'in_app' | 'email' | 'push';
   recipientId: string | null;
   type: string;
@@ -114,6 +119,7 @@ export async function processNotificationPublishJob(
     const rows = (await tx
       .select({
         id: notificationOutbox.id,
+        eventId: notificationOutbox.eventId,
         channel: notificationOutbox.channel,
         recipientId: notificationOutbox.recipientId,
         type: notificationOutbox.type,
@@ -192,10 +198,33 @@ async function dispatchOutboxRow(
         recipientId: row.recipientId,
         type: row.type as typeof notifications.$inferInsert.type,
         payload: (row.payload ?? {}) as Record<string, unknown>,
+        // Bildirim detay / audit (2026-06-20) — back-link the in-app record to
+        // the activity event that produced it. Scheduler-fired `due_*` rows
+        // carry `event_id IS NULL` (no triggering activity) → stays null, fine.
+        activityEventId: row.eventId,
       })
       .returning({ id: notifications.id, createdAt: notifications.createdAt });
     const notificationId = insertedRow?.id;
     const notificationCreatedAt = insertedRow?.createdAt;
+    // Bildirim detay / audit (2026-06-20) — back-link the freshly written
+    // `notifications.id` onto the *same* event's `push` outbox row(s) so the
+    // push processor can hand `data.notificationId` to the mobile app (push tap
+    // → in-app detail screen). Guarded by `in_app_notification_id IS NULL` so a
+    // sweeper re-run can't overwrite an already-set link (idempotent). Skipped
+    // when `event_id IS NULL` (scheduler ticks have no sibling activity to join
+    // on; a NULL `event_id` match would wrongly fan across unrelated rows).
+    if (notificationId && row.eventId) {
+      await tx
+        .update(notificationOutbox)
+        .set({ inAppNotificationId: notificationId })
+        .where(
+          and(
+            eq(notificationOutbox.eventId, row.eventId),
+            eq(notificationOutbox.channel, 'push'),
+            isNull(notificationOutbox.inAppNotificationId),
+          ),
+        );
+    }
     // 2. Buffer the badge-push payload — the caller flushes it to Redis
     //    *after* the tx commits so a publish failure can't roll back the
     //    `notifications` insert (which would double-deliver on a sweeper

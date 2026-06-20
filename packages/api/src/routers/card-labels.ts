@@ -105,6 +105,15 @@ export const cardLabelsRouter = router({
         return { cardId: ctx.card.id, labelId: input.labelId, changed: false as const };
       }
 
+      // Bildirim detay / audit (2026-06-20) — `labelName` (+ `color`) payload'a
+      // gömülür; etiket sonradan silinse bile detay ekranı adı gösterebilir.
+      // `label` (name + color) yukarıda zaten yüklendi.
+      const labelAddedPayload = {
+        cardId: ctx.card.id,
+        labelId: input.labelId,
+        labelName: label.name,
+        color: label.color,
+      };
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -113,7 +122,7 @@ export const cardLabelsRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'card.label_added',
-          payload: { cardId: ctx.card.id, labelId: input.labelId },
+          payload: labelAddedPayload,
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -126,7 +135,7 @@ export const cardLabelsRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { cardId: ctx.card.id, labelId: input.labelId },
+        payload: labelAddedPayload,
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 
@@ -180,6 +189,15 @@ export const cardLabelsRouter = router({
       }
       assertNotArchived('board', board);
 
+      // Bildirim detay / audit (2026-06-20) — etiketin adını/rengini silmeden
+      // ÖNCE oku (label satırı hâlâ duruyor; cardLabels delete yalnız bağı
+      // kaldırır). Etiket meta'sı yarışta silinmişse `undefined` kalır.
+      const [labelRow] = await tx
+        .select({ name: labels.name, color: labels.color })
+        .from(labels)
+        .where(eq(labels.id, input.labelId))
+        .limit(1);
+
       const deleted = await tx
         .delete(cardLabels)
         .where(and(eq(cardLabels.cardId, ctx.card.id), eq(cardLabels.labelId, input.labelId)))
@@ -188,6 +206,11 @@ export const cardLabelsRouter = router({
         return { cardId: ctx.card.id, labelId: input.labelId, changed: false as const };
       }
 
+      const labelRemovedPayload = {
+        cardId: ctx.card.id,
+        labelId: input.labelId,
+        ...(labelRow ? { labelName: labelRow.name, color: labelRow.color } : {}),
+      };
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -196,7 +219,7 @@ export const cardLabelsRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'card.label_removed',
-          payload: { cardId: ctx.card.id, labelId: input.labelId },
+          payload: labelRemovedPayload,
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -209,7 +232,7 @@ export const cardLabelsRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { cardId: ctx.card.id, labelId: input.labelId },
+        payload: labelRemovedPayload,
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 

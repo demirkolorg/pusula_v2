@@ -167,6 +167,15 @@ export const cardMembersRouter = router({
         };
       }
 
+      // Bildirim detay / audit (2026-06-20) — `targetUserName` payload'a gömülür
+      // (eklenen kişi sonradan silinse/ad değişse bile detay ekranı gösterebilir).
+      // `candidateUser.name` yukarıda zaten yüklendi.
+      const memberAddedPayload = {
+        cardId: ctx.card.id,
+        userId: input.userId,
+        role: input.role,
+        targetUserName: candidateUser?.name ?? null,
+      };
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -175,7 +184,7 @@ export const cardMembersRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'card.member_added',
-          payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+          payload: memberAddedPayload,
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -206,7 +215,7 @@ export const cardMembersRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { cardId: ctx.card.id, userId: input.userId, role: input.role },
+        payload: memberAddedPayload,
       });
       if (dispatched.inserted > 0) notificationEventId = activity.id;
 
@@ -269,6 +278,13 @@ export const cardMembersRouter = router({
         };
       }
 
+      // Bildirim detay / audit (2026-06-20) — çıkarılan kişinin adını oku.
+      const [targetUser] = await tx
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
       const removedPayload = {
         cardId: ctx.card.id,
         // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);
@@ -277,6 +293,7 @@ export const cardMembersRouter = router({
         removedUserId: input.userId,
         role: input.role,
         self: input.userId === ctx.session.user.id,
+        targetUserName: targetUser?.name ?? null,
       };
       const [removedActivity] = await tx
         .insert(activityEvents)

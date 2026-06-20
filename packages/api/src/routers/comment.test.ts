@@ -261,12 +261,28 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
     expect(adminEdited).toMatchObject({ id: c.id, body: 'edited by admin', changed: true });
 
     const acts = await actsFor(boardId);
-    expect(
-      acts.filter(
-        (a) =>
-          a.type === 'comment.updated' && (a.payload as { commentId?: string }).commentId === c.id,
-      ),
-    ).toHaveLength(2);
+    const updatedActs = acts.filter(
+      (a) =>
+        a.type === 'comment.updated' && (a.payload as { commentId?: string }).commentId === c.id,
+    );
+    expect(updatedActs).toHaveLength(2);
+    // Bildirim detay / audit (2026-06-20) — comment.updated carries before/after
+    // body wrapped in the truncate shape `{ value }`. The two edits were
+    // editable → "edited by author" → "edited by admin" (row order is not
+    // guaranteed, so match by body content).
+    const bodies = updatedActs.map((a) => a.payload as { fromBody?: unknown; toBody?: unknown });
+    expect(bodies).toContainEqual(
+      expect.objectContaining({
+        fromBody: { value: 'editable' },
+        toBody: { value: 'edited by author' },
+      }),
+    );
+    expect(bodies).toContainEqual(
+      expect.objectContaining({
+        fromBody: { value: 'edited by author' },
+        toBody: { value: 'edited by admin' },
+      }),
+    );
   });
 
   it('update: editing a soft-deleted comment is BAD_REQUEST', async () => {
@@ -346,12 +362,14 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
     expect(byAdminDeleted).toMatchObject({ id: byAdmin.id, changed: true });
 
     const acts = await actsFor(boardId);
-    expect(
-      acts.filter(
-        (a) =>
-          a.type === 'comment.deleted' && (a.payload as { commentId?: string }).commentId === c.id,
-      ),
-    ).toHaveLength(1);
+    const deletedActs = acts.filter(
+      (a) =>
+        a.type === 'comment.deleted' && (a.payload as { commentId?: string }).commentId === c.id,
+    );
+    expect(deletedActs).toHaveLength(1);
+    // Bildirim detay / audit (2026-06-20) — comment.deleted captures the body
+    // *before* it is cleared, wrapped in the truncate shape.
+    expect(deletedActs[0]?.payload).toMatchObject({ deletedBody: { value: 'remove me' } });
   });
 
   // --------------------------------------------------------- cross-card guard

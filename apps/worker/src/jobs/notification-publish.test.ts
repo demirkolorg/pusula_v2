@@ -170,6 +170,118 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
+  it('back-links in_app notification to its activity event + the sibling push outbox row', async () => {
+    // Bildirim detay / audit (2026-06-20). Two outbox rows for ONE event:
+    //  - in_app → writes `notifications` with `activity_event_id = eventId`
+    //  - push   → must receive the freshly written `notifications.id` on its
+    //             `in_app_notification_id` column so the push processor can
+    //             route it into push `data.notificationId`.
+    const [inAppOutbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'in_app',
+        recipientId,
+        type: 'card_assigned',
+        payload: { cardId },
+      })
+      .returning({ id: notificationOutbox.id });
+    const [pushOutbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'push',
+        recipientId,
+        type: 'card_assigned',
+        payload: { cardId },
+      })
+      .returning({ id: notificationOutbox.id });
+    const inAppOutboxId = inAppOutbox!.id;
+    const pushOutboxId = pushOutbox!.id;
+
+    const publisher = capturingPublisher();
+    const result = await processNotificationPublishJob(
+      db(),
+      publisher,
+      // push enqueuer wired so the push row is handed off (not stamped); the
+      // back-link UPDATE runs in the in_app branch regardless.
+      { enqueuePush: async () => {} },
+      { eventId: activityId },
+    );
+    expect(result.processed).toBe(2);
+
+    // 1) in_app notifications row carries activity_event_id = eventId.
+    const [inApp] = await db()
+      .select({ id: notifications.id, activityEventId: notifications.activityEventId })
+      .from(notifications)
+      .where(dbMod.eq(notifications.recipientId, recipientId));
+    expect(inApp?.activityEventId).toBe(activityId);
+
+    // 2) sibling push outbox row back-links the same notifications.id.
+    const [push] = await db()
+      .select({ inAppNotificationId: notificationOutbox.inAppNotificationId })
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.id, pushOutboxId));
+    expect(push?.inAppNotificationId).toBe(inApp?.id);
+
+    await db().delete(notifications).where(dbMod.eq(notifications.recipientId, recipientId));
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.inArray(notificationOutbox.id, [inAppOutboxId, pushOutboxId]));
+  });
+
+  it('scheduler-fired NULL-event in_app row leaves activity_event_id null and skips the push back-link', async () => {
+    // event_id IS NULL (due_* scheduler tick) → no activity to link, no sibling
+    // join key. activity_event_id stays null; no push row is touched.
+    const [inAppOutbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: null,
+        channel: 'in_app',
+        recipientId,
+        type: 'due_overdue',
+        payload: { cardId },
+      })
+      .returning({ id: notificationOutbox.id });
+    const [pushOutbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: null,
+        channel: 'push',
+        recipientId,
+        type: 'due_overdue',
+        payload: { cardId },
+      })
+      .returning({ id: notificationOutbox.id });
+    const inAppOutboxId = inAppOutbox!.id;
+    const pushOutboxId = pushOutbox!.id;
+
+    const publisher = capturingPublisher();
+    await processNotificationPublishJob(
+      db(),
+      publisher,
+      { enqueuePush: async () => {} },
+      { eventId: SCHEDULER_TICK_EVENT_ID },
+    );
+
+    const [inApp] = await db()
+      .select({ activityEventId: notifications.activityEventId })
+      .from(notifications)
+      .where(dbMod.eq(notifications.recipientId, recipientId));
+    expect(inApp?.activityEventId).toBeNull();
+
+    const [push] = await db()
+      .select({ inAppNotificationId: notificationOutbox.inAppNotificationId })
+      .from(notificationOutbox)
+      .where(dbMod.eq(notificationOutbox.id, pushOutboxId));
+    expect(push?.inAppNotificationId).toBeNull();
+
+    await db().delete(notifications).where(dbMod.eq(notifications.recipientId, recipientId));
+    await db()
+      .delete(notificationOutbox)
+      .where(dbMod.inArray(notificationOutbox.id, [inAppOutboxId, pushOutboxId]));
+  });
+
   it('idempotent re-run on the same eventId is a no-op (rows are already processed)', async () => {
     const [outbox] = await db()
       .insert(notificationOutbox)
