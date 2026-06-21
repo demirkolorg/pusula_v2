@@ -311,20 +311,23 @@ function applyColorTheme(base: ThemeTokens, scheme: ColorScheme, colorTheme: Col
 /**
  * Verilen şema (+ opsiyonel renk paleti) için tam token setini döndürür.
  *
- * `scheme === null` → light. `colorTheme` verilmezse veya `emerald` ise baz
- * şema token'ları (geriye dönük davranış — `themeFor(scheme)` çağıranlar
- * kırılmaz) döner. Diğer paletlerde üretilen tablo baz şema üzerine bindirilir.
+ * `scheme === null` → light. **Emerald dahil** tüm paletler üretilen
+ * `colorThemeVars` tablosundan türetilir; baz şema yalnızca generated tabloda
+ * olmayan alanlar (durum renkleri, `radius`/`spacing` vb. common token'lar) için
+ * taban sağlar. Böylece JS token seti (`theme.*`, ör. SwipeRow `theme.card`)
+ * NativeWind `vars()` className katmanıyla (`bg-card`) birebir AYNI kaynağı
+ * kullanır ve sırıtmaz.
+ *
+ * KRİTİK (sırıtma fix): eskiden emerald `themes[resolved]` baz nesnesini
+ * short-circuit ile dönüyordu; baz `card` (dark `#0a1c17`) ile generated emerald
+ * `card` (`#1b2a23`) farklı olduğundan, className-temelli yüzeyler (`bg-card`,
+ * vars'tan = generated) ile JS-token yüzeyleri (`theme.card`, base) dark modda
+ * sırıtıyordu. Generated tabloyu tek kaynak yaparak bu kapatıldı.
  */
 export function themeFor(
   scheme: ColorScheme | null | undefined,
   colorTheme: ColorThemeName = DEFAULT_COLOR_THEME,
 ): ThemeTokens {
   const resolved: ColorScheme = scheme === 'dark' ? 'dark' : 'light';
-  const base = themes[resolved];
-  if (colorTheme === DEFAULT_COLOR_THEME) {
-    // Emerald = baz şema; aynı referansı koru (mevcut === karşılaştırmalı testler
-    // ve gereksiz yeniden hesap önlenir).
-    return base;
-  }
-  return applyColorTheme(base, resolved, colorTheme);
+  return applyColorTheme(themes[resolved], resolved, colorTheme);
 }

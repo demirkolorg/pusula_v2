@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -55,6 +56,10 @@ export function DescriptionEditor({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [expanded, setExpanded] = useState(false);
+  // DEM-249 — bölüm katlanabilir, default AÇIK (Ekler/Yorumlar deseniyle aynı
+  // ama o bölümler default katlı; açıklama ilk bakışta görünür kalsın).
+  const [collapsed, setCollapsed] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const updateCard = useMutation(
     trpc.card.update.mutationOptions({
@@ -121,8 +126,13 @@ export function DescriptionEditor({
       <SectionHeader
         icon="align-left"
         title={strings.cardDetail.descriptionTitle}
+        collapsible
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((prev) => !prev)}
         actions={
-          editing ? undefined : (
+          // Katlıyken VEYA düzenleme modunda başlık aksiyonları gizli — katlı
+          // bölümde "Düzenle"/"Daha fazla göster" gövde gizliyken anlamsız.
+          collapsed || editing ? undefined : (
             // gap-5 — iki aksiyonun hitSlop'ları (±8) çakışıp yanlış butona
             // basılmasını önler ("Daha fazla göster" ↔ "Düzenle").
             <View className="flex-row items-center gap-5">
@@ -149,40 +159,48 @@ export function DescriptionEditor({
         }
       />
 
-      {editing ? (
-        <View className="gap-2">
-          <TextArea
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={strings.cardDetail.descriptionPlaceholder}
-            editable={!updateCard.isPending}
-            autoFocus
-          />
-          <View className="flex-row gap-2">
-            <View className="flex-1">
-              <Button
-                label={strings.cardDetail.cancel}
-                variant="ghost"
-                onPress={() => setEditing(false)}
-                disabled={updateCard.isPending}
+      {collapsed ? null : (
+        <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(160)}>
+          {editing ? (
+            <View className="gap-2">
+              <TextArea
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={strings.cardDetail.descriptionPlaceholder}
+                editable={!updateCard.isPending}
+                autoFocus
               />
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Button
+                    label={strings.cardDetail.cancel}
+                    variant="ghost"
+                    onPress={() => setEditing(false)}
+                    disabled={updateCard.isPending}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Button
+                    label={
+                      updateCard.isPending ? strings.cardDetail.saving : strings.cardDetail.save
+                    }
+                    onPress={handleSave}
+                    pending={updateCard.isPending}
+                    disabled={updateCard.isPending}
+                  />
+                </View>
+              </View>
             </View>
-            <View className="flex-1">
-              <Button
-                label={updateCard.isPending ? strings.cardDetail.saving : strings.cardDetail.save}
-                onPress={handleSave}
-                pending={updateCard.isPending}
-                disabled={updateCard.isPending}
-              />
+          ) : tiptapHasContent(description) ? (
+            <View style={showCollapsed ? { maxHeight: 200, overflow: 'hidden' } : undefined}>
+              <TiptapRender doc={description} />
             </View>
-          </View>
-        </View>
-      ) : tiptapHasContent(description) ? (
-        <View style={showCollapsed ? { maxHeight: 200, overflow: 'hidden' } : undefined}>
-          <TiptapRender doc={description} />
-        </View>
-      ) : (
-        <Text className="text-sm text-muted-foreground">{strings.cardDetail.noDescription}</Text>
+          ) : (
+            <Text className="text-sm text-muted-foreground">
+              {strings.cardDetail.noDescription}
+            </Text>
+          )}
+        </Animated.View>
       )}
     </View>
   );

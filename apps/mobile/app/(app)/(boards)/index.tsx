@@ -25,6 +25,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { WorkspaceCard } from '@/components/workspace-card';
 import { WorkspaceBoardsView } from '@/components/workspace-boards-view';
+import { WorkspaceHeroHeader } from '@/components/workspace-hero-header';
 import { strings } from '@/lib/strings';
 import { useIsTablet } from '@/lib/use-device-class';
 import { useTheme } from '@/theme/theme-provider';
@@ -210,11 +211,12 @@ export default function WorkspacesScreen() {
             // dalı yalnız `noUncheckedIndexedAccess` tipini daraltmak için.
             selectedWorkspace ? (
               <View className="flex-1">
-                <View className="border-b border-border px-4 py-3">
-                  <Text weight="semibold" className="text-lg text-foreground" numberOfLines={1}>
-                    {selectedWorkspace.name}
-                  </Text>
-                </View>
+                <WorkspaceHeroHeader
+                  workspaceId={selectedWorkspace.id}
+                  title={selectedWorkspace.name}
+                  icon={selectedWorkspace.icon}
+                  memberCount={selectedWorkspace.memberCount}
+                />
                 <View className="flex-1">
                   <WorkspaceBoardsView workspaceId={selectedWorkspace.id} />
                 </View>
@@ -241,10 +243,11 @@ export default function WorkspacesScreen() {
         <View className="px-4 pb-1">
           <QuickNoteDock />
         </View>
+        <SectionHeader icon="briefcase" title={strings.workspaces.title} />
         <FlatList
           data={query.data}
           keyExtractor={(workspace) => workspace.id}
-          contentContainerClassName="gap-3 px-4 pt-3 pb-4"
+          contentContainerClassName="gap-3 px-4 pt-1 pb-4"
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching}

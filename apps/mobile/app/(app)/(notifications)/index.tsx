@@ -90,8 +90,13 @@ export default function NotificationsScreen() {
   const { markRead, markAllRead, isMarkingAll } = useNotificationMutations(LIST_INPUT);
 
   const items = query.data?.items ?? [];
-  const groups = groupNotificationsByDate(items);
-  const hasUnread = items.some((item) => item.readAt == null);
+  // Okunmamışlar her zaman en üstte tek grupta; okunmuşlar tarih gruplarında
+  // (Bugün/Dün/…). Her iki küme de `notifications.list` sırasını (createdAt desc)
+  // korur (filter sırayı bozmaz).
+  const unreadItems = items.filter((item) => item.readAt == null);
+  const readItems = items.filter((item) => item.readAt != null);
+  const readGroups = groupNotificationsByDate(readItems);
+  const hasUnread = unreadItems.length > 0;
 
   const loading = query.isPending;
   const errored = query.isError && !query.isFetching && !query.data;
@@ -112,14 +117,19 @@ export default function NotificationsScreen() {
     [isTablet, markRead, router],
   );
 
-  // SectionList kaynağı — tarih grupları (Bugün/Dün/…) section'a çevrilir.
-  // Virtualization: yalnız görünür satırlar (+ Reanimated SwipeRow'ları) mount
-  // edilir; ScrollView'da 25 satırın tümü birden mount oluyordu.
-  const sections = groups.map((group) => ({
-    key: group.key,
-    title: strings.notifications.groups[group.key],
-    data: group.items,
-  }));
+  // SectionList kaynağı — "Okunmamış" grubu en üstte (varsa), ardından okunmuşlar
+  // tarih gruplarında (Bugün/Dün/…). Virtualization: yalnız görünür satırlar
+  // (+ Reanimated SwipeRow'ları) mount edilir.
+  const sections = [
+    ...(hasUnread
+      ? [{ key: 'unread', title: strings.notifications.unreadLabel, data: unreadItems }]
+      : []),
+    ...readGroups.map((group) => ({
+      key: group.key,
+      title: strings.notifications.groups[group.key],
+      data: group.items,
+    })),
+  ];
 
   const renderItem = useCallback(
     ({ item }: { item: NotificationItem }) => {
@@ -150,7 +160,7 @@ export default function NotificationsScreen() {
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: SectionListData<NotificationItem, NotificationSection> }) => (
-      <View className="flex-row items-center gap-2 bg-background px-0.5 pb-1 pt-4">
+      <View className="flex-row items-center gap-2 px-0.5 pb-1 pt-4">
         <Text weight="semibold" className="text-xs uppercase text-muted-foreground">
           {section.title}
         </Text>

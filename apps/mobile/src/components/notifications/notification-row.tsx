@@ -85,10 +85,10 @@ export const NotificationRow = memo(function NotificationRow({
           {/* Rozet opak (bg-background) + satır zemininde 2px halka → hem avatar
               fotoğrafından hem satır zemininden net ayrışır; içte tonlu ikon. */}
           <View
-            className="absolute -bottom-1 -right-1 h-5 w-5 items-center justify-center rounded-full bg-background"
+            className="absolute -bottom-1.5 -right-1.5 h-7 w-7 items-center justify-center rounded-full bg-background"
             style={{ borderWidth: 2, borderColor: unread ? `${theme.primary}1a` : theme.card }}
           >
-            <Icon name={iconName} size={11} color={tone} />
+            <Icon name={iconName} size={15} color={tone} />
           </View>
         </View>
       )}

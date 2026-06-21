@@ -237,6 +237,11 @@ export const strings = {
     fallbackTitle: 'Kart',
     loadError: 'Kart yüklenemedi.',
     completedBadge: 'Tamamlandı',
+    // Kapak görseli görünüm modu (web kart modalı çift-tık paritesi) — kapağa
+    // çift dokununca fit↔banner geçer. Erişilebilirlik ipucu sıradaki eylemi
+    // anlatır (mevcut moda göre).
+    coverViewToBanner: 'Kapağı tam kapla (çift dokun)',
+    coverViewToFit: 'Kapağı sığdır (çift dokun)',
     descriptionTitle: 'Açıklama',
     noDescription: 'Açıklama eklenmemiş.',
     labelsTitle: 'Etiketler',
@@ -1516,6 +1521,9 @@ export const strings = {
       // Cam kartın altındaki sosyal-proof şeridi — sahte/örnek metin.
       socialProof: {
         text: 'Yüzlerce ekip işlerini Pusula ile yönetiyor.',
+        // Üst üste binmiş avatarlarda gösterilen örnek ekip üyeleri — renk +
+        // baş harf bu adlardan deterministik türetilir (dekoratif, a11y-gizli).
+        members: ['Ayşe Yılmaz', 'Mehmet Demir', 'Zeynep Kaya', 'Can Aydın', 'Elif Şahin'],
       },
     },
   },

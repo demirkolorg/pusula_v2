@@ -435,6 +435,7 @@ export default function CardDetailScreen() {
             coverImage={card.coverImage}
             coverImageUrl={card.coverImageUrl ?? null}
             variant="detail"
+            cardId={card.id}
           />
         ) : detailCoverColor != null ? (
           <View

@@ -58,19 +58,30 @@ describe('renk paleti altyapısı (§13.7.7)', () => {
     expect(isColorThemeName(42)).toBe(false);
   });
 
-  it('themeFor: emerald/varsayılan baz şema referansını korur (geri uyum)', () => {
-    expect(themeFor('light')).toBe(tokens.light);
-    expect(themeFor('dark')).toBe(tokens.dark);
-    expect(themeFor('light', 'emerald')).toBe(tokens.light);
+  it('themeFor: emerald dahil tüm paletler generated tablodan türer (tek kaynak)', () => {
+    // Sırıtma fix: emerald artık baz nesneyi short-circuit ETMEZ — JS token
+    // (`theme.card`) generated `colorThemeVars` ile (NativeWind `bg-card` vars
+    // kaynağı) birebir aynı `card` rengini döndürmeli, aksi halde SwipeRow ile
+    // DetailSection dark'ta sırıtır.
+    const emeraldDark = themeFor('dark', 'emerald');
+    const expectedCard = colorThemeVars.emerald.dark['--color-card'] ?? '';
+    const [r, g, b] = expectedCard.split(' ').map(Number);
+    const toHex = (v: number) => v.toString(16).padStart(2, '0');
+    expect(emeraldDark.card).toBe(`#${toHex(r!)}${toHex(g!)}${toHex(b!)}`);
+    // `themeFor()` (palet argümansız) varsayılan emerald ile aynı sonucu verir.
+    expect(themeFor('dark').card).toBe(emeraldDark.card);
+    // Common token'lar (palet override etmez) baz şemadan korunur.
+    expect(emeraldDark.radius).toBe(tokens.dark.radius);
   });
 
   it('themeFor: farklı palet override edilmiş primary + sabit common döndürür', () => {
     const blueLight = themeFor('light', 'blue');
-    expect(blueLight.primary).toBe('rgb(0, 112, 229)');
+    // `channelsToHex` ile HEX döner (palet tüketicileri hex varsayar — tokens.ts).
+    expect(blueLight.primary).toBe('#0070e5');
     expect(blueLight.primarySoft).toBe('rgba(0, 112, 229, 0.14)');
     // Durum renkleri + common token'lar baz şemadan korunur (palet override etmez).
     expect(blueLight.success).toBe(tokens.light.success);
     expect(blueLight.radius).toBe(tokens.light.radius);
-    expect(blueLight.tabBarActive).toBe('rgb(0, 112, 229)');
+    expect(blueLight.tabBarActive).toBe('#0070e5');
   });
 });

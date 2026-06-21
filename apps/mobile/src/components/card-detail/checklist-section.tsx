@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
-import type Animated from 'react-native-reanimated';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import type { AnimatedRef } from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
@@ -119,6 +119,9 @@ export function ChecklistSection({
   // Hangi kontrol listesinin "madde ekle" composer'ı açık (id) — tetikleyici o
   // listenin kendi header'ındaki "+" aksiyonunda; aynı anda tek liste açık.
   const [addItemChecklistId, setAddItemChecklistId] = useState<string | null>(null);
+  // DEM-249 — bölüm katlanabilir, default AÇIK (Açıklama bölümüyle aynı desen).
+  const [collapsed, setCollapsed] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (autoOpenedRef.current) return;
@@ -351,8 +354,13 @@ export function ChecklistSection({
       <SectionHeader
         icon="check-square"
         title={strings.cardDetail.checklistsTitle}
+        collapsible
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((prev) => !prev)}
         actions={
-          canEdit && !addOpen ? (
+          // Katlıyken "+ Ekle" gizli — composer gövdede açıldığından katlı
+          // bölümde anlamsız.
+          !collapsed && canEdit && !addOpen ? (
             <SectionHeaderAction
               icon="plus"
               label={strings.cardDetail.checklistAdd}
@@ -362,7 +370,11 @@ export function ChecklistSection({
         }
       />
 
-      <View className="gap-4">
+      {collapsed ? null : (
+      <Animated.View
+        entering={reduceMotion ? undefined : FadeIn.duration(160)}
+        className="gap-4"
+      >
       {checklists.length === 0 && !addOpen ? (
         <Text className="text-sm text-muted-foreground">
           {strings.cardDetail.checklistsEmpty}
@@ -496,7 +508,8 @@ export function ChecklistSection({
           }
         />
       ) : null}
-      </View>
+      </Animated.View>
+      )}
     </View>
 
     {/* Madde yorum thread'i — KOŞULLU mount: yalnız bir madde thread'i açıkken

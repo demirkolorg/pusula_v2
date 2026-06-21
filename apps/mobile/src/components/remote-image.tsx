@@ -15,6 +15,12 @@ type RemoteImageProps = {
    * İçeride `expo-image` `contentFit` değerine eşlenir. Varsayılan `cover`.
    */
   resizeMode?: ImageResizeMode;
+  /**
+   * Blur yoğunluğu (px) — kapak `fit` modunda görselin kenar boşluğunu dolduran
+   * blur'lu arka plan kopyası için. RN `Image` ve `expo-image` ikisi de
+   * `blurRadius` destekler. Verilmezse blur uygulanmaz.
+   */
+  blurRadius?: number;
   /** Kapsayıcı className — boyut / şekil / arka plan buradan verilir. */
   className?: string;
   /** Kapsayıcı ek stili — sabit boyut (avatar) için `{ width, height }`. */
@@ -52,6 +58,7 @@ export function RemoteImage({
   uri,
   accessibilityLabel,
   resizeMode = 'cover',
+  blurRadius,
   className,
   style,
   placeholder,
@@ -78,6 +85,7 @@ export function RemoteImage({
           accessibilityLabel={accessibilityLabel}
           accessible={accessibilityLabel != null}
           resizeMode={resizeMode}
+          blurRadius={blurRadius}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
           style={StyleSheet.absoluteFill}

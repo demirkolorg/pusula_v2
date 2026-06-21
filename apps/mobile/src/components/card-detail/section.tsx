@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
   FadeIn,
@@ -113,30 +113,76 @@ export function DetailSection({
 
 /**
  * Bölüm başlığı satırı (2026-06-20) — `DetailSection`'ın başlık satırıyla aynı
- * görsel dil (ikon + küçük uppercase başlık), ama kendi kart yüzeyini sarmaz ve
- * katlanma yönetmez. Sağ tarafta serbest aksiyon yuvası (`actions`) taşır —
- * Açıklama bölümünde "Düzenle" + "Daha fazla göster", kontrol listelerinde
- * "+ Ekle" gibi. İç durumu (editing/expanded) bileşenlerin kendisinde kaldığından
- * her bölüm bu başlığı kendi içinde render eder (state lift gerekmez).
+ * görsel dil (ikon + küçük uppercase başlık). Sağ tarafta serbest aksiyon yuvası
+ * (`actions`) taşır — Açıklama bölümünde "Düzenle" + "Daha fazla göster",
+ * kontrol listelerinde "+ Ekle" gibi. İç durumu (editing/expanded) bileşenlerin
+ * kendisinde kaldığından her bölüm bu başlığı kendi içinde render eder (state
+ * lift gerekmez).
+ *
+ * DEM-249 (2026-06-21) — opsiyonel `collapsible`: başlık dokunulabilir olur,
+ * sağda dönen chevron belirir; katlama DURUMU dışarıda (`collapsed` + `onToggle`)
+ * yönetilir (gövde render'ı bölüm bileşeninde, kendi aksiyonlarıyla birlikte
+ * kalsın diye — `DetailSection`'ın aksiyonsuz katlamasından farkı bu). Bölümün
+ * kendi aksiyonları (`actions`) chevron'un solunda durur; katlıyken bölüm onları
+ * gizleyebilir. Animasyon `useReducedMotion` ile anlık geçişe iner (ilke 9).
  */
 export function SectionHeader({
   icon,
   title,
   actions,
+  collapsible = false,
+  collapsed = false,
+  onToggle,
 }: {
   icon: IconName;
   title: string;
   actions?: ReactNode;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
   const theme = useTheme();
-  return (
+  const reduceMotion = useReducedMotion();
+  // chevron dönüşü: katlı = 0 (aşağı bakar), açık = 1 (180° → yukarı bakar).
+  // Katlama durumu dışarıda olduğundan shared value `collapsed`'a effect'le
+  // senkronlanır (`DetailSection` toggle'da elle set eder; burada prop'tan akar).
+  const open = useSharedValue(collapsed ? 0 : 1);
+  useEffect(() => {
+    const target = collapsed ? 0 : 1;
+    open.value = reduceMotion ? target : withTiming(target, { duration: 180 });
+  }, [collapsed, reduceMotion, open]);
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${open.value * 180}deg` }],
+  }));
+
+  const row = (
     <View className="min-h-9 flex-row items-center gap-2">
       <Icon name={icon} size={15} color={theme.mutedForeground} />
       <Text weight="semibold" className="flex-1 text-xs uppercase text-muted-foreground">
         {title}
       </Text>
       {actions}
+      {collapsible ? (
+        <Animated.View style={chevronStyle}>
+          <Icon name="chevron-down" size={18} color={theme.mutedForeground} />
+        </Animated.View>
+      ) : null}
     </View>
+  );
+
+  if (!collapsible) return row;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: !collapsed }}
+      accessibilityLabel={title}
+      onPress={onToggle}
+      hitSlop={8}
+      className="active:opacity-70"
+    >
+      {row}
+    </Pressable>
   );
 }
 

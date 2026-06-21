@@ -16,10 +16,13 @@ describe('mobil iskelet sabitleri', () => {
     expect(tokens.dark.background).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it('themeFor null/light → light, dark → dark döndürür', () => {
-    expect(themeFor(null)).toBe(tokens.light);
-    expect(themeFor('light')).toBe(tokens.light);
-    expect(themeFor('dark')).toBe(tokens.dark);
+  it('themeFor null/light → light şeması, dark → dark şeması çözer', () => {
+    // Artık emerald de generated tablodan türer (referans değil değer eşitliği);
+    // null/light aynı light şemasını, dark farklı dark şemasını döndürmeli.
+    expect(themeFor(null).background).toBe(themeFor('light').background);
+    expect(themeFor('dark').background).not.toBe(themeFor('light').background);
+    // Common token'lar şemadan bağımsız korunur.
+    expect(themeFor('dark').radius).toBe(tokens.dark.radius);
   });
 
   it('etiket paleti 11 tema-bağımsız renk taşır', () => {
