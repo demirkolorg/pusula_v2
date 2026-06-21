@@ -1,4 +1,4 @@
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -8,7 +8,7 @@ import { Text } from '@/components/text';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { formatDueDate, isOverdue } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardGet = RouterOutputs['card']['get'];
 
@@ -72,7 +72,7 @@ function dateAtPresetHour(date: Date): Date {
 export function DueDateSheetBody({ cardId, dueAt, completed, canEdit }: DueDateSheetBodyProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const cardKey = trpc.card.get.queryKey({ cardId });
 
   const updateCard = useMutation(

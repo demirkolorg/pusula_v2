@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, RefreshControl, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedRef,
   useAnimatedScrollHandler,
@@ -8,7 +9,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { authClient } from '@/lib/auth-client';
@@ -19,6 +20,7 @@ import { CardCoverImage } from '@/components/card-cover-image';
 import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { LoadingScreen } from '@/components/loading-screen';
+import { ScreenHeader } from '@/components/screen-header';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useCardMutations } from '@/lib/use-card-mutations';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
@@ -36,7 +38,7 @@ import { CommentComposer } from '@/components/card-detail/comment-composer';
 import { ActivityList } from '@/components/card-detail/activity-list';
 import { ScrollHighlightProvider } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Kart detay ekranı (Faz 7G — tam etkileşim). Faz 7F salt-okunur görünümünü
@@ -77,7 +79,7 @@ export default function CardDetailScreen() {
   }>();
   const cardId = params.cardId;
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Tablet floating pill nav son içeriği (yorum composer'ı, aktivite, +ekle)
   // örtmesin → scroll içeriğine alt boşluk (phone'da 0 → taban 16 korunur).
   const navInset = useFloatingNavInset();
@@ -167,14 +169,12 @@ export default function CardDetailScreen() {
     params.attachmentId ??
     null;
 
-  // Collapsing nav başlığı (DEM-228; 2026-06-20 shared-value refactor): 0 = liste
+  // Collapsing başlığı (DEM-228; 2026-06-20 shared-value refactor): 0 = liste
   // adı, 1 = kart başlığı. Reanimated shared value — eşik geçişi UI-thread'inde
-  // yapılır, React state'i DEĞİŞMEZ ve `runOnJS`/`setState` yoktur. Böylece
-  // `collapsed`'a bağlı `Stack.Screen` `headerTitle` closure'u yeniden oluşmaz;
-  // scroll ya da (tablet) sekme değişimi kaynaklı içerik-yüksekliği değişimi
-  // native-stack header / getState pipeline'ını yeniden çalıştırmaz → "Couldn't
-  // find a navigation context" hatası kökten ortadan kalkar. (sleuth teşhisi
-  // 2026-06-20 — tablet 'both'→'description' sekme değişimi reprosu.)
+  // yapılır, React state'i DEĞİŞMEZ ve `runOnJS`/`setState` yoktur → scroll
+  // boyunca ekran yeniden render olmaz, başlık şeridi (`CardDetailHeaderTitle`)
+  // shared value'yu doğrudan okur. (2026-06-21: native stack header kaldırıldı,
+  // başlık ekran-içi sabit şeritte; collapse mantığı aynı shared value ile çalışır.)
   const collapseProgress = useSharedValue(0);
 
   function handleTitleLayout(event: LayoutChangeEvent) {
@@ -258,36 +258,35 @@ export default function CardDetailScreen() {
     return (userId) => (userId ? (map.get(userId) ?? empty) : empty);
   }, [members, activity, currentUserId, session?.user.name, session?.user.image]);
 
-  const header = (
-    <Stack.Screen options={{ title: params.title ?? strings.cardDetail.fallbackTitle }} />
-  );
+  // Erken dönüş başlığı — ekran-içi sade başlık (kart yüklenmeden collapsing yok).
+  const fallbackTitle = params.title ?? strings.cardDetail.fallbackTitle;
 
   if (!cardId) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+        <ScreenHeader title={fallbackTitle} />
         <EmptyState
           icon="alert-triangle"
           title={strings.cardDetail.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (cardQuery.isPending) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+        <ScreenHeader title={fallbackTitle} />
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (cardQuery.isError) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+        <ScreenHeader title={fallbackTitle} />
         <EmptyState
           icon="alert-triangle"
           title={strings.cardDetail.loadError}
@@ -301,7 +300,7 @@ export default function CardDetailScreen() {
             />
           </View>
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
@@ -368,36 +367,31 @@ export default function CardDetailScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          headerTitle: () => (
-            <CardDetailHeaderTitle
-              progress={collapseProgress}
-              listTitle={currentListTitle}
-              cardTitle={card.title}
-            />
-          ),
-          // DEM-196 — ⋮ "Kart işlemleri" menüsü; yalnız board `member+` ve kart
-          // arşivli değilken (arşivli karta yalnız arama/derin link ulaşır).
-          headerRight:
-            canEdit && card.archivedAt == null
-              ? () => (
-                  // 44×44 sabit alan — Apple HIG min dokunma; ikon dikey/yatay ortalı
-                  // (DEM-237 ortak kuralı). `hitSlop` ekstra güvenlik.
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={strings.cardDetail.cardActions}
-                    hitSlop={8}
-                    onPress={() => setActionsOpen(true)}
-                    className="h-11 w-11 items-center justify-center active:opacity-60"
-                  >
-                    <Icon name="more-vertical" size={20} color={theme.foreground} />
-                  </Pressable>
-                )
-              : undefined,
-        }}
-      />
+    <SafeAreaView edges={['top']} className="flex-1 bg-muted">
+      {/* Ekran-içi sabit header şeridi (native header yok) — collapsing başlık
+          (scroll'la liste adı ↔ kart başlığı çapraz-geçişi, UI-thread) + ⋮. */}
+      <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-2">
+        <View className="flex-1">
+          <CardDetailHeaderTitle
+            progress={collapseProgress}
+            listTitle={currentListTitle}
+            cardTitle={card.title}
+          />
+        </View>
+        {/* DEM-196 — ⋮ "Kart işlemleri"; yalnız board member+ ve kart arşivli
+            değilken. 44×44 dokunma alanı (Apple HIG) + hitSlop. */}
+        {canEdit && card.archivedAt == null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.cardDetail.cardActions}
+            hitSlop={8}
+            onPress={() => setActionsOpen(true)}
+            className="h-11 w-11 items-center justify-center active:opacity-60"
+          >
+            <Icon name="more-vertical" size={20} color={theme.foreground} />
+          </Pressable>
+        ) : null}
+      </View>
       <ScrollHighlightProvider
         targetId={highlightTargetId}
         scrollRef={scrollRef}
@@ -589,6 +583,6 @@ export default function CardDetailScreen() {
         onArchive={handleArchive}
         onClose={() => setActionsOpen(false)}
       />
-    </>
+    </SafeAreaView>
   );
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/text';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { Icon } from './icon';
 
 type ListRowProps = {
@@ -17,7 +17,7 @@ type ListRowProps = {
 
 /** Workspace / board listelerinde kullanılan dokunulabilir kart satırı. */
 export function ListRow({ title, subtitle, badge, leading, onPress }: ListRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const interactive = typeof onPress === 'function';
 
   return (

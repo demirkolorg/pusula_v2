@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View, useColorScheme } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -9,7 +9,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -70,8 +70,7 @@ const ease = Easing.inOut(Easing.sin);
  * `StyleSheet.absoluteFill` ile üst SafeAreaView'ı doldurur (z-index < içerik).
  */
 export function AuroraBackground() {
-  const scheme = useColorScheme();
-  const theme = themeFor(scheme);
+  const theme = useTheme();
   const reduceMotion = useReducedMotion();
 
   const b1x = useSharedValue(0);

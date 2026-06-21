@@ -13,6 +13,12 @@
  * Biri değişince diğeri de güncellenmeli — DEM-177.
  */
 
+import {
+  DEFAULT_COLOR_THEME,
+  colorThemeVars,
+  type ColorThemeName,
+} from '@/theme/color-themes.generated';
+
 // ─── Renk token tipi ──────────────────────────────────────────────────────────
 
 export type ColorTokens = {
@@ -222,7 +228,103 @@ export const tokens = themes;
 
 export type ColorScheme = keyof typeof themes;
 
-/** Verilen şema için tam token setini döndürür (`null` → light). */
-export function themeFor(scheme: ColorScheme | null | undefined): ThemeTokens {
-  return scheme === 'dark' ? themes.dark : themes.light;
+// ─── Renk paleti override (§13.7.7) ──────────────────────────────────────────
+
+/** "R G B" kanalını `r, g, b` virgüllü forma getirir (rgba gövdesi — primarySoft). */
+function channelsToTriplet(channels: string): string {
+  return channels.trim().split(/\s+/).join(', ');
+}
+
+/**
+ * "R G B" kanalını `#rrggbb` HEX'ine çevirir. KRİTİK: baz şema token'ları
+ * (`lightColors`/`darkColors`) HEX; palet override de HEX dönmeli ki token'lar
+ * **format olarak tutarlı** kalsın. Bazı tüketiciler `theme.X`'i hex varsayar —
+ * `hexToRgba(theme.card)` (auth/aurora/mockup) ve `\`${theme.primary}1a\``
+ * (notification-row alpha eki). `rgb(...)` dönülürse bunlar geçersiz renk üretir
+ * (palet seçilince "geçersiz renk" / yanlış renk hatası — 2026-06-21 fix).
+ */
+function channelsToHex(channels: string): string {
+  const parts = channels.trim().split(/\s+/);
+  if (parts.length < 3) return '#000000';
+  const toHex = (v: string): string => {
+    const n = Math.max(0, Math.min(255, Number(v) | 0));
+    return n.toString(16).padStart(2, '0');
+  };
+  return `#${toHex(parts[0]!)}${toHex(parts[1]!)}${toHex(parts[2]!)}`;
+}
+
+/**
+ * Üretilen palet token tablosundaki (`--color-*`) değerleri, baz şema token'ları
+ * üzerine bindirerek tam bir `ColorTokens` üretir. Palet yalnız web override
+ * setini (arka plan/yüzey/sınır/birincil) değiştirir; durum renkleri (success/
+ * warning/destructive/info), `primarySoft`, `overlay`, `shadow` vb. baz şemadan
+ * korunur — web `data-color-theme` de bunları override etmez.
+ */
+function applyColorTheme(base: ThemeTokens, scheme: ColorScheme, colorTheme: ColorThemeName): ThemeTokens {
+  const vars = colorThemeVars[colorTheme][scheme];
+  // Üretilen tablo her palette tam token setini garanti eder; eksik anahtar
+  // generator hatası olur (üretimde fark edilir). Runtime'da boş string'e düş.
+  const raw = (key: `--color-${string}`): string => vars[key] ?? '0 0 0';
+  const c = (key: `--color-${string}`): string => channelsToHex(raw(key));
+  const primary = c('--color-primary');
+
+  return {
+    ...base,
+    background: c('--color-background'),
+    foreground: c('--color-foreground'),
+    card: c('--color-card'),
+    cardForeground: c('--color-card-foreground'),
+    cardBackground: c('--color-card'),
+    cardBorder: c('--color-card-border'),
+    muted: c('--color-muted'),
+    mutedForeground: c('--color-muted-foreground'),
+    surfaceStrong: c('--color-surface-strong'),
+
+    primary,
+    primaryLight: c('--color-primary-light'),
+    primaryDark: c('--color-primary-dark'),
+    // `primarySoft` web'de palet bazlı değil; birincil + sabit alpha ile türet.
+    primarySoft: `rgba(${channelsToTriplet(raw('--color-primary'))}, 0.14)`,
+    primaryForeground: c('--color-primary-foreground'),
+
+    border: c('--color-border'),
+    borderSoft: c('--color-border-soft'),
+    divider: c('--color-divider'),
+
+    textDisabled: c('--color-tab-inactive'),
+
+    inputBackground: c('--color-input-bg'),
+    inputBorder: c('--color-border'),
+    inputPlaceholder: c('--color-tab-inactive'),
+
+    tabBarBackground: c('--color-tab-bar-bg'),
+    tabBarActive: primary,
+    tabBarInactive: c('--color-tab-inactive'),
+    headerBackground: c('--color-background'),
+    headerText: c('--color-foreground'),
+
+    skeletonBase: c('--color-skeleton-base'),
+    skeletonHighlight: c('--color-skeleton-highlight'),
+  };
+}
+
+/**
+ * Verilen şema (+ opsiyonel renk paleti) için tam token setini döndürür.
+ *
+ * `scheme === null` → light. `colorTheme` verilmezse veya `emerald` ise baz
+ * şema token'ları (geriye dönük davranış — `themeFor(scheme)` çağıranlar
+ * kırılmaz) döner. Diğer paletlerde üretilen tablo baz şema üzerine bindirilir.
+ */
+export function themeFor(
+  scheme: ColorScheme | null | undefined,
+  colorTheme: ColorThemeName = DEFAULT_COLOR_THEME,
+): ThemeTokens {
+  const resolved: ColorScheme = scheme === 'dark' ? 'dark' : 'light';
+  const base = themes[resolved];
+  if (colorTheme === DEFAULT_COLOR_THEME) {
+    // Emerald = baz şema; aynı referansı koru (mevcut === karşılaştırmalı testler
+    // ve gereksiz yeniden hesap önlenir).
+    return base;
+  }
+  return applyColorTheme(base, resolved, colorTheme);
 }

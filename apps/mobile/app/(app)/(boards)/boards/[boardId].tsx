@@ -1,13 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  View,
-  useColorScheme,
-  useWindowDimensions,
-} from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Alert, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { BoardActionsSheet } from '@/components/board-actions-sheet';
@@ -24,6 +18,7 @@ import { ListAddColumn } from '@/components/list-add-column';
 import { LoadingScreen } from '@/components/loading-screen';
 import { MasterDetailLayout } from '@/components/master-detail-layout';
 import { MoveToListSheet } from '@/components/move-to-list-sheet';
+import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import type { BoardCard, BoardList } from '@/lib/board-cache';
 import { cardPassesLabelFilter } from '@/lib/board-filter';
@@ -35,7 +30,7 @@ import { useBoardSidebarCollapsed } from '@/lib/use-board-sidebar-collapsed';
 import { useBoardViewMode } from '@/lib/use-board-view-mode';
 import { useDownloadBoardReport } from '@/lib/use-download-board-report';
 import { useIsTablet } from '@/lib/use-device-class';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Board ekranı — Faz 7E salt-okunur kurdu, Faz 7H board `member+` için
@@ -60,7 +55,7 @@ export default function BoardScreen() {
   const boardId = params.boardId;
   const trpc = useTRPC();
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Faz 15C (DEM-303) — tablet'te board ekranı master-detail: sol BoardSidebar
   // + sağ kanban/listview. Phone'da değişmez (mevcut tek-kolonlu akış).
   // Sidebar genişliği `13-ui-tasarim-dili.md` §13.12.1: portrait `w-80` (320),
@@ -177,137 +172,127 @@ export default function BoardScreen() {
     );
   }
 
-  // Header aksiyonları — board içi arama (Faz 7I) + board üye yönetimi (Faz 7D)
-  // + board ⋮ işlemler menüsü (DEM-211).
-  const header = (
-    <Stack.Screen
-      options={{
-        title: displayTitle,
-        headerRight: boardId
-          ? () => (
-              <View className="flex-row items-center gap-4">
-                {/* Sidebar aç/kapa (2026-06-19) — yalnız tablet master-detail'de
-                    + board yüklendiğinde. Kenar tutamacının yerini alır; durum
-                    global + kalıcı (en son bırakılan şekilde gelir). Açıkken
-                    vurgulu (foreground), kapalıyken sönük (mutedForeground). */}
-                {isTablet && query.data ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={sidebarCollapsed ? 'Paneli aç' : 'Paneli kapat'}
-                    accessibilityState={{ expanded: !sidebarCollapsed }}
-                    hitSlop={8}
-                    onPress={toggleSidebar}
-                    className="active:opacity-60"
-                  >
-                    <Icon
-                      name="sidebar"
-                      size={21}
-                      color={sidebarCollapsed ? theme.mutedForeground : theme.foreground}
-                    />
-                  </Pressable>
-                ) : null}
-                {/* Görünüm modu (DEM-233) — kanban kolon / dikey liste; yalnız
-                    board yüklendiğinde gösterilir (mod seçimi içerikle anlamlı). */}
-                {query.data ? (
-                  <BoardViewToggle mode={viewMode} onChange={setViewMode} />
-                ) : null}
-                {/* Etiket filtresi — yalnız board yüklendiğinde (sheet de o an mount). */}
-                {query.data ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={strings.boardFilter.headerLabel}
-                    accessibilityState={{ selected: selectedLabelIds.size > 0 }}
-                    hitSlop={8}
-                    onPress={() => setFilterOpen(true)}
-                    className="active:opacity-60"
-                  >
-                    <Icon
-                      name="filter"
-                      size={21}
-                      color={selectedLabelIds.size > 0 ? theme.primary : theme.foreground}
-                    />
-                    {selectedLabelIds.size > 0 ? (
-                      <View className="absolute -right-2 -top-1.5 min-w-4 items-center rounded-full bg-primary px-1">
-                        <Text weight="semibold" className="text-[10px] text-primary-foreground">
-                          {selectedLabelIds.size}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.search.boardTitle}
-                  hitSlop={8}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/board-search/[boardId]',
-                      params: { boardId },
-                    })
-                  }
-                  className="active:opacity-60"
-                >
-                  <Icon name="search" size={21} color={theme.foreground} />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.members.boardTitle}
-                  hitSlop={8}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/board-members/[boardId]',
-                      params: { boardId, title: displayTitle },
-                    })
-                  }
-                  className="active:opacity-60"
-                >
-                  <Icon name="users" size={22} color={theme.foreground} />
-                </Pressable>
-                {/* Board ⋮ işlemler — yalnız board admin + arşivli değilken. */}
-                {canManageThisBoard ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={strings.board.boardActionsLabel}
-                    hitSlop={8}
-                    onPress={() => setBoardActionsOpen(true)}
-                    className="active:opacity-60"
-                  >
-                    <Icon name="more-vertical" size={22} color={theme.foreground} />
-                  </Pressable>
-                ) : null}
-              </View>
-            )
-          : undefined,
-      }}
-    />
-  );
+  // Header aksiyonları — ekran-içi `ScreenHeader` sağ slotu (native header yok).
+  // Board içi arama (Faz 7I) + üye yönetimi (Faz 7D) + ⋮ işlemler (DEM-211) +
+  // görünüm modu (DEM-233) + etiket filtresi + sidebar toggle (tablet).
+  const headerActions = boardId ? (
+    <View className="flex-row items-center gap-4">
+      {/* Sidebar aç/kapa (2026-06-19) — yalnız tablet master-detail'de
+          + board yüklendiğinde. Kenar tutamacının yerini alır; durum
+          global + kalıcı (en son bırakılan şekilde gelir). Açıkken
+          vurgulu (foreground), kapalıyken sönük (mutedForeground). */}
+      {isTablet && query.data ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={sidebarCollapsed ? 'Paneli aç' : 'Paneli kapat'}
+          accessibilityState={{ expanded: !sidebarCollapsed }}
+          hitSlop={8}
+          onPress={toggleSidebar}
+          className="active:opacity-60"
+        >
+          <Icon
+            name="sidebar"
+            size={21}
+            color={sidebarCollapsed ? theme.mutedForeground : theme.foreground}
+          />
+        </Pressable>
+      ) : null}
+      {/* Görünüm modu (DEM-233) — kanban kolon / dikey liste; yalnız
+          board yüklendiğinde gösterilir (mod seçimi içerikle anlamlı). */}
+      {query.data ? <BoardViewToggle mode={viewMode} onChange={setViewMode} /> : null}
+      {/* Etiket filtresi — yalnız board yüklendiğinde (sheet de o an mount). */}
+      {query.data ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.boardFilter.headerLabel}
+          accessibilityState={{ selected: selectedLabelIds.size > 0 }}
+          hitSlop={8}
+          onPress={() => setFilterOpen(true)}
+          className="active:opacity-60"
+        >
+          <Icon
+            name="filter"
+            size={21}
+            color={selectedLabelIds.size > 0 ? theme.primary : theme.foreground}
+          />
+          {selectedLabelIds.size > 0 ? (
+            <View className="absolute -right-2 -top-1.5 min-w-4 items-center rounded-full bg-primary px-1">
+              <Text weight="semibold" className="text-[10px] text-primary-foreground">
+                {selectedLabelIds.size}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.search.boardTitle}
+        hitSlop={8}
+        onPress={() =>
+          router.push({
+            pathname: '/board-search/[boardId]',
+            params: { boardId },
+          })
+        }
+        className="active:opacity-60"
+      >
+        <Icon name="search" size={21} color={theme.foreground} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.members.boardTitle}
+        hitSlop={8}
+        onPress={() =>
+          router.push({
+            pathname: '/board-members/[boardId]',
+            params: { boardId, title: displayTitle },
+          })
+        }
+        className="active:opacity-60"
+      >
+        <Icon name="users" size={22} color={theme.foreground} />
+      </Pressable>
+      {/* Board ⋮ işlemler — yalnız board admin + arşivli değilken. */}
+      {canManageThisBoard ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.board.boardActionsLabel}
+          hitSlop={8}
+          onPress={() => setBoardActionsOpen(true)}
+          className="active:opacity-60"
+        >
+          <Icon name="more-vertical" size={22} color={theme.foreground} />
+        </Pressable>
+      ) : null}
+    </View>
+  ) : null;
 
   if (!boardId) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={displayTitle} right={headerActions} />
         <EmptyState
           icon="alert-triangle"
           title={strings.board.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isPending) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={displayTitle} right={headerActions} />
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isError) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={displayTitle} right={headerActions} />
         <EmptyState
           icon="alert-triangle"
           title={strings.board.loadError}
@@ -317,7 +302,7 @@ export default function BoardScreen() {
             <Button label={strings.common.retry} variant="ghost" onPress={() => query.refetch()} />
           </View>
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
@@ -329,14 +314,14 @@ export default function BoardScreen() {
   // `member+` ise boş board'da bile "Liste ekle" kolonu gösterilir.
   if (activeLists.length === 0 && !canEdit) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={displayTitle} right={headerActions} />
         <EmptyState
           icon="trello"
           title={strings.board.emptyTitle}
           description={strings.board.emptyDescription}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
@@ -400,8 +385,8 @@ export default function BoardScreen() {
   );
 
   return (
-    <>
-      {header}
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={displayTitle} right={headerActions} />
       {body}
 
       <MoveToListSheet
@@ -456,6 +441,6 @@ export default function BoardScreen() {
         downloadReportPending={isDownloadingReport}
         onClose={() => setBoardActionsOpen(false)}
       />
-    </>
+    </SafeAreaView>
   );
 }

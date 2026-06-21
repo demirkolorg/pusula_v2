@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { TextInput, View, useColorScheme } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { Button } from '@/components/button';
 import { Sheet } from '@/components/sheet';
 import { resolveChecklistItemRename } from '@/lib/checklist-item-edit';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type ChecklistItemEditSheetProps = {
   visible: boolean;
@@ -39,7 +39,7 @@ export function ChecklistItemEditSheet({
   onSave,
   onClose,
 }: ChecklistItemEditSheetProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [draft, setDraft] = useState(initialContent);
 
   const submit = () => {

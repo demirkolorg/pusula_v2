@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -20,7 +20,7 @@ import { attachmentIconName, formatBytes } from '@/lib/attachment-format';
 import { formatTimestamp } from '@/lib/format-date';
 import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type Attachment = RouterOutputs['attachment']['list'][number];
 
@@ -110,7 +110,7 @@ function AttachmentTileImpl({
   onToggleCover,
   highlighted = false,
 }: AttachmentTileProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const flashOpacity = useSharedValue(0);
   const flashStyle = useAnimatedStyle(() => ({
     position: 'absolute',

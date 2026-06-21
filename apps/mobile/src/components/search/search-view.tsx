@@ -5,7 +5,6 @@ import {
   ScrollView,
   TextInput,
   View,
-  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
@@ -18,7 +17,7 @@ import { SearchResultRow } from '@/components/search/search-result-row';
 import { groupSearchResults, searchResultTarget } from '@/lib/search-target';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Minimum sorgu uzunluğu — domain `06-arama-kapsami.md`: 2 karakterden önce API çağrılmaz. */
 const MIN_QUERY_LENGTH = 2;
@@ -64,7 +63,7 @@ type SearchViewProps = {
 export function SearchView({ boardId, title, autoFocus = false }: SearchViewProps) {
   const trpc = useTRPC();
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const scope = boardId ? 'board' : 'global';
 
   const [query, setQuery] = useState('');

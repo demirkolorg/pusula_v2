@@ -1,29 +1,24 @@
-import { useColorScheme } from 'react-native';
 import { Stack } from 'expo-router';
-import { fontFamilyForWeight } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
- * "Panolar" sekmesinin stack'i — workspace listesi (kök) → board listesi
- * (push, geri butonu otomatik). Native header tema token'larıyla stillenir.
+ * "Panolar" sekmesinin stack'i — workspace listesi (kök) → board listesi →
+ * board/kart/üye/oluşturma ekranları (push).
+ *
+ * Native header KULLANILMAZ (2026-06-21): tüm ekranlar ekran-içi başlık çizer
+ * (`ScreenHeader` / board-kart kendi şeridi). Böylece header gövdeyle aynı
+ * zeminde durur (native header'ın `background` ↔ gövde `muted` tutarsızlığı
+ * giderildi). Geri gitme iOS kenar-kaydırma / Android OS-geri ile (DEM-206) —
+ * `gestureEnabled` Stack varsayılanı korunur. `contentStyle` geçiş sırasında
+ * arka planı verir; `useTheme` ile aktif renk paletini yansıtır.
  */
 export default function BoardsLayout() {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: theme.background },
-        headerTintColor: theme.foreground,
-        // Native header başlığı `Text` değildir — Poppins'i style ile uygula.
-        headerTitleStyle: {
-          color: theme.foreground,
-          fontFamily: fontFamilyForWeight.semibold,
-        },
-        headerShadowVisible: false,
-        // Geri butonu uygulama genelinde gizli (DEM-206) — geri gitme iOS'ta
-        // kenardan kaydırma gesture'ı, Android'de OS-seviyesi geri ile sağlanır.
-        headerBackVisible: false,
+        headerShown: false,
         contentStyle: { backgroundColor: theme.background },
       }}
     />

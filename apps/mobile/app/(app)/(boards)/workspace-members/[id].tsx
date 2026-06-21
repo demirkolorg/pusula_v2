@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { FlatList, RefreshControl, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { authClient } from '@/lib/auth-client';
@@ -11,6 +12,7 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { MemberActionSheet } from '@/components/member-action-sheet';
 import { MemberInviteForm } from '@/components/member-invite-form';
 import { MemberRow } from '@/components/member-row';
+import { ScreenHeader } from '@/components/screen-header';
 import { SentInvitationRow } from '@/components/sent-invitation-row';
 import { Text } from '@/components/text';
 import { canManageWorkspaceMembers, workspaceRoleLabel } from '@/lib/member-roles';
@@ -20,7 +22,7 @@ import {
   useWorkspaceMemberMutations,
   type AssignableWorkspaceRole,
 } from '@/lib/use-member-mutations';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Davet/rol seçiminde sunulan workspace rolleri (`owner` atanamaz — domain kuralı). */
 const WORKSPACE_INVITE_ROLES = [
@@ -43,7 +45,7 @@ export default function WorkspaceMembersScreen() {
   const workspaceId = params.id;
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user.id;
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -70,37 +72,33 @@ export default function WorkspaceMembersScreen() {
     ),
   );
 
-  const header = (
-    <Stack.Screen
-      options={{ title: params.name ?? strings.members.workspaceTitle }}
-    />
-  );
+  const header = <ScreenHeader title={params.name ?? strings.members.workspaceTitle} />;
 
   if (!workspaceId) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
           title={strings.members.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isPending) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isError) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
@@ -115,7 +113,7 @@ export default function WorkspaceMembersScreen() {
             />
           </View>
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
@@ -194,7 +192,7 @@ export default function WorkspaceMembersScreen() {
     ) : null;
 
   return (
-    <>
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
       {header}
       <FlatList
         data={members}
@@ -248,6 +246,6 @@ export default function WorkspaceMembersScreen() {
           onClose={() => setActionMember(null)}
         />
       ) : null}
-    </>
+    </SafeAreaView>
   );
 }

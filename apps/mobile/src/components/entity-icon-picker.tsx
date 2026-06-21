@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { ENTITY_ICONS, type EntityIcon } from '@pusula/domain';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { featherForEntityIcon } from '@/lib/entity-icon';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * DEM-203 WP6 — pano / workspace oluşturma ekranlarının ortak entity ikon
@@ -27,7 +27,7 @@ type EntityIconPickerProps = {
 };
 
 export function EntityIconPicker({ label, value, onChange }: EntityIconPickerProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [open, setOpen] = useState(false);
 
   return (

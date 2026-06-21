@@ -23,6 +23,12 @@ type DescriptionEditorProps = {
   description: string | null;
   /** Çağıran board `member+` mi — `false` ise salt-okunur. */
   canEdit: boolean;
+  /**
+   * Tablet yan-yana yerleşiminde kart yüzeyi `flex-1` ile kapsayıcısını dikey
+   * doldurur — yandaki "Yapılacaklar" bölümüyle eşit yükseklikte kalsın
+   * (`DescriptionChecklistTabs` `items-stretch`). Telefonda (alt-alta) `false`.
+   */
+  fill?: boolean;
 };
 
 /**
@@ -37,7 +43,12 @@ type DescriptionEditorProps = {
  * `DESCRIPTION_TRUNCATE_LIMIT` (500) karakteri aşarsa `numberOfLines` ile
  * kısıtlanır + "Daha fazla göster" toggle. Düzenleme modunda kısıtlama yok.
  */
-export function DescriptionEditor({ cardId, description, canEdit }: DescriptionEditorProps) {
+export function DescriptionEditor({
+  cardId,
+  description,
+  canEdit,
+  fill = false,
+}: DescriptionEditorProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const cardKey = trpc.card.get.queryKey({ cardId });
@@ -104,7 +115,9 @@ export function DescriptionEditor({ cardId, description, canEdit }: DescriptionE
     // Kendi kart yüzeyi + başlık (2026-06-20). Başlıkta solda "Açıklama", sağda
     // "Daha fazla göster" (uzun metinde) + "Düzenle" (member+). Düzenleme modunda
     // header aksiyonsuz — gövde düzenleme formuna döner.
-    <View className="gap-3 rounded-xl border border-border bg-card p-3.5">
+    <View
+      className={`gap-3 rounded-xl border border-border bg-card p-3.5 ${fill ? 'flex-1' : ''}`}
+    >
       <SectionHeader
         icon="align-left"
         title={strings.cardDetail.descriptionTitle}

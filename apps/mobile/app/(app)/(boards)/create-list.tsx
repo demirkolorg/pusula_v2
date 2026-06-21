@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Text } from '@/components/text';
 import { Button } from '@/components/button';
+import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
 import { LocationPicker, useLocationPicker } from '@/components/location-picker';
 import { newClientMutationId } from '@/lib/client-mutation-id';
@@ -56,10 +58,10 @@ export default function CreateListScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: strings.createList.title }} />
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={strings.createList.title} />
       <ScrollView
-        className="flex-1 bg-background"
+        className="flex-1"
         contentContainerClassName="gap-5 p-4"
         keyboardShouldPersistTaps="handled"
       >
@@ -88,6 +90,6 @@ export default function CreateListScreen() {
           disabled={!canSubmit}
         />
       </ScrollView>
-    </>
+    </SafeAreaView>
   );
 }

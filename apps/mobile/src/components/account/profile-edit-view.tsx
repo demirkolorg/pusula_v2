@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { userImageUrlSchema, userNameSchema } from '@pusula/domain';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
+import { AccountPageHeader } from '@/components/account/account-page-header';
 import { Button } from '@/components/button';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { FormMessage } from '@/components/form-message';
@@ -12,7 +13,8 @@ import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { strings } from '@/lib/strings';
 import { useAvatarUpload, type AvatarUploadSource } from '@/lib/use-avatar-upload';
-import { themeFor } from '@/theme/tokens';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Avatar kaynak seçici satırları — sheet'te bu sırada gösterilir. */
 const AVATAR_SOURCES: ReadonlyArray<{
@@ -51,7 +53,8 @@ export interface ProfileEditViewProps {
  */
 export function ProfileEditView({ onDone }: ProfileEditViewProps) {
   const { data: session, refetch } = authClient.useSession();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
+  const navInset = useFloatingNavInset();
   const avatar = useAvatarUpload();
 
   const currentName = session?.user.name ?? '';
@@ -147,13 +150,20 @@ export function ProfileEditView({ onDone }: ProfileEditViewProps) {
 
   return (
     <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="gap-5 p-4"
+      className="flex-1 bg-muted"
+      // Geniş ekranda (tablet pane / landscape) form edge-to-edge gerilmesin:
+      // ortalanmış max-width kolon. Telefonda tam genişlik (ekran < max-w → no-op).
+      contentContainerClassName="mx-auto w-full max-w-2xl gap-5 p-4"
+      contentContainerStyle={{ paddingBottom: navInset || 16 }}
       // Klavye açılınca alttaki alanlar (TextField) klavyenin altında kalmasın —
       // iOS otomatik content-inset (kart detayı [cardId].tsx:320 ile aynı desen).
       automaticallyAdjustKeyboardInsets
     >
-      <Text className="text-sm text-muted-foreground">{strings.profileEdit.description}</Text>
+      <AccountPageHeader
+        icon="user"
+        title={strings.profileEdit.title}
+        subtitle={strings.profileEdit.description}
+      />
 
       {/* Avatar — mevcut görsel + değiştir / kaldır (DEM-212). */}
       <View className="gap-2">

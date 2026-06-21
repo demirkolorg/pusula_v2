@@ -1,12 +1,12 @@
 import { memo } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { dueDateTone, formatDueDateSmart } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
 import { asCoverColor, coverColorHex } from '@/lib/cover-color';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { CardCoverImage } from './card-cover-image';
 import { EntityAvatar } from './entity-avatar';
 import { Icon, type IconName } from './icon';
@@ -49,7 +49,7 @@ function CardFaceImpl({
   onPress?: () => void;
   onLongPress?: () => void;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Vade aciliyet tonu (2026-06-20): geçmiş kırmızı, bugün/yarın amber, uzak nötr.
   // Tamamlanan kartta nötr (vade artık önemli değil).
   const dueTone = card.dueAt != null && !card.completed ? dueDateTone(card.dueAt) : 'normal';

@@ -68,13 +68,64 @@ moduleProto.require = function patchedRequire(this: unknown, id: string) {
   return originalRequire.call(this, id);
 };
 
-// --- @expo-google-fonts/poppins — `.ttf` asset'leri Vitest'te yüklenemez ---
+// --- @expo-google-fonts/* — `.ttf` asset'leri Vitest'te yüklenemez ---
+// Her aile, gerçek export adlarını string'e mock'lar (RN'de `fontFamily` adı).
+// §13.7.7 Faz 3: 7 aile font kişiselleştirmesi için yüklenir; testte hepsi
+// stub'lanmalı yoksa `fonts.ts`/`_layout` çeken testler asset parse hatasıyla
+// patlar.
 vi.mock('@expo-google-fonts/poppins', () => ({
   useFonts: () => [true, null],
   Poppins_400Regular: 'Poppins_400Regular',
   Poppins_500Medium: 'Poppins_500Medium',
   Poppins_600SemiBold: 'Poppins_600SemiBold',
   Poppins_700Bold: 'Poppins_700Bold',
+}));
+vi.mock('@expo-google-fonts/inter', () => ({
+  Inter_400Regular: 'Inter_400Regular',
+  Inter_500Medium: 'Inter_500Medium',
+  Inter_600SemiBold: 'Inter_600SemiBold',
+  Inter_700Bold: 'Inter_700Bold',
+}));
+vi.mock('@expo-google-fonts/manrope', () => ({
+  Manrope_400Regular: 'Manrope_400Regular',
+  Manrope_500Medium: 'Manrope_500Medium',
+  Manrope_600SemiBold: 'Manrope_600SemiBold',
+  Manrope_700Bold: 'Manrope_700Bold',
+}));
+vi.mock('@expo-google-fonts/dm-sans', () => ({
+  DMSans_400Regular: 'DMSans_400Regular',
+  DMSans_500Medium: 'DMSans_500Medium',
+  DMSans_600SemiBold: 'DMSans_600SemiBold',
+  DMSans_700Bold: 'DMSans_700Bold',
+}));
+vi.mock('@expo-google-fonts/jetbrains-mono', () => ({
+  JetBrainsMono_400Regular: 'JetBrainsMono_400Regular',
+  JetBrainsMono_500Medium: 'JetBrainsMono_500Medium',
+  JetBrainsMono_600SemiBold: 'JetBrainsMono_600SemiBold',
+  JetBrainsMono_700Bold: 'JetBrainsMono_700Bold',
+}));
+vi.mock('@expo-google-fonts/lora', () => ({
+  Lora_400Regular: 'Lora_400Regular',
+  Lora_500Medium: 'Lora_500Medium',
+  Lora_600SemiBold: 'Lora_600SemiBold',
+  Lora_700Bold: 'Lora_700Bold',
+}));
+vi.mock('@expo-google-fonts/atkinson-hyperlegible', () => ({
+  AtkinsonHyperlegible_400Regular: 'AtkinsonHyperlegible_400Regular',
+  AtkinsonHyperlegible_700Bold: 'AtkinsonHyperlegible_700Bold',
+}));
+
+// --- nativewind — `vars()`/`cssInterop` native CSS köprüsü, testte mock ---
+// §13.7.7: merkezi `Text` artık `theme-provider`'ı (renk paleti için `vars()`)
+// import eder → `Text` çeken her test `nativewind`'i de yükler. Test ortamında
+// `vars` yalnız bir style objesi döndürmeli (görsel etki kapsam dışı);
+// gerçeği require edilirse native asset parse hatası verir.
+vi.mock('nativewind', () => ({
+  vars: (input: Record<string, string>) => input,
+  cssInterop: () => undefined,
+  remapProps: () => undefined,
+  useColorScheme: () => ({ colorScheme: 'light', setColorScheme: () => undefined }),
+  styled: (component: unknown) => component,
 }));
 
 // --- @expo/vector-icons (Feather) — native font, testte mock ---

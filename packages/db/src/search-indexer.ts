@@ -52,6 +52,55 @@ export function normalizeSearchText(value: string | null | undefined): string | 
   return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * Tiptap JSON body'sini düz metne indirger. Kart açıklaması (`cards.description`)
+ * ve yorum gövdesi (`comments.body`) Tiptap JSON saklanır; ham JSON hem FTS
+ * vektörünü (`type`/`doc`/`paragraph` anahtarları indexlenir) hem arama
+ * sonucu snippet'ini (`{"type":"doc"...}`) bozar. text node'larını + `@mention`
+ * label'larını toplar, paragraf/heading/list-item aralarına boşluk koyar. Düz
+ * metin (eski içerik) veya geçersiz JSON girdide değer olduğu gibi döner.
+ * (`packages/api` `comment.ts` `bodyPreview` ile aynı mantık; katman gereği
+ * `@pusula/db` kendi içinde tutar.)
+ */
+export function tiptapToPlainText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return value;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+
+  const parts: string[] = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'text' && typeof rec.text === 'string') parts.push(rec.text);
+    if (rec.type === 'mention' && rec.attrs && typeof rec.attrs === 'object') {
+      const label = (rec.attrs as Record<string, unknown>).label;
+      if (typeof label === 'string') parts.push('@' + label);
+    }
+    if (Array.isArray(rec.content)) {
+      const before = parts.length;
+      for (const child of rec.content) visit(child);
+      if (
+        (rec.type === 'paragraph' || rec.type === 'listItem' || rec.type === 'heading') &&
+        parts.length > before
+      ) {
+        parts.push(' ');
+      }
+    }
+  };
+  visit(parsed);
+
+  const flat = parts.join('').replace(/\s+/g, ' ').trim();
+  return flat.length > 0 ? flat : null;
+}
+
 export function normalizeSearchLabels(values: readonly (string | null | undefined)[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -397,7 +446,7 @@ async function resolveCardPayload(
     boardId: row.boardId,
     cardId: row.id,
     title: row.title,
-    body: row.description,
+    body: tiptapToPlainText(row.description),
     labels: normalizeSearchLabels(labelRows.map((label) => label.name)),
     archivedAt: firstDate(row.cardArchivedAt, row.listArchivedAt, row.boardArchivedAt),
     updatedAt: row.updatedAt,
@@ -436,7 +485,7 @@ async function resolveCommentPayload(
     boardId: row.boardId,
     cardId: row.cardId,
     title: row.cardTitle,
-    body: row.body,
+    body: tiptapToPlainText(row.body),
     labels: [],
     archivedAt: firstDate(row.cardArchivedAt, row.listArchivedAt, row.boardArchivedAt),
     updatedAt: row.updatedAt,

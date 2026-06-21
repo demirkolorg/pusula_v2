@@ -1,4 +1,4 @@
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import {
@@ -9,7 +9,7 @@ import {
   type MatrixGroupKey,
 } from '@/lib/notification-matrix';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Bildirim ayar ekranı "Bildirim tipleri" bölümü (Faz 7K) — tip × kanal
@@ -22,7 +22,7 @@ import { themeFor } from '@/theme/tokens';
  * fazladan toggle yeteneği uydurulmaz.
  */
 export function NotificationTypeMatrix() {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const matrix = strings.notificationSettings.matrix;
   const groups = groupMatrixRows(MATRIX_ROWS);
 

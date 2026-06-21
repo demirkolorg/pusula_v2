@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, View, useColorScheme } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Çok satırlı metin alanının büyüyebileceği en fazla yükseklik (px) — sonrası kayar. */
 const MAX_INPUT_HEIGHT = 120;
@@ -41,7 +41,7 @@ export function QuickNoteDockView({
   onSubmit,
   canSubmit,
 }: QuickNoteDockViewProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   // Send butonu basıldıktan sonra 1.5 sn boyunca görünen "Kaydedildi" feedback'i.
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
@@ -64,7 +64,7 @@ export function QuickNoteDockView({
   };
 
   return (
-    <View className="border-b border-border bg-card px-4 py-2.5">
+    <View className="rounded-2xl border border-border bg-card px-3.5 py-3">
       {showSavedFeedback ? (
         <View
           accessibilityLiveRegion="polite"

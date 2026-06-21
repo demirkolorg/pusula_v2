@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, View, useColorScheme } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
@@ -9,7 +9,7 @@ import { Text } from '@/components/text';
 import { boardRoleLabel, workspaceRoleLabel } from '@/lib/member-roles';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Listede tek bir satır — workspace ya da board daveti tek tip altında birleşir. */
 type InvitationRow = {
@@ -34,7 +34,7 @@ type InvitationRow = {
 export function PendingInvitations() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Hangi token üzerinde işlem sürüyor — satır bazında buton kilidi için.
   const [busyToken, setBusyToken] = useState<string | null>(null);
 

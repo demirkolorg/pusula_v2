@@ -3,7 +3,6 @@ import {
   Pressable,
   ScrollView,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,10 +14,13 @@ import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { AboutView } from '@/components/account/about-view';
 import { AppearanceView, THEME_OPTIONS } from '@/components/account/appearance-view';
-import { ChangePasswordView } from '@/components/account/change-password-view';
-import { DeleteAccountView } from '@/components/account/delete-account-view';
+import { ColorThemePicker } from '@/components/account/color-theme-picker';
+import { FontFamilyPicker } from '@/components/account/font-family-picker';
+import { FontSizePicker } from '@/components/account/font-size-picker';
 import { PrivacyPolicyView } from '@/components/account/privacy-policy-view';
 import { ProfileEditView } from '@/components/account/profile-edit-view';
+import { SecurityView } from '@/components/account/security-view';
+import { TermsOfServiceView } from '@/components/account/terms-of-service-view';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { FormMessage } from '@/components/form-message';
 import { Icon } from '@/components/icon';
@@ -29,9 +31,9 @@ import { SettingsGroup } from '@/components/settings/settings-group';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { clearRegisteredPushToken, getRegisteredPushToken } from '@/lib/push-token-store';
 import { strings } from '@/lib/strings';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { useIsTablet } from '@/lib/use-device-class';
-import { useThemePreference } from '@/theme/theme-provider';
-import { themeFor } from '@/theme/tokens';
+import { useTheme, useThemePreference } from '@/theme/theme-provider';
 import { useTRPC } from '@/trpc/provider';
 
 /**
@@ -42,10 +44,10 @@ type AccountDetailId =
   | 'profile'
   | 'appearance'
   | 'notifications'
-  | 'change-password'
-  | 'delete-account'
+  | 'security'
   | 'about'
-  | 'privacy';
+  | 'privacy'
+  | 'terms';
 
 /**
  * "Hesap" sekmesi (DEM-208) — gruplu ayar ekranı. Profil (→ düzenleme),
@@ -61,13 +63,16 @@ type AccountDetailId =
 export default function AccountScreen() {
   const { data: session } = authClient.useSession();
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
   const revokeToken = useMutation(trpc.push.tokens.revoke.mutationOptions());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isTablet = useIsTablet();
+  // Tablet'te alttaki nav floating pill — scroll içeriğinin son satırları
+  // (master'da "Çıkış yap", detail'de en alt kart) pill arkasında kalmasın.
+  const navInset = useFloatingNavInset();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
   // Tablet detail pane'de açık olan başlık — ilk açılışta Profil seçili.
@@ -163,6 +168,15 @@ export default function AccountScreen() {
         ))}
       </SettingsGroup>
 
+      {/* Renk paleti — mod seçiminin hemen altında inline swatch grid (§13.7.7).
+          Telefonda ayrı route yok; tablet'te bu içerik AppearanceView pane'inde. */}
+      <ColorThemePicker />
+
+      {/* Yazı tipi ailesi + boyut — renk paletinin altında inline (§13.7.7 Faz 3+4).
+          Tablet'te bu içerik AppearanceView pane'inde gösterilir. */}
+      <FontFamilyPicker />
+      <FontSizePicker />
+
       {/* Bildirimler — mevcut bildirim ayarları ekranına köprü. */}
       <SettingsGroup title={strings.account.notificationsTitle}>
         <SettingsRow
@@ -172,34 +186,33 @@ export default function AccountScreen() {
         />
       </SettingsGroup>
 
-      {/* Hesap & güvenlik. */}
+      {/* Hesap & güvenlik — şifre değiştir + hesabı sil tek "Güvenlik" ekranında. */}
       <SettingsGroup title={strings.account.securityTitle}>
         <SettingsRow
           icon="lock"
-          label={strings.account.changePasswordRow}
-          onPress={() => router.push('/change-password')}
-        />
-        <SettingsRow
-          icon="trash-2"
-          label={strings.account.deleteAccountRow}
-          destructive
-          onPress={() => router.push('/delete-account')}
+          label={strings.account.securityRow}
+          onPress={() => router.push('/security')}
         />
       </SettingsGroup>
 
       {/* Hakkında — uygulama hakkında (→ ekran) + sürüm + gizlilik politikası
           (uygulama içi WebView ekranında açılır, harici tarayıcı değil — 2026-06-20). */}
       <SettingsGroup title={strings.account.aboutTitle}>
+        <SettingsRow icon="tag" label={strings.account.versionRow} value={appVersion} />
         <SettingsRow
           icon="info"
           label={strings.account.aboutRow}
           onPress={() => router.push('/about')}
         />
-        <SettingsRow icon="tag" label={strings.account.versionRow} value={appVersion} />
         <SettingsRow
           icon="shield"
           label={strings.account.privacyPolicyRow}
           onPress={() => router.push('/privacy-policy')}
+        />
+        <SettingsRow
+          icon="file-text"
+          label={strings.account.termsRow}
+          onPress={() => router.push('/terms')}
         />
       </SettingsGroup>
 
@@ -231,7 +244,10 @@ export default function AccountScreen() {
   // Sol nav: ayar başlıkları → `setSelected`. Sağ pane: seçili başlığın görünümü.
   // notification-settings tablet deseniyle simetri; başlıklar `*View`'lerle paylaşılır.
   const tabletMaster = (
-    <ScrollView contentContainerClassName="gap-5 p-4">
+    <ScrollView
+      contentContainerClassName="gap-5 p-4"
+      contentContainerStyle={{ paddingBottom: navInset || 16 }}
+    >
       <Text weight="semibold" className="text-2xl text-foreground">
         {strings.account.title}
       </Text>
@@ -262,37 +278,36 @@ export default function AccountScreen() {
         />
       </SettingsGroup>
 
-      {/* Hesap & güvenlik. */}
+      {/* Hesap & güvenlik — şifre değiştir + hesabı sil tek "Güvenlik" pane'inde. */}
       <SettingsGroup title={strings.account.securityTitle}>
         <SettingsRow
           icon="lock"
-          label={strings.account.changePasswordRow}
-          onPress={() => setSelected('change-password')}
-          active={selected === 'change-password'}
-        />
-        <SettingsRow
-          icon="trash-2"
-          label={strings.account.deleteAccountRow}
-          destructive
-          onPress={() => setSelected('delete-account')}
-          active={selected === 'delete-account'}
+          label={strings.account.securityRow}
+          onPress={() => setSelected('security')}
+          active={selected === 'security'}
         />
       </SettingsGroup>
 
       {/* Hakkında. */}
       <SettingsGroup title={strings.account.aboutTitle}>
+        <SettingsRow icon="tag" label={strings.account.versionRow} value={appVersion} />
         <SettingsRow
           icon="info"
           label={strings.account.aboutRow}
           onPress={() => setSelected('about')}
           active={selected === 'about'}
         />
-        <SettingsRow icon="tag" label={strings.account.versionRow} value={appVersion} />
         <SettingsRow
           icon="shield"
           label={strings.account.privacyPolicyRow}
           onPress={() => setSelected('privacy')}
           active={selected === 'privacy'}
+        />
+        <SettingsRow
+          icon="file-text"
+          label={strings.account.termsRow}
+          onPress={() => setSelected('terms')}
+          active={selected === 'terms'}
         />
       </SettingsGroup>
 
@@ -324,14 +339,14 @@ export default function AccountScreen() {
         return <AppearanceView />;
       case 'notifications':
         return <NotificationSettingsView />;
-      case 'change-password':
-        return <ChangePasswordView />;
-      case 'delete-account':
-        return <DeleteAccountView />;
+      case 'security':
+        return <SecurityView />;
       case 'about':
         return <AboutView />;
       case 'privacy':
         return <PrivacyPolicyView />;
+      case 'terms':
+        return <TermsOfServiceView />;
     }
   };
 

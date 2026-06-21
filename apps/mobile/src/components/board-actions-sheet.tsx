@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { InlineComposer } from '@/components/inline-composer';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type BoardActionsSheetProps = {
   visible: boolean;
@@ -34,7 +34,7 @@ type ActionRowProps = {
 };
 
 function ActionRow({ icon, label, destructive = false, disabled = false, onPress }: ActionRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const color = destructive ? theme.destructive : theme.foreground;
   return (
     <Pressable

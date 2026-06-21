@@ -1,8 +1,8 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Icon, type IconName } from '@/components/icon';
 import type { BoardViewMode } from '@/lib/board-view-preference';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type BoardViewToggleProps = {
   /** Aktif görünüm modu. */
@@ -54,7 +54,7 @@ function Segment({
  * 2026-05-20).
  */
 export function BoardViewToggle({ mode, onChange }: BoardViewToggleProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="flex-row gap-0.5 self-start rounded-md bg-muted p-0.5">
       <Segment

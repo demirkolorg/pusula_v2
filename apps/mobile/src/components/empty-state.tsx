@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '@/components/text';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { Icon, type IconName } from './icon';
 
 type EmptyStateProps = {
@@ -17,7 +17,7 @@ type EmptyStateProps = {
  * ekranları bunu kullanır.
  */
 export function EmptyState({ icon, title, description, children }: EmptyStateProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="flex-1 items-center justify-center gap-3 px-8">
       <View className="h-16 w-16 items-center justify-center rounded-2xl bg-muted">

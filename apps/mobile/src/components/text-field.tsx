@@ -1,8 +1,8 @@
-import { TextInput, View, useColorScheme } from 'react-native';
+import { TextInput, View } from 'react-native';
 import type { TextInputProps } from 'react-native';
 import { Text } from '@/components/text';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type TextFieldProps = {
   label: string;
@@ -30,7 +30,7 @@ type TextFieldProps = {
  * (`useColorScheme` ile light/dark) okunur; `className` rengi render etmez.
  */
 export function TextField({ label, value, onChangeText, error, ...inputProps }: TextFieldProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   return (
     <View className="gap-1.5">

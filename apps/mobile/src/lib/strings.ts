@@ -804,6 +804,8 @@ export const strings = {
   notificationSettings: {
     // Bildirim ayarları ekranı (pushed route — Faz 7K).
     title: 'Bildirim ayarları',
+    // Hero alt açıklaması (2026-06-21 tasarım çizgisi).
+    subtitle: 'Hangi bildirimleri, hangi kanaldan ve ne zaman alacağını yönet.',
     loadError: 'Bildirim ayarları yüklenemedi.',
     actionError: 'İşlem tamamlanamadı. Lütfen tekrar dene.',
     // Genel kanallar bölümü.
@@ -944,21 +946,71 @@ export const strings = {
     title: 'Hesap',
     // Görünüm / tema seçici (DEM-207).
     appearanceTitle: 'Görünüm',
+    // Hero alt açıklaması + bölüm etiketleri (2026-06-21 tasarım çizgisi).
+    appearanceSubtitle: 'Uygulamanın temasını ve renk paletini kişiselleştir.',
+    appearanceModeLabel: 'Tema',
     theme: {
       light: 'Açık',
       dark: 'Koyu',
       system: 'Sistem',
     },
+    // Renk paleti seçici (§13.7.7) — 15 palet swatch grid'i. Etiketler web
+    // (`apps/web` strings.shell.colorTheme.themes) ile hizalı tutulur.
+    colorThemeTitle: 'Renk teması',
+    colorThemes: {
+      emerald: 'Varsayılan',
+      slate: 'Arduvaz',
+      zinc: 'Çinko',
+      stone: 'Taş',
+      neutral: 'Doğal',
+      rose: 'Gül',
+      red: 'Kırmızı',
+      orange: 'Turuncu',
+      amber: 'Kehribar',
+      green: 'Yeşil',
+      blue: 'Mavi',
+      cyan: 'Turkuaz',
+      violet: 'Menekşe',
+      whatsapp: 'WhatsApp',
+      discord: 'Discord',
+    },
+    // Yazı tipi ailesi seçici (§13.7.7, Faz 3) — 8 seçenek; etiketler web
+    // (`apps/web` strings.shell.fontFamily.options) ile hizalı.
+    fontFamilyTitle: 'Yazı tipi',
+    fontFamilies: {
+      poppins: 'Poppins',
+      inter: 'Inter',
+      system: 'Sistem yazı tipi',
+      lora: 'Lora',
+      manrope: 'Manrope',
+      'dm-sans': 'DM Sans',
+      'jetbrains-mono': 'JetBrains Mono',
+      atkinson: 'Atkinson Hyperlegible',
+    },
+    // Yazı boyutu seçici (§13.7.7, Faz 4) — %90-120, adım %5.
+    fontSizeTitle: 'Yazı boyutu',
+    fontSizeDecrease: 'Yazıyı küçült',
+    fontSizeIncrease: 'Yazıyı büyüt',
+    fontSizeReset: 'Sıfırla',
+    // Önizleme satırı — seçili aile + boyutla render edilir.
+    fontPreview: 'Aa Pusula',
     // Bölüm başlıkları + satırları (DEM-208).
     notificationsTitle: 'Bildirimler',
     notificationSettingsRow: 'Bildirim ayarları',
     securityTitle: 'Hesap ve güvenlik',
+    // Tek "Güvenlik" sayfası (şifre değiştir + hesabı sil tek ekranda) — sol
+    // liste satırı + sayfa/pane başlığı. Alt bölüm başlıkları için
+    // `changePasswordRow` / `deleteAccountRow` kullanılır.
+    securityRow: 'Güvenlik',
+    // Güvenlik sayfası hero alt açıklaması (2026-06-21 tasarım çizgisi).
+    securitySubtitle: 'Şifreni değiştir veya hesabını kalıcı olarak sil.',
     changePasswordRow: 'Şifre değiştir',
     deleteAccountRow: 'Hesabı sil',
     aboutTitle: 'Hakkında',
     aboutRow: 'Hakkında',
     versionRow: 'Sürüm',
     privacyPolicyRow: 'Gizlilik Politikası',
+    termsRow: 'Kullanım Koşulları',
     // Faz 15C (DEM-303) — tablet master-detail sağ pane empty state.
     detailEmptyTitle: 'Bir ayar seç',
     detailEmptyDescription: 'Soldaki listeden bir ayar başlığına dokunarak detayını aç.',
@@ -995,6 +1047,307 @@ export const strings = {
     versionLabel: 'Sürüm',
     websiteRow: 'Web sitesi',
     termsRow: 'Kullanım Şartları',
+    copyright: '© 2026 Pusula · Tüm hakları saklıdır.',
+  },
+  // "Gizlilik Politikası" görünümü — kimlik + özet güvenceler + ayrıntılı
+  // bölümler + iletişim. İçerik web `apps/web/src/app/gizlilik/page.tsx` ile
+  // birebir hizalıdır (App Store gizlilik beyanıyla tutarlı). Mobilde WebView
+  // yerine native, i18n uyumlu zengin görünüm (`about` ile simetrik).
+  privacy: {
+    title: 'Gizlilik Politikası',
+    // Politikanın yürürlük/son güncelleme tarihi (web sayfasıyla aynı).
+    lastUpdated: '19 Mayıs 2026',
+    lastUpdatedLabel: (date: string) => `Son güncelleme: ${date}`,
+    intro:
+      'Pusula; ekiplerin işlerini pano, liste ve kartlarla yönettiği bir görev ' +
+      'yönetim uygulamasıdır. Bu politika, Pusula’yı web ve mobilde kullandığında ' +
+      'hangi kişisel verilerin işlendiğini, neden işlendiğini ve haklarını açıklar.',
+    // Özet güvenceler — üst kart (about "öne çıkanlar" simetrisi).
+    assurancesTitle: 'Kısaca',
+    assurances: {
+      noAds: {
+        title: 'Reklam ve izleme yok',
+        text: 'Üçüncü taraf reklam ağı kullanmaz, seni uygulamalar arası izlemeyiz.',
+      },
+      noSell: {
+        title: 'Satılmaz, kiralanmaz',
+        text: 'Verilerin pazarlama amacıyla üçüncü taraflara satılmaz veya kiralanmaz.',
+      },
+      secured: {
+        title: 'Şifreli ve denetimli',
+        text: 'Veriler TLS ile aktarılır; erişim yetkisi her istekte sunucuda denetlenir.',
+      },
+      deletable: {
+        title: 'İstediğin an sil',
+        text: 'Hesabını uygulama içinden silebilir, verilerinin kaldırılmasını isteyebilirsin.',
+      },
+    },
+    // Ayrıntılı bölümler — web `gizlilik/page.tsx` Section'larıyla birebir.
+    // `key` → ikon eşlemesi view'da (`SECTION_ICONS`); metin framework-bağımsız.
+    sectionsTitle: 'Ayrıntılar',
+    sections: [
+      {
+        key: 'controller',
+        title: '1. Veri Sorumlusu',
+        intro:
+          'Pusula, Abdullah Demirkol tarafından bağımsız bir geliştirici olarak ' +
+          'sunulur. Veri sorumlusuyla iletişim için aşağıdaki “İletişim” bölümündeki ' +
+          'e-posta adresini kullanabilirsin.',
+      },
+      {
+        key: 'data',
+        title: '2. İşlenen Veriler',
+        bullets: [
+          'Hesap bilgileri: ad, e-posta ve şifre (şifreler geri döndürülemez biçimde saklanır).',
+          'İçerik verileri: oluşturduğun pano, liste, kart, açıklama, yorum, kontrol listesi ve etiketler.',
+          'Yüklenen dosyalar: kartlara eklediğin görsel ve belgeler.',
+          'Bildirim verileri: anlık bildirim gönderebilmek için cihaz bildirim jetonu.',
+          'Teşhis verileri: uygulama çökme ve hata kayıtları.',
+          'Kullanım verileri: hizmetin çalışması için gereken oturum ve etkinlik kayıtları.',
+        ],
+      },
+      {
+        key: 'purpose',
+        title: '3. Verilerin İşlenme Amaçları',
+        bullets: [
+          'Hesabını oluşturmak ve kimliğini doğrulamak.',
+          'Pano, kart ve içeriklerini saklamak ve sana göstermek.',
+          'Ekip üyeleriyle gerçek zamanlı iş birliğini sağlamak.',
+          'Atama, yaklaşan son tarih ve yorum bildirimleri göndermek.',
+          'Hataları teşhis etmek ve hizmeti iyileştirmek.',
+        ],
+      },
+      {
+        key: 'legal',
+        title: '4. Hukuki Sebep',
+        intro:
+          'Kişisel verilerin, hizmeti sunabilmek için sözleşmenin ifası ve meşru ' +
+          'menfaat hukuki sebeplerine dayanılarak işlenir.',
+      },
+      {
+        key: 'providers',
+        title: '5. Hizmet Sağlayıcılar ve Aktarım',
+        intro: 'Pusula, hizmeti sunmak için sınırlı sayıda hizmet sağlayıcı kullanır:',
+        bullets: [
+          'E-posta gönderimi (Resend)',
+          'Anlık bildirim teslimi (Expo)',
+          'Hata ve çökme izleme (Sentry)',
+          'Sunucu ve dosya depolama altyapısı (barındırma sağlayıcısı)',
+        ],
+        outro:
+          'Bu sağlayıcılar verilerine yalnızca hizmeti sunmak için gereken ölçüde ' +
+          'erişir. Pusula verilerini pazarlama amacıyla üçüncü taraflara satmaz veya kiralamaz.',
+      },
+      {
+        key: 'ads',
+        title: '6. Reklam ve İzleme',
+        intro:
+          'Pusula üçüncü taraf reklam ağı kullanmaz ve seni uygulamalar veya ' +
+          'siteler arasında izlemez.',
+      },
+      {
+        key: 'retention',
+        title: '7. Veri Saklama ve Silme',
+        intro:
+          'Verilerin hesabın aktif olduğu sürece saklanır. Hesabını uygulama ' +
+          'içinden silebilirsin; hesap silindiğinde kişisel verilerin ve içeriklerin ' +
+          'makul süre içinde kalıcı olarak silinir (yasal saklama yükümlülükleri saklıdır).',
+      },
+      {
+        key: 'security',
+        title: '8. Veri Güvenliği',
+        intro:
+          'Veriler aktarım sırasında HTTPS/TLS ile şifrelenir; şifreler geri ' +
+          'döndürülemez biçimde saklanır; içeriklere erişim yetkisi sunucu tarafında ' +
+          'her istekte denetlenir.',
+      },
+      {
+        key: 'rights',
+        title: '9. Haklarınız (KVKK m. 11)',
+        intro:
+          'Kişisel verilerinin işlenip işlenmediğini öğrenme, bilgi talep etme, ' +
+          'düzeltilmesini veya silinmesini isteme ve işlenmesine itiraz etme haklarına ' +
+          'sahipsin. Taleplerini aşağıdaki “İletişim” bölümündeki e-posta adresine iletebilirsin.',
+      },
+      {
+        key: 'children',
+        title: '10. Çocukların Gizliliği',
+        intro: 'Pusula 13 yaşın altındaki kullanıcılara yönelik değildir.',
+      },
+      {
+        key: 'changes',
+        title: '11. Değişiklikler',
+        intro:
+          'Bu politika zaman zaman güncellenebilir; önemli değişiklikler uygulama ' +
+          'üzerinden duyurulur. Güncel sürüm her zaman web sitesindeki bu sayfada yer alır.',
+      },
+    ],
+    // İletişim + tam metin bağlantısı.
+    contactTitle: 'İletişim',
+    contactRow: 'E-posta gönder',
+    contactEmail: 'pusulaportal@gmail.com',
+    fullPolicyRow: 'Tam politikayı web’de aç',
+    copyright: '© 2026 Pusula · Tüm hakları saklıdır.',
+  },
+  // "Kullanım Koşulları" görünümü — kimlik + özet + ayrıntılı bölümler +
+  // iletişim. İçerik web `apps/web/src/app/terms/page.tsx` ile birebir hizalıdır.
+  // Mobilde WebView yerine native, i18n uyumlu zengin görünüm (`privacy` ile simetrik).
+  terms: {
+    title: 'Kullanım Koşulları',
+    // Koşulların yürürlük/son güncelleme tarihi (web sayfasıyla aynı).
+    lastUpdated: '1 Haziran 2026',
+    lastUpdatedLabel: (date: string) => `Son güncelleme: ${date}`,
+    intro:
+      'Aşağıdaki koşullar, Pusula görev yönetim uygulamasını (“Hizmet”) web ve ' +
+      'mobilde kullanımını düzenler. Hizmet’i kullanarak bu koşulları kabul etmiş ' +
+      'sayılırsın. Koşulları kabul etmiyorsan Hizmet’i kullanma.',
+    // Özet — üst kart (privacy "güvenceler" simetrisi).
+    summaryTitle: 'Kısaca',
+    summary: {
+      ownContent: {
+        title: 'İçeriğin senin',
+        text: 'Oluşturduğun pano, liste, kart ve dosyalar sana aittir.',
+      },
+      free: {
+        title: 'Şu an ücretsiz',
+        text: 'Pusula şu anda ücretsiz sunulur; ücretli plan eklenirse açıkça gösterilir.',
+      },
+      fairUse: {
+        title: 'Adil kullanım',
+        text: 'Yasalara ve diğer kullanıcıların haklarına saygılı bir kullanım beklenir.',
+      },
+      leaveAnytime: {
+        title: 'İstediğin an ayrıl',
+        text: 'Hesabını dilediğin zaman uygulama içinden silebilirsin.',
+      },
+    },
+    // Ayrıntılı bölümler — web `terms/page.tsx` Section'larıyla birebir.
+    // `key` → ikon eşlemesi view'da (`SECTION_ICONS`); metin framework-bağımsız.
+    sectionsTitle: 'Ayrıntılar',
+    sections: [
+      {
+        key: 'provider',
+        title: '1. Hizmet Sağlayıcı',
+        intro:
+          'Pusula, Abdullah Demirkol tarafından bağımsız bir geliştirici olarak ' +
+          'sunulmaktadır. İletişim için aşağıdaki “İletişim” bölümündeki e-posta adresini kullanabilirsin.',
+      },
+      {
+        key: 'account',
+        title: '2. Hesap ve Güvenlik',
+        bullets: [
+          'Hizmet’i kullanmak için doğru ve güncel bilgilerle bir hesap oluşturmalısın.',
+          'Hesap kimlik bilgilerinin gizliliğinden ve hesabın üzerinden yapılan tüm işlemlerden sen sorumlusun.',
+          'Yetkisiz bir erişim fark ettiğinde derhal aşağıdaki iletişim adresine bildirmelisin.',
+          '13 yaşın altındaki kullanıcılar Hizmet’i kullanamaz.',
+        ],
+      },
+      {
+        key: 'ownership',
+        title: '3. İçerik Mülkiyeti',
+        intro:
+          'Hizmet üzerinde oluşturduğun panolar, listeler, kartlar, açıklamalar, ' +
+          'yorumlar, kontrol listeleri ve yüklediğin dosyalar (“Kullanıcı İçeriği”) ' +
+          'sana aittir. Pusula; Hizmet’i işletmek, sana sunmak, ekip üyelerinle ' +
+          'paylaşmak ve teknik olarak işlemek (yedekleme, görüntüleme, dağıtım) ' +
+          'amacıyla Kullanıcı İçeriği üzerinde gerekli sınırlı bir kullanım hakkına sahiptir.',
+        outro:
+          'Yüklediğin içeriğin gerekli haklarına sahip olduğunu ve üçüncü kişilerin ' +
+          'haklarını ihlal etmediğini taahhüt edersin.',
+      },
+      {
+        key: 'acceptableUse',
+        title: '4. Kabul Edilebilir Kullanım',
+        intro: 'Hizmet’i kullanırken aşağıdakileri yapmamayı kabul edersin:',
+        bullets: [
+          'Yürürlükteki mevzuata veya üçüncü kişi haklarına aykırı içerik yüklemek.',
+          'Yasadışı, taciz edici, nefret söylemi içeren, müstehcen, şiddet içeren veya yanıltıcı içerik paylaşmak.',
+          'Hizmet’in altyapısına aşırı yük bindirmek, otomatik araçlarla kötüye kullanmak veya güvenlik mekanizmalarını aşmaya çalışmak.',
+          'Başka kullanıcıların hesaplarına yetkisiz erişim sağlamaya çalışmak.',
+          'Zararlı yazılım, virüs veya benzeri kodları yüklemek veya iletmek.',
+          'Hizmet’i izinsiz olarak yeniden satmak veya üçüncü kişilere kiralamak.',
+        ],
+        outro:
+          'Bu kurallara aykırı kullanım, hesabının askıya alınması veya sonlandırılmasına yol açabilir.',
+      },
+      {
+        key: 'pricing',
+        title: '5. Ücretlendirme',
+        intro:
+          'Pusula şu anda ücretsiz olarak sunulmaktadır. İleride ücretli planlar veya ' +
+          'özellikler eklenirse, ücretlendirme ayrı bir sözleşme veya satın alma akışıyla ' +
+          'açıkça gösterilecektir. Ücretsiz kalan özellikler bu koşullara tabi olmaya devam eder.',
+      },
+      {
+        key: 'availability',
+        title: '6. Hizmet Değişiklikleri ve Kullanılabilirlik',
+        intro:
+          'Hizmet’i geliştirmek, değiştirmek veya bazı özellikleri sonlandırmak hakkımız ' +
+          'saklıdır. Önemli değişiklikler uygulama içinden veya e-posta ile makul süre önce duyurulur.',
+        outro:
+          'Hizmet’in kesintisiz veya hatasız çalışacağı garanti edilmez; planlı bakım, ' +
+          'üçüncü taraf sağlayıcı kesintileri veya öngörülemeyen teknik sorunlar nedeniyle ' +
+          'erişimin geçici olarak kısıtlanabileceğini kabul edersin.',
+      },
+      {
+        key: 'termination',
+        title: '7. Hesap Sonlandırma',
+        intro:
+          'Hesabını dilediğin zaman uygulama içinden silebilirsin. Hesap silindiğinde ' +
+          'verilerin Gizlilik Politikası’nda açıklanan şekilde silinir. Bu koşullara aykırılık ' +
+          'veya kötüye kullanım hâlinde Pusula, hesabını önceden bildirimde bulunarak veya ' +
+          'açıkça aykırı durumlarda derhal askıya alma ya da sonlandırma hakkını saklı tutar.',
+      },
+      {
+        key: 'liability',
+        title: '8. Sorumluluk Sınırlaması',
+        intro:
+          'Hizmet “olduğu gibi” ve “kullanılabilir olduğu sürece” sunulur. Yasal olarak ' +
+          'izin verilen azami ölçüde, Pusula; veri kaybı, kâr kaybı, iş kesintisi veya dolaylı ' +
+          'zararlar dâhil olmak üzere Hizmet’in kullanımı veya kullanılamamasından doğan ' +
+          'zararlardan sorumlu tutulamaz.',
+        outro: 'Bu sınırlama, sorumluluğun yasal olarak sınırlanamayacağı durumlarda uygulanmaz.',
+      },
+      {
+        key: 'thirdParty',
+        title: '9. Üçüncü Taraf Hizmetleri',
+        intro:
+          'Pusula; e-posta gönderimi, anlık bildirim teslimi, hata izleme ve sunucu/dosya ' +
+          'depolama altyapısı için üçüncü taraf hizmet sağlayıcılar kullanır. Bu sağlayıcıların ' +
+          'kendi koşulları ve gizlilik uygulamaları geçerlidir. Ayrıntı için Gizlilik Politikası’na bakabilirsin.',
+      },
+      {
+        key: 'ip',
+        title: '10. Fikri Mülkiyet',
+        intro:
+          'Pusula markası, logosu, arayüz tasarımı, kaynak kodu ve dokümantasyonu ' +
+          'üzerindeki tüm haklar Pusula’ya aittir. Bu koşullar sana Hizmet’i kullanma ' +
+          'konusunda sınırlı, devredilemez ve münhasır olmayan bir lisans verir; bunun ' +
+          'ötesinde herhangi bir hak devri öngörmez.',
+      },
+      {
+        key: 'changes',
+        title: '11. Koşullarda Değişiklik',
+        intro:
+          'Bu koşullar zaman zaman güncellenebilir. Önemli değişiklikler uygulama üzerinden ' +
+          'duyurulur ve güncel sürüm her zaman web sitesindeki bu sayfada yer alır. ' +
+          'Değişikliklerin yayımlanmasının ardından Hizmet’i kullanmaya devam etmen, ' +
+          'güncel koşulları kabul ettiğin anlamına gelir.',
+      },
+      {
+        key: 'law',
+        title: '12. Uygulanacak Hukuk',
+        intro:
+          'Bu koşullar Türkiye Cumhuriyeti hukukuna tabidir. Koşullardan kaynaklanan ' +
+          'uyuşmazlıklarda Türkiye Cumhuriyeti mahkemeleri yetkilidir; tüketici mevzuatından ' +
+          'doğan zorunlu yetki kuralları saklıdır.',
+      },
+    ],
+    // İletişim + tam metin bağlantısı.
+    contactTitle: 'İletişim',
+    contactRow: 'E-posta gönder',
+    contactEmail: 'pusulaportal@gmail.com',
+    fullTermsRow: 'Tam metni web’de aç',
     copyright: '© 2026 Pusula · Tüm hakları saklıdır.',
   },
   // Profil düzenleme ekranı (DEM-208 + DEM-212 avatar).

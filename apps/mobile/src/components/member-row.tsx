@@ -1,10 +1,10 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon } from '@/components/icon';
 import { RoleBadge } from '@/components/role-badge';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type MemberRowProps = {
   name: string;
@@ -39,7 +39,7 @@ export function MemberRow({
   isSelf,
   onActions,
 }: MemberRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-3">
       <EntityAvatar name={name} image={image} size={40} />

@@ -16,6 +16,12 @@ export interface ChangePasswordViewProps {
    * verilmezse "Kapat" başarı durumunu sıfırlayıp formu yeniden gösterir.
    */
   onDone?: () => void;
+  /**
+   * `SecurityView` içinde gömülü kullanım — dış `ScrollView` + kart padding'i
+   * sağlandığından kendi `ScrollView`/arka planını kurmaz, salt form gövdesini
+   * döner. Başarı ekranı da ortalama yerine akış içinde kompakt gösterilir.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -29,7 +35,7 @@ export interface ChangePasswordViewProps {
  * Faz 15C tablet master-detail (DEM-303 V2): hem `(account)/change-password`
  * route'unda hem tablet hesap detail pane'inde kullanılır.
  */
-export function ChangePasswordView({ onDone }: ChangePasswordViewProps) {
+export function ChangePasswordView({ onDone, embedded = false }: ChangePasswordViewProps) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -104,6 +110,17 @@ export function ChangePasswordView({ onDone }: ChangePasswordViewProps) {
   };
 
   if (done) {
+    // Gömülü modda akış içinde kompakt; route modunda tam ekran ortalı.
+    if (embedded) {
+      return (
+        <View className="gap-4">
+          <Text weight="semibold" className="text-base text-foreground">
+            {strings.changePassword.success}
+          </Text>
+          <Button label={strings.common.close} variant="ghost" onPress={handleClose} />
+        </View>
+      );
+    }
     return (
       <View className="flex-1 justify-center gap-5 bg-background p-4">
         <Text weight="semibold" className="text-center text-base text-foreground">
@@ -114,8 +131,8 @@ export function ChangePasswordView({ onDone }: ChangePasswordViewProps) {
     );
   }
 
-  return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4">
+  const form = (
+    <>
       <Text className="text-sm text-muted-foreground">{strings.changePassword.description}</Text>
 
       <TextField
@@ -162,6 +179,16 @@ export function ChangePasswordView({ onDone }: ChangePasswordViewProps) {
         pending={pending}
         disabled={pending}
       />
+    </>
+  );
+
+  if (embedded) {
+    return <View className="gap-5">{form}</View>;
+  }
+
+  return (
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4">
+      {form}
     </ScrollView>
   );
 }

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_BOARD_ICON, type EntityIcon } from '@pusula/domain';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { EntityIconPicker } from '@/components/entity-icon-picker';
 import { LocationPicker, useLocationPicker } from '@/components/location-picker';
+import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { newClientMutationId } from '@/lib/client-mutation-id';
@@ -66,8 +68,8 @@ export default function CreateBoardScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: strings.createBoard.title }} />
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={strings.createBoard.title} />
       <ScrollView className="flex-1" contentContainerClassName="gap-5 p-4" keyboardShouldPersistTaps="handled">
         <View className="gap-1.5">
           <Text weight="medium" className="text-sm text-foreground">
@@ -95,6 +97,6 @@ export default function CreateBoardScreen() {
           pending={createMutation.isPending}
         />
       </ScrollView>
-    </>
+    </SafeAreaView>
   );
 }

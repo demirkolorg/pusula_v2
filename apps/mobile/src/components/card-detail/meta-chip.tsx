@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardMetaChipProps = {
   icon: IconName;
@@ -33,7 +33,7 @@ export function CardMetaChip({
   muted = false,
   accessibilityLabel,
 }: CardMetaChipProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Vurgu rengi (destructive/warning) ikon + metne inline uygulanır — sınıf
   // bağımlılığı olmadan (robust). Nötr tonlarda sınıf-tabanlı renk korunur.
   const accent = tone === 'destructive' ? theme.destructive : tone === 'warning' ? theme.warning : null;

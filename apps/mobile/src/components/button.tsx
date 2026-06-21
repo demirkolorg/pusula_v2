@@ -1,7 +1,7 @@
-import { Pressable, useColorScheme } from 'react-native';
+import { Pressable } from 'react-native';
 import { Text } from '@/components/text';
 import { AppSpinner } from '@/components/app-spinner';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type ButtonVariant = 'primary' | 'ghost';
 
@@ -25,7 +25,7 @@ export function Button({
   pending = false,
   disabled = false,
 }: ButtonProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const isDisabled = disabled || pending;
   const tone = variant === 'primary' ? 'bg-primary' : 'bg-transparent';
   const textTone = variant === 'primary' ? 'text-primary-foreground' : 'text-foreground';

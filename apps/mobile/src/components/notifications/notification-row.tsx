@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
@@ -14,7 +14,7 @@ import {
   notificationTypeTone,
 } from '@/lib/notification-display';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** `notifications.list` çıktısındaki tek bildirim (router sözleşmesinden). */
 export type NotificationItem = RouterOutputs['notifications']['list']['items'][number];
@@ -42,7 +42,7 @@ export const NotificationRow = memo(function NotificationRow({
   notification,
   onSelect,
 }: NotificationRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const unread = notification.readAt == null;
   const system = isSystemNotification(notification.type);
   const iconName = notificationTypeIcon(notification.type);
@@ -57,10 +57,15 @@ export const NotificationRow = memo(function NotificationRow({
     <Pressable
       accessibilityRole="button"
       onPress={() => onSelect(notification)}
-      className={`flex-row items-start gap-3 rounded-2xl px-3.5 py-3 active:opacity-70 ${
-        unread ? 'bg-primary/10' : 'bg-muted'
+      className={`flex-row items-stretch overflow-hidden rounded-2xl active:opacity-70 ${
+        unread ? 'bg-primary/10' : 'bg-card'
       }`}
     >
+      {/* Sol kimlik şeridi — bildirim tipinin tonu (kırmızı=acil, turuncu=teslim,
+          yeşil=tamamlandı, primary=sana yönelik, gri=genel aktivite). Okunmuşta
+          soluk (opacity) → okundu hissi korunur. Workspace kartı şeridiyle aynı dil. */}
+      <View style={{ width: 4, backgroundColor: tone, opacity: unread ? 1 : 0.5 }} />
+      <View className="flex-1 flex-row items-start gap-3 px-3.5 py-3">
       {/* Sol görsel:
           - Sistem (aktörsüz) bildirim → kategori rengiyle tonlu ikon chip'i.
           - Kişi bildirimi → aktör avatarı + sağ-alt köşede küçük tip-ikonu rozeti.
@@ -81,7 +86,7 @@ export const NotificationRow = memo(function NotificationRow({
               fotoğrafından hem satır zemininden net ayrışır; içte tonlu ikon. */}
           <View
             className="absolute -bottom-1 -right-1 h-5 w-5 items-center justify-center rounded-full bg-background"
-            style={{ borderWidth: 2, borderColor: unread ? `${theme.primary}1a` : theme.muted }}
+            style={{ borderWidth: 2, borderColor: unread ? `${theme.primary}1a` : theme.card }}
           >
             <Icon name={iconName} size={11} color={tone} />
           </View>
@@ -109,6 +114,7 @@ export const NotificationRow = memo(function NotificationRow({
           className="mt-2 h-2.5 w-2.5 rounded-full bg-primary"
         />
       ) : null}
+      </View>
     </Pressable>
   );
 });

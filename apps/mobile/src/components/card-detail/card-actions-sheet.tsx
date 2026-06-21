@@ -1,9 +1,9 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardActionsSheetProps = {
   visible: boolean;
@@ -20,7 +20,7 @@ type ActionRowProps = {
 };
 
 function ActionRow({ icon, label, destructive = false, onPress }: ActionRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"

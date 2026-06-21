@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, TextInput, View } from 'react-native';
 import { SettingsRow } from '@/components/notifications/settings-section';
 import { Text } from '@/components/text';
 import { Toggle } from '@/components/toggle';
@@ -13,7 +13,7 @@ import {
 import type { GlobalPreferenceFields } from '@/lib/use-notification-preferences';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type NotificationQuietHoursProps = {
   /** Mevcut global tercih (`preferences.get`) — quiet-hours alanlarını taşır. */
@@ -39,7 +39,7 @@ export function NotificationQuietHours({
   onSave,
   disabled,
 }: NotificationQuietHoursProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const copy = strings.notificationSettings.quiet;
   const windowActive = hasQuietWindow(preference);
 

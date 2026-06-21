@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -7,7 +7,7 @@ import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardMembers = RouterOutputs['card']['members']['list'];
 type BoardMembers = RouterOutputs['board']['members']['list'];
@@ -32,7 +32,7 @@ type MembersSheetBodyProps = {
 export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: MembersSheetBodyProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const membersKey = trpc.card.members.list.queryKey({ cardId });
 
   const invalidate = () => {

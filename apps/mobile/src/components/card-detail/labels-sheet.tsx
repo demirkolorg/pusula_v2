@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -7,7 +7,7 @@ import { Text } from '@/components/text';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { labelColorHex } from '@/lib/label-color';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardLabels = RouterOutputs['card']['labels']['list'];
 
@@ -31,7 +31,7 @@ type LabelsSheetBodyProps = {
 export function LabelsSheetBody({ cardId, boardId, labels, canEdit }: LabelsSheetBodyProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const labelsKey = trpc.card.labels.list.queryKey({ cardId });
 
   const boardLabelsQuery = useQuery(

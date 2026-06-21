@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { RouterOutputs } from '@pusula/api';
 import { EntityAvatar } from '@/components/entity-avatar';
@@ -9,7 +9,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { hapticMedium } from '@/lib/haptics';
 import { dueDateTone, formatDueDateSmart } from '@/lib/format-date';
 import { labelColorHex } from '@/lib/label-color';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type BoardCard = RouterOutputs['board']['get']['cards'][number];
 
@@ -56,7 +56,7 @@ export const CardListRow = memo(function CardListRow({
   onMoveCard: (card: BoardCard) => void;
 }) {
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Optimistic kart sunucudan dönene kadar etkileşime kapalı — `tmp-` id ile
   // kart detayı / taşıma backend'de bulunamaz.
   const cardPending = isPendingId(card.id);

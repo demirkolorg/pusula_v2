@@ -6,7 +6,6 @@ import {
   SectionList,
   type SectionListData,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,7 +29,7 @@ import { strings } from '@/lib/strings';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { useIsTablet } from '@/lib/use-device-class';
 import { useNotificationMutations } from '@/lib/use-notification-mutations';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Sayfa başına bildirim. `notifications.list` `cursor` ile sayfalama destekler;
@@ -66,7 +65,7 @@ function ItemSeparator() {
 export default function NotificationsScreen() {
   const trpc = useTRPC();
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const isTablet = useIsTablet();
   const navInset = useFloatingNavInset();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
@@ -128,6 +127,7 @@ export default function NotificationsScreen() {
       // Okunmamışsa sola kaydır → "Okundu" (navigasyon yok). Okunmuşta aksiyon yok.
       return item.readAt == null ? (
         <SwipeRow
+          rounded
           actions={[
             {
               key: 'read',

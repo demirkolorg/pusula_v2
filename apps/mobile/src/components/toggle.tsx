@@ -1,5 +1,5 @@
-import { Switch as RNSwitch, useColorScheme } from 'react-native';
-import { themeFor } from '@/theme/tokens';
+import { Switch as RNSwitch } from 'react-native';
+import { useTheme } from '@/theme/theme-provider';
 
 type ToggleProps = {
   value: boolean;
@@ -14,7 +14,7 @@ type ToggleProps = {
  * token'larından (RN `Switch` `className` ile boyanamaz).
  */
 export function Toggle({ value, onValueChange, disabled = false, accessibilityLabel }: ToggleProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <RNSwitch
       value={value}

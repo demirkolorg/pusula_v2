@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Pressable,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
@@ -22,7 +21,7 @@ import {
   saveNavPillPosition,
   type NavPillPosition,
 } from '@/lib/nav-pill-preference';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Pill kenar boşluğu (snap uçlarında ekran kenarıyla pill arası px). */
 const EDGE_MARGIN = 8;
@@ -62,7 +61,7 @@ const EDGE_MARGIN = 8;
  */
 export function FloatingPillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const { width: screenWidth } = useWindowDimensions();
 
   // DEM-303 V2 (2026-06-17) — pill sürüklenip sol/orta/sağ üç sabit konuma

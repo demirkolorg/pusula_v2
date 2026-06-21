@@ -72,7 +72,9 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#008e5f',
+      // Marka rengi = tema `primary` (2026-06-21 kullanıcı kararı: marka birincil
+      // rengi artık tema primary ile aynı). `tokens.ts` light `primary` (#0f9171).
+      backgroundColor: '#0f9171',
     },
     // Faz 7L — Android App Links. `https://pusulaportal.com` linkleri uygulamada
     // açılır; `autoVerify` Digital Asset Links (`assetlinks.json`) ile doğrulanır
@@ -99,9 +101,14 @@ const config: ExpoConfig = {
         image: './assets/splash-icon.png',
         imageWidth: 200,
         resizeMode: 'contain',
-        backgroundColor: '#008e5f',
+        // Açılış ekranı her iki temada da tema `primary` (= marka birincil rengi)
+        // yeşilinde açılır (kullanıcı kararı 2026-06-21). `tokens.ts` ile birebir:
+        // light `primary` #0f9171, dark `primary` #1ba882. Önceki değerler marka
+        // emerald'ı (#008e5f) + dark koyu gri (#1d2125) idi. NATIVE — yeni
+        // `eas build` gerektirir, OTA ile dağıtılamaz.
+        backgroundColor: '#0f9171',
         dark: {
-          backgroundColor: '#1d2125',
+          backgroundColor: '#1ba882',
         },
         // Faz 15E (DEM-305) — iPad splash varyantı. `IOSSplashConfig.tabletImage`
         // resmi destek (`@expo/prebuild-config` getIosSplashConfig). iPhone

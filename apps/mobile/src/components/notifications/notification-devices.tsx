@@ -1,4 +1,4 @@
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { Icon, type IconName } from '@/components/icon';
@@ -6,7 +6,7 @@ import { Text } from '@/components/text';
 import { formatRelativeTime } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/provider';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type PushTokenRow = RouterOutputs['push']['tokens']['list'][number];
 
@@ -33,7 +33,7 @@ function platformLabel(platform: string): string {
  */
 export function NotificationDevices() {
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const devices = strings.notificationSettings.devices;
   const query = useQuery(trpc.push.tokens.list.queryOptions());
 

@@ -1,10 +1,9 @@
-import { Pressable, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { EmptyState } from '@/components/empty-state';
-import { Icon } from '@/components/icon';
+import { ScreenHeader, ScreenHeaderAction } from '@/components/screen-header';
 import { WorkspaceBoardsView } from '@/components/workspace-boards-view';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
 
 /**
  * Bir çalışma alanının board listesi — phone'da tek-kolonlu, deep link
@@ -16,73 +15,62 @@ import { themeFor } from '@/theme/tokens';
  * pane'i aynı component'ı render eder, route header'ı bu dosya yönetir.
  *
  * Header'daki "Raporlar" (Faz 13S / DEM-275) + "Üyeler" (Faz 7D) butonları
- * 44×44 Apple HIG dokunma alanı disiplinini korur.
+ * ekran-içi `ScreenHeader` aksiyonlarıdır (2026-06-21 native header kaldırıldı).
  */
 export default function WorkspaceBoardsScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const workspaceId = params.id;
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
 
   const header = (
-    <Stack.Screen
-      options={{
-        title: params.name ?? strings.tabs.boards,
-        headerRight: workspaceId
-          ? () => (
-              <View className="flex-row items-center">
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.reports.workspaceLinkLabel}
-                  hitSlop={8}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/workspace-reports/[id]',
-                      params: { id: workspaceId, name: params.name ?? '' },
-                    })
-                  }
-                  className="h-11 w-11 items-center justify-center active:opacity-60"
-                >
-                  <Icon name="bar-chart-2" size={20} color={theme.foreground} />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.members.workspaceTitle}
-                  hitSlop={8}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/workspace-members/[id]',
-                      params: { id: workspaceId, name: params.name ?? '' },
-                    })
-                  }
-                  className="h-11 w-11 items-center justify-center active:opacity-60"
-                >
-                  <Icon name="users" size={20} color={theme.foreground} />
-                </Pressable>
-              </View>
-            )
-          : undefined,
-      }}
+    <ScreenHeader
+      title={params.name ?? strings.tabs.boards}
+      right={
+        workspaceId ? (
+          <>
+            <ScreenHeaderAction
+              icon="bar-chart-2"
+              accessibilityLabel={strings.reports.workspaceLinkLabel}
+              onPress={() =>
+                router.push({
+                  pathname: '/workspace-reports/[id]',
+                  params: { id: workspaceId, name: params.name ?? '' },
+                })
+              }
+            />
+            <ScreenHeaderAction
+              icon="users"
+              accessibilityLabel={strings.members.workspaceTitle}
+              onPress={() =>
+                router.push({
+                  pathname: '/workspace-members/[id]',
+                  params: { id: workspaceId, name: params.name ?? '' },
+                })
+              }
+            />
+          </>
+        ) : undefined
+      }
     />
   );
 
   if (!workspaceId) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
           title={strings.boards.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
       {header}
       <WorkspaceBoardsView workspaceId={workspaceId} />
-    </>
+    </SafeAreaView>
   );
 }

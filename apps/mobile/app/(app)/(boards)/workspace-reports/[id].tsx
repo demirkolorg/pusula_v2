@@ -17,8 +17,9 @@
  */
 import { useCallback, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
-import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -26,10 +27,11 @@ import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { ListRow } from '@/components/list-row';
 import { LoadingScreen } from '@/components/loading-screen';
+import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { formatTimestamp } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type SavedReport = RouterOutputs['report']['listSaved']['items'][number];
 type ScheduleItem =
@@ -71,7 +73,7 @@ export default function WorkspaceReportsScreen() {
   const workspaceId = params.id;
   const router = useRouter();
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [tab, setTab] = useState<Tab>('saved');
 
   const savedQuery = useQuery(
@@ -155,30 +157,24 @@ export default function WorkspaceReportsScreen() {
     </View>
   );
 
-  const header = (
-    <Stack.Screen
-      options={{
-        title: strings.reports.list.title,
-      }}
-    />
-  );
+  const header = <ScreenHeader title={strings.reports.list.title} />;
 
   if (!workspaceId) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
           title={strings.reports.list.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (tab === 'saved') {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         {tabSwitcher}
         {savedQuery.isPending ? (
@@ -213,12 +209,12 @@ export default function WorkspaceReportsScreen() {
             }
           />
         )}
-      </>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
       {header}
       {tabSwitcher}
       {scheduledQuery.isPending ? (
@@ -253,6 +249,6 @@ export default function WorkspaceReportsScreen() {
           }
         />
       )}
-    </>
+    </SafeAreaView>
   );
 }

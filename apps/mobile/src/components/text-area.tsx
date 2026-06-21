@@ -1,8 +1,8 @@
-import { TextInput, View, useColorScheme } from 'react-native';
+import { TextInput, View } from 'react-native';
 import type { TextInputProps } from 'react-native';
 import { Text } from '@/components/text';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type TextAreaProps = {
   value: string;
@@ -26,7 +26,7 @@ export function TextArea({
   minHeightClassName = 'min-h-24',
   ...inputProps
 }: TextAreaProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   return (
     <View className="gap-1.5">

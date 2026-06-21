@@ -1,4 +1,4 @@
-import { ScrollView, View, useColorScheme } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { Icon, type IconName } from '@/components/icon';
@@ -6,7 +6,8 @@ import { Text } from '@/components/text';
 import { SettingsGroup } from '@/components/settings/settings-group';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Pusula web adresleri — bağlantılar in-app tarayıcıda açılır (gizlilik
  *  ekranı WebView tercihiyle tutarlı; harici tarayıcıya atmaz). */
@@ -32,7 +33,8 @@ const FEATURES: ReadonlyArray<{
  * in-app açılır.
  */
 export function AboutView() {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
+  const navInset = useFloatingNavInset();
   const appVersion = Constants.expoConfig?.version ?? '—';
   const about = strings.about;
 
@@ -41,7 +43,11 @@ export function AboutView() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-muted" contentContainerClassName="gap-6 p-4 pb-10">
+    <ScrollView
+      className="flex-1 bg-muted"
+      contentContainerClassName="gap-6 p-4"
+      contentContainerStyle={{ paddingBottom: navInset || 40 }}
+    >
       {/* Uygulama kimliği — ortalanmış logo ikonu + ad + tagline. */}
       <View className="items-center gap-3 pt-4">
         <View className="h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">

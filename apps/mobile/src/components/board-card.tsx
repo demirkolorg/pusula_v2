@@ -1,10 +1,10 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
 import { boardBackgroundColor } from '@/lib/board-background';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type BoardCardProps = {
   title: string;
@@ -47,7 +47,7 @@ export function BoardCard({
   archived = false,
   onPress,
 }: BoardCardProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const coverColor = boardBackgroundColor(background);
 
   return (

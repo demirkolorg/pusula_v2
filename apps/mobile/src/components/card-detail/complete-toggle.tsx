@@ -1,8 +1,8 @@
-import { Pressable, useColorScheme } from 'react-native';
+import { Pressable } from 'react-native';
 import { Icon } from '@/components/icon';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardCompleteToggleProps = {
   completed: boolean;
@@ -26,7 +26,7 @@ export function CardCompleteToggle({
   pending,
   onToggle,
 }: CardCompleteToggleProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const iconName = completed ? 'check-circle' : 'circle';
   const iconColor = completed ? theme.success : theme.mutedForeground;
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
 import {
   FlatList,
@@ -7,10 +7,10 @@ import {
   RefreshControl,
   ScrollView,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
@@ -21,12 +21,13 @@ import { MasterDetailLayout } from '@/components/master-detail-layout';
 import { Icon } from '@/components/icon';
 import { PendingInvitations } from '@/components/pending-invitations';
 import { QuickNoteDock } from '@/components/quick-note-dock';
+import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { WorkspaceCard } from '@/components/workspace-card';
 import { WorkspaceBoardsView } from '@/components/workspace-boards-view';
 import { strings } from '@/lib/strings';
 import { useIsTablet } from '@/lib/use-device-class';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * "Panolar" sekmesinin kökü — kullanıcının üye olduğu çalışma alanları.
@@ -41,10 +42,8 @@ type Workspace = RouterOutputs['workspace']['list'][number];
 export default function WorkspacesScreen() {
   const router = useRouter();
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const query = useQuery(trpc.workspace.list.queryOptions());
-
-  const header = <Stack.Screen options={{ title: strings.workspaces.title }} />;
 
   // Faz 15C (DEM-303) — tablet'te workspaces ekranı master-detail: sol sidebar
   // workspace listesi + sağ detail pane seçili workspace'in board listesi.
@@ -53,12 +52,13 @@ export default function WorkspacesScreen() {
   const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 
-  // Tablet'te detail pane açılışta boş kalmasın: listenin ilkini otomatik seç.
-  useEffect(() => {
-    if (!isTablet || selectedWorkspaceId != null) return;
-    const first = query.data?.[0];
-    if (first) setSelectedWorkspaceId(first.id);
-  }, [isTablet, selectedWorkspaceId, query.data]);
+  // Tablet detail pane'i açılışta ASLA boş "çalışma alanı seç" durumunda gelmesin:
+  // kullanıcı henüz bir seçim yapmadıysa listenin ilkini TÜREVle seç. Effect
+  // yerine render-türevi (DEM): effect bir tick gecikir + `useWindowDimensions`
+  // ilk render'da `width: 0` döndürünce `isTablet` geçici `false` olur ve
+  // effect'in `!isTablet` guard'ı seçimi atlardı → ilk açılışta boş pane (bug).
+  // Türev değer ilk render'da dolu gelir, zamanlamadan bağımsızdır.
+  const effectiveSelectedId = selectedWorkspaceId ?? query.data?.[0]?.id ?? null;
 
   const routerRef = useRef(router);
   routerRef.current = router;
@@ -104,26 +104,26 @@ export default function WorkspacesScreen() {
         boardCount={workspace.boardCount}
         memberCount={workspace.memberCount}
         lastActivityAt={workspace.lastActivityAt}
-        selected={workspace.id === selectedWorkspaceId}
+        selected={workspace.id === effectiveSelectedId}
         onPress={() => handleWorkspacePress(workspace)}
       />
     ),
-    [handleWorkspacePress, selectedWorkspaceId],
+    [handleWorkspacePress, effectiveSelectedId],
   );
 
   if (query.isPending) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={strings.workspaces.title} />
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isError) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={strings.workspaces.title} />
         <EmptyState
           icon="alert-triangle"
           title={strings.workspaces.loadError}
@@ -133,15 +133,15 @@ export default function WorkspacesScreen() {
             <Button label={strings.common.retry} variant="ghost" onPress={() => query.refetch()} />
           </View>
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
   // Hiç workspace yok: bekleyen davetler hâlâ görünmeli.
   if (query.data.length === 0) {
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={strings.workspaces.title} />
         <KeyboardAvoidingView
           className="flex-1"
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -150,10 +150,11 @@ export default function WorkspacesScreen() {
           {!isTablet ? (
             <>
               <SectionHeader icon="zap" title={strings.quickNotes.title} />
-              <QuickNoteDock />
+              <View className="px-4 pb-1">
+                <QuickNoteDock />
+              </View>
             </>
           ) : null}
-          <SectionHeader icon="layout-grid" title={strings.workspaces.title} />
           <ScrollView
             className="flex-1"
             contentContainerClassName="grow gap-4 px-4 pt-2 pb-4"
@@ -174,19 +175,19 @@ export default function WorkspacesScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </>
+      </SafeAreaView>
     );
   }
 
   // Faz 15C (DEM-303) — tablet master-detail.
   if (isTablet) {
+    // `query.data.length > 0` yukarıda garanti; türev id geçersizse (ör. seçili
+    // workspace silindi) listenin ilkine düş — detail pane hep dolu kalır.
     const selectedWorkspace =
-      selectedWorkspaceId != null
-        ? (query.data.find((w) => w.id === selectedWorkspaceId) ?? null)
-        : null;
+      query.data.find((w) => w.id === effectiveSelectedId) ?? query.data[0];
     return (
-      <>
-        {header}
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
+        <ScreenHeader title={strings.workspaces.title} />
         <MasterDetailLayout
           master={
             <FlatList
@@ -205,14 +206,12 @@ export default function WorkspacesScreen() {
             />
           }
           detail={
+            // `?? query.data[0]` ile pratikte hep dolu (length>0 garanti); `null`
+            // dalı yalnız `noUncheckedIndexedAccess` tipini daraltmak için.
             selectedWorkspace ? (
               <View className="flex-1">
                 <View className="border-b border-border px-4 py-3">
-                  <Text
-                    weight="semibold"
-                    className="text-lg text-foreground"
-                    numberOfLines={1}
-                  >
+                  <Text weight="semibold" className="text-lg text-foreground" numberOfLines={1}>
                     {selectedWorkspace.name}
                   </Text>
                 </View>
@@ -220,37 +219,32 @@ export default function WorkspacesScreen() {
                   <WorkspaceBoardsView workspaceId={selectedWorkspace.id} />
                 </View>
               </View>
-            ) : (
-              <EmptyState
-                icon="compass"
-                title={strings.workspaces.detailEmptyTitle}
-                description={strings.workspaces.detailEmptyDescription}
-              />
-            )
+            ) : null
           }
           sidebarWidth={sidebarWidth}
           testID="workspaces-master-detail"
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   // Phone: tek sütun liste — her workspace tam genişlik kart.
   return (
-    <>
-      {header}
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={strings.workspaces.title} />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <PendingInvitations />
         <SectionHeader icon="zap" title={strings.quickNotes.title} />
-        <QuickNoteDock />
-        <SectionHeader icon="layout-grid" title={strings.workspaces.title} />
+        <View className="px-4 pb-1">
+          <QuickNoteDock />
+        </View>
         <FlatList
           data={query.data}
           keyExtractor={(workspace) => workspace.id}
-          contentContainerClassName="gap-3 px-4 pt-2 pb-4"
+          contentContainerClassName="gap-3 px-4 pt-3 pb-4"
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching}
@@ -261,15 +255,15 @@ export default function WorkspacesScreen() {
           renderItem={renderPhoneItem}
         />
       </KeyboardAvoidingView>
-    </>
+    </SafeAreaView>
   );
 }
 
 function SectionHeader({ icon, title }: { icon: string; title: string }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="flex-row items-center gap-1.5 px-4 pb-2 pt-3">
-      <Icon name={icon as never} size={13} color={theme.mutedForeground} />
+      <Icon name={icon as never} size={13} color={theme.primary} />
       <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {title}
       </Text>

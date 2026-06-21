@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Türkçe ay adları (tam) — başlık için. `format-date.ts` kısa adları
@@ -57,7 +57,7 @@ function isSameDay(a: Date, b: Date): boolean {
  * yerel gece-yarısı bir `Date` döndürür (`due-date-sheet` 18:00'a sabitler).
  */
 export function MonthCalendar({ selected, onSelectDate, disabled = false }: MonthCalendarProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Mount anına sabitlenir — render başına yeni `Date` üretmemek için.
   const [today] = useState(() => new Date());
   // Görüntülenen ay — seçili gün varsa onun ayı, yoksa bu ay.

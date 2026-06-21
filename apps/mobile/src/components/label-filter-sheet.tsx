@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Icon } from '@/components/icon';
@@ -6,7 +6,7 @@ import { Sheet } from '@/components/sheet';
 import { Text } from '@/components/text';
 import { labelColorHex } from '@/lib/label-color';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type LabelFilterSheetProps = {
   visible: boolean;
@@ -36,7 +36,7 @@ export function LabelFilterSheet({
   onClose,
 }: LabelFilterSheetProps) {
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const labelsQuery = useQuery(
     trpc.label.list.queryOptions({ boardId }, { enabled: visible }),
   );

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { AppSpinner } from '@/components/app-spinner';
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type SettingsRowProps = {
   icon?: IconName;
@@ -49,7 +49,7 @@ export function SettingsRow({
   selected,
   active = false,
 }: SettingsRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const iconColor = destructive ? theme.destructive : theme.mutedForeground;
   const labelClass = destructive ? 'text-destructive' : 'text-foreground';
   const interactive = onPress != null && !pending;

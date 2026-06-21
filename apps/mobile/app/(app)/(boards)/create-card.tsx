@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/button';
+import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
 import { LocationPicker, useLocationPicker } from '@/components/location-picker';
 import { DueDatePresetPicker } from '@/components/due-date-preset-picker';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Kart oluştur akışı — DEM-203 WP5 (oluşturma menüsünden açılır).
@@ -38,7 +40,7 @@ import { themeFor } from '@/theme/tokens';
 export default function CreateCardScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   const picker = useLocationPicker('list');
   const [title, setTitle] = useState('');
@@ -89,10 +91,10 @@ export default function CreateCardScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: strings.createCard.title }} />
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={strings.createCard.title} />
       <ScrollView
-        className="flex-1 bg-background"
+        className="flex-1"
         contentContainerClassName="gap-5 p-4"
         keyboardShouldPersistTaps="handled"
       >
@@ -148,7 +150,7 @@ export default function CreateCardScreen() {
           disabled={!canSubmit}
         />
       </ScrollView>
-    </>
+    </SafeAreaView>
   );
 }
 

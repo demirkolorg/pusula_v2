@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import LottieView, { type AnimationObject } from 'lottie-react-native';
 import { Text } from '@/components/text';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { strings } from '@/lib/strings';
 import { tintCompassAnimation } from '@/lib/compass-animation';
 
@@ -35,7 +35,7 @@ export function AppSpinner({
   size = 'md',
   color,
 }: AppSpinnerProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const tint = color ?? theme.mutedForeground;
   const animation = useMemo(() => tintCompassAnimation(tint), [tint]);
   const dimension = spinnerSizes[size];

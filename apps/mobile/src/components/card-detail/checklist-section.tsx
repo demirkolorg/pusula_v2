@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import type Animated from 'react-native-reanimated';
 import type { AnimatedRef } from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +20,7 @@ import type { AuthorResolver } from '@/components/card-detail/comment-list';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { OPTIMISTIC_PREFIX, applyOrder } from '@/lib/checklist-reorder';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type Checklists = RouterOutputs['checklist']['list'];
 type ChecklistItem = Checklists[number]['items'][number];
@@ -68,6 +68,12 @@ type ChecklistSectionProps = {
    * `initialCommentItemId`'den farklı: thread açmaz, yalnız görsel vurgu yapar.
    */
   highlightItemId?: string;
+  /**
+   * Tablet yan-yana yerleşiminde kart yüzeyi `flex-1` ile kapsayıcısını dikey
+   * doldurur — yandaki "Açıklama" bölümüyle eşit yükseklikte kalsın
+   * (`DescriptionChecklistTabs` `items-stretch`). Telefonda (alt-alta) `false`.
+   */
+  fill?: boolean;
 };
 
 /**
@@ -87,10 +93,11 @@ export function ChecklistSection({
   onDragActiveChange,
   scrollRef,
   highlightItemId,
+  fill = false,
 }: ChecklistSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const checklistKey = trpc.checklist.list.queryKey({ cardId });
   // Açık madde yorum thread'i — bir madde id'si tutar; tek sheet tüm satırlar
   // için paylaşılır (her satıra ayrı modal mount edilmez). `null` → kapalı.
@@ -338,7 +345,9 @@ export function ChecklistSection({
     {/* Kendi kart yüzeyi + başlık (2026-06-20) — Açıklama bölümüyle aynı desen.
         Başlıkta solda "Kontrol listeleri", sağda "+ Ekle" (member+); composer
         gövdenin sonunda açılır. */}
-    <View className="gap-3 rounded-xl border border-border bg-card p-3.5">
+    <View
+      className={`gap-3 rounded-xl border border-border bg-card p-3.5 ${fill ? 'flex-1' : ''}`}
+    >
       <SectionHeader
         icon="check-square"
         title={strings.cardDetail.checklistsTitle}

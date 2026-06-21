@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
@@ -24,7 +24,7 @@ import { notificationCardTarget } from '@/lib/notification-target';
 import { strings } from '@/lib/strings';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { useNotificationMutations } from '@/lib/use-notification-mutations';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Bildirim merkezi listesiyle aynı sayfa girişi — markRead cache senkronu için. */
 const LIST_INPUT = { limit: 25 } as const;
@@ -102,7 +102,7 @@ function ChangeRow({ change }: { change: NotificationChange }) {
 export function NotificationDetail({ notificationId }: NotificationDetailProps) {
   const trpc = useTRPC();
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const detail = strings.notifications.detail;
   const navInset = useFloatingNavInset();
   const { markRead } = useNotificationMutations(LIST_INPUT);

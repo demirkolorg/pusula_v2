@@ -17,20 +17,20 @@
  * `api.pusulaportal.com`).
  */
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Alert, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import type { RouterOutputs } from '@pusula/api';
 import { useTRPC } from '@/trpc/provider';
-import { Icon } from '@/components/icon';
 import { LoadingScreen } from '@/components/loading-screen';
 import { EmptyState } from '@/components/empty-state';
+import { ScreenHeader, ScreenHeaderAction } from '@/components/screen-header';
 import { env } from '@/env';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
 
 type RenderRow = RouterOutputs['report']['getRender'];
 
@@ -53,7 +53,6 @@ export default function SavedReportDetailScreen() {
   const savedReportId = params.id;
   const workspaceId = params.workspaceId ?? '';
   const initialTitle = params.title ?? '';
-  const theme = themeFor(useColorScheme());
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [downloading, setDownloading] = useState(false);
@@ -124,41 +123,31 @@ export default function SavedReportDetailScreen() {
 
   if (!savedReportId || !workspaceId) {
     return (
-      <>
-        <Stack.Screen options={{ title: strings.reports.detail.headerTitle }} />
+      <SafeAreaView edges={['top']} className="flex-1 bg-card">
+        <ScreenHeader title={strings.reports.detail.headerTitle} />
         <EmptyState
           icon="alert-triangle"
           title={strings.reports.detail.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   const targetUrl = buildEmbedUrl(workspaceId, savedReportId);
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: initialTitle || strings.reports.detail.headerTitle,
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.reports.detail.pdfDownloadButton}
-              hitSlop={8}
-              onPress={handleDownloadPdf}
-              disabled={downloading}
-              className="h-11 w-11 items-center justify-center active:opacity-60"
-            >
-              {downloading ? (
-                <ActivityIndicator size="small" color={theme.foreground} />
-              ) : (
-                <Icon name="download" size={20} color={theme.foreground} />
-              )}
-            </Pressable>
-          ),
-        }}
+    <SafeAreaView edges={['top']} className="flex-1 bg-card">
+      <ScreenHeader
+        title={initialTitle || strings.reports.detail.headerTitle}
+        right={
+          <ScreenHeaderAction
+            icon="download"
+            accessibilityLabel={strings.reports.detail.pdfDownloadButton}
+            onPress={handleDownloadPdf}
+            disabled={downloading}
+          />
+        }
       />
       <View className="flex-1 bg-card">
         <WebView
@@ -183,6 +172,6 @@ export default function SavedReportDetailScreen() {
           }}
         />
       </View>
-    </>
+    </SafeAreaView>
   );
 }

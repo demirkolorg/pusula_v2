@@ -36,13 +36,15 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Fontlar yüklenene kadar splash ekranı açık tutulur — sistem fontuyla
-// kısa bir "flash" yaşanmaması için (proje geneli Poppins kararı).
+// Fontlar yüklenene kadar splash ekranı açık tutulur — varsayılan (Poppins)
+// fontuyla kısa bir "flash" yaşanmaması için.
 void SplashScreen.preventAutoHideAsync();
 
 function RootLayout() {
-  // Poppins'in dört ağırlığı (400/500/600/700) yüklenir. Aynı font ailesi
-  // web ile hizalıdır; ağırlık → aile eşlemesi `src/theme/fonts.ts`'te.
+  // Font kişiselleştirmesi (§13.7.7) — 7 ailenin (Poppins/Inter/Manrope/DM Sans/
+  // JetBrains Mono/Lora/Atkinson) kullanılan ağırlıkları açılışta tek seferde
+  // yüklenir; `system` paket içermez. Eşleme `src/theme/fonts.ts` `fontMap`'te.
+  // Kullanıcı seçimi `Text` üzerinden uygulanır (cihaz-yerel AsyncStorage).
   const [fontsLoaded, fontError] = useFonts(fontMap);
 
   useEffect(() => {

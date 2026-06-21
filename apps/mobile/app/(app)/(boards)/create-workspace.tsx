@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_WORKSPACE_ICON, type EntityIcon } from '@pusula/domain';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { EntityIconPicker } from '@/components/entity-icon-picker';
+import { ScreenHeader } from '@/components/screen-header';
 import { TextField } from '@/components/text-field';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
@@ -61,8 +63,8 @@ export default function CreateWorkspaceScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: strings.createWorkspace.title }} />
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+      <ScreenHeader title={strings.createWorkspace.title} />
       <ScrollView className="flex-1" contentContainerClassName="gap-5 p-4" keyboardShouldPersistTaps="handled">
         <TextField
           label={strings.createWorkspace.nameLabel}
@@ -87,6 +89,6 @@ export default function CreateWorkspaceScreen() {
           pending={createMutation.isPending}
         />
       </ScrollView>
-    </>
+    </SafeAreaView>
   );
 }

@@ -16,6 +16,7 @@
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts",
     "seed:kaymakamlik": "tsx scripts/seed-kaymakamlik.ts",
+    "seed:screenshots": "tsx scripts/seed-screenshots.ts",
     "users:list": "tsx scripts/list-users.ts",
     "test": "vitest run",
     "lint": "eslint .",
@@ -29,6 +30,7 @@
     "zod": "^4"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@pusula/config": "workspace:*",
     "@types/node": "^22",
     "@types/pg": "^8.11.10",

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
@@ -10,7 +10,7 @@ import { Text } from '@/components/text';
 import { TextField } from '@/components/text-field';
 import { clearRegisteredPushToken, getRegisteredPushToken } from '@/lib/push-token-store';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { useTRPC } from '@/trpc/provider';
 
 export interface DeleteAccountViewProps {
@@ -20,6 +20,11 @@ export interface DeleteAccountViewProps {
    * çağrılmaz. İmza ileride bir "iptal/vazgeç" eylemi için ayrılmıştır.
    */
   onDone?: () => void;
+  /**
+   * `SecurityView` içinde gömülü kullanım — dış `ScrollView` + kart padding'i
+   * sağlandığından kendi `ScrollView`/arka planını kurmaz, salt form gövdesini döner.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -39,8 +44,8 @@ export interface DeleteAccountViewProps {
  * master-detail (DEM-303 V2): hem `(account)/delete-account` route'unda hem
  * tablet hesap detail pane'inde kullanılır.
  */
-export function DeleteAccountView(_props: DeleteAccountViewProps) {
-  const theme = themeFor(useColorScheme());
+export function DeleteAccountView({ embedded = false }: DeleteAccountViewProps) {
+  const theme = useTheme();
   const trpc = useTRPC();
   const revokeToken = useMutation(trpc.push.tokens.revoke.mutationOptions());
   const [password, setPassword] = useState('');
@@ -103,8 +108,8 @@ export function DeleteAccountView(_props: DeleteAccountViewProps) {
     ]);
   };
 
-  return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4">
+  const form = (
+    <>
       {/* Geri-alınamaz uyarısı — yıkıcı tonda kutu. */}
       <View
         accessibilityRole="alert"
@@ -149,6 +154,16 @@ export function DeleteAccountView(_props: DeleteAccountViewProps) {
           {strings.deleteAccount.deleteAction}
         </Text>
       </Pressable>
+    </>
+  );
+
+  if (embedded) {
+    return <View className="gap-5">{form}</View>;
+  }
+
+  return (
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4">
+      {form}
     </ScrollView>
   );
 }

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import type { SectionListData, SectionListRenderItem } from 'react-native';
-import { Pressable, RefreshControl, SectionList, View, useColorScheme } from 'react-native';
+import { Pressable, RefreshControl, SectionList, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { CardListRow } from '@/components/card-list-row';
 import { Icon } from '@/components/icon';
@@ -10,7 +10,7 @@ import { isPendingId } from '@/lib/client-mutation-id';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from '@/lib/list-icon';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type BoardData = RouterOutputs['board']['get'];
 type BoardList = BoardData['lists'][number];
@@ -59,7 +59,7 @@ const ListSectionHeader = memo(function ListSectionHeader({
   canEdit: boolean;
   onOpenListActions: (list: BoardList) => void;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Optimistic (henüz sunucuya yazılmamış) liste — ⋮ menüsü açılmaz.
   const listPending = isPendingId(list.id);
   const accentHex = listColorHex(list.color);
@@ -115,7 +115,7 @@ const ListSectionFooter = memo(function ListSectionFooter({
   canEdit: boolean;
   onCreateCard: (listId: string, title: string) => void;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [composerOpen, setComposerOpen] = useState(false);
 
   return (
@@ -153,7 +153,7 @@ const ListSectionFooter = memo(function ListSectionFooter({
  * composer açılır — oluşturduktan sonra açık kalır (art arda liste ekleme).
  */
 function ListAddRow({ onCreate }: { onCreate: (title: string) => void }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [open, setOpen] = useState(false);
 
   return (
@@ -205,7 +205,7 @@ export function BoardListView({
   refreshing,
   onRefresh,
 }: BoardListViewProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Tablet floating pill nav son içeriği ("Liste ekle"/son kart) örtmesin.
   const navInset = useFloatingNavInset();
 

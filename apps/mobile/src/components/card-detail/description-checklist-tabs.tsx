@@ -66,8 +66,11 @@ type DescriptionChecklistProps = {
  *
  * Yerleşim:
  * - **Tablet (≥768px):** yan-yana — sol `DescriptionEditor` + sağ
- *   `ChecklistSection`, eşit `flex-1`, `items-start` (web kart modali paritesi).
- * - **Phone (<768px):** alt-alta (stacked) — açıklama üstte, yapılacaklar altta.
+ *   `ChecklistSection`, eşit `flex-1` genişlik + `items-stretch` ile EŞİT
+ *   YÜKSEKLİK (her bölüm köküne `fill`→`flex-1`; kısa olan uzun olana gerilir,
+ *   web kart modali paritesi).
+ * - **Phone (<768px):** alt-alta (stacked) — açıklama üstte, yapılacaklar altta
+ *   (gerilme yok; her bölüm doğal yüksekliğinde).
  */
 export function DescriptionChecklistTabs({
   cardId,
@@ -84,7 +87,9 @@ export function DescriptionChecklistTabs({
   const isTablet = useIsTablet();
 
   const checklist = checklistsError ? (
-    <View className="rounded-xl border border-border bg-card p-3.5">
+    <View
+      className={`rounded-xl border border-border bg-card p-3.5 ${isTablet ? 'flex-1' : ''}`}
+    >
       <Text className="text-sm text-destructive">{strings.cardDetail.sectionError}</Text>
     </View>
   ) : (
@@ -97,16 +102,21 @@ export function DescriptionChecklistTabs({
       highlightItemId={highlightItemId}
       onDragActiveChange={onDragActiveChange}
       scrollRef={scrollRef}
+      fill={isTablet}
     />
   );
 
   return isTablet ? (
-    // Tablet: yan-yana, eşit genişlik (web kart modali paritesi). Her bölüm artık
-    // kendi kart yüzeyini + başlığını taşır; `items-start` ile kısa açıklama uzun
-    // checklist'e göre dikey gerilmez. iPad mini portrait 768px'te sıkı ama kabul.
-    <View className="flex-row items-start gap-3">
+    // Tablet: yan-yana, eşit genişlik + EŞİT YÜKSEKLİK (web kart modali paritesi).
+    // `items-stretch` + her bölüm köküne `flex-1` (fill) → kısa olan uzun olana
+    // gerilir, iki kart hep aynı boyda durur (kısa açıklamanın yarım kesik
+    // görünmesi giderildi). Açıklama çok uzunsa kendi "Daha fazla göster" cap'i
+    // (maxHeight) devreye girer; checklist o noktada en uzun bölüm olur, açıklama
+    // genişletilince tüm içeriği gösterecek yüksekliğe çıkar. iPad mini portrait
+    // 768px'te sıkı ama kabul.
+    <View className="flex-row items-stretch gap-3">
       <View className="flex-1">
-        <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} />
+        <DescriptionEditor cardId={cardId} description={description} canEdit={canEdit} fill />
       </View>
       <View className="flex-1">{checklist}</View>
     </View>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { FlatList, RefreshControl, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BoardRole } from '@pusula/domain';
 import { useTRPC } from '@/trpc/provider';
@@ -12,13 +13,14 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { MemberActionSheet } from '@/components/member-action-sheet';
 import { MemberInviteForm } from '@/components/member-invite-form';
 import { MemberRow } from '@/components/member-row';
+import { ScreenHeader } from '@/components/screen-header';
 import { SentInvitationRow } from '@/components/sent-invitation-row';
 import { Text } from '@/components/text';
 import { boardRoleLabel, canManageBoardMembers } from '@/lib/member-roles';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
 import { useBoardMemberMutations } from '@/lib/use-member-mutations';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Davet/rol seçiminde sunulan board rolleri (`admin | member | viewer`). */
 const BOARD_INVITE_ROLES = [
@@ -48,7 +50,7 @@ export default function BoardMembersScreen() {
   const boardId = params.boardId;
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user.id;
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -69,35 +71,33 @@ export default function BoardMembersScreen() {
     trpc.board.invitations.list.queryOptions({ boardId }, { enabled: Boolean(boardId) }),
   );
 
-  const header = (
-    <Stack.Screen options={{ title: params.title ?? strings.members.boardTitle }} />
-  );
+  const header = <ScreenHeader title={params.title ?? strings.members.boardTitle} />;
 
   if (!boardId) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
           title={strings.members.loadError}
           description={strings.common.unknownError}
         />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isPending) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (query.isError) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {header}
         <EmptyState
           icon="alert-triangle"
@@ -112,7 +112,7 @@ export default function BoardMembersScreen() {
             />
           </View>
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
@@ -196,7 +196,7 @@ export default function BoardMembersScreen() {
     ) : null;
 
   return (
-    <>
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
       {header}
       <FlatList
         data={members}
@@ -254,6 +254,6 @@ export default function BoardMembersScreen() {
           onClose={() => setActionMember(null)}
         />
       ) : null}
-    </>
+    </SafeAreaView>
   );
 }

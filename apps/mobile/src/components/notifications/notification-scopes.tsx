@@ -1,4 +1,4 @@
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
 import { Button } from '@/components/button';
@@ -8,7 +8,7 @@ import { Text } from '@/components/text';
 import { useNotificationPreferences } from '@/lib/use-notification-preferences';
 import { strings } from '@/lib/strings';
 import { useTRPC } from '@/trpc/provider';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type PreferenceRow = RouterOutputs['notifications']['preferences']['list'][number];
 type MuteLevel = 'none' | 'mentions_only' | 'all';
@@ -47,7 +47,7 @@ const KIND_ICON: Record<'workspace' | 'board' | 'card', IconName> = {
  */
 export function NotificationScopes() {
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const copy = strings.notificationSettings.scopes;
   const query = useQuery(trpc.notifications.preferences.list.queryOptions());
   const { saveScope, removeScope, isRemovingScope } = useNotificationPreferences();

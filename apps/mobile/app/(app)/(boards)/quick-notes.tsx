@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
-import { FlatList, RefreshControl, View, useColorScheme } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { FlatList, RefreshControl, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
 import { Text } from '@/components/text';
@@ -9,12 +10,13 @@ import { EmptyState } from '@/components/empty-state';
 import { LoadingScreen } from '@/components/loading-screen';
 import { InlineComposer } from '@/components/inline-composer';
 import { QuickNoteRow } from '@/components/quick-note-row';
+import { ScreenHeader } from '@/components/screen-header';
 import { Sheet } from '@/components/sheet';
 import { LocationPicker, useLocationPicker } from '@/components/location-picker';
 import { Button } from '@/components/button';
 import { useQuickNoteMutations, type QuickNote } from '@/lib/use-quick-note-mutations';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Hızlı Notlar ekranı — DEM-203 WP3/WP4 (merkezi "Ekle" butonuna dokununca açılır).
@@ -33,7 +35,7 @@ import { themeFor } from '@/theme/tokens';
  */
 export default function QuickNotesScreen() {
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const notesQuery = useQuery(trpc.quickNote.list.queryOptions());
   const mutations = useQuickNoteMutations();
   const { createNote, convertToCard, convertPending } = mutations;
@@ -86,20 +88,20 @@ export default function QuickNotesScreen() {
     [],
   );
 
-  const screen = <Stack.Screen options={{ title: strings.quickNotes.title }} />;
+  const screen = <ScreenHeader title={strings.quickNotes.title} />;
 
   if (notesQuery.isPending) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {screen}
         <LoadingScreen />
-      </>
+      </SafeAreaView>
     );
   }
 
   if (notesQuery.isError) {
     return (
-      <>
+      <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {screen}
         <EmptyState
           icon="alert-triangle"
@@ -108,16 +110,16 @@ export default function QuickNotesScreen() {
         >
           <Button label={strings.common.retry} onPress={() => void notesQuery.refetch()} />
         </EmptyState>
-      </>
+      </SafeAreaView>
     );
   }
 
   const notes = notesQuery.data;
 
   return (
-    <>
+    <SafeAreaView edges={['top']} className="flex-1 bg-background">
       {screen}
-      <View className="flex-1 bg-background">
+      <View className="flex-1">
         {/* Hızlı-ekleme — gönder sonrası açık kalır, art arda not eklenir. */}
         <View className="border-b border-border p-4">
           <InlineComposer
@@ -176,6 +178,6 @@ export default function QuickNotesScreen() {
           />
         </View>
       </Sheet>
-    </>
+    </SafeAreaView>
   );
 }

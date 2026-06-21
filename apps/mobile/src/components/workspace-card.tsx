@@ -1,12 +1,13 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { RoleBadge } from '@/components/role-badge';
 import { Text } from '@/components/text';
+import { avatarColor } from '@/lib/avatar-color';
 import { workspaceRoleLabel } from '@/lib/member-roles';
 import { formatRelativeTime } from '@/lib/format-date';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import type { WorkspaceRole } from '@pusula/domain';
 
 type BoardPreview = { title: string; icon: string };
@@ -39,7 +40,7 @@ function MetaItem({ icon, label, color }: { icon: IconName; label: string; color
 }
 
 function BoardChip({ title }: BoardPreview) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="flex-row items-center gap-1 rounded-md bg-muted px-2 py-1">
       <Icon name="trello" size={11} color={theme.mutedForeground} />
@@ -64,7 +65,7 @@ function ListCard({
   previewBoards,
   onPress,
 }: Omit<WorkspaceCardProps, 'compact' | 'selected'>) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const boards = previewBoards ?? [];
   const extraBoardCount = boardCount - boards.length;
 
@@ -72,22 +73,30 @@ function ListCard({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="flex-row items-center gap-4 rounded-2xl border border-border bg-card p-4 active:opacity-80"
+      className="flex-row items-stretch overflow-hidden rounded-2xl border border-border bg-card active:opacity-80"
     >
-      <EntityAvatar name={name} icon={icon} size={52} />
+      {/* Sol kimlik şeridi — workspace'in deterministik rengi. Kartı zeminden
+          ayırır (kontrast) + her workspace'e renk kimliği verir (canlılık). */}
+      <View style={{ width: 4, backgroundColor: avatarColor(name) }} />
 
-      <View className="min-w-0 flex-1 gap-2">
-        {/* İsim + rol rozeti. */}
-        <View className="flex-row items-center gap-2">
-          <Text
-            weight="semibold"
-            className="flex-1 text-[15px] text-foreground"
-            numberOfLines={1}
-          >
-            {name}
-          </Text>
-          <RoleBadge label={workspaceRoleLabel(role)} />
-        </View>
+      <View className="flex-1 flex-row items-center gap-4 p-4">
+        <EntityAvatar name={name} icon={icon} size={52} />
+
+        <View className="min-w-0 flex-1 gap-2">
+          {/* İsim + rol rozeti. */}
+          <View className="flex-row items-center gap-2">
+            <Text
+              weight="semibold"
+              className="flex-1 text-[15px] text-foreground"
+              numberOfLines={1}
+            >
+              {name}
+            </Text>
+            <RoleBadge
+              label={workspaceRoleLabel(role)}
+              tone={role === 'owner' ? 'primary' : 'neutral'}
+            />
+          </View>
 
         {/* Board chip önizlemeleri. */}
         {boards.length > 0 ? (
@@ -125,7 +134,8 @@ function ListCard({
         </View>
       </View>
 
-      <Icon name="chevron-right" size={16} color={theme.mutedForeground} />
+        <Icon name="chevron-right" size={16} color={theme.mutedForeground} />
+      </View>
     </Pressable>
   );
 }
@@ -144,41 +154,48 @@ function CompactCard({
   selected,
   onPress,
 }: Omit<WorkspaceCardProps, 'compact' | 'previewBoards'>) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={`flex-row items-center gap-3 rounded-xl border p-3 active:opacity-80 ${
+      className={`flex-row items-stretch overflow-hidden rounded-xl border active:opacity-80 ${
         selected ? 'border-primary bg-primary/5' : 'border-border bg-card'
       }`}
     >
-      <EntityAvatar name={name} icon={icon} size={36} />
-      <View className="min-w-0 flex-1 gap-0.5">
-        <Text weight="semibold" className="text-sm text-foreground" numberOfLines={1}>
-          {name}
-        </Text>
-        <View className="flex-row items-center gap-2.5">
-          <MetaItem
-            icon="trello"
-            label={`${boardCount} ${strings.workspaces.boardCountSuffix}`}
-            color={theme.mutedForeground}
-          />
-          <MetaItem
-            icon="users"
-            label={`${memberCount} ${strings.workspaces.memberCountSuffix}`}
-            color={theme.mutedForeground}
-          />
-          {lastActivityAt ? (
-            <Text className="text-xs text-muted-foreground">
-              {formatRelativeTime(lastActivityAt)}
-            </Text>
-          ) : null}
+      {/* Sol kimlik şeridi — workspace rengiyle (liste kartıyla aynı dil). */}
+      <View style={{ width: 3, backgroundColor: avatarColor(name) }} />
+      <View className="flex-1 flex-row items-center gap-3 p-3">
+        <EntityAvatar name={name} icon={icon} size={36} />
+        <View className="min-w-0 flex-1 gap-0.5">
+          <Text weight="semibold" className="text-sm text-foreground" numberOfLines={1}>
+            {name}
+          </Text>
+          <View className="flex-row items-center gap-2.5">
+            <MetaItem
+              icon="trello"
+              label={`${boardCount} ${strings.workspaces.boardCountSuffix}`}
+              color={theme.mutedForeground}
+            />
+            <MetaItem
+              icon="users"
+              label={`${memberCount} ${strings.workspaces.memberCountSuffix}`}
+              color={theme.mutedForeground}
+            />
+            {lastActivityAt ? (
+              <Text className="text-xs text-muted-foreground">
+                {formatRelativeTime(lastActivityAt)}
+              </Text>
+            ) : null}
+          </View>
         </View>
+        <RoleBadge
+          label={workspaceRoleLabel(role)}
+          tone={role === 'owner' ? 'primary' : 'neutral'}
+        />
       </View>
-      <RoleBadge label={workspaceRoleLabel(role)} />
     </Pressable>
   );
 }

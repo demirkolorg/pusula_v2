@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
@@ -7,7 +7,7 @@ import type { BoardCard, BoardList } from '@/lib/board-cache';
 import { isPendingId } from '@/lib/client-mutation-id';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 export interface BoardSidebarProps {
   /** Aktif (arşivli olmayan) listeler — parent filtreler. */
@@ -43,7 +43,7 @@ export function BoardSidebar({
   selectedCardId,
 }: BoardSidebarProps) {
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   // Sidebar yalnız tablet'te; alttaki floating pill nav son kartı örtmesin.
   const navInset = useFloatingNavInset();
 

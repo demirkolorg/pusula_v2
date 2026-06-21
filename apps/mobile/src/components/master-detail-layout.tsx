@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Icon } from '@/components/icon';
 import { useIsTablet } from '@/lib/use-device-class';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 export type MasterDetailFallback = 'master' | 'detail';
 
@@ -69,7 +69,7 @@ export function MasterDetailLayout({
   testID,
 }: MasterDetailLayoutProps) {
   const isTablet = useIsTablet();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   // Hook'lar koşulsuz çağrılır (Rules of Hooks). Phone/non-collapsible branch'te
   // kullanılmasalar da ucuzdur. `width` shared value sidebar genişliğini taşır;

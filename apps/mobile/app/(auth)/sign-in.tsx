@@ -7,8 +7,13 @@ import { fontFamilyForWeight } from '@/theme/fonts';
 import { authClient } from '@/lib/auth-client';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { AuthScreen } from '@/components/auth-screen';
+import { BoardMockup } from '@/components/board-mockup';
+import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/button';
+import { FloatingActivity } from '@/components/floating-activity';
 import { FormMessage } from '@/components/form-message';
+import { RotatingHeadline } from '@/components/rotating-headline';
+import { SocialProof } from '@/components/social-proof';
 import { TextField } from '@/components/text-field';
 import { strings } from '@/lib/strings';
 
@@ -19,6 +24,7 @@ import { strings } from '@/lib/strings';
  */
 export default function SignInScreen() {
   const copy = strings.auth.signIn;
+  const landing = strings.auth.landing;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
@@ -53,7 +59,33 @@ export default function SignInScreen() {
   };
 
   return (
-    <AuthScreen title={copy.title} subtitle={copy.description}>
+    <AuthScreen
+      title={copy.title}
+      subtitle={copy.description}
+      hero={
+        <View className="items-center gap-4">
+          <BrandMark size={52} />
+          <View className="items-center gap-2">
+            <Text weight="medium" className="text-sm text-primary">
+              {landing.heroEyebrow}
+            </Text>
+            <RotatingHeadline />
+          </View>
+        </View>
+      }
+      belowCard={
+        <View className="items-center gap-9">
+          <SocialProof />
+          {/* Board mockup + onu çerçeveleyen yüzen aktivite rozetleri. Yüzen
+              rozetler `absolute` olarak board'un dışına taşar; bu yüzden saran
+              View `relative` ve dikey nefes payı taşır. */}
+          <View className="relative" style={{ paddingVertical: 18 }}>
+            <BoardMockup />
+            <FloatingActivity />
+          </View>
+        </View>
+      }
+    >
       <View className="gap-4">
         <TextField
           label={strings.auth.emailLabel}

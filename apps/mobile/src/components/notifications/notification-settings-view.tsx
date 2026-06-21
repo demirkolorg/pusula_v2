@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { AccountPageHeader } from '@/components/account/account-page-header';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { LoadingScreen } from '@/components/loading-screen';
@@ -18,6 +19,7 @@ import {
   type GlobalPreferenceFields,
 } from '@/lib/use-notification-preferences';
 import { strings } from '@/lib/strings';
+import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
 import { useIsTablet } from '@/lib/use-device-class';
 import { useTRPC } from '@/trpc/provider';
 
@@ -65,6 +67,9 @@ export function NotificationSettingsView() {
   // sağ seçili kategori detayı. Phone'da değişmez (tek ScrollView, 5 bölüm
   // sırayla). Default seçim ilk kategori (`channels`).
   const isTablet = useIsTablet();
+  // Tablet'te alttaki floating pill nav, en alt bölümün (cihazlar/kapsam) son
+  // satırlarını örtmesin — kaydırılan detay içeriğine alt boşluk bırak.
+  const navInset = useFloatingNavInset();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const sidebarWidth = isTablet && viewportWidth > viewportHeight ? 384 : 320;
   const [selectedCategory, setSelectedCategory] =
@@ -258,7 +263,11 @@ export function NotificationSettingsView() {
           </ScrollView>
         }
         detail={
-          <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4 pb-10">
+          <ScrollView
+            className="flex-1 bg-background"
+            contentContainerClassName="p-4"
+            contentContainerStyle={{ paddingBottom: navInset || 40 }}
+          >
             {sectionByCategory[selectedCategory]}
           </ScrollView>
         }
@@ -269,7 +278,16 @@ export function NotificationSettingsView() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-6 p-4 pb-10">
+    <ScrollView
+      className="flex-1 bg-muted"
+      contentContainerClassName="gap-6 p-4"
+      contentContainerStyle={{ paddingBottom: navInset || 40 }}
+    >
+      <AccountPageHeader
+        icon="bell"
+        title={strings.notificationSettings.title}
+        subtitle={strings.notificationSettings.subtitle}
+      />
       {channelsSection}
       {matrixSection}
       {scopesSection}

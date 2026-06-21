@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
@@ -15,7 +15,7 @@ import {
   type LocationSelection,
 } from '@/lib/location-selection';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Kademeli konum seçici — DEM-203 ortak bileşeni.
@@ -137,7 +137,7 @@ function PickerRow({
   locked: boolean;
   onPress: () => void;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const display = value ?? label;
 
   return (
@@ -184,7 +184,7 @@ function StepList<T extends { id: string }>({
   onSelect: (item: T) => void;
   onRetry: () => void;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   if (isPending) {
     return (

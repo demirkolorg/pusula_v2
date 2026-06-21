@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
@@ -25,7 +25,7 @@ import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
 import { useAttachmentUpload, type AttachmentUploadSource } from '@/lib/use-attachment-upload';
 import { useTRPC } from '@/trpc/provider';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type Attachments = RouterOutputs['attachment']['list'];
 type Attachment = Attachments[number];
@@ -76,7 +76,7 @@ export function AttachmentsSection({
 }: AttachmentsSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const listKey = trpc.attachment.list.queryKey({ cardId });
   const boardKey = boardId ? trpc.board.get.queryKey({ boardId }) : null;
 

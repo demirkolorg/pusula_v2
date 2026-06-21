@@ -1,6 +1,7 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { NotificationDetail } from '@/components/notifications/notification-detail';
+import { ScreenHeader } from '@/components/screen-header';
 import { strings } from '@/lib/strings';
 
 /**
@@ -18,8 +19,8 @@ export default function NotificationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['left', 'right']}>
-      <Stack.Screen options={{ title: strings.notifications.detail.title, headerShown: true }} />
+    <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+      <ScreenHeader title={strings.notifications.detail.title} />
       <NotificationDetail notificationId={id ?? null} />
     </SafeAreaView>
   );

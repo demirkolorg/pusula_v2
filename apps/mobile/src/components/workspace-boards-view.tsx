@@ -4,7 +4,6 @@ import {
   FlatList,
   RefreshControl,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,7 +16,7 @@ import { EmptyState } from '@/components/empty-state';
 import { LoadingScreen } from '@/components/loading-screen';
 import { useIsTablet } from '@/lib/use-device-class';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type Board = RouterOutputs['board']['list'][number];
 
@@ -42,7 +41,7 @@ export interface WorkspaceBoardsViewProps {
 export function WorkspaceBoardsView({ workspaceId }: WorkspaceBoardsViewProps) {
   const router = useRouter();
   const trpc = useTRPC();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const query = useQuery(
     trpc.board.list.queryOptions(
       { workspaceId },

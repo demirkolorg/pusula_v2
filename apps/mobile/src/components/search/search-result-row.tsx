@@ -1,8 +1,8 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** `search.query` çıktısındaki tek sonuç (router sözleşmesinden türetilir). */
 export type SearchResultItem = RouterOutputs['search']['query']['items'][number];
@@ -49,7 +49,7 @@ function resultContext(result: SearchResultItem, scope: SearchScope): string {
  * Snippet API'den düz metin gelir (HTML yok — domain `06-arama-kapsami.md`).
  */
 export function SearchResultRow({ result, scope, onPress }: SearchResultRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const snippet = result.snippet.trim();
   const context = resultContext(result, scope);
 

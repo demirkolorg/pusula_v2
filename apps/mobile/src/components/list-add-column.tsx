@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { strings } from '@/lib/strings';
 import { useDeviceClass, useIsLandscape } from '@/lib/use-device-class';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type ListAddColumnProps = {
   onCreate: (title: string) => void;
@@ -20,7 +20,7 @@ type ListAddColumnProps = {
  * kuralı izler (phone w-72, tablet portrait w-80, tablet landscape w-96).
  */
 export function ListAddColumn({ onCreate }: ListAddColumnProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [open, setOpen] = useState(false);
   const isTablet = useDeviceClass() === 'tablet';
   const isLandscape = useIsLandscape();

@@ -1,12 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  AppState,
-  Pressable,
-  ScrollView,
-  Text as RNText,
-  View,
-  useColorScheme,
-} from 'react-native';
+import { AppState, Pressable, ScrollView, Text as RNText, View } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import type { ErrorBoundaryProps } from 'expo-router';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
@@ -26,7 +19,7 @@ import { useNotificationDeepLink } from '@/lib/use-notification-deep-link';
 import { useTRPC } from '@/trpc/provider';
 import { strings } from '@/lib/strings';
 import { fontFamilyForWeight } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /**
  * Cold-start initial route'u — file-scope `unstable_settings` export (Expo
@@ -117,7 +110,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
  */
 export default function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const trpc = useTRPC();
   // Faz 15H (2026-05-31 2. tur) — iPad'de tab bar floating pill bottom nav'a
   // taşındı (Apple Music iPad / Trello iPad güncel pattern). Phone'da default

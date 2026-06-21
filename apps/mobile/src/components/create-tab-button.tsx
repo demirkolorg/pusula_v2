@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
 import { CreateMenuSheet } from '@/components/create-menu-sheet';
 import { useQuickNoteDraft } from '@/lib/quick-note-draft';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CreateTabButtonProps = {
   /**
@@ -43,7 +43,7 @@ type CreateTabButtonProps = {
  */
 export function CreateTabButton({ compact = false }: CreateTabButtonProps = {}) {
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
   const { active: dockActive, submit: submitQuickNote } = useQuickNoteDraft();
 

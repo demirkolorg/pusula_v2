@@ -1,10 +1,10 @@
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { EntityAvatar } from '@/components/entity-avatar';
 import { Icon } from '@/components/icon';
 import { RoleBadge } from '@/components/role-badge';
 import { Text } from '@/components/text';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type SentInvitationRowProps = {
   /** Davet edilen e-posta adresi — satırın birincil kimliği. */
@@ -35,7 +35,7 @@ export function SentInvitationRow({
   pending,
   onCancel,
 }: SentInvitationRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   const handlePress = () => {
     Alert.alert(

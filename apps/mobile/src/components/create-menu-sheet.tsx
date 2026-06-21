@@ -1,10 +1,10 @@
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CreateMenuSheetProps = {
   visible: boolean;
@@ -28,7 +28,7 @@ type CreateMenuItem = {
  */
 export function CreateMenuSheet({ visible, onClose }: CreateMenuSheetProps) {
   const router = useRouter();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   const items: readonly CreateMenuItem[] = [
     { icon: 'plus-square', label: strings.create.menuCard, href: '/(app)/(boards)/create-card' },

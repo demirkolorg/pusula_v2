@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View, useColorScheme } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { strings } from '@/lib/strings';
 import { defaultFontFamily } from '@/theme/fonts';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type InlineComposerProps = {
   placeholder: string;
@@ -37,7 +37,7 @@ export function InlineComposer({
   onCancel,
   hideCancel = false,
 }: InlineComposerProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [value, setValue] = useState(initialValue);
   const trimmed = value.trim();
   const canSubmit = trimmed.length > 0;

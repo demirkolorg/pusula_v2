@@ -20,7 +20,7 @@ related:
   - '[[docs/architecture/08-web-ve-mobil|Web ve Mobil]]'
   - '[[docs/architecture/20-hareket-etkilesim-sistemi|Hareket & Etkileşim Sistemi]]'
   - '[[docs/process/02-mvp-faz-plani|MVP Faz Planı]]'
-updated: 2026-06-19
+updated: 2026-06-21
 ---
 
 # 13 — UI Tasarım Dili
@@ -380,8 +380,30 @@ Tüm ekranlarda her ikisinde test:
 - **Server-side preference** — `users.theme` kolonu, Better Auth profil entegrasyonu, çoklu cihaz tutarlılık. Sonraki tur (`bosluk-tara` / Faz 8 / kullanıcı isteği).
 - **Cookie modu** — SSR'da ilk render'da hedef tema. Kullanıcı kararı: localStorage yeterli.
 - **Auth ekranlarında toggle** — ilk turda dışarıda; kullanıcı isterse sonraki tur.
-- **`apps/mobile` tema** — Expo gelirse ayrı tartışılır (React Native `Appearance` API + AsyncStorage). Şu an apps/mobile yok.
+- **`apps/mobile` tema** — mobil açık/koyu/sistem seçimi yayında (`theme-provider` + `Appearance` API + AsyncStorage). Renk paleti + font kişiselleştirmesinin mobile taşınması → **§13.7.7** (2026-06-21).
 - **Board-başına user-uploaded image background** — gradient/solid Faz 2.7'de tamamlandı ([DEM-100](https://linear.app/demirkol/issue/DEM-100) + [DEM-111](https://linear.app/demirkol/issue/DEM-111) + 2026-05-15 Trello gradient spec'i). Faz 8.X ([DEM-202](https://linear.app/demirkol/issue/DEM-202) → DEM-242/243/244/245/246) kalan kapsamı kapatır: **user-uploaded görsel** (web + mobil) + **mobil gradient/solid parite**. Kanonik üçüncü varyant `image:<attachmentId>` `boardBackgroundSchema`'ya eklenir; `attachments` tablosu `kind='board_background'` satırı tutar (Faz 11 altyapısı paylaşılır). Image overlay: `linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 30%, transparent 60%)` `board-bg-image-overlay` token'ı header/topbar okunaklılığını korur. **Unsplash kapsam dışı** (V1) — ileri faz. Detay → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) Karar kaydı 2026-05-20 + [`08-web-ve-mobil.md`](08-web-ve-mobil.md) "Faz 8.X — Board görsel arka plan".
+
+### 13.7.7 Mobil tema kişiselleştirmesi (renk paleti + font) — 2026-06-21
+
+> Web'deki üç eksenli kişiselleştirme (mod + 15 renk paleti + font ailesi/boyutu) `apps/mobile`'a taşınır; hesap sayfası "Görünüm" bölümünden seçtirilir. Kullanıcı kararı (`AskUserQuestion` 2026-06-21): **15 paletin tamamı + font ailesi + font boyutu %90-120 sürekli**. Karar kaydı → [`02-teknoloji-kararlari.md`](02-teknoloji-kararlari.md) 2026-06-21.
+
+**Mevcut (mobil):** Açık/koyu/sistem seçimi ZATEN var — `apps/mobile/src/theme/theme-preference.ts` (AsyncStorage) + `theme-provider.tsx` (`Appearance.setColorScheme()` → `useColorScheme` + NativeWind `darkMode:'media'` ikisini tek noktadan sürer) + hesap `(account)` "Görünüm" + `components/account/appearance-view.tsx`. Bu işte eklenecek: **renk paleti** + **font** eksenleri.
+
+**Üç eksen (web simetriği):**
+
+- **Mod** — light/dark/system (mevcut, `Appearance.setColorScheme`).
+- **Renk paleti** — 15 palet (`emerald` varsayılan + slate/zinc/stone/neutral/rose/red/orange/amber/green/blue/cyan/violet/whatsapp/discord). Web `<html data-color-theme>` + CSS cascade; **mobil karşılığı NativeWind `vars()`**: root provider View'ında `vars(palette[colorTheme][mode])` ile CSS değişkenleri (`--primary` vb.) override edilir → tüm `bg-primary`/`text-foreground` className'leri seçili paleti kullanır.
+- **Font** — ailesi (`expo-google-fonts` mobil-uygun set; Poppins yüklü) + boyut (%90-120 sürekli). RN'de root-REM cascade yok → `FontScale` context + merkezi `@/components/text` çarpanı (Text dışı kapsama sınırlı; dürüst kısıt).
+
+**Token kaynağı (tek kaynak):** Mobilde iki token sistemi var — `theme/tokens.ts` (JS hex, `themeFor`) + `global.css` (CSS değişken RGB), bugün manuel senkron (DEM-177 borcu). 15 palet × (light+dark) × ~12 token değeri **elle değil**, web `packages/ui/src/styles/theme.css`'ten **üreten bir generator script** (oklch→rgb/hex) ile iki format tek kaynaktan senkron üretilir — bu işle DEM-177 senkron borcu da kapanır. `themeFor(scheme, colorTheme)` ve `vars()` aynı üretilen tablodan beslenir.
+
+**Persist:** AsyncStorage (web `localStorage` simetriği) — `pusula:theme-preference` (mod) yanına `pusula:color-theme` + `pusula:font-family` + `pusula:font-scale`. **DB yok** (web'de de yok; çoklu cihaz senkronu kapsam dışı).
+
+**Faz sırası:** belge → renk altyapısı (generator + token + provider + `vars()` + `tokens.ts`) → renk seçici UI (swatch grid) → font ailesi → font boyutu → QA.
+
+**JS token erişimi = `useTheme()` (ZORUNLU, 2026-06-21):** `className` dışı her renk (StyleSheet, native prop, StatusBar, navigasyon, `Icon color`, `tintColor`) `useTheme()` (`@/theme/theme-provider`) ile alınır. `themeFor(useColorScheme())` doğrudan ÇAĞRILMAZ — ikinci parametreyi (`colorTheme`) geçmediği için renk paleti değişimini almaz, emerald'de donar. `useTheme()`, `ThemeProvider` içinde `themeFor(resolvedScheme, colorTheme)` ile hesaplanıp memo'lanır; NativeWind `vars()` className katmanıyla aynı kaynaktan türer (iki katman senkron). Tek istisna: `app/(app)/_layout.tsx` `ErrorBoundary` — ThemeProvider sağlığı garanti olmayan crash güvenlik ağı, hardcoded hex kalır.
+
+**Ekran-içi başlık deseni (native stack header KULLANILMAZ, 2026-06-21):** `(boards)/(notifications)/(account)` Stack'leri `headerShown:false`; başlık ekranın içinde çizilir. Ortak bileşen `@/components/screen-header` — `ScreenHeader` (`title` + opsiyonel `subtitle` + sağ `right` slotu) ve `ScreenHeaderAction` (yuvarlak `bg-muted` aksiyon chip'i, `active` ile primary vurgu). Hesap içerik sayfaları (`AboutView`/`PrivacyPolicyView`/`TermsOfServiceView`) kendi `AccountPageHeader` hero'sunu çizer; board (`boards/[boardId]`) sabit aksiyon şeridini, kart (`cards/[cardId]`) collapsing başlık + ⋮ şeridini ekran-içinde çizer. Kök sarmalayıcı `SafeAreaView edges={['top']}`. Gerekçe: native header `theme.background`, ekran gövdesi `bg-muted` kullanıyordu → "siyah bant" tutarsızlığı; ekran-içi başlık gövdeyle aynı zeminde durur (arama ekranı bütünleşik deseni). **Görünür geri butonu yok** (DEM-206) — swipe-back / OS-geri korunur (`gestureEnabled` Stack varsayılanı).
 
 ## 13.8 App-shell v2: workspace + board switcher + user nav menu
 

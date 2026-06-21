@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -10,7 +10,7 @@ import Animated, {
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
 import { hapticLight } from '@/lib/haptics';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 /** Tek bir aksiyon yüzeyinin genişliği (px). */
 const ACTION_WIDTH = 84;
@@ -44,6 +44,14 @@ type SwipeRowProps = {
   actions: SwipeAction[];
   /** `false` → kaydırma devre dışı (örn. satır-içi düzenleme açıkken). */
   enabled?: boolean;
+  /**
+   * `true` → kapsayıcı `rounded-2xl` ile yuvarlatılır. Children'ı yuvarlak köşeli
+   * bir kart olan satırlarda (örn. bildirim satırı) ŞART: aksi halde kaydırma
+   * katmanının (`Animated.View` bg-card) kare köşeleri, children'ın yuvarlak
+   * köşelerinden "taşan başka renk" olarak görünür. Düz satırlarda (checklist,
+   * hızlı not) varsayılan `false`.
+   */
+  rounded?: boolean;
 };
 
 /**
@@ -62,8 +70,8 @@ type SwipeRowProps = {
  * `ScrollView`'un scroll'u ve pull-to-refresh'i bozulmaz. Açık satıra
  * içerikten dokununca satır kapanır (aksiyon yanlışlıkla tetiklenmesin).
  */
-export function SwipeRow({ children, actions, enabled = true }: SwipeRowProps) {
-  const theme = themeFor(useColorScheme());
+export function SwipeRow({ children, actions, enabled = true, rounded = false }: SwipeRowProps) {
+  const theme = useTheme();
   // Açılan toplam aksiyon paneli genişliği — aksiyon sayısıyla ölçeklenir.
   const panelWidth = actions.length * ACTION_WIDTH;
   // Satırın yatay konumu (px, ≤ 0). `translateX` UI-thread'inde okunur/yazılır.
@@ -148,7 +156,7 @@ export function SwipeRow({ children, actions, enabled = true }: SwipeRowProps) {
   }));
 
   return (
-    <View className="overflow-hidden">
+    <View className={`overflow-hidden ${rounded ? 'rounded-2xl' : ''}`}>
       {enabled ? (
         <View
           className="absolute bottom-0 right-0 top-0 flex-row"

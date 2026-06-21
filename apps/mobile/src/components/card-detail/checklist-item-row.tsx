@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -13,7 +13,7 @@ import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
 import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type ChecklistItem = RouterOutputs['checklist']['list'][number]['items'][number];
 
@@ -62,7 +62,7 @@ export function ChecklistItemRow({
   onOpenComments,
   highlighted = false,
 }: ChecklistItemRowProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
 
   const interactive = canEdit && !optimistic;
 

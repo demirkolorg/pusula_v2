@@ -1,9 +1,9 @@
-import { Pressable, ScrollView, useColorScheme } from 'react-native';
+import { Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { Sheet } from '@/components/sheet';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type ListOption = { id: string; title: string };
 
@@ -29,7 +29,7 @@ export function MoveToListSheet({
   onSelect,
   onClose,
 }: MoveToListSheetProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const hasTarget = lists.some((list) => list.id !== currentListId);
 
   return (

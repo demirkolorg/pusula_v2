@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from 'react';
 import type { ListRenderItem } from 'react-native';
-import { FlatList, Pressable, RefreshControl, View, useColorScheme } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 import type { RouterOutputs } from '@pusula/api';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
@@ -10,7 +10,7 @@ import { asListIcon, featherForListIcon, listColorHex, listIconColorToHex } from
 import { strings } from '@/lib/strings';
 import { useDeviceClass, useIsLandscape } from '@/lib/use-device-class';
 import { useFloatingNavInset } from '@/lib/use-floating-nav-inset';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 import { CardRow } from './card-row';
 
 type BoardData = RouterOutputs['board']['get'];
@@ -59,7 +59,7 @@ function BoardColumnImpl({
   refreshing,
   onRefresh,
 }: BoardColumnProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const [composerOpen, setComposerOpen] = useState(false);
   // Optimistic (henüz sunucuya yazılmamış) liste — ⋮ menüsü açılmaz.
   const listPending = isPendingId(list.id);

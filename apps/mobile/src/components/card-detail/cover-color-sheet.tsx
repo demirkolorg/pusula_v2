@@ -1,4 +1,4 @@
-import { Alert, Pressable, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CARD_COVER_COLORS, type CardCoverColor } from '@pusula/domain';
 import type { RouterOutputs } from '@pusula/api';
@@ -9,7 +9,7 @@ import { setCardCoverColorInCache } from '@/lib/board-cache';
 import { coverColorHex } from '@/lib/cover-color';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type CardGet = RouterOutputs['card']['get'];
 type BoardGet = RouterOutputs['board']['get'];
@@ -41,7 +41,7 @@ export function CoverColorSheetBody({
 }: CoverColorSheetBodyProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const cardKey = trpc.card.get.queryKey({ cardId });
   const boardKey = trpc.board.get.queryKey({ boardId });
 

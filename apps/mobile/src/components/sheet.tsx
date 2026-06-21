@@ -5,13 +5,12 @@ import {
   Platform,
   Pressable,
   View,
-  useColorScheme,
 } from 'react-native';
 import { Text } from '@/components/text';
 import { Icon } from '@/components/icon';
 import { useIsTablet } from '@/lib/use-device-class';
 import { strings } from '@/lib/strings';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type SheetProps = {
   visible: boolean;
@@ -40,7 +39,7 @@ type SheetProps = {
  * gerektiğinde `anchor?: RefObject<View>` prop'u eklenir.
  */
 export function Sheet({ visible, title, onClose, children }: SheetProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const isTablet = useIsTablet();
   return (
     <Modal

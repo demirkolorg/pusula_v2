@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, View, useColorScheme } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Text } from '@/components/text';
 import { Icon, type IconName } from '@/components/icon';
-import { themeFor } from '@/theme/tokens';
+import { useTheme } from '@/theme/theme-provider';
 
 type DetailSectionProps = {
   icon: IconName;
@@ -51,7 +51,7 @@ export function DetailSection({
   forceExpand = false,
   children,
 }: DetailSectionProps) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const initialCollapsed = collapsible && !forceExpand && defaultCollapsed;
   const [collapsed, setCollapsed] = useState(initialCollapsed);
@@ -128,7 +128,7 @@ export function SectionHeader({
   title: string;
   actions?: ReactNode;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <View className="min-h-9 flex-row items-center gap-2">
       <Icon name={icon} size={15} color={theme.mutedForeground} />
@@ -156,7 +156,7 @@ export function SectionHeaderAction({
   onPress: () => void;
   disabled?: boolean;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -200,7 +200,7 @@ export function SectionAddTrigger({
   onPress: () => void;
   disabled?: boolean;
 }) {
-  const theme = themeFor(useColorScheme());
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
