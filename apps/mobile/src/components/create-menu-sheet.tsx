@@ -18,19 +18,22 @@ type CreateMenuItem = {
 };
 
 /**
- * Oluşturma menüsü bottom sheet — DEM-203. Merkezi "Ekle" butonuna uzun
- * basınca `CreateTabButton` bunu açar. Dört satır: kart / liste / pano /
- * workspace oluşturma akışları (her biri `(boards)` stack'inde bir route).
+ * Oluşturma menüsü bottom sheet. Merkezi "Ekle" butonuna **tek dokunuş** ile
+ * `CreateTabButton` bunu açar. Beş satır: hızlı not / kart / liste / pano /
+ * workspace. Hızlı not kendi sekmesine (`/(app)/quick-notes`) yönlendirir;
+ * diğerleri `(boards)` stack'indeki ilgili oluşturma route'una gider.
  *
- * Mevcut `Sheet` (RN `Modal`) tabanlı — yeni native bağımlılık yok (7G-2
- * deseni). Bir satıra dokununca sheet kapanır ve ilgili create route'una
- * `router.push` yapılır.
+ * Mevcut `Sheet` (RN `Modal`) tabanlı — yeni native bağımlılık yok. Bir satıra
+ * dokununca sheet kapanır ve hedef route'a `router.push` yapılır.
  */
 export function CreateMenuSheet({ visible, onClose }: CreateMenuSheetProps) {
   const router = useRouter();
   const theme = useTheme();
 
   const items: readonly CreateMenuItem[] = [
+    // Hızlı not — hızlı yakalama kısayolu (menünün ilk öğesi). Oluşturma akışı
+    // değil, doğrudan Hızlı Notlar sekmesine gider; orada composer hep açık.
+    { icon: 'edit-3', label: strings.create.menuQuickNote, href: '/(app)/quick-notes' },
     { icon: 'plus-square', label: strings.create.menuCard, href: '/(app)/(boards)/create-card' },
     { icon: 'list', label: strings.create.menuList, href: '/(app)/(boards)/create-list' },
     { icon: 'trello', label: strings.create.menuBoard, href: '/(app)/(boards)/create-board' },

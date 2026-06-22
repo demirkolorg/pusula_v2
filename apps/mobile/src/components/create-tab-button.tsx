@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
 import { CreateMenuSheet } from '@/components/create-menu-sheet';
-import { useQuickNoteDraft } from '@/lib/quick-note-draft';
 import { strings } from '@/lib/strings';
 import { useTheme } from '@/theme/theme-provider';
 
@@ -17,45 +15,33 @@ type CreateTabButtonProps = {
 };
 
 /**
- * Merkezi "Ekle" tab butonu — DEM-203.
+ * Merkezi "Ekle" tab butonu.
  *
  * `<Tabs>`'in `create` ekranının `tabBarButton`'ı olarak takılır; gezinme
- * sekmesi değil bir aksiyon yüzeyidir (belgelenmiş "4 sekme" kararı korunur):
- * - **Dokunma (anasayfa dışında)** → tab navigasyonu intercept edilir,
- *   `router.push` ile Hızlı Notlar ekranına gidilir (`create` ekranı asla
- *   gösterilmez).
- * - **Dokunma (anasayfada — hızlı-not dock'u odaktayken)** → ekran açma
- *   baypas edilir; dock'a yazılı taslak doğrudan hızlı nota kaydedilir
- *   (DEM-230 — `useQuickNoteDraft().active`).
- * - **Uzun basış** → oluşturma menüsü (`CreateMenuSheet`) açılır (her ekranda).
+ * sekmesi değil bir aksiyon yüzeyidir. **TEK dokunuş** oluşturma menüsünü
+ * (`CreateMenuSheet`) açar — kullanıcı yapmak istediği eklemeyi (Hızlı not /
+ * Kart / Liste / Pano / Workspace) oradan seçer. `create` ekranı asla render
+ * edilmez.
+ *
+ * Sadeleştirme (kullanıcı kararı): önceki bağlama-duyarlı davranış kaldırıldı —
+ * dokunuş artık her ekranda aynı (menü açar); uzun-basış ve anasayfa hızlı-not
+ * dock'u kaydetme kısayolu yok. Anasayfa dock'u kendi gönder butonuyla
+ * çalışmaya devam eder (bu butona bağlı değil).
  *
  * Görsel olarak tab bar düzleminin üstüne taşan, `primary` arka planlı,
  * yuvarlak, büyük "+" ikonlu yükseltilmiş buton. Kapsayıcısı `flex-1` ile
- * diğer 4 sekmeyle eşit pay alır; böylece navigasyon butonları ortalı dağılır.
- * Sheet state'i bu bileşende yönetilir ve sheet burada render edilir.
+ * diğer sekmelerle eşit pay alır. Sheet state'i bu bileşende yönetilir.
  *
  * `<Tabs>` `tabBarButton` `props` (basış davranışı dahil) sağlar; bunları
- * bilerek yok sayarız — kendi `onPress`/`onLongPress`'imizi kullanırız.
+ * bilerek yok sayarız — kendi `onPress`'imizi kullanırız.
  *
  * Faz 15H — iPad floating pill nav (`FloatingPillTabBar`) bu butonu pill içinde
  * render eder. `compact={true}` props'u ile `flex-1` wrap + yükseltme kapatılır,
  * buton diğer pill sekmeleriyle eşit boyutta (`w-11 h-11`) kalır.
  */
 export function CreateTabButton({ compact = false }: CreateTabButtonProps = {}) {
-  const router = useRouter();
   const theme = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
-  const { active: dockActive, submit: submitQuickNote } = useQuickNoteDraft();
-
-  // Anasayfada hızlı-not dock'u odaktaysa "+" ekran açmaz, dock taslağını
-  // kaydeder (taslak boşsa `submit` no-op'tur); değilse Hızlı Notlar'a gider.
-  const handlePress = () => {
-    if (dockActive) {
-      submitQuickNote();
-    } else {
-      router.push('/(app)/(boards)/quick-notes');
-    }
-  };
 
   return (
     // Phone (default): `flex-1` ile diğer 4 sekmeyle eşit pay alır.
@@ -66,8 +52,7 @@ export function CreateTabButton({ compact = false }: CreateTabButtonProps = {}) 
         accessibilityRole="button"
         accessibilityLabel={strings.create.buttonLabel}
         accessibilityHint={strings.create.buttonHint}
-        onPress={handlePress}
-        onLongPress={() => setMenuVisible(true)}
+        onPress={() => setMenuVisible(true)}
         // Phone: ~18px yukarı taşar + büyük gölge. Tablet pill: yükseltme yok,
         // pill kendi gölgesini taşır — buton sade `primary` dairesi.
         style={

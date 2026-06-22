@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Text } from '@/components/text';
+import { Icon } from '@/components/icon';
 import { InlineComposer } from '@/components/inline-composer';
 import { SwipeRow } from '@/components/swipe-row';
 import { isPendingId } from '@/lib/client-mutation-id';
+import { formatRelativeTime } from '@/lib/format-date';
 import type { QuickNote } from '@/lib/use-quick-note-mutations';
 import { strings } from '@/lib/strings';
+import { useTheme } from '@/theme/theme-provider';
 
 type QuickNoteRowProps = {
   note: QuickNote;
@@ -31,8 +34,11 @@ type QuickNoteRowProps = {
  * deseni — `board-column.tsx` / `quick-note-dock`).
  */
 export function QuickNoteRow({ note, onUpdate, onDelete, onConvert }: QuickNoteRowProps) {
+  const theme = useTheme();
   const [editing, setEditing] = useState(false);
   const pending = isPendingId(note.id);
+  // Düzenlenmiş not — `updatedAt` `createdAt`'ten ileri ise meta'da "düzenlendi".
+  const edited = note.updatedAt.getTime() - note.createdAt.getTime() > 1000;
 
   const confirmDelete = () => {
     Alert.alert(
@@ -66,21 +72,32 @@ export function QuickNoteRow({ note, onUpdate, onDelete, onConvert }: QuickNoteR
   }
 
   const card = (
-    <View className="bg-card p-3">
-      <Text className="text-sm text-foreground">{note.content}</Text>
+    <View className="gap-1.5 bg-card px-4 py-3.5">
+      <Text numberOfLines={4} className="text-[15px] text-foreground">
+        {note.content}
+      </Text>
+      {/* Meta satırı — göreli oluşturulma zamanı + (varsa) "düzenlendi" rozeti. */}
+      <View className="flex-row items-center gap-1.5">
+        <Icon name="clock" size={12} color={theme.mutedForeground} />
+        <Text className="text-xs text-muted-foreground">{formatRelativeTime(note.createdAt)}</Text>
+        {edited ? (
+          <Text className="text-xs text-muted-foreground">· {strings.quickNotes.editedSuffix}</Text>
+        ) : null}
+      </View>
     </View>
   );
 
   // Geçici (tmp-) not — sunucuda yok; kaydırmalı aksiyonlar kapalı, düz kart.
   if (pending) {
     return (
-      <View className="overflow-hidden rounded-lg border border-border opacity-50">{card}</View>
+      <View className="overflow-hidden rounded-2xl border border-border opacity-50">{card}</View>
     );
   }
 
   return (
-    <View className="overflow-hidden rounded-lg border border-border">
+    <View className="overflow-hidden rounded-2xl border border-border">
       <SwipeRow
+        rounded
         actions={[
           {
             key: 'edit',

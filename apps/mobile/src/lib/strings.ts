@@ -24,18 +24,24 @@ export const strings = {
   },
   tabs: {
     boards: 'Panolar',
+    // Hızlı Notlar artık kendi alt-bar sekmesi (`edit-3` ikonu) — önceden yalnız
+    // merkezi "+" butonundan açılırdı.
+    quickNotes: 'Hızlı Notlar',
     search: 'Arama',
     notifications: 'Bildirimler',
     account: 'Hesap',
   },
-  // Merkezi "Ekle" butonu + oluşturma menüsü (DEM-203).
+  // Merkezi "Ekle" butonu + oluşturma menüsü.
   create: {
-    // Yükseltilmiş tab bar butonu — dokunma Hızlı Notlar'a gider, uzun basış
-    // oluşturma menüsünü açar.
+    // Yükseltilmiş tab bar butonu — TEK dokunuş oluşturma menüsünü açar.
+    // Sadeleştirme: önceki "dokun=Hızlı Notlar / uzun bas=menü" davranışı
+    // kaldırıldı; tüm oluşturma akışları (Hızlı Not dahil) artık menüden seçilir.
     buttonLabel: 'Ekle',
-    buttonHint: 'Dokun: Hızlı Notlar · Uzun bas: oluşturma menüsü',
-    // Uzun basışta açılan oluşturma menüsü (bottom sheet) başlığı + satırları.
+    buttonHint: 'Oluşturma menüsünü açar',
+    // Açılan oluşturma menüsü (bottom sheet) başlığı + satırları.
     menuTitle: 'Ne oluşturmak istersin?',
+    // Hızlı not kısayolu — menünün ilk öğesi (hızlı yakalama).
+    menuQuickNote: 'Hızlı not',
     menuCard: 'Kart oluştur',
     menuList: 'Liste oluştur',
     menuBoard: 'Pano oluştur',
@@ -44,14 +50,20 @@ export const strings = {
   // Hızlı Notlar ekranı (DEM-203 — WP3/WP4: CRUD + not→kart dönüşümü).
   quickNotes: {
     title: 'Hızlı Notlar',
+    // Başlık altı özet — `${n} not` (0 notta gösterilmez).
+    countSuffix: 'not',
     // Hızlı-ekleme composer'ı.
     addPlaceholder: 'Hızlı bir not yaz…',
     addSubmit: 'Ekle',
     // Dock-içi send butonu sonrası kısa görsel onay (DEM-236 2. tur, 2026-05-21).
     saved: 'Kaydedildi',
+    // Not kartı meta satırı — düzenlenmiş notlarda göreli zamanın yanına gelir.
+    editedSuffix: 'düzenlendi',
     // Boş durum.
-    emptyTitle: 'Henüz not yok',
-    emptyDescription: 'Aklına geleni hızlıca buraya yaz, sonra bir karta dönüştür.',
+    emptyTitle: 'İlk notunu yaz',
+    emptyDescription: 'Aklına geleni hızlıca buraya kaydet, sonra dilersen bir panoya taşı.',
+    // Boş durum alt ipucu — hep-açık composer'a yönlendirir.
+    emptyHint: 'Yukarıdaki kutuya yazıp Ekle’ye dokun.',
     // Yükleniyor / hata.
     loadError: 'Notlar yüklenemedi.',
     // Not satırı aksiyonları. `editShort`/`convertShort` kaydırmalı satır

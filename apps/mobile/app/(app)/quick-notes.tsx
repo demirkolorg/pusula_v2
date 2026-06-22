@@ -19,11 +19,15 @@ import { strings } from '@/lib/strings';
 import { useTheme } from '@/theme/theme-provider';
 
 /**
- * Hızlı Notlar ekranı — DEM-203 WP3/WP4 (merkezi "Ekle" butonuna dokununca açılır).
+ * Hızlı Notlar ekranı — alt-bar sekmesi (`app/(app)/quick-notes.tsx`, `edit-3`
+ * ikonu). Önceden `(boards)` grubundaydı ve yalnız merkezi "+" butonundan
+ * açılırdı; kendi sekmesine taşındı (kullanıcı kararı). Merkezi "+" menüsünde
+ * de "Hızlı not" kısayolu buraya yönlendirir.
  *
- * Kişisel hızlı-yakalama ekranı: üstte hep-açık `InlineComposer` ile art arda
- * not eklenir, altında notlar yeniden-eskiye `FlatList`'le listelenir. Her satır
- * (`QuickNoteRow`) satır-içi düzenleme, onaylı silme ve "Panoya taşı" sunar.
+ * Kişisel hızlı-yakalama ekranı: üstte hep-açık (yükseltilmiş kart) `InlineComposer`
+ * ile art arda not eklenir, altında notlar yeniden-eskiye `FlatList`'le
+ * listelenir. Her satır (`QuickNoteRow`) satır-içi düzenleme, onaylı silme ve
+ * "Panoya taşı" sunar; kart göreli oluşturulma zamanını gösterir.
  *
  * Not→kart dönüşümü (WP4): "Panoya taşı" `LocationPicker`'ı (`depth='list'`) bir
  * `Sheet` içinde açar; workspace→pano→liste seçimi tamamlanınca `convertToCard`
@@ -91,6 +95,7 @@ export default function QuickNotesScreen() {
   const screen = <ScreenHeader title={strings.quickNotes.title} />;
 
   if (notesQuery.isPending) {
+    // İlk yükleme — başlık (özet henüz yok) + spinner.
     return (
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
         {screen}
@@ -118,10 +123,17 @@ export default function QuickNotesScreen() {
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-background">
-      {screen}
+      {/* Başlık + not sayısı özeti (0 notta özet gizli). */}
+      <ScreenHeader
+        title={strings.quickNotes.title}
+        subtitle={
+          notes.length > 0 ? `${notes.length} ${strings.quickNotes.countSuffix}` : undefined
+        }
+      />
       <View className="flex-1">
-        {/* Hızlı-ekleme — gönder sonrası açık kalır, art arda not eklenir. */}
-        <View className="border-b border-border p-4">
+        {/* Hızlı-ekleme — yükseltilmiş kart composer; gönder sonrası açık kalır,
+            art arda not eklenir. Ayrı `border-b` yok; kart kendi kenarını çizer. */}
+        <View className="px-4 pb-2 pt-3">
           <InlineComposer
             placeholder={strings.quickNotes.addPlaceholder}
             submitLabel={strings.quickNotes.addSubmit}
@@ -129,6 +141,9 @@ export default function QuickNotesScreen() {
             // Hep-açık hızlı-ekleme — kapatılamaz, Vazgeç/x butonu gizlenir.
             hideCancel
             onCancel={() => {}}
+            // Modern görünüm: yükseltilmiş kart + gönder butonunda yukarı-ok.
+            elevated
+            submitIcon="arrow-up"
           />
         </View>
 
@@ -145,9 +160,14 @@ export default function QuickNotesScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="edit-3"
+              tone="primary"
               title={strings.quickNotes.emptyTitle}
               description={strings.quickNotes.emptyDescription}
-            />
+            >
+              <Text className="text-center text-xs text-muted-foreground">
+                {strings.quickNotes.emptyHint}
+              </Text>
+            </EmptyState>
           }
           refreshControl={
             <RefreshControl

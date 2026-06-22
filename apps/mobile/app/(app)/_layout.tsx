@@ -204,7 +204,13 @@ export default function AppLayout() {
               backgroundColor: theme.card,
               borderTopColor: theme.border,
             },
-            // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
+            // Etiketsiz alt bar — 6 öğe (Hızlı Notlar sekmesi eklendi) + ortada
+            // yükseltilmiş "+" düzeninde etiketler sığmadığından ikon-only'ye
+            // geçildi (kullanıcı kararı). `title` yine erişilebilirlik etiketi
+            // olarak okunur (`tabBarShowLabel` yalnız görsel etiketi gizler).
+            tabBarShowLabel: false,
+            // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula
+            // (etiket gizli olsa da kalır; ileride yeniden açılırsa font tutarlı).
             tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
             // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
             // anasayfa `QuickNoteDock` tab bar tepesinde oturduğundan klavye dock'u
@@ -233,18 +239,22 @@ export default function AppLayout() {
               tabBarIcon: ({ color, size }) => <Icon name="trello" color={color} size={size} />,
             }}
           />
+          {/*
+            Hızlı Notlar sekmesi — `app/(app)/quick-notes.tsx` (kendi tab'ı;
+            önceden `(boards)` grubundaydı ve yalnız "+" butonundan açılırdı).
+            Düzende "+"nın solunda, Panolar'dan sonra (2 sol sekme | + | 3 sağ).
+          */}
           <Tabs.Screen
-            name="search"
+            name="quick-notes"
             options={{
-              title: strings.tabs.search,
-              tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
+              title: strings.tabs.quickNotes,
+              tabBarIcon: ({ color, size }) => <Icon name="edit-3" color={color} size={size} />,
             }}
           />
           {/*
-            Merkezi "Ekle" — gezinme sekmesi değil, yükseltilmiş aksiyon butonu
-            (DEM-203). `tabBarButton` `CreateTabButton`'a verilir; o `onPress`'i
-            intercept edip Hızlı Notlar'a yönlendirir, `onLongPress`'te oluşturma
-            menüsünü açar. `create` ekranı asla render edilmez.
+            Merkezi "Ekle" — gezinme sekmesi değil, yükseltilmiş aksiyon butonu.
+            `tabBarButton` `CreateTabButton`'a verilir; TEK dokunuş oluşturma
+            menüsünü açar (sadeleştirme). `create` ekranı asla render edilmez.
           */}
           <Tabs.Screen
             name="create"
@@ -253,6 +263,13 @@ export default function AppLayout() {
               // Faz 15H: tablet pill içinde kompakt mod — `flex-1` wrap + yükseltme
               // kaldırılır, buton diğer pill sekmeleriyle eşit boyutta kalır.
               tabBarButton: () => <CreateTabButton compact={isTablet} />,
+            }}
+          />
+          <Tabs.Screen
+            name="search"
+            options={{
+              title: strings.tabs.search,
+              tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
             }}
           />
           <Tabs.Screen
