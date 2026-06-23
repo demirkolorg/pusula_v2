@@ -358,6 +358,13 @@
       "when": 1781989095286,
       "tag": "0050_tired_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1782204492835,
+      "tag": "0051_lumpy_hedge_knight",
+      "breakpoints": true
     }
   ]
 }

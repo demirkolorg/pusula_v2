@@ -1,0 +1,2 @@
+ALTER TABLE "notification_outbox" ADD COLUMN "actor_id" text;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

@@ -153,6 +153,13 @@ export const notificationOutbox = pgTable(
   {
     id: primaryId(),
     eventId: text().references(() => activityEvents.id, { onDelete: 'set null' }),
+    // Bildirim detay / audit (2026-06-23) — bildirimi tetikleyen aktör. In-app
+    // fan-out bunu `notifications.actorId`'ye kopyalar; detay ekranı aktör
+    // adı/görselini bu kolonun `users` join'inden okur (liste payload'tan okur,
+    // detay join'den — `actorId` doldurulmadan join boş döner, "Bir kullanıcı"
+    // fallback'i bundan kaynaklanıyordu). Scheduler kaynaklı (due_*) satırlarda
+    // aktör yok → null kalır.
+    actorId: text().references(() => users.id, { onDelete: 'set null' }),
     // Bildirim detay / audit (2026-06-20) — push tap'i in-app satıra dokunmakla
     // aynı detay ekranına götürmek için, `in_app` fan-out'ta üretilen
     // `notifications.id` aynı event'in `push` outbox satırına yazılır → push

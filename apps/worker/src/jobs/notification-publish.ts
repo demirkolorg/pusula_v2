@@ -75,6 +75,9 @@ type OutboxRow = {
   eventId: string | null;
   channel: 'in_app' | 'email' | 'push';
   recipientId: string | null;
+  // Bildirim detay / audit (2026-06-23) — tetikleyen aktör; in_app fan-out bunu
+  // `notifications.actorId`'ye kopyalar (detay ekranı aktör join'i için).
+  actorId: string | null;
   type: string;
   payload: unknown;
   // Faz 10G (DEM-141): `'digest_queued'` damgalı satırlar email kanal
@@ -122,6 +125,7 @@ export async function processNotificationPublishJob(
         eventId: notificationOutbox.eventId,
         channel: notificationOutbox.channel,
         recipientId: notificationOutbox.recipientId,
+        actorId: notificationOutbox.actorId,
         type: notificationOutbox.type,
         payload: notificationOutbox.payload,
         status: notificationOutbox.status,
@@ -196,6 +200,7 @@ async function dispatchOutboxRow(
       .insert(notifications)
       .values({
         recipientId: row.recipientId,
+        actorId: row.actorId,
         type: row.type as typeof notifications.$inferInsert.type,
         payload: (row.payload ?? {}) as Record<string, unknown>,
         // Bildirim detay / audit (2026-06-20) — back-link the in-app record to

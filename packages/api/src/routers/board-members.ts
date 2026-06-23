@@ -394,6 +394,7 @@ export const boardMembersRouter = router({
         channel: 'email',
         eventId: activity.id,
         recipientId: null,
+        actorId: ctx.session.user.id,
         type: 'board_invitation',
         payload: {
           boardId: ctx.board.id,

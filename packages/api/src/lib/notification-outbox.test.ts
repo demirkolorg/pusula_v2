@@ -109,6 +109,7 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
       recipientUserId: recipientId,
       type: 'card_assigned',
       channel: 'in_app',
+      actorId: null,
       payload: { activityType: 'card.member_added', notificationType: 'card_assigned' },
       ...overrides,
     };

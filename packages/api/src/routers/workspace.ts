@@ -373,6 +373,7 @@ const workspaceMembersRouter = router({
         channel: 'email',
         eventId: activity.id,
         recipientId: existingUser?.id ?? null,
+        actorId: ctx.session.user.id,
         type: 'workspace_invitation',
         payload: {
           workspaceId: ctx.workspace.id,
@@ -392,6 +393,7 @@ const workspaceMembersRouter = router({
           channel: 'in_app',
           eventId: activity.id,
           recipientId: existingUser.id,
+          actorId: ctx.session.user.id,
           type: 'workspace_invitation',
           payload: {
             workspaceId: ctx.workspace.id,

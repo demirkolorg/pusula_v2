@@ -146,6 +146,7 @@ export async function insertNotificationOutbox(
       eventId,
       channel: rule.channel,
       recipientId: rule.recipientUserId,
+      actorId: rule.actorId,
       type: rule.type,
       payload: rule.payload,
       status,

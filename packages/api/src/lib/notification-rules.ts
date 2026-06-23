@@ -71,6 +71,13 @@ export interface NotificationRule {
   type: NotificationType;
   channel: NotificationChannel;
   /**
+   * Bildirimi tetikleyen aktör (`activity_events.actorId`). Outbox satırına
+   * yazılır → in-app fan-out `notifications.actorId`'ye kopyalar; detay ekranı
+   * aktör adı/görselini bu kolonun join'inden okur. Scheduler kaynaklı
+   * bildirimlerde aktör yok → `null`.
+   */
+  actorId: string | null;
+  /**
    * Payload mirrored onto the outbox row; the worker hands it to whichever
    * fan-out channel ends up delivering the notification. Always carries
    * `activityType` so the worker can resolve the correct in-app copy + the
@@ -109,6 +116,7 @@ export async function computeNotifications(
         recipientUserId,
         type: notificationType,
         channel,
+        actorId: event.actorId,
         payload: buildPayload(event, notificationType, payloadContext),
       });
     }

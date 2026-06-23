@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/provider';
+import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { EntityAvatar } from '@/components/entity-avatar';
@@ -16,6 +17,8 @@ import {
 } from '@/lib/notification-audit';
 import {
   isSystemNotification,
+  notificationActorImage,
+  notificationActorName,
   notificationSummary,
   notificationTypeIcon,
   notificationTypeTone,
@@ -106,10 +109,18 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
   const detail = strings.notifications.detail;
   const navInset = useFloatingNavInset();
   const { markRead } = useNotificationMutations(LIST_INPUT);
+  // Push tap ile soğuk başlatmada oturum SecureStore'dan async hidre olur; cookie
+  // gelmeden atılan istek `byId` (protectedProcedure) için UNAUTHORIZED döner ve
+  // "yüklenemedi" hata ekranını tetikler. Oturum hazır olana dek query'yi inert
+  // tutarız (in-app liste akışında oturum zaten hazırdır, bu yüzden orada sorun yok).
+  const { data: session } = authClient.useSession();
 
   const hasId = notificationId != null && notificationId.length > 0;
   const query = useQuery(
-    trpc.notifications.byId.queryOptions({ id: notificationId ?? '' }, { enabled: hasId }),
+    trpc.notifications.byId.queryOptions(
+      { id: notificationId ?? '' },
+      { enabled: hasId && !!session },
+    ),
   );
   const notification = query.data ?? null;
 
@@ -158,7 +169,17 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
   const tone = notificationTypeTone(notification.type, theme);
   const iconName = notificationTypeIcon(notification.type);
   const summary = notificationSummary(notification.type, notification.payload);
-  const actorName = notification.actorName ?? strings.notifications.fallbackActorName;
+  // Aktör adı/görseli iki kaynaktan gelebilir: üst-seviye join alanı
+  // (`notification.actorName`, yalnız `notifications.actorId` doluysa) ve
+  // payload (`payload.actorName`, fan-out daima yazar). `actorId` insert'te set
+  // edilmediğinden join boş döner; bu yüzden payload'a düşeriz (liste satırıyla
+  // aynı kaynak — `notification-row.tsx`). Kalıcı düzeltme: worker insert'inde
+  // `actorId`'yi doldurmak (notification-publish.ts + outbox şeması).
+  const actorName =
+    notification.actorName ??
+    notificationActorName(notification.payload) ??
+    strings.notifications.fallbackActorName;
+  const actorImage = notification.actorImage ?? notificationActorImage(notification.payload);
   const relativeTime = formatRelativeTime(notification.createdAt);
   const fullTime = formatTimestamp(notification.createdAt);
 
@@ -202,7 +223,7 @@ export function NotificationDetail({ notificationId }: NotificationDetailProps) 
             <Icon name={iconName} size={22} color={tone} />
           </View>
         ) : (
-          <EntityAvatar name={actorName} image={notification.actorImage} size={48} />
+          <EntityAvatar name={actorName} image={actorImage} size={48} />
         )}
         <View className="flex-1 gap-0.5">
           <Text weight="semibold" numberOfLines={1} className="text-base text-foreground">
