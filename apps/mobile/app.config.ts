@@ -24,7 +24,11 @@ const config: ExpoConfig = {
   // appVersion → yeni runtime 1.1.3; production'daki crash eden 1.1.2 OTA'ları
   // (reanimated worklet açılış crash'i) bu build'e ERİŞEMEZ — temiz başlangıç.
   // Worklet'li değişiklikler OTA ile değil bu store build ile gidiyor.
-  version: '1.1.3',
+  // NOT (2026-06-23): 1.1.3 → 1.1.4. 1.1.3 App Store Connect'e submit edildi
+  // (build #12) → aynı CFBundleShortVersionString ikinci kez kabul edilmiyor
+  // ("You've already submitted this version"). Bildirim aktör/cold-start fix'i +
+  // header zili navbar + Hızlı Notlar yeniden tasarımı bu store build ile gidiyor.
+  version: '1.1.4',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
