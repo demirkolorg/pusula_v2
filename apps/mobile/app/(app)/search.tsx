@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { SearchView } from '@/components/search/search-view';
 import { strings } from '@/lib/strings';
 
@@ -12,7 +13,7 @@ import { strings } from '@/lib/strings';
 export default function SearchScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <SearchView title={strings.search.globalTitle} />
+      <SearchView title={strings.search.globalTitle} headerRight={<NotificationBell />} />
     </SafeAreaView>
   );
 }

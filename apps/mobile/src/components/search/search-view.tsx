@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -47,6 +47,9 @@ type SearchViewProps = {
   boardId?: string;
   /** Native header olmayan ekranlarda (global sekme) gösterilen ekran-içi başlık. */
   title?: string;
+  /** Başlık sağ üstünde gösterilen aksiyon(lar) — örn. `<NotificationBell />`.
+   *  Yalnız `title` verildiğinde (ekran-içi başlık satırı çizilince) görünür. */
+  headerRight?: ReactNode;
   /** Ekran açılır açılmaz girişe odaklan (board içi arama ekranı). */
   autoFocus?: boolean;
 };
@@ -60,7 +63,7 @@ type SearchViewProps = {
  * çağrılmaz; her sorgu debounce edilir; sonuçlar entity tipine göre gruplanır.
  * Sorgu değişirken önceki sonuçlar (`keepPreviousData`) ekranda korunur.
  */
-export function SearchView({ boardId, title, autoFocus = false }: SearchViewProps) {
+export function SearchView({ boardId, title, headerRight, autoFocus = false }: SearchViewProps) {
   const trpc = useTRPC();
   const router = useRouter();
   const theme = useTheme();
@@ -112,9 +115,14 @@ export function SearchView({ boardId, title, autoFocus = false }: SearchViewProp
   return (
     <View className="flex-1">
       {title ? (
-        <Text weight="semibold" className="px-4 pb-3 pt-2 text-2xl text-foreground">
-          {title}
-        </Text>
+        <View className="flex-row items-center justify-between gap-3 px-4 pb-3 pt-2">
+          <Text weight="semibold" numberOfLines={1} className="flex-1 text-2xl text-foreground">
+            {title}
+          </Text>
+          {headerRight ? (
+            <View className="flex-row items-center gap-2">{headerRight}</View>
+          ) : null}
+        </View>
       ) : null}
 
       {/* Arama girişi — sabit; placeholder/imleç rengi tema token'ından. */}

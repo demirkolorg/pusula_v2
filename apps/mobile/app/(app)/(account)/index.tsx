@@ -25,6 +25,7 @@ import { EntityAvatar } from '@/components/entity-avatar';
 import { FormMessage } from '@/components/form-message';
 import { Icon } from '@/components/icon';
 import { MasterDetailLayout } from '@/components/master-detail-layout';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { NotificationSettingsView } from '@/components/notifications/notification-settings-view';
 import { Text } from '@/components/text';
 import { SettingsGroup } from '@/components/settings/settings-group';
@@ -142,9 +143,15 @@ export default function AccountScreen() {
   // akışı bilinçli olarak korunur (regresyon riski olmasın).
   const phoneBody = (
     <ScrollView contentContainerClassName="gap-5 p-4">
-      <Text weight="semibold" className="text-2xl text-foreground">
-        {strings.account.title}
-      </Text>
+      {/* Başlık + bildirim zili (sağ üst) — bildirim sekmesi tab bar'dan
+          kaldırıldığından (2026-06-23) bildirim merkezine erişim her ana
+          ekranın başlığındaki `<NotificationBell />` üzerinden. */}
+      <View className="flex-row items-center justify-between gap-3">
+        <Text weight="semibold" numberOfLines={1} className="flex-1 text-2xl text-foreground">
+          {strings.account.title}
+        </Text>
+        <NotificationBell />
+      </View>
 
       {/* Profil — avatar + ad + e-posta; dokununca düzenleme ekranı. */}
       <SettingsGroup>{profileRow(() => router.push('/profile-edit'))}</SettingsGroup>
@@ -248,9 +255,12 @@ export default function AccountScreen() {
       contentContainerClassName="gap-5 p-4"
       contentContainerStyle={{ paddingBottom: navInset || 16 }}
     >
-      <Text weight="semibold" className="text-2xl text-foreground">
-        {strings.account.title}
-      </Text>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text weight="semibold" numberOfLines={1} className="flex-1 text-2xl text-foreground">
+          {strings.account.title}
+        </Text>
+        <NotificationBell />
+      </View>
 
       {/* Profil. */}
       <SettingsGroup>

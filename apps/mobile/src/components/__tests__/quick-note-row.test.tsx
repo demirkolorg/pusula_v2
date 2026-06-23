@@ -4,8 +4,9 @@ import { QuickNoteRow } from '../quick-note-row';
 import type { QuickNote } from '../../lib/use-quick-note-mutations';
 
 /**
- * DEM-231 — `QuickNoteRow` (Hızlı Notlar satırı, kaydırmalı aksiyonlar) birim
- * testleri. Satır-içi buton yerine `SwipeRow` ile açılan üç aksiyon doğrulanır.
+ * `QuickNoteRow` ("Saved Messages" baloncuk tasarımı) birim testleri. Aksiyonlar
+ * (düzenle / taşı / sil) baloncuğa dokununca açılan `QuickNoteActionsSheet` ile
+ * sunulur — eski kaydırmalı (`SwipeRow`) desen kaldırıldı.
  */
 
 const now = new Date('2026-05-19T00:00:00.000Z');
@@ -29,13 +30,17 @@ function renderRow(props: Partial<Parameters<typeof QuickNoteRow>[0]> = {}) {
 }
 
 describe('QuickNoteRow', () => {
-  it('not metnini gösterir', () => {
+  it('not metnini baloncukta gösterir', () => {
     renderRow({ note: makeNote({ content: 'Süt al' }) });
     expect(screen.getByText('Süt al')).toBeTruthy();
   });
 
-  it('kaydırmalı üç aksiyonu (düzenle / taşı / sil) sunar', () => {
-    renderRow();
+  it('baloncuğa dokununca üç aksiyonu (düzenle / taşı / sil) açar', () => {
+    renderRow({ note: makeNote({ content: 'Süt al' }) });
+    // Menü kapalıyken aksiyonlar yok.
+    expect(screen.queryByLabelText('Notu sil')).toBeNull();
+    // Baloncuğa dokun → aksiyon sheet'i açılır.
+    fireEvent.click(screen.getByText('Süt al'));
     expect(screen.getByLabelText('Notu düzenle')).toBeTruthy();
     expect(screen.getByLabelText('Panoya taşı')).toBeTruthy();
     expect(screen.getByLabelText('Notu sil')).toBeTruthy();
@@ -43,14 +48,16 @@ describe('QuickNoteRow', () => {
 
   it('"Panoya taşı" aksiyonuna dokununca onConvert çağrılır', () => {
     const onConvert = vi.fn();
-    renderRow({ onConvert });
+    renderRow({ note: makeNote({ content: 'Süt al' }), onConvert });
+    fireEvent.click(screen.getByText('Süt al'));
     fireEvent.click(screen.getByLabelText('Panoya taşı'));
     expect(onConvert).toHaveBeenCalledTimes(1);
   });
 
-  it('geçici (tmp-) id\'li notta kaydırmalı aksiyon sunulmaz', () => {
+  it('geçici (tmp-) id\'li notta baloncuğa dokunmak menü açmaz', () => {
     renderRow({ note: makeNote({ id: 'tmp-1', content: 'Henüz kaydedilmedi' }) });
     expect(screen.getByText('Henüz kaydedilmedi')).toBeTruthy();
+    fireEvent.click(screen.getByText('Henüz kaydedilmedi'));
     expect(screen.queryByLabelText('Notu sil')).toBeNull();
   });
 });

@@ -62,8 +62,8 @@ export const strings = {
     // Boş durum.
     emptyTitle: 'İlk notunu yaz',
     emptyDescription: 'Aklına geleni hızlıca buraya kaydet, sonra dilersen bir panoya taşı.',
-    // Boş durum alt ipucu — hep-açık composer'a yönlendirir.
-    emptyHint: 'Yukarıdaki kutuya yazıp Ekle’ye dokun.',
+    // Boş durum alt ipucu — dipteki yazma çubuğuna yönlendirir.
+    emptyHint: 'Aşağıdaki kutuya yazıp gönder simgesine dokun.',
     // Yükleniyor / hata.
     loadError: 'Notlar yüklenemedi.',
     // Not satırı aksiyonları. `editShort`/`convertShort` kaydırmalı satır

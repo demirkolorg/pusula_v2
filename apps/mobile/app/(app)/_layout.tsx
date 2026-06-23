@@ -204,13 +204,13 @@ export default function AppLayout() {
               backgroundColor: theme.card,
               borderTopColor: theme.border,
             },
-            // Etiketsiz alt bar — 6 öğe (Hızlı Notlar sekmesi eklendi) + ortada
-            // yükseltilmiş "+" düzeninde etiketler sığmadığından ikon-only'ye
-            // geçildi (kullanıcı kararı). `title` yine erişilebilirlik etiketi
-            // olarak okunur (`tabBarShowLabel` yalnız görsel etiketi gizler).
-            tabBarShowLabel: false,
-            // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula
-            // (etiket gizli olsa da kalır; ileride yeniden açılırsa font tutarlı).
+            // Etiketli alt bar (2026-06-23): bildirim sekmesi kaldırılınca
+            // (sol 2 | + | sağ 2) öğe sayısı 4'e düştü ve etiketler artık
+            // sığdığından geri açıldı. `title`'lar hem görsel etiket hem
+            // erişilebilirlik etiketi olarak okunur. Merkezi "+" custom
+            // `tabBarButton` (CreateTabButton) olduğundan etiket render etmez.
+            tabBarShowLabel: true,
+            // Native tab etiketleri `Text` değildir — Poppins'i style ile uygula.
             tabBarLabelStyle: { fontFamily: fontFamilyForWeight.medium },
             // Klavye açıldığında tab bar'ı gizle (DEM-236) — iOS varsayılanı false;
             // anasayfa `QuickNoteDock` tab bar tepesinde oturduğundan klavye dock'u
@@ -272,13 +272,22 @@ export default function AppLayout() {
               tabBarIcon: ({ color, size }) => <Icon name="search" color={color} size={size} />,
             }}
           />
+          {/*
+            Bildirim sekmesi tab bar'dan kaldırıldı (2026-06-23): alt bar
+            artık sol 2 (Panolar, Hızlı Notlar) | merkezi "+" | sağ 2 (Arama,
+            Hesap) ile simetrik. Bildirim merkezine erişim ana ekranların
+            başlık sağ üstündeki `<NotificationBell />` (badge'li çan) üzerinden.
+            Route erişilebilir kalır (`/(app)/(notifications)` + `/notifications/[id]`
+            push tap derin-linki) ama `href: null` ile tab bar'da görünmez.
+            unreadCount sorgusu + `setBadgeCountAsync` (cihaz ikon rozeti) yukarıda
+            korunur; yalnız tab rozeti (`tabBarBadge`) kaldırıldı.
+          */}
           <Tabs.Screen
             name="(notifications)"
             options={{
               title: strings.tabs.notifications,
               tabBarIcon: ({ color, size }) => <Icon name="bell" color={color} size={size} />,
-              // Okunmamış sayısı rozeti — 0/undefined ise rozet hiç çizilmez.
-              tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+              href: null,
             }}
           />
           <Tabs.Screen

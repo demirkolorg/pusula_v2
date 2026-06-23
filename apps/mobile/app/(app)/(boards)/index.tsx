@@ -20,6 +20,7 @@ import { LoadingScreen } from '@/components/loading-screen';
 import { MasterDetailLayout } from '@/components/master-detail-layout';
 import { Icon } from '@/components/icon';
 import { PendingInvitations } from '@/components/pending-invitations';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { QuickNoteDock } from '@/components/quick-note-dock';
 import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
@@ -94,20 +95,24 @@ export default function WorkspacesScreen() {
     [handleWorkspacePress],
   );
 
-  // Tablet sidebar: kompakt tek-sütun satır.
+  // Tablet sidebar: kompakt tek-sütun satır. `px-4` wrapper telefon görünümüyle
+  // aynı yatay hizayı verir (master `contentContainer` artık yatay padding'siz —
+  // başlıklar + dock + kartlar hepsi 16px hizalı).
   const renderTabletItem = useCallback<ListRenderItem<Workspace>>(
     ({ item: workspace }) => (
-      <WorkspaceCard
-        compact
-        name={workspace.name}
-        icon={workspace.icon}
-        role={workspace.role}
-        boardCount={workspace.boardCount}
-        memberCount={workspace.memberCount}
-        lastActivityAt={workspace.lastActivityAt}
-        selected={workspace.id === effectiveSelectedId}
-        onPress={() => handleWorkspacePress(workspace)}
-      />
+      <View className="px-4">
+        <WorkspaceCard
+          compact
+          name={workspace.name}
+          icon={workspace.icon}
+          role={workspace.role}
+          boardCount={workspace.boardCount}
+          memberCount={workspace.memberCount}
+          lastActivityAt={workspace.lastActivityAt}
+          selected={workspace.id === effectiveSelectedId}
+          onPress={() => handleWorkspacePress(workspace)}
+        />
+      </View>
     ),
     [handleWorkspacePress, effectiveSelectedId],
   );
@@ -115,7 +120,7 @@ export default function WorkspacesScreen() {
   if (query.isPending) {
     return (
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
-        <ScreenHeader title={strings.workspaces.title} />
+        <ScreenHeader title={strings.workspaces.title} right={<NotificationBell />} />
         <LoadingScreen />
       </SafeAreaView>
     );
@@ -124,7 +129,7 @@ export default function WorkspacesScreen() {
   if (query.isError) {
     return (
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
-        <ScreenHeader title={strings.workspaces.title} />
+        <ScreenHeader title={strings.workspaces.title} right={<NotificationBell />} />
         <EmptyState
           icon="alert-triangle"
           title={strings.workspaces.loadError}
@@ -142,7 +147,7 @@ export default function WorkspacesScreen() {
   if (query.data.length === 0) {
     return (
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
-        <ScreenHeader title={strings.workspaces.title} />
+        <ScreenHeader title={strings.workspaces.title} right={<NotificationBell />} />
         <KeyboardAvoidingView
           className="flex-1"
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -188,14 +193,25 @@ export default function WorkspacesScreen() {
       query.data.find((w) => w.id === effectiveSelectedId) ?? query.data[0];
     return (
       <SafeAreaView edges={['top']} className="flex-1 bg-background">
-        <ScreenHeader title={strings.workspaces.title} />
+        <ScreenHeader title={strings.workspaces.title} right={<NotificationBell />} />
         <MasterDetailLayout
           master={
             <FlatList
               data={query.data}
               keyExtractor={(workspace) => workspace.id}
-              ListHeaderComponent={PendingInvitations}
-              contentContainerClassName="gap-3 p-3"
+              ListHeaderComponent={
+                <View>
+                  <PendingInvitations />
+                  {/* Telefon ana ekranıyla simetri (kullanıcı kararı): tablet
+                      master panelinde de Hızlı Notlar ekleme + alt başlıklar. */}
+                  <SectionHeader icon="zap" title={strings.quickNotes.title} />
+                  <View className="px-4 pb-1">
+                    <QuickNoteDock />
+                  </View>
+                  <SectionHeader icon="briefcase" title={strings.workspaces.title} />
+                </View>
+              }
+              contentContainerClassName="gap-3 py-3"
               refreshControl={
                 <RefreshControl
                   refreshing={query.isFetching}
@@ -233,7 +249,7 @@ export default function WorkspacesScreen() {
   // Phone: tek sütun liste — her workspace tam genişlik kart.
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-background">
-      <ScreenHeader title={strings.workspaces.title} />
+      <ScreenHeader title={strings.workspaces.title} right={<NotificationBell />} />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
