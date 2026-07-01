@@ -218,6 +218,14 @@ async function dispatchOutboxRow(
     // sweeper re-run can't overwrite an already-set link (idempotent). Skipped
     // when `event_id IS NULL` (scheduler ticks have no sibling activity to join
     // on; a NULL `event_id` match would wrongly fan across unrelated rows).
+    //
+    // CRITICAL: must also match `recipient_id`. A single `event_id` fans out to
+    // one `(in_app, push)` pair *per recipient*; without the recipient filter
+    // the first in_app row processed claims *every* push row for the event
+    // (the `IS NULL` guard then blocks the rest), so co-recipients' pushes
+    // carry someone else's `notifications.id`. `byId` filters by recipient →
+    // NOT_FOUND → mobile "Bildirim yüklenemedi" on push tap for all-but-one
+    // recipient. Scope the link to this row's own recipient.
     if (notificationId && row.eventId) {
       await tx
         .update(notificationOutbox)
@@ -225,6 +233,7 @@ async function dispatchOutboxRow(
         .where(
           and(
             eq(notificationOutbox.eventId, row.eventId),
+            eq(notificationOutbox.recipientId, row.recipientId),
             eq(notificationOutbox.channel, 'push'),
             isNull(notificationOutbox.inAppNotificationId),
           ),

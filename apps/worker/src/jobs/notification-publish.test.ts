@@ -230,6 +230,85 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
       .where(dbMod.inArray(notificationOutbox.id, [inAppOutboxId, pushOutboxId]));
   });
 
+  it('multi-recipient event: each push row back-links its OWN recipient notification (no cross-contamination)', async () => {
+    // Regression — bildirim detay cross-recipient bug (mobil "Bildirim
+    // yüklenemedi" on push tap). A single `event_id` fans out to a
+    // `(in_app, push)` pair *per recipient*. The back-link UPDATE must scope to
+    // `recipient_id`; without it the first in_app row processed claims *every*
+    // push row for the event (the `IS NULL` guard blocks the rest), so a
+    // co-recipient's push carries someone else's `notifications.id` and
+    // `byId` (filtered by recipient) returns NOT_FOUND.
+    const recipientId2 = newId('u-np-recipient2');
+    await db()
+      .insert(users)
+      .values({ id: recipientId2, name: recipientId2, email: `${recipientId2}@example.test` });
+
+    // Seed a sibling (in_app, push) pair for one recipient on the shared event.
+    const seedPair = async (rid: string) => {
+      await db()
+        .insert(notificationOutbox)
+        .values({
+          eventId: activityId,
+          channel: 'in_app',
+          recipientId: rid,
+          type: 'card_assigned',
+          payload: { cardId },
+        });
+      const [pushRow] = await db()
+        .insert(notificationOutbox)
+        .values({
+          eventId: activityId,
+          channel: 'push',
+          recipientId: rid,
+          type: 'card_assigned',
+          payload: { cardId },
+        })
+        .returning({ id: notificationOutbox.id });
+      return { pushId: pushRow!.id };
+    };
+    const a = await seedPair(recipientId);
+    const b = await seedPair(recipientId2);
+
+    const publisher = capturingPublisher();
+    const result = await processNotificationPublishJob(
+      db(),
+      publisher,
+      { enqueuePush: async () => {} },
+      { eventId: activityId },
+    );
+    // 2 in_app (delivered) + 2 push (enqueued) = 4 processed.
+    expect(result.processed).toBe(4);
+
+    // Each recipient gets their OWN notifications row.
+    const notifFor = async (rid: string) => {
+      const [n] = await db()
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(dbMod.eq(notifications.recipientId, rid));
+      return n!.id;
+    };
+    const notifA = await notifFor(recipientId);
+    const notifB = await notifFor(recipientId2);
+    expect(notifA).not.toBe(notifB);
+
+    // Each push row links to ITS OWN recipient's notification (not the other's).
+    const linkFor = async (pushId: string) => {
+      const [p] = await db()
+        .select({ inAppNotificationId: notificationOutbox.inAppNotificationId })
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.id, pushId));
+      return p!.inAppNotificationId;
+    };
+    expect(await linkFor(a.pushId)).toBe(notifA);
+    expect(await linkFor(b.pushId)).toBe(notifB);
+
+    await db()
+      .delete(notifications)
+      .where(dbMod.inArray(notifications.recipientId, [recipientId, recipientId2]));
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db().delete(users).where(dbMod.eq(users.id, recipientId2));
+  });
+
   it('scheduler-fired NULL-event in_app row leaves activity_event_id null and skips the push back-link', async () => {
     // event_id IS NULL (due_* scheduler tick) → no activity to link, no sibling
     // join key. activity_event_id stays null; no push row is touched.
