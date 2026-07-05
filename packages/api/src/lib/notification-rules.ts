@@ -191,6 +191,13 @@ function mapEventToNotificationType(event: ActivityEventForRules): NotificationT
       return 'checklist_created';
     case 'checklist.item_added':
       return 'checklist_item_added';
+    case 'checklist.bulk_imported':
+      // Toplu içe aktarma (JSON) — tek özet event. Kendi notification tipi
+      // AÇILMAZ; mevcut `checklist_item_added`'a map edilir → tek bildirim,
+      // tüm render katmanları (worker/web/mobil) bunu zaten tanır.
+      // `payload.activityType = 'checklist.bulk_imported'` ileride ayrıştırma
+      // istenirse taşınır.
+      return 'checklist_item_added';
     case 'checklist.item_removed':
       return 'checklist_item_removed';
     case 'attachment.removed':
@@ -448,6 +455,7 @@ async function collectRecipients(
     case 'comment.deleted':
     case 'checklist.created':
     case 'checklist.item_added':
+    case 'checklist.bulk_imported':
     case 'checklist.item_removed':
     case 'attachment.removed':
     // Bildirim kapsamı genişletme — Faz 2 (granular tipler, 2026-06-03). Kart

@@ -36,6 +36,7 @@ import { activityEvents, boards, checklistItems, checklists, comments } from '@p
 import type { Database } from '@pusula/db';
 import {
   archiveChecklistInput,
+  bulkImportChecklistsInput,
   canEditBoardContent,
   createChecklistInput,
   createChecklistItemInput,
@@ -43,6 +44,7 @@ import {
   deleteChecklistItemInput,
   firstPosition,
   positionBetween,
+  positionsBetween,
   reorderChecklistItemInput,
   toggleChecklistItemInput,
   updateChecklistInput,
@@ -644,6 +646,164 @@ export const checklistRouter = router({
         },
       });
       return created;
+    });
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
+  }),
+
+  /**
+   * Bulk-import checklists (JSON) — append N checklists (each with its items) to
+   * a card in one transaction. Board `member+` only. Unlike the per-row
+   * `create` / `item.create`, this writes a SINGLE `checklist.bulk_imported`
+   * activity + a SINGLE realtime event (not N × M) so a big paste doesn't spam
+   * the activity feed / notifications. First real consumer of
+   * `positionsBetween` (N evenly-spaced append keys); a `fractional-indexing`
+   * throw surfaces as `BAD_REQUEST`, never a 500 (mirrors `item.reorder`).
+   *
+   * Returns the created checklists (each `{ ...checklist, items }`, item shape
+   * matching `list`'s `commentCount: 0` for fresh rows) so the client can patch
+   * its cache; the wiring today just invalidates.
+   */
+  bulkImport: cardProcedure.input(bulkImportChecklistsInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Toplu içe aktarma yetkiniz yok.' });
+    }
+
+    let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      // Append after the card's last checklist — N evenly-spaced keys.
+      const [last] = await tx
+        .select({ position: checklists.position })
+        .from(checklists)
+        .where(eq(checklists.cardId, ctx.card.id))
+        .orderBy(desc(checklists.position))
+        .limit(1);
+      let checklistPositions: string[];
+      try {
+        checklistPositions = positionsBetween(last?.position ?? null, null, input.checklists.length);
+      } catch {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Geçersiz konum.' });
+      }
+
+      // Insert all checklists in one statement. `returning` order isn't
+      // guaranteed, so we re-associate items to checklists by their unique
+      // `position` (each key is distinct + monotonic), not by array index.
+      const createdChecklists = await tx
+        .insert(checklists)
+        .values(
+          input.checklists.map((checklist, index) => ({
+            cardId: ctx.card.id,
+            title: checklist.title,
+            position: checklistPositions[index]!,
+          })),
+        )
+        .returning(checklistCols);
+      if (createdChecklists.length !== input.checklists.length) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      }
+      const inputIndexByPosition = new Map(checklistPositions.map((pos, index) => [pos, index]));
+
+      // Build every item row across all checklists, then insert once.
+      let itemRows: Array<{ checklistId: string; content: string; position: string }> = [];
+      for (const created of createdChecklists) {
+        const inputIndex = inputIndexByPosition.get(created.position);
+        if (inputIndex === undefined) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const items = input.checklists[inputIndex]!.items;
+        if (items.length === 0) continue;
+        let itemPositions: string[];
+        try {
+          itemPositions = positionsBetween(null, null, items.length);
+        } catch {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Geçersiz konum.' });
+        }
+        itemRows = itemRows.concat(
+          items.map((content, index) => ({
+            checklistId: created.id,
+            content,
+            position: itemPositions[index]!,
+          })),
+        );
+      }
+      const createdItems = itemRows.length
+        ? await tx.insert(checklistItems).values(itemRows).returning(itemCols)
+        : [];
+
+      const checklistCount = createdChecklists.length;
+      const itemCount = createdItems.length;
+
+      // SINGLE summary activity — the whole import is one feed entry.
+      const bulkPayload = {
+        cardId: ctx.card.id,
+        checklistCount,
+        itemCount,
+        checklistIds: createdChecklists.map((checklist) => checklist.id),
+      };
+      const [activity] = await tx
+        .insert(activityEvents)
+        .values({
+          workspaceId: ctx.card.workspaceId,
+          boardId: ctx.card.boardId,
+          cardId: ctx.card.id,
+          actorId: ctx.session.user.id,
+          type: 'checklist.bulk_imported',
+          payload: bulkPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // SINGLE notification — `mapEventToNotificationType` folds
+      // `checklist.bulk_imported` into the existing `checklist_item_added` type.
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: activity.id,
+        type: 'checklist.bulk_imported',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        payload: bulkPayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = activity.id;
+
+      // Reassemble created checklists (input order) with their items for the
+      // mutation RESPONSE (the caller can patch its own cache); the realtime
+      // event below deliberately omits this and just carries counts.
+      const itemsByChecklist = new Map<string, Array<(typeof createdItems)[number] & { commentCount: number }>>();
+      for (const item of createdItems) {
+        const withCount = { ...item, commentCount: 0 };
+        const bucket = itemsByChecklist.get(item.checklistId);
+        if (bucket) bucket.push(withCount);
+        else itemsByChecklist.set(item.checklistId, [withCount]);
+      }
+      const createdByPosition = new Map(createdChecklists.map((c) => [c.position, c] as const));
+      const checklistsWithItems = checklistPositions
+        .map((pos) => createdByPosition.get(pos))
+        .filter((c): c is (typeof createdChecklists)[number] => Boolean(c))
+        .map((checklist) => ({
+          ...checklist,
+          items: itemsByChecklist.get(checklist.id) ?? [],
+        }));
+
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      // Realtime event stays LEAN — peers only invalidate + refetch the card's
+      // checklists (see the `checklist.bulk_imported` handler), they never patch
+      // from this payload. Shipping the full `checklistsWithItems` (up to ~20 ×
+      // 500 × 2000 chars ≈ 1 MB) would risk Socket.IO's default 1 MB buffer +
+      // bloat the `realtime_events` row for no consumer. Counts are enough.
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.bulk_imported',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: { cardId: ctx.card.id, checklistCount, itemCount },
+      });
+      return { checklists: checklistsWithItems, checklistCount, itemCount };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);

@@ -29,6 +29,13 @@ export type ChecklistView = {
 
 export type ChecklistHandlers = {
   onCreateChecklist: (title: string) => void;
+  /**
+   * JSON ile toplu içe aktarma — kullanıcının yapıştırıp doğrulanan checklist
+   * dizisini tek bir `checklist.bulkImport` mutation'ına geçirir. Wiring katmanı
+   * `cardId` + `clientMutationId` ekler. Salt-görünüm / viewer için tanımsız
+   * bırakılır (buton render edilmez).
+   */
+  onBulkImport?: (checklists: Array<{ title: string; items: string[] }>) => void;
   onRenameChecklist: (input: { checklistId: string; title: string }) => void;
   onDeleteChecklist: (checklistId: string) => void;
   /** Arşivle (`archived: true`) / arşivden çıkar (`false`) bir checklist. */

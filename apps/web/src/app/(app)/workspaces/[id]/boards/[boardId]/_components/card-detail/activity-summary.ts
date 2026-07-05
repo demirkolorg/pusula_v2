@@ -23,6 +23,13 @@ function str(payload: unknown, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+/** Narrow `payload` to a plain object and read a numeric key, else `undefined`. */
+function num(payload: unknown, key: string): number | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
 /**
  * Build the summary for a single activity row. `unknownActor` is the fallback
  * display name when the actor was deleted (`actorId`/`actorName` null).
@@ -153,6 +160,13 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
       return title
         ? `${who} bir yapılacaklar listesi ekledi: “${title}”`
         : `${who} bir yapılacaklar listesi ekledi`;
+    }
+    case 'checklist.bulk_imported': {
+      const checklistCount = num(p, 'checklistCount');
+      const itemCount = num(p, 'itemCount');
+      return checklistCount !== undefined && itemCount !== undefined
+        ? `${who} ${checklistCount} liste ve ${itemCount} madde içe aktardı`
+        : `${who} bir yapılacaklar listesi içe aktardı`;
     }
     case 'checklist.item_added': {
       const content = str(p, 'content');

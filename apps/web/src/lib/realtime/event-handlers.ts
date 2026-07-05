@@ -740,6 +740,19 @@ export function dispatchRealtimeEvent(
       invalidate(qc, filters.board);
       return;
     }
+    case 'checklist.bulk_imported': {
+      // Toplu içe aktarma — payload'daki N checklist'i (20 liste × 500 madde'ye
+      // kadar) tek tek cache'e uygulamak yerine kartın `checklist.list`'ini
+      // invalidate et; bağlı client'lar taze veriyi çeker (`checklist.created`
+      // ile aynı "refetch etsinler" niyeti). Kart meta'sı (checklistTotal/Done)
+      // da değiştiğinden `board.get` de invalidate edilir. Kendi client echo'su
+      // `clientMutationId` mekanizmasıyla zaten filtrelendiği için no-op olur.
+      const cardId = cardIdFrom(envelope, payload);
+      if (!cardId) return;
+      invalidate(qc, filters.checklists?.(cardId));
+      invalidate(qc, filters.board);
+      return;
+    }
     case 'card.label_added': {
       const cardId = cardIdFrom(envelope, payload);
       const label = payload.label as LabelIdRow | undefined;

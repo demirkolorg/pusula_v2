@@ -1,0 +1,13 @@
+-- Kart kontrol listesi toplu içe aktarma (JSON ile bulk import — 2026-07-05).
+--
+-- `checklist.bulkImport` mutation'ı bir karta tek seferde N checklist + maddeleri
+-- ekler; N ayrı `checklist.created` / M ayrı `checklist.item_added` yerine TEK
+-- özet activity yazar (aktivite akışı + bildirim spam'ini önler). Bildirim
+-- tarafında `mapEventToNotificationType` bunu mevcut `checklist_item_added`
+-- tipine map eder → yeni `notification_type` değeri AÇILMAZ; bu migration yalnız
+-- `activity_event_type` enum'una tek değer ekler.
+--
+-- Postgres enum append-only protokolü: ALTER TYPE ... ADD VALUE IF NOT EXISTS
+-- (idempotent — aynı pattern: 0022 / 0028 / 0029 / 0030 / 0032 / 0045).
+-- Domain kaynağı: `@pusula/domain/constants.ts` `ACTIVITY_EVENT_TYPES`.
+ALTER TYPE "public"."activity_event_type" ADD VALUE IF NOT EXISTS 'checklist.bulk_imported';

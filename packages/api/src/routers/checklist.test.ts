@@ -388,6 +388,95 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('bulkImport: a member imports N checklists with their items in one shot (single checklist.bulk_imported activity, single version+1); a board viewer is FORBIDDEN', async () => {
+    const bulkCard = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Bulk import card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const v0 = await boardVersion(boardId);
+
+    const result = await callerFor(memberId).checklist.bulkImport({
+      cardId: bulkCard.id,
+      checklists: [
+        { title: 'Hazırlık', items: ['Toplantı planla', 'Doküman hazırla'] },
+        { title: 'Boş liste', items: [] },
+        { title: 'Geliştirme', items: ['API yaz'] },
+      ],
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // Counts + input order preserved, items attached to the right checklist.
+    expect(result.checklistCount).toBe(3);
+    expect(result.itemCount).toBe(3);
+    expect(result.checklists.map((c) => c.title)).toEqual(['Hazırlık', 'Boş liste', 'Geliştirme']);
+    expect(result.checklists[0]!.items.map((i) => i.content)).toEqual([
+      'Toplantı planla',
+      'Doküman hazırla',
+    ]);
+    expect(result.checklists[1]!.items).toEqual([]);
+    expect(result.checklists[2]!.items.map((i) => i.content)).toEqual(['API yaz']);
+    // Checklist + item positions strictly ascending (append/insert order).
+    expect(result.checklists[0]!.position < result.checklists[1]!.position).toBe(true);
+    expect(result.checklists[1]!.position < result.checklists[2]!.position).toBe(true);
+    expect(result.checklists[0]!.items[0]!.position < result.checklists[0]!.items[1]!.position).toBe(
+      true,
+    );
+
+    // Exactly ONE summary activity for the whole import (not N × M).
+    const acts = (await actsFor(boardId)).filter(
+      (a) => a.type === 'checklist.bulk_imported' && a.cardId === bulkCard.id,
+    );
+    expect(acts).toHaveLength(1);
+    expect(acts[0]!.payload).toMatchObject({ checklistCount: 3, itemCount: 3 });
+
+    // Single board version bump for the whole import.
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    // `list` reflects the imported checklists + their items, in order.
+    const listed = await callerFor(memberId).checklist.list({ cardId: bulkCard.id });
+    expect(listed.map((c) => c.title)).toEqual(['Hazırlık', 'Boş liste', 'Geliştirme']);
+    expect(listed[0]!.items.map((i) => i.content)).toEqual(['Toplantı planla', 'Doküman hazırla']);
+
+    // A board viewer (workspace guest) cannot bulk-import.
+    await expect(
+      callerFor(guestId).checklist.bulkImport({
+        cardId: bulkCard.id,
+        checklists: [{ title: 'X', items: [] }],
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('bulkImport: appends after existing checklists and rejects an over-limit payload (BAD_REQUEST)', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Bulk append card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Seed one checklist first, then bulk-import — the imports must sort after it.
+    const first = await callerFor(ownerId).checklist.create({
+      cardId: card.id,
+      title: 'Var olan',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const result = await callerFor(ownerId).checklist.bulkImport({
+      cardId: card.id,
+      checklists: [{ title: 'Sonraki', items: [] }],
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(result.checklists[0]!.position > first.position).toBe(true);
+
+    // Too many checklists (> 20) is rejected by the input schema.
+    await expect(
+      callerFor(ownerId).checklist.bulkImport({
+        cardId: card.id,
+        checklists: Array.from({ length: 21 }, (_, i) => ({ title: `L${i}`, items: [] })),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   // ------------------------------------------------------- checklist.item
 
   it('item.create: appends an item (checklist.item_added activity, version+1)', async () => {

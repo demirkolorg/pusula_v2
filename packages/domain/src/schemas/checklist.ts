@@ -87,6 +87,60 @@ export const reorderChecklistItemInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * Toplu içe aktarma (bulk import) — kullanıcı JSON yapıştırarak bir karta tek
+ * seferde birden fazla checklist + her birinin maddelerini ekler. MVP: yalnız
+ * yeni checklist oluşturur (mevcut checklist'e madde ekleme kapsam dışı — bunun
+ * için tekli `item.create` var). Şablon:
+ *
+ *   { "checklists": [ { "title": "Hazırlık", "items": ["Madde 1", "Madde 2"] } ] }
+ *
+ * Üst sınırlar bir kartın makul checklist hacmini korur + kötü niyetli / kaza
+ * eseri devasa payload'a karşı savunur (tek transaction'da toplu insert). İçerik
+ * doğrulaması tekli create ile aynı (`checklistTitleSchema` / `checklistItemContentSchema`)
+ * — böylece toplu ve tekil yol aynı invariant'ları paylaşır.
+ */
+export const BULK_IMPORT_MAX_CHECKLISTS = 20;
+export const BULK_IMPORT_MAX_ITEMS_PER_CHECKLIST = 200;
+export const BULK_IMPORT_MAX_TOTAL_ITEMS = 500;
+
+export const bulkImportChecklistSchema = z.object({
+  title: checklistTitleSchema,
+  items: z.array(checklistItemContentSchema).max(BULK_IMPORT_MAX_ITEMS_PER_CHECKLIST).default([]),
+});
+
+const bulkImportChecklistsShape = {
+  checklists: z.array(bulkImportChecklistSchema).min(1).max(BULK_IMPORT_MAX_CHECKLISTS),
+};
+
+const totalItemsWithinLimit = (value: { checklists: BulkImportChecklist[] }): boolean =>
+  value.checklists.reduce((total, checklist) => total + checklist.items.length, 0) <=
+  BULK_IMPORT_MAX_TOTAL_ITEMS;
+
+const totalItemsError = {
+  message: `Toplam madde sayısı ${BULK_IMPORT_MAX_TOTAL_ITEMS} sınırını aşamaz.`,
+  path: ['checklists'] as string[],
+};
+
+/**
+ * İstemci-taraf JSON gövdesi (yalnız `checklists`) — web toplu içe aktarma
+ * dialog'u yapıştırılan JSON'u bununla `safeParse` eder. `cardId` /
+ * `clientMutationId` gövdenin parçası değildir; wiring katmanı ekler.
+ * Sunucu `bulkImportChecklistsInput` ile aynı içerik kurallarını + toplam madde
+ * sınırını paylaşır (tek kaynak).
+ */
+export const bulkImportChecklistsBody = z
+  .object(bulkImportChecklistsShape)
+  .refine(totalItemsWithinLimit, totalItemsError);
+
+export const bulkImportChecklistsInput = z
+  .object({
+    cardId: idSchema,
+    ...bulkImportChecklistsShape,
+    ...withClientMutationId,
+  })
+  .refine(totalItemsWithinLimit, totalItemsError);
+
 export type CreateChecklistInput = z.infer<typeof createChecklistInput>;
 export type UpdateChecklistInput = z.infer<typeof updateChecklistInput>;
 export type DeleteChecklistInput = z.infer<typeof deleteChecklistInput>;
@@ -96,3 +150,5 @@ export type ToggleChecklistItemInput = z.infer<typeof toggleChecklistItemInput>;
 export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemInput>;
 export type DeleteChecklistItemInput = z.infer<typeof deleteChecklistItemInput>;
 export type ReorderChecklistItemInput = z.infer<typeof reorderChecklistItemInput>;
+export type BulkImportChecklistsInput = z.infer<typeof bulkImportChecklistsInput>;
+export type BulkImportChecklist = z.infer<typeof bulkImportChecklistSchema>;

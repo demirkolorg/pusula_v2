@@ -1975,6 +1975,31 @@ export const strings = {
       itemCommentsToggleClose: 'Madde yorumlarını kapat',
       itemCommentsCountLabel: 'Madde yorumu',
       itemCommentsThreadLabel: 'Madde yorumları',
+      // JSON ile toplu içe aktarma dialog'u — bir karta tek seferde birden fazla
+      // liste + maddelerini ekler. Tüm metinler entity-bağımsız (i18n uyumlu);
+      // sayısal sınırlar açıklamada domain sabitleriyle uyumlu tutulur.
+      bulkImport: {
+        action: 'JSON ile içe aktar',
+        dialogTitle: 'JSON ile içe aktar',
+        dialogDescription:
+          'Yapıştırdığınız JSON ile bu karta birden fazla yapılacaklar listesini ve maddelerini tek seferde ekleyin. En fazla 20 liste, liste başına 200 madde ve toplam 500 madde eklenebilir.',
+        templateLabel: 'Örnek şablon',
+        copyTemplate: 'Şablonu kopyala',
+        templateCopied: 'Şablon kopyalandı',
+        templateCopyError: 'Şablon kopyalanamadı',
+        placeholder: 'JSON’u buraya yapıştırın…',
+        submit: 'İçe aktar',
+        submitting: 'İçe aktarılıyor…',
+        cancel: 'Vazgeç',
+        invalidJson: 'Geçersiz JSON. Lütfen biçimi kontrol edin.',
+        // Kod bloğunda salt-görünüm örnek; "Şablonu kopyala" da bunu panoya yazar.
+        template: `{
+  "checklists": [
+    { "title": "Hazırlık", "items": ["Toplantı planla", "Doküman hazırla"] },
+    { "title": "Geliştirme", "items": ["API yaz", "Test yaz"] }
+  ]
+}`,
+      },
     },
     comments: {
       title: 'Yorumlar',

@@ -361,6 +361,11 @@ export function CardDetailDialog({
   const toggleItem = useMutation(trpc.checklist.item.toggle.mutationOptions(onMutated));
   const editItem = useMutation(trpc.checklist.item.update.mutationOptions(onMutated));
   const deleteItem = useMutation(trpc.checklist.item.delete.mutationOptions(onMutated));
+  // JSON ile toplu içe aktarma — `createChecklist` gibi invalidate-only
+  // (optimistic ŞART DEĞİL: tek transaction'da N liste + madde eklenir, sonuç
+  // `invalidateCard` ile geri çekilir). `clientMutationId` collaborative
+  // sözleşmesi gereği gönderilir; kendi realtime echo'su onunla filtrelenir.
+  const bulkImport = useMutation(trpc.checklist.bulkImport.mutationOptions(onMutated));
   // Madde sıralama (DEM — web checklist item reorder). Diğer checklist
   // mutation'larından farklı olarak OPTIMISTIC: `checklist.list` cache'inde
   // ilgili checklist'in `items` dizisini drop'taki `orderedIds`'e göre anında
@@ -991,6 +996,9 @@ export function CardDetailDialog({
                           clientMutationId: cmid(),
                         });
                       }}
+                      onBulkImport={(checklists) =>
+                        bulkImport.mutate({ cardId, checklists, clientMutationId: cmid() })
+                      }
                       pending={
                         createChecklist.isPending ||
                         renameChecklist.isPending ||
@@ -999,7 +1007,8 @@ export function CardDetailDialog({
                         addItem.isPending ||
                         toggleItem.isPending ||
                         editItem.isPending ||
-                        deleteItem.isPending
+                        deleteItem.isPending ||
+                        bulkImport.isPending
                       }
                       error={
                         errOf(createChecklist) ||
@@ -1009,8 +1018,13 @@ export function CardDetailDialog({
                         errOf(addItem) ||
                         errOf(toggleItem) ||
                         errOf(editItem) ||
-                        errOf(deleteItem)
+                        errOf(deleteItem) ||
+                        errOf(bulkImport)
                       }
+                      // Dialog'un yalnız kendi durumunu göstermesi için izole
+                      // pending/error (modal açıkken üstteki genel Alert görünmez).
+                      bulkImportPending={bulkImport.isPending}
+                      bulkImportError={errOf(bulkImport)}
                     />
                     </div>
                   </div>

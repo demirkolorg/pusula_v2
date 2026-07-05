@@ -103,6 +103,7 @@ const GROUP_TO_TYPES: Record<ActivityFeedGroup, readonly ActivityEventType[]> = 
     'checklist.item_unchecked',
     'checklist.item_removed',
     'checklist.item_completed',
+    'checklist.bulk_imported',
   ],
   members: [
     'card.member_added',

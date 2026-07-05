@@ -126,6 +126,15 @@ export const ACTIVITY_EVENT_TYPES = [
   'label.created',
   'label.updated',
   'label.deleted',
+  // Kart kontrol listesi toplu içe aktarma (JSON ile bulk import, 2026-07-05).
+  // Tek karta bir seferde N checklist + maddeleri eklenince — N ayrı
+  // `checklist.created` / M ayrı `checklist.item_added` yerine — TEK özet
+  // activity yazılır (aktivite akışı + bildirim spam'ini önler). Bildirim
+  // tarafında `mapEventToNotificationType` bunu mevcut `checklist_item_added`
+  // tipine map eder (yeni notification tipi AÇILMAZ → mobil bildirim render'ı
+  // dokunulmadan çalışır). Appended to keep the Postgres enum append-only.
+  // See `docs/domain/05-aktivite-kurallari.md`.
+  'checklist.bulk_imported',
 ] as const;
 
 /**

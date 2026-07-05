@@ -6,6 +6,7 @@ import { Alert, AlertDescription, EmptyState, Progress, SectionHeader } from '@p
 import { strings } from '@/lib/strings';
 import { AddChecklistFormPanel, AddChecklistTrigger } from './checklist-add-forms';
 import { ChecklistBlock } from './checklist-block';
+import { ChecklistBulkImportDialog } from './checklist-bulk-import-dialog';
 import type {
   ChecklistCommentContext,
   ChecklistHandlers,
@@ -28,6 +29,13 @@ type CardDetailChecklistsProps = ChecklistHandlers & {
   comments?: ChecklistCommentContext;
   pending?: boolean;
   error?: string | null;
+  /**
+   * JSON toplu içe aktarma mutation'ının izole `pending`/`error`'ı — genel
+   * checklist `pending`/`error`'dan ayrı ki dialog yalnız kendi durumunu
+   * (yükleniyor + sunucu hatası) göstersin.
+   */
+  bulkImportPending?: boolean;
+  bulkImportError?: string | null;
 };
 
 /**
@@ -48,6 +56,8 @@ export function CardDetailChecklists({
   comments,
   pending = false,
   error,
+  bulkImportPending = false,
+  bulkImportError,
   ...handlers
 }: CardDetailChecklistsProps) {
   const copy = strings.card.checklist;
@@ -87,6 +97,14 @@ export function CardDetailChecklists({
                   {done}/{total}
                 </span>
               </span>
+            )}
+            {canEdit && handlers.onBulkImport && (
+              <ChecklistBulkImportDialog
+                onImport={handlers.onBulkImport}
+                pending={bulkImportPending}
+                error={bulkImportError}
+                disabled={pending}
+              />
             )}
             {canEdit && !addingChecklist && (
               <AddChecklistTrigger
