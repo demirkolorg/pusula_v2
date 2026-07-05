@@ -19,10 +19,21 @@ RUN pnpm dlx turbo@2 prune @pusula/api-server @pusula/worker --docker
 
 # --- builder: install + build the pruned subset ---
 FROM base AS builder
+# pnpm, her `pnpm run <script>` öncesi verify-deps-before-run ile node_modules'u
+# lockfile'a karşı doğrular ve gerekirse frozen install tetikler. Aşağıdaki turbo
+# build iki paketi (@pusula/api-server + @pusula/worker) paralel çalıştırınca iki
+# eşzamanlı install AYNI node_modules'ta hoisting yapıp çakışır →
+# "ENOENT: unlink '/app/node_modules/.pnpm/node_modules/debug'" (worker build fail,
+# deploy patladı — 2026-07-05). Deps zaten aşağıda `pnpm install --frozen-lockfile`
+# ile kuruluyor; build öncesi yeniden doğrulama gereksiz. (pnpm .npmrc anahtarını
+# npm_config_* env'den okur; .npmrc dosyası güvenlik kuralıyla yasak olduğundan env.)
+ENV npm_config_verify_deps_before_run=false
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
-RUN pnpm dlx turbo@2 run build --filter=@pusula/api-server --filter=@pusula/worker
+# --concurrency=1: env var'a ek ikinci katman — build'i serileştirerek olası
+# paralel install yarışını tümden eler (iki küçük tsup build; hız kaybı ihmal edilebilir).
+RUN pnpm dlx turbo@2 run build --filter=@pusula/api-server --filter=@pusula/worker --concurrency=1
 
 # --- runner: non-root, ships the built monorepo subset ---
 FROM base AS runner
