@@ -54,6 +54,10 @@ export const CHANGELOG: ChangelogDay[] = [
     label: '5 Temmuz 2026',
     entries: [
       {
+        kind: 'improvement',
+        text: 'Kart eklerinin önizlemesi daha akıcı: galeri kartındaki bir görsele ya da PDF dosyasına tıklayınca önizleme doğrudan açılır. Açılan önizlemede sol/sağ ok tuşları veya kenardaki oklarla diğer eklere (görsel/PDF) tek tek geçebilir; başlıktaki "sıra / toplam" göstergesi nerede olduğunuzu gösterir.',
+      },
+      {
         kind: 'new',
         text: 'Kontrol listelerini artık JSON yapıştırarak toplu içe aktarabilirsiniz: bir karta tek seferde birden fazla yapılacaklar listesi ve maddelerini ekleyin. Kart üzerindeki "JSON ile içe aktar" ile açılan pencerede hazır bir örnek şablon vardır (tek tıkla kopyalanır); yapıştırdığınız JSON doğrulanıp tek seferde eklenir. En fazla 20 liste, liste başına 200 madde ve toplam 500 madde eklenebilir.',
       },
