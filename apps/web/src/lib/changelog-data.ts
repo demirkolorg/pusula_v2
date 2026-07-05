@@ -54,6 +54,10 @@ export const CHANGELOG: ChangelogDay[] = [
     label: '5 Temmuz 2026',
     entries: [
       {
+        kind: 'new',
+        text: 'Kontrol listelerini artık JSON yapıştırarak toplu içe aktarabilirsiniz: bir karta tek seferde birden fazla yapılacaklar listesi ve maddelerini ekleyin. Kart üzerindeki "JSON ile içe aktar" ile açılan pencerede hazır bir örnek şablon vardır (tek tıkla kopyalanır); yapıştırdığınız JSON doğrulanıp tek seferde eklenir. En fazla 20 liste, liste başına 200 madde ve toplam 500 madde eklenebilir.',
+      },
+      {
         kind: 'improvement',
         text: 'Kart ekleri artık sağ paneldeki sekmede değil, açıklama ve kontrol listesinin altında tam genişlikte katlanabilir bir galeride toplanıyor. Ekler küçük kare önizlemeler halinde görünür (görsellerde küçük resim; PDF, Word, Excel ve PowerPoint için renkli ikon); her ekin üzerine gelince önizleme, indirme, "kapak yap" ve silme eylemleri çıkar. Galeri varsayılan kapalıdır, başlığına tıklayınca açılır. Yeni dosya ekleme kart başlığındaki "+ Ekle" menüsünde kaldı.',
       },
