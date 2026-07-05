@@ -2634,9 +2634,12 @@ export const strings = {
       zoomIn: 'Yakınlaştır',
       zoomOut: 'Uzaklaştır',
       zoomReset: 'Sıfırla',
-      zoomArea: 'Önizleme alanı — yön tuşlarıyla kaydırılabilir',
+      zoomArea: 'Önizleme alanı — yukarı/aşağı tuşlarıyla kaydırılabilir',
       loading: 'Önizleme yükleniyor…',
       error: 'Önizleme yüklenemedi.',
+      // Önizlenebilir ekler (görsel/PDF) arası gezinme — sol/sağ ok tuşu + kenar okları.
+      prev: 'Önceki ek',
+      next: 'Sonraki ek',
     },
     error: {
       uploadFailed: 'Dosya yüklenemedi. Lütfen tekrar deneyin.',

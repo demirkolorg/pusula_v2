@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DownloadIcon,
   ExternalLinkIcon,
   MinusIcon,
@@ -37,6 +39,10 @@ export interface AttachmentPreviewLabels {
   loading: string;
   /** Shown when the URL could not be resolved *or* the image fails to load. */
   error: string;
+  /** Accessible label for the "previous previewable attachment" control. */
+  prev: string;
+  /** Accessible label for the "next previewable attachment" control. */
+  next: string;
 }
 
 export interface AttachmentPreviewDialogProps {
@@ -49,6 +55,14 @@ export interface AttachmentPreviewDialogProps {
   /** True while the presigned URL request is in flight. */
   loadingUrl?: boolean;
   onDownload?: () => void;
+  /** Navigate to the previous/next previewable attachment (image/pdf). */
+  onPrev?: () => void;
+  onNext?: () => void;
+  /** Whether a previous/next previewable attachment exists (drives disabled state). */
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  /** 1-based position within the previewable set, for the "n / total" indicator. */
+  position?: { index: number; total: number };
   labels: AttachmentPreviewLabels;
 }
 
@@ -71,6 +85,11 @@ function AttachmentPreviewDialog({
   url,
   loadingUrl = false,
   onDownload,
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false,
+  position,
   labels,
 }: AttachmentPreviewDialogProps) {
   const [zoomIndex, setZoomIndex] = React.useState(0);
@@ -86,15 +105,35 @@ function AttachmentPreviewDialog({
 
   const zoom = ZOOM_STEPS[zoomIndex] ?? 100;
 
+  // Sol/sağ ok tuşları önizlenebilir ekler arası gezinir; yukarı/aşağı zoom
+  // alanının kendi scroll'unda kalır. preventDefault → yatay scroll ile çakışmaz.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' && hasPrev && onPrev) {
+      event.preventDefault();
+      onPrev();
+    } else if (event.key === 'ArrowRight' && hasNext && onNext) {
+      event.preventDefault();
+      onNext();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
         aria-label={fileName}
+        onKeyDown={handleKeyDown}
         className="flex h-[85vh] w-[min(1100px,94vw)] max-w-none flex-col gap-0 p-0 sm:max-w-none"
       >
         <DialogHeader className="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
-          <DialogTitle className="min-w-0 truncate text-sm font-medium">{fileName}</DialogTitle>
+          <div className="flex min-w-0 items-center gap-2">
+            <DialogTitle className="min-w-0 truncate text-sm font-medium">{fileName}</DialogTitle>
+            {position && position.total > 1 && (
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {position.index} / {position.total}
+              </span>
+            )}
+          </div>
           <DialogDescription className="sr-only">{fileName}</DialogDescription>
           <div className="flex shrink-0 items-center gap-1">
             {kind === 'image' && (
@@ -191,30 +230,68 @@ function AttachmentPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div
-          tabIndex={0}
-          role="group"
-          aria-label={labels.zoomArea}
-          className="flex flex-1 items-center justify-center overflow-auto bg-muted/30 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
-        >
-          {loadingUrl ? (
-            <p className="text-sm text-muted-foreground">{labels.loading}</p>
-          ) : !url || imageFailed ? (
-            <p className="text-sm text-destructive">{labels.error}</p>
-          ) : kind === 'image' ? (
-            <img
-              src={url}
-              alt={fileName}
-              onError={() => setImageFailed(true)}
-              className={cn('max-h-full max-w-full object-contain transition-transform')}
-              style={{ transform: `scale(${zoom / 100})` }}
-            />
-          ) : (
-            // PDF: rendered by the browser's built-in viewer. No `sandbox`
-            // attribute — a sandboxed iframe blocks the PDF plugin, which
-            // surfaces as a broken-file placeholder. The presigned GET URL is
-            // read-only S3 content, so an unsandboxed iframe is safe here.
-            <iframe src={url} title={fileName} className="size-full border-0" />
+        <div className="relative flex flex-1 overflow-hidden">
+          {onPrev && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label={labels.prev}
+                  disabled={!hasPrev}
+                  onClick={onPrev}
+                  className="absolute top-1/2 left-3 z-10 -translate-y-1/2 rounded-full shadow-md"
+                >
+                  <ChevronLeftIcon className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{labels.prev}</TooltipContent>
+            </Tooltip>
+          )}
+          <div
+            tabIndex={0}
+            role="group"
+            aria-label={labels.zoomArea}
+            className="flex flex-1 items-center justify-center overflow-auto bg-muted/30 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
+          >
+            {loadingUrl ? (
+              <p className="text-sm text-muted-foreground">{labels.loading}</p>
+            ) : !url || imageFailed ? (
+              <p className="text-sm text-destructive">{labels.error}</p>
+            ) : kind === 'image' ? (
+              <img
+                src={url}
+                alt={fileName}
+                onError={() => setImageFailed(true)}
+                className={cn('max-h-full max-w-full object-contain transition-transform')}
+                style={{ transform: `scale(${zoom / 100})` }}
+              />
+            ) : (
+              // PDF: rendered by the browser's built-in viewer. No `sandbox`
+              // attribute — a sandboxed iframe blocks the PDF plugin, which
+              // surfaces as a broken-file placeholder. The presigned GET URL is
+              // read-only S3 content, so an unsandboxed iframe is safe here.
+              <iframe src={url} title={fileName} className="size-full border-0" />
+            )}
+          </div>
+          {onNext && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label={labels.next}
+                  disabled={!hasNext}
+                  onClick={onNext}
+                  className="absolute top-1/2 right-3 z-10 -translate-y-1/2 rounded-full shadow-md"
+                >
+                  <ChevronRightIcon className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{labels.next}</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </DialogContent>

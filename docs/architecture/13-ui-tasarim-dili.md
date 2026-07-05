@@ -745,6 +745,7 @@ Tile'daki "Önizle" tıklanınca açılan dialog (`@pusula/ui` `Dialog` extend, 
 - **PDF (`kind === 'pdf'`):** `<iframe src={presignedGetUrl} sandbox="allow-same-origin" className="h-full w-full border-0" title={fileName}>`. URL lazy `attachment.getDownloadUrl` ile alınır; dialog kapanınca state temizlenir (URL token expire olur).
 - **Office:** Dialog'a girilmez; "İndir" doğrudan tetiklenir.
 - **A11y:** `role="dialog"` + `aria-label={fileName}`; `Escape` kapatır (mevcut `Dialog` davranışı).
+- **Ek arası gezinme (2026-07-05):** Birden çok önizlenebilir ek (görsel/PDF) varsa dialog prev/next gezinme sunar — gövde kenarlarında `ChevronLeft/RightIcon` `Button variant=secondary size=icon rounded-full` (uçlarda `disabled`), header'da `n / total` konum göstergesi ve **sol/sağ ok tuşu** kısayolu (`ArrowLeft`/`ArrowRight`, `preventDefault`; yukarı/aşağı zoom alanının kendi scroll'unda kalır). Önizlenebilir set = `image` + `pdf` (office atlanır), gezinme wrap yapmaz (uçta durur). Props `onPrev`/`onNext`/`hasPrev`/`hasNext`/`position`; consumer (`card-detail-attachments`) `attachments`'ı filtreleyip komşu eke `setPreview` eder, her geçişte presigned URL yeni `attachmentId` için tazelenir.
 
 ### 13.10.5 Empty state
 

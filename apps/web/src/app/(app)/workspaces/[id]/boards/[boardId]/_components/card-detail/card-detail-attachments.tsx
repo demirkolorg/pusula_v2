@@ -163,6 +163,25 @@ export function CardDetailAttachments({
     setPreview(null);
   }, [queryClient, previewUrlFilter]);
 
+  // --- Preview navigation: önizlenebilir ekler (görsel + PDF) arası gezinme --
+  const previewable = useMemo(
+    () => attachments.filter((row) => row.kind === 'image' || row.kind === 'pdf'),
+    [attachments],
+  );
+  const previewIndex = preview ? previewable.findIndex((row) => row.id === preview.row.id) : -1;
+  const openPreview = useCallback(
+    (row: AttachmentView) => setPreview({ row, kind: row.kind === 'pdf' ? 'pdf' : 'image' }),
+    [],
+  );
+  const goToPreviewOffset = useCallback(
+    (offset: number) => {
+      if (previewIndex < 0) return;
+      const target = previewable[previewIndex + offset];
+      if (target) openPreview(target);
+    },
+    [previewIndex, previewable, openPreview],
+  );
+
   const handleDownload = useCallback(
     async (row: AttachmentView) => {
       if (downloadingRef.current) return;
@@ -228,11 +247,7 @@ export function CardDetailAttachments({
                   canDelete={canManage}
                   canSetCover={canSetCover}
                   canPreview={canPreview}
-                  onPreview={
-                    canPreview
-                      ? () => setPreview({ row, kind: row.kind === 'pdf' ? 'pdf' : 'image' })
-                      : undefined
-                  }
+                  onPreview={canPreview ? () => openPreview(row) : undefined}
                   onDownload={() => void handleDownload(row)}
                   onToggleCover={
                     canSetCover
@@ -302,6 +317,11 @@ export function CardDetailAttachments({
           url={previewUrlQuery.isError ? undefined : (previewUrlQuery.data?.url ?? null)}
           loadingUrl={previewUrlQuery.isPending}
           onDownload={() => void handleDownload(preview.row)}
+          onPrev={previewable.length > 1 ? () => goToPreviewOffset(-1) : undefined}
+          onNext={previewable.length > 1 ? () => goToPreviewOffset(1) : undefined}
+          hasPrev={previewIndex > 0}
+          hasNext={previewIndex >= 0 && previewIndex < previewable.length - 1}
+          position={{ index: previewIndex + 1, total: previewable.length }}
           labels={{
             download: copy.actions.download,
             openInNewTab: copy.actions.openInNewTab,
@@ -312,6 +332,8 @@ export function CardDetailAttachments({
             zoomArea: copy.preview.zoomArea,
             loading: copy.preview.loading,
             error: copy.preview.error,
+            prev: copy.preview.prev,
+            next: copy.preview.next,
           }}
         />
       )}
