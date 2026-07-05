@@ -50,6 +50,20 @@ export const CHANGELOG_KIND_META: Record<
 
 export const CHANGELOG: ChangelogDay[] = [
   {
+    date: '2026-07-05',
+    label: '5 Temmuz 2026',
+    entries: [
+      {
+        kind: 'improvement',
+        text: 'Kart ekleri artık sağ paneldeki sekmede değil, açıklama ve kontrol listesinin altında tam genişlikte katlanabilir bir galeride toplanıyor. Ekler küçük kare önizlemeler halinde görünür (görsellerde küçük resim; PDF, Word, Excel ve PowerPoint için renkli ikon); her ekin üzerine gelince önizleme, indirme, "kapak yap" ve silme eylemleri çıkar. Galeri varsayılan kapalıdır, başlığına tıklayınca açılır. Yeni dosya ekleme kart başlığındaki "+ Ekle" menüsünde kaldı.',
+      },
+      {
+        kind: 'new',
+        text: 'Kontrol listelerini (checklist) artık silmeden arşivleyebilirsiniz — maddeleri ve yorumları kaybolmadan listeyi göz önünden kaldırır. Kartta çok sayıda liste birikince sadeleştirmek için idealdir; arşivlenen listeler kontrol listelerinin altındaki katlanabilir "Arşiv" bölümünde durur ve tek tıkla geri alınır. Arşivli bir listenin maddeleri kartın ilerleme yüzdesine ve pano üzerindeki ilerleme rozetine dahil edilmez. (Mobilde arşivlenen listeler görünümden gizlenir.)',
+      },
+    ],
+  },
+  {
     date: '2026-06-17',
     label: '17 Haziran 2026',
     entries: [
