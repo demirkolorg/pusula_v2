@@ -147,9 +147,24 @@ function AttachmentGalleryCard({
         </div>
       )}
 
+      {/* Full-cell preview trigger — görsel/PDF hücresine tıklamayı da hover
+          overlay'deki göz butonuyla aynı önizlemeye bağlar. Klavye erişimi o
+          görünür buton üzerinden sağlandığı için bu katman `tabIndex={-1}`
+          (yalnızca fare/dokunma hedefi). Aksiyon overlay'i + isim bandı DOM'da
+          bundan sonra geldiği için üstte kalır ve tıklanabilirliğini korur. */}
+      {canPreview && onPreview && (
+        <button
+          type="button"
+          aria-label={labels.preview}
+          tabIndex={-1}
+          onClick={onPreview}
+          className="absolute inset-0 cursor-zoom-in"
+        />
+      )}
+
       {/* Cover badge ------------------------------------------------------- */}
       {isCover && (
-        <span className="absolute top-1 left-1 rounded-sm bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm">
+        <span className="pointer-events-none absolute top-1 left-1 rounded-sm bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm">
           {labels.coverBadge}
         </span>
       )}

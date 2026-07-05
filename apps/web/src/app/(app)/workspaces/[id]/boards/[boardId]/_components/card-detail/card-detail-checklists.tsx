@@ -83,7 +83,10 @@ export function CardDetailChecklists({
         // içinde. `bg-muted/50 border-b` ile panel-card iç tonundan ayrılır.
         className="mb-0 shrink-0 border-b bg-muted/50 px-4 py-2.5"
         action={
-          <>
+          // Progress + sayaç, JSON içe aktar ve "+" trigger'larını kendi flex
+          // wrapper'ında `gap-2` ile diz — `SectionHeader`'ın varsayılan
+          // `gap-0.5`'i (global) yerine bu başlıkta elemanlar arası daha ferah.
+          <div className="flex items-center gap-2">
             {total > 0 && (
               <span className="flex items-center gap-1.5">
                 <Progress
@@ -112,7 +115,7 @@ export function CardDetailChecklists({
                 disabled={pending}
               />
             )}
-          </>
+          </div>
         }
       >
         {copy.title}
