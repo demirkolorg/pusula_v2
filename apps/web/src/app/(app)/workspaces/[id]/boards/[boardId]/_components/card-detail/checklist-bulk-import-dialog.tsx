@@ -150,7 +150,7 @@ export function ChecklistBulkImportDialog({
         <TooltipContent>{copy.action}</TooltipContent>
       </Tooltip>
 
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{copy.dialogTitle}</DialogTitle>
           <DialogDescription>{copy.dialogDescription}</DialogDescription>
@@ -189,7 +189,11 @@ export function ChecklistBulkImportDialog({
             aria-label={copy.placeholder}
             disabled={pending}
             rows={8}
-            className="font-mono text-xs"
+            // `@pusula/ui` Textarea varsayılanı `field-sizing-content` (içerikle
+            // auto-grow) — uzun JSON'da textarea onlarca satıra büyüyüp dialog'u
+            // taşırır. `field-sizing-fixed` ile `rows`'a sabitle; içerik uzarsa
+            // `max-h-64` + `overflow-y-auto` textarea'nın KENDİ içinde scroll'lanır.
+            className="field-sizing-fixed max-h-64 resize-y overflow-y-auto font-mono text-xs"
             aria-invalid={shownError ? true : undefined}
             autoComplete="off"
             spellCheck={false}
