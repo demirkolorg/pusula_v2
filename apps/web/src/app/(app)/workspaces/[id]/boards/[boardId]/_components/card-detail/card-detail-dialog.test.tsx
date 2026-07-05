@@ -126,6 +126,7 @@ vi.mock('@/trpc/client', () => ({
       update: deepProxy,
       delete: deepProxy,
       archive: deepProxy,
+      bulkImport: deepProxy,
       item: {
         create: deepProxy,
         toggle: deepProxy,

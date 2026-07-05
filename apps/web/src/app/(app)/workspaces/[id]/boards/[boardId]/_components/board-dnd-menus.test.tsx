@@ -28,11 +28,13 @@ vi.mock('@/trpc/client', () => ({
     list: {
       update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
     },
     card: {
       update: { mutationOptions: (o: unknown) => o },
       create: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
       get: { queryFilter: () => ({}) },

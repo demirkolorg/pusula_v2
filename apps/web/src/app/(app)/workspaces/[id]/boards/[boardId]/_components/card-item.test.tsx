@@ -44,6 +44,7 @@ vi.mock('@/trpc/client', () => ({
     },
     card: {
       archive: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
       update: { mutationOptions: (o: unknown) => o },

@@ -159,6 +159,13 @@ vi.mock('@/lib/realtime/use-user-realtime', () => ({
   useUserRealtime: vi.fn(),
 }));
 
+// Faz 13T global rapor render listener'ı — app-shell.tsx bir kez çağırır;
+// useSession + realtime socket'e bağlanır. app-shell render testleri için
+// no-op (komşu useUserRealtime gibi); gerçek davranışı ayrı test kapsar.
+vi.mock('@/lib/realtime/use-report-render-global', () => ({
+  useReportRenderGlobal: vi.fn(),
+}));
+
 vi.mock('./notification-bell', () => ({
   NotificationBell: () => (
     <button type="button" aria-label="Bildirimler">
