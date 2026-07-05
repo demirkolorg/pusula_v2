@@ -29,11 +29,13 @@ vi.mock('@/trpc/client', () => ({
     list: {
       update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
     },
     card: {
       update: { mutationOptions: (o: unknown) => o },
       create: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
+      delete: { mutationOptions: (o: unknown) => o },
       complete: { mutationOptions: (o: unknown) => o },
       uncomplete: { mutationOptions: (o: unknown) => o },
       get: { queryFilter: () => ({}) },
@@ -132,6 +134,10 @@ describe('<ListColumn>', () => {
   beforeEach(() => {
     h.mutate.mockReset();
     h.invalidateQueries.mockReset();
+    // Daralt tercihi localStorage'de list.id bazında saklandığından testler arası
+    // sızıntı olmaması için temizle (aksi halde bir testin daralttığı l1, sonraki
+    // testte daraltılmış başlar).
+    window.localStorage.clear();
   });
 
   it('renders the list title without a header card count', () => {
@@ -327,6 +333,29 @@ describe('<ListColumn>', () => {
     expect(latestColumnRegistration?.listId).toBe(list.id);
     expect(latestColumnRegistration?.dragHandle.isConnected).toBe(true);
     expect(cleanupCardsArea).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists the collapse preference to localStorage across a remount (and clears it on expand)', async () => {
+    const user = userEvent.setup();
+    const storageKey = `pusula-list-collapsed-${list.id}`;
+
+    const { unmount } = render(
+      <ListColumn boardId="b1" list={list} cards={[card('c1', 'One')]} canEdit />,
+    );
+
+    // Daraltınca localStorage'e yazılır.
+    await user.click(screen.getByRole('button', { name: columnCopy.collapse }));
+    expect(window.localStorage.getItem(storageKey)).toBe('1');
+
+    // Yeniden mount (sayfa yenilemesi gibi) → daraltılmış başlar.
+    unmount();
+    render(<ListColumn boardId="b1" list={list} cards={[card('c1', 'One')]} canEdit />);
+    expect(screen.getByRole('region', { name: list.title })).toHaveClass('w-10');
+    expect(screen.queryByRole('button', { name: 'One' })).not.toBeInTheDocument();
+
+    // Genişletince anahtar silinir (orphan birikmez).
+    await user.click(screen.getByRole('button', { name: columnCopy.expand }));
+    expect(window.localStorage.getItem(storageKey)).toBeNull();
   });
 
   it('expands a collapsed list and re-enables the card drop area', async () => {

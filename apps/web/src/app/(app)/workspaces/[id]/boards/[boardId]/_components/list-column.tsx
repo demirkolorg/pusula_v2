@@ -58,6 +58,7 @@ import {
   useOptimisticBoardMutation,
 } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
+import { readListCollapsed, writeListCollapsed } from './list-collapse-storage';
 import { useTRPC } from '@/trpc/client';
 import { ListReportsSubmenu } from '@/components/reports/entity-tab/list-reports-submenu';
 import { AddCardForm } from './add-card-form';
@@ -245,7 +246,9 @@ export function ListColumn({
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Daralt/genişlet tercihi list.id bazında localStorage'de saklanır; lazy init
+  // ile sayfa yenilendiğinde daraltılmış liste daraltılmış açılır (aşağıdaki effect).
+  const [collapsed, setCollapsed] = useState(() => readListCollapsed(list.id));
   const skipRenameCommitRef = useRef(false);
 
   // --- Drag-and-drop wiring ------------------------------------------------
@@ -285,6 +288,10 @@ export function ListColumn({
   useEffect(() => {
     if (collapsed) setAddingCard(false);
   }, [collapsed]);
+  // Daralt/genişlet tercihini kalıcı kıl (salt client-side; domain/realtime etkisi yok).
+  useEffect(() => {
+    writeListCollapsed(list.id, collapsed);
+  }, [list.id, collapsed]);
   useEffect(() => {
     if (!listEditable || openAddCardComposerToken <= 0) return;
     setAddingCard(true);
