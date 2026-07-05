@@ -1,27 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as PusulaUi from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
-/**
- * Drive the dropzone's hidden `<input type="file">` directly. `userEvent.upload`
- * silently drops files whose type is outside the input's `accept` attribute, so
- * a raw `change` event is the only way to exercise the reject branches.
- */
-function pickFile(dropzone: HTMLElement, file: File) {
-  const input = dropzone.querySelector('input[type="file"]') as HTMLInputElement;
-  Object.defineProperty(input, 'files', { value: [file], configurable: true });
-  fireEvent.change(input);
-}
-
 // --- Hoisted mock state ----------------------------------------------------
 const h = vi.hoisted(() => ({
   attachments: [] as Array<Record<string, unknown>>,
-  initiate: vi.fn(),
-  commit: vi.fn(),
-  update: vi.fn(),
   remove: vi.fn(),
   cardUpdate: vi.fn(),
   toastError: vi.fn(),
@@ -32,8 +18,9 @@ vi.mock('@pusula/ui', async (importOriginal) => {
   return { ...actual, toast: { error: h.toastError, success: vi.fn() } };
 });
 
-// A trpc stub: each procedure exposes the query/mutation helpers the component
-// calls. `queryFn` / `mutationFn` route to the hoisted mocks.
+// A trpc stub: the gallery only reads `attachment.list`, and wires delete /
+// cover / download. Uploading + description editing moved out (card header
+// "+ Ekle" popover), so `initiate` / `commit` / `update` are gone.
 vi.mock('@/trpc/client', () => {
   const listKey = (cardId: string) => ['attachment.list', { cardId }];
   return {
@@ -45,11 +32,6 @@ vi.mock('@/trpc/client', () => {
             queryKey: listKey(cardId),
             queryFn: async () => h.attachments,
           }),
-        },
-        initiate: { mutationOptions: () => ({ mutationFn: h.initiate }) },
-        commit: { mutationOptions: () => ({ mutationFn: h.commit }) },
-        update: {
-          mutationOptions: (opts?: object) => ({ mutationFn: h.update, ...(opts ?? {}) }),
         },
         delete: {
           mutationOptions: (opts?: object) => ({ mutationFn: h.remove, ...(opts ?? {}) }),
@@ -96,7 +78,7 @@ function makeAttachment(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderTab(props: Partial<Parameters<typeof CardDetailAttachments>[0]> = {}) {
+function renderGallery(props: Partial<Parameters<typeof CardDetailAttachments>[0]> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -121,23 +103,20 @@ beforeEach(() => {
     });
   }
   h.attachments = [];
-  h.initiate.mockReset();
-  h.commit.mockReset();
-  h.update.mockReset();
   h.remove.mockReset();
   h.cardUpdate.mockReset();
   h.toastError.mockReset();
 });
 
-describe('<CardDetailAttachments>', () => {
+describe('<CardDetailAttachments> (galeri)', () => {
   it('shows the empty state when there are no attachments', async () => {
-    renderTab();
+    renderGallery();
     expect(await screen.findByText(copy.empty.title)).toBeInTheDocument();
   });
 
-  it('renders an attachment tile from the list query', async () => {
+  it('renders a gallery card from the list query', async () => {
     h.attachments = [makeAttachment()];
-    renderTab();
+    renderGallery();
     expect(await screen.findByText('rapor.pdf')).toBeInTheDocument();
   });
 
@@ -151,7 +130,7 @@ describe('<CardDetailAttachments>', () => {
         thumbnailUrl: 'https://storage.test/get/foto.png',
       }),
     ];
-    renderTab();
+    renderGallery();
 
     const img = (await screen.findByAltText('foto.png')) as HTMLImageElement;
     expect(img).toBeInTheDocument();
@@ -161,103 +140,26 @@ describe('<CardDetailAttachments>', () => {
 
   it('falls back to an icon (no <img>) for a non-image attachment', async () => {
     h.attachments = [makeAttachment()]; // pdf, thumbnailUrl: null
-    renderTab();
+    renderGallery();
 
     await screen.findByText('rapor.pdf');
     expect(screen.queryByAltText('rapor.pdf')).not.toBeInTheDocument();
   });
 
-  it('keyboard-activating the dropzone runs the two-phase upload (initiate → commit)', async () => {
-    const user = userEvent.setup();
-    h.initiate.mockResolvedValue({
-      attachmentId: 'att-new',
-      upload: { url: 'https://storage.test/put', headers: {} },
-      expiresAt: new Date(),
-    });
-    h.commit.mockResolvedValue(
-      makeAttachment({ id: 'att-new', fileName: 'yeni.png', kind: 'image', mimeType: 'image/png' }),
-    );
-
-    // Stub XHR so the presigned PUT resolves instantly. Must be a real
-    // constructable (class) — `new` on an arrow function throws.
-    class XhrStub {
-      open = vi.fn();
-      setRequestHeader = vi.fn();
-      upload = { addEventListener: vi.fn() };
-      send = vi.fn(() => {
-        this.loadCb?.();
-      });
-      status = 200;
-      private loadCb: (() => void) | undefined;
-      addEventListener(event: string, cb: () => void) {
-        if (event === 'load') this.loadCb = cb;
-      }
-    }
-    vi.stubGlobal('XMLHttpRequest', XhrStub);
-
-    renderTab();
-    const dropzone = await screen.findByRole('button', { name: copy.dropzone.ariaLabel });
-    const file = new File(['x'], 'yeni.png', { type: 'image/png' });
-    pickFile(dropzone, file);
-
-    // Optional description, then upload.
-    await user.click(await screen.findByRole('button', { name: copy.upload.action }));
-
-    await waitFor(() => expect(h.initiate).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(h.commit).toHaveBeenCalledTimes(1));
-    expect(h.initiate.mock.calls[0]?.[0]).toMatchObject({ cardId: 'card-1', fileName: 'yeni.png' });
-
-    vi.unstubAllGlobals();
-  });
-
-  it('rejects an oversized file with a toast and does not start the upload', async () => {
-    renderTab();
-    const dropzone = await screen.findByRole('button', { name: copy.dropzone.ariaLabel });
-    const huge = new File(['x'], 'huge.png', { type: 'image/png' });
-    Object.defineProperty(huge, 'size', { value: 60 * 1024 * 1024 });
-
-    pickFile(dropzone, huge);
-
-    expect(h.toastError).toHaveBeenCalledWith(copy.dropzone.error.tooLarge);
-    expect(screen.queryByRole('button', { name: copy.upload.action })).not.toBeInTheDocument();
-  });
-
-  it('rejects an unsupported MIME type with a toast', async () => {
-    renderTab();
-    const dropzone = await screen.findByRole('button', { name: copy.dropzone.ariaLabel });
-    const bad = new File(['x'], 'evil.exe', { type: 'application/x-msdownload' });
-
-    pickFile(dropzone, bad);
-
-    expect(h.toastError).toHaveBeenCalledWith(copy.dropzone.error.mimeRejected);
-  });
-
-  it('inline-edits a description and fires attachment.update', async () => {
-    const user = userEvent.setup();
+  it('does not embed an upload dropzone (uploading lives in the "+ Ekle" popover)', async () => {
     h.attachments = [makeAttachment()];
-    h.update.mockResolvedValue(makeAttachment({ description: 'Güncel açıklama' }));
-    renderTab();
-
+    renderGallery();
     await screen.findByText('rapor.pdf');
-    await user.click(screen.getByRole('button', { name: copy.actions.moreActions }));
-    await user.click(screen.getByRole('menuitem', { name: copy.actions.edit }));
-
-    const textarea = await screen.findByLabelText(copy.actions.edit);
-    await user.type(textarea, 'Güncel açıklama');
-    await user.click(screen.getByRole('button', { name: copy.actions.save }));
-
-    await waitFor(() => expect(h.update).toHaveBeenCalledTimes(1));
-    expect(h.update.mock.calls[0]?.[0]).toMatchObject({
-      attachmentId: 'att-1',
-      description: 'Güncel açıklama',
-    });
+    expect(
+      screen.queryByRole('button', { name: copy.dropzone.ariaLabel }),
+    ).not.toBeInTheDocument();
   });
 
   it('delete confirmation fires attachment.delete', async () => {
     const user = userEvent.setup();
     h.attachments = [makeAttachment()];
     h.remove.mockResolvedValue({ id: 'att-1', ok: true });
-    renderTab();
+    renderGallery();
 
     await screen.findByText('rapor.pdf');
     await user.click(screen.getByRole('button', { name: copy.actions.moreActions }));
@@ -277,7 +179,7 @@ describe('<CardDetailAttachments>', () => {
       makeAttachment({ id: 'img-1', fileName: 'kapak.png', kind: 'image', mimeType: 'image/png' }),
     ];
     h.cardUpdate.mockResolvedValue({});
-    renderTab();
+    renderGallery();
 
     await screen.findByText('kapak.png');
     await user.click(screen.getByRole('button', { name: copy.actions.moreActions }));
@@ -290,9 +192,12 @@ describe('<CardDetailAttachments>', () => {
     });
   });
 
-  it('viewer (cannot edit) sees a disabled dropzone', async () => {
-    renderTab({ canEdit: false });
-    const dropzone = await screen.findByRole('button', { name: copy.dropzone.ariaLabel });
-    expect(dropzone).toHaveAttribute('aria-disabled', 'true');
+  it('a viewer (cannot edit, not uploader) gets no manage menu', async () => {
+    h.attachments = [makeAttachment()]; // uploader u1
+    renderGallery({ canEdit: false, viewerUserId: 'someone-else' });
+    await screen.findByText('rapor.pdf');
+    expect(
+      screen.queryByRole('button', { name: copy.actions.moreActions }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -4,7 +4,9 @@ import { cardRoleSchema } from '../roles';
 import { idSchema, withClientMutationId } from './common';
 
 export const cardTitleSchema = z.string().trim().min(1).max(500);
-export const cardDescriptionSchema = z.string().max(20_000);
+// Pratikte sınırsız (~1M karakter); üst tavan yalnızca DoS/bellek koruması
+// için — description search index, activity/audit ve realtime payload'a akar.
+export const cardDescriptionSchema = z.string().max(1_000_000);
 
 /** A card's cover colour — one of the 12 palette names (`CARD_COVER_COLORS`). */
 export const cardCoverColorSchema = z.enum(CARD_COVER_COLORS);

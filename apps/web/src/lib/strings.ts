@@ -1877,7 +1877,6 @@ export const strings = {
         comments: 'Yorumlar',
         activity: 'Aktivite',
         attachments: 'Ekler',
-        all: 'Tümü',
       },
       composer: {
         placeholder: 'Yorum yaz, @ ile etiketle…',
@@ -1940,6 +1939,12 @@ export const strings = {
       deleteConfirmTitle: 'Liste silinsin mi?',
       deleteConfirmDescription: 'Bu yapılacaklar listesi ve içindeki maddeler silinir.',
       deleteConfirm: 'Sil',
+      // Liste üç nokta menüsündeki arşivleme eylemleri + alttaki arşiv bölümü.
+      archive: 'Arşivle',
+      unarchive: 'Arşivden çıkar',
+      archivedSectionTitle: 'Arşiv',
+      // Arşiv bölümü başlığının erişilebilir adı.
+      archivedSectionLabel: 'Arşivlenen listeler',
       progress: 'maddeden',
       progressDone: 'tamamlandı',
       itemAddAction: 'Madde ekle',
@@ -2541,6 +2546,12 @@ export const strings = {
   attachment: {
     tabs: {
       attachments: 'Ekler',
+    },
+    // Sol kolon altındaki collapsible galeri bölümü (2026-07-05).
+    section: {
+      title: 'Ekler',
+      toggleOpen: 'Ekler bölümünü aç',
+      toggleClose: 'Ekler bölümünü kapat',
     },
     dropzone: {
       idle: 'Dosya bırak veya seç',

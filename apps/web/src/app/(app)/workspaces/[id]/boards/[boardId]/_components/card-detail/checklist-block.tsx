@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   MoreHorizontalIcon,
@@ -49,6 +51,7 @@ import type {
 export function ChecklistBlock({
   checklist,
   canEdit,
+  archived = false,
   pending,
   handlers,
   nameOf,
@@ -57,6 +60,12 @@ export function ChecklistBlock({
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
+  /**
+   * Blok arşiv bölümünde mi render ediliyor (invariant 23). `true` ise salt-görünüm:
+   * maddeler değiştirilemez, yeniden adlandırma/ekleme/sürükleme kapalı — menüde
+   * yalnız "arşivden çıkar" ve "sil". `canEdit` yine board `member+` yetkisidir.
+   */
+  archived?: boolean;
   pending: boolean;
   handlers: ChecklistHandlers;
   nameOf?: NameResolver;
@@ -72,11 +81,18 @@ export function ChecklistBlock({
   // Bölümü başlığa tıklayarak aç/kapa — çok sayıda checklist varken üzerinde
   // çalışılana odaklanmayı kolaylaştırır. Bileşen-içi durum (kart kapanınca
   // sıfırlanır); kapalıyken gövde (ilerleme + maddeler + ekleme formu) gizlenir.
-  const [collapsed, setCollapsed] = useState(false);
+  // Arşivli blok default KAPALI gelir — arşiv bölümü açıldığında yalnız başlıklar
+  // görünür, kullanıcı ilgilendiği listeyi tek tek açar.
+  const [collapsed, setCollapsed] = useState(archived);
   const bodyId = `checklist-body-${checklist.id}`;
 
   const total = checklist.items.length;
   const done = checklist.items.filter((i) => i.completed).length;
+
+  // Arşivli blok salt-görünümdür (invariant 23): madde toggle/düzenle/sil, yeniden
+  // adlandırma, "madde ekle" ve sürükleme kapalı — menüde yalnız arşivden çıkar /
+  // sil. `editable` = board yetkisi (`canEdit`) VE arşivde değil.
+  const editable = canEdit && !archived;
 
   // Madde sürükle-bırak sıralaması (DEM — web). Yalnız düzenlenebilir + birden
   // fazla madde varken anlamlı; drop'ta tek `onReorderItem` çağrısı (optimistic
@@ -84,14 +100,14 @@ export function ChecklistBlock({
   const dnd = useChecklistDnd({
     checklistId: checklist.id,
     items: checklist.items,
-    enabled: canEdit && checklist.items.length > 1,
+    enabled: editable && checklist.items.length > 1,
     onReorder: (args) => handlers.onReorderItem(args),
   });
 
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-start justify-between gap-2">
-        {renaming && canEdit ? (
+        {renaming && editable ? (
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -177,14 +193,28 @@ export function ChecklistBlock({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {!archived && (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setTitleValue(checklist.title);
+                      setRenaming(true);
+                    }}
+                  >
+                    <PencilIcon className="size-3.5" aria-hidden />
+                    {copy.rename}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
-                  onSelect={() => {
-                    setTitleValue(checklist.title);
-                    setRenaming(true);
-                  }}
+                  onSelect={() =>
+                    handlers.onArchiveChecklist({ checklistId: checklist.id, archived: !archived })
+                  }
                 >
-                  <PencilIcon className="size-3.5" aria-hidden />
-                  {copy.rename}
+                  {archived ? (
+                    <ArchiveRestoreIcon className="size-3.5" aria-hidden />
+                  ) : (
+                    <ArchiveIcon className="size-3.5" aria-hidden />
+                  )}
+                  {archived ? copy.unarchive : copy.archive}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
@@ -253,7 +283,7 @@ export function ChecklistBlock({
                 <ChecklistItemRow
                   key={item.id}
                   item={item}
-                  canEdit={canEdit}
+                  canEdit={editable}
                   pending={pending}
                   nameOf={nameOf}
                   imageOf={imageOf}
@@ -285,7 +315,7 @@ export function ChecklistBlock({
             </ul>
           )}
 
-          {canEdit && (
+          {editable && (
             <AddItemForm
               onSubmit={(content) => handlers.onAddItem({ checklistId: checklist.id, content })}
               pending={pending}

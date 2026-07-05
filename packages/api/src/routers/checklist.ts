@@ -35,6 +35,7 @@ import { and, asc, count, desc, eq, inArray, isNull } from '@pusula/db';
 import { activityEvents, boards, checklistItems, checklists, comments } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
+  archiveChecklistInput,
   canEditBoardContent,
   createChecklistInput,
   createChecklistItemInput,
@@ -71,6 +72,7 @@ const checklistCols = {
   cardId: checklists.cardId,
   title: checklists.title,
   position: checklists.position,
+  archivedAt: checklists.archivedAt,
   createdAt: checklists.createdAt,
   updatedAt: checklists.updatedAt,
 } as const;
@@ -686,6 +688,57 @@ export const checklistRouter = router({
           checklistId: checklist.id,
           title: updated.title,
           patch: { title: updated.title },
+        },
+      });
+      return { ...updated, changed: true as const };
+    });
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    return result;
+  }),
+
+  /**
+   * Archive / unarchive a checklist (invariant 23). Board `member+` only.
+   * `archived: true` stamps `archived_at = now()`, `false` clears it. Idempotent:
+   * a no-op flip returns `{ ..., changed: false }`. **No activity** (low-signal,
+   * like rename); bumps `boards.version` and emits a `checklist.updated` realtime
+   * event (`patch: { archivedAt }`) so peers move the block into / out of their
+   * archive section. An archived checklist is read-only in the UI (server still
+   * rejects its item mutations only via the board-archived gate — the read-only
+   * treatment is a UI concern; the data stays intact for restore).
+   */
+  archive: cardProcedure.input(archiveChecklistInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.card.boardRole))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Checklist arşivleme yetkiniz yok.' });
+    }
+
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
+      const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
+      await assertBoardWritable(tx, ctx.card.boardId);
+
+      if ((checklist.archivedAt != null) === input.archived) {
+        return { ...checklist, changed: false as const };
+      }
+
+      const [updated] = await tx
+        .update(checklists)
+        .set({ archivedAt: input.archived ? new Date() : null })
+        .where(eq(checklists.id, checklist.id))
+        .returning(checklistCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      const seq = await bumpBoardVersion(tx, ctx.card.boardId);
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'checklist.updated',
+        workspaceId: ctx.card.workspaceId,
+        boardId: ctx.card.boardId,
+        cardId: ctx.card.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq,
+        data: {
+          checklistId: checklist.id,
+          patch: { archivedAt: updated.archivedAt },
         },
       });
       return { ...updated, changed: true as const };

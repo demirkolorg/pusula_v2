@@ -238,6 +238,96 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('archive: a member archives / unarchives a checklist (no activity, version+1, changed flag); list returns archivedAt; a viewer is FORBIDDEN', async () => {
+    const c = await callerFor(memberId).checklist.create({
+      cardId,
+      title: 'Archivable',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const beforeActs = (await actsFor(boardId)).length;
+
+    // archive → archivedAt set, changed:true, version+1
+    const v0 = await boardVersion(boardId);
+    const archived = await callerFor(memberId).checklist.archive({
+      cardId,
+      checklistId: c.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(archived).toMatchObject({ id: c.id, changed: true });
+    expect(archived.archivedAt).toBeInstanceOf(Date);
+    expect(await boardVersion(boardId)).toBe(v0 + 1);
+
+    // checklist.list reflects archivedAt
+    const listed = await callerFor(memberId).checklist.list({ cardId });
+    expect(listed.find((x) => x.id === c.id)?.archivedAt).toBeTruthy();
+
+    // idempotent: archiving an already-archived checklist is a no-op
+    const v1 = await boardVersion(boardId);
+    const noop = await callerFor(memberId).checklist.archive({
+      cardId,
+      checklistId: c.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(noop).toMatchObject({ id: c.id, changed: false });
+    expect(await boardVersion(boardId)).toBe(v1);
+
+    // unarchive → archivedAt cleared
+    const restored = await callerFor(memberId).checklist.archive({
+      cardId,
+      checklistId: c.id,
+      archived: false,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(restored).toMatchObject({ id: c.id, changed: true, archivedAt: null });
+
+    // archive/unarchive write no activity rows (low-signal, like rename)
+    expect((await actsFor(boardId)).length).toBe(beforeActs);
+
+    // a board viewer cannot archive
+    await expect(
+      callerFor(guestId).checklist.archive({
+        cardId,
+        checklistId: c.id,
+        archived: true,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('board.get card badge (checklistTotal) excludes archived checklists', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Badge card',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const cl = await callerFor(memberId).checklist.create({
+      cardId: card.id,
+      title: 'Badge list',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(memberId).checklist.item.create({
+      cardId: card.id,
+      checklistId: cl.id,
+      content: 'x',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const before = await callerFor(memberId).board.get({ boardId });
+    expect(before.cards.find((x) => x.id === card.id)?.checklistTotal).toBe(1);
+
+    await callerFor(memberId).checklist.archive({
+      cardId: card.id,
+      checklistId: cl.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const after = await callerFor(memberId).board.get({ boardId });
+    expect(after.cards.find((x) => x.id === card.id)?.checklistTotal).toBe(0);
+  });
+
   it('NOT_FOUND: a checklistId belonging to another card', async () => {
     const onOther = await callerFor(ownerId).checklist.create({
       cardId: otherCardId,

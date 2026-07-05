@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckSquareIcon } from 'lucide-react';
+import { ArchiveIcon, CheckSquareIcon, ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import { Alert, AlertDescription, EmptyState, Progress, SectionHeader } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddChecklistFormPanel, AddChecklistTrigger } from './checklist-add-forms';
@@ -56,8 +56,13 @@ export function CardDetailChecklists({
   // genişlikte render edilsin (UI tutarlılığı: `ChecklistBlock` shell'i).
   const [addingChecklist, setAddingChecklist] = useState(false);
 
-  const total = checklists.reduce((sum, c) => sum + c.items.length, 0);
-  const done = checklists.reduce((sum, c) => sum + c.items.filter((i) => i.completed).length, 0);
+  // Aktif ve arşivli checklist'leri ayır (invariant 23). Üst ilerleme ve normal
+  // liste yalnız aktifleri kapsar; arşivliler en altta katlanabilir bölümde.
+  const active = checklists.filter((c) => !c.archivedAt);
+  const archived = checklists.filter((c) => c.archivedAt);
+
+  const total = active.reduce((sum, c) => sum + c.items.length, 0);
+  const done = active.reduce((sum, c) => sum + c.items.filter((i) => i.completed).length, 0);
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
@@ -116,7 +121,7 @@ export function CardDetailChecklists({
           )
         ) : (
           <div className="space-y-3">
-            {checklists.map((checklist) => (
+            {active.map((checklist) => (
               <ChecklistBlock
                 key={checklist.id}
                 checklist={checklist}
@@ -128,9 +133,88 @@ export function CardDetailChecklists({
                 comments={comments}
               />
             ))}
+            {archived.length > 0 && (
+              <ArchivedChecklistsSection
+                archived={archived}
+                canEdit={canEdit}
+                pending={pending}
+                handlers={handlers}
+                nameOf={nameOf}
+                imageOf={imageOf}
+                comments={comments}
+              />
+            )}
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Arşivlenmiş checklist'lerin en alttaki katlanabilir bölümü (invariant 23).
+ * **Varsayılan kapalı** — çok sayıda liste birikince kart karmaşasını azaltmak
+ * için. Açılınca her arşivli liste {@link ChecklistBlock}'ta `archived` bayrağıyla
+ * salt-görünüm render edilir (maddeler değişmez; menüde yalnız "arşivden çıkar" /
+ * "sil"). Yalnız `archived.length > 0` iken render edilir.
+ */
+function ArchivedChecklistsSection({
+  archived,
+  canEdit,
+  pending,
+  handlers,
+  nameOf,
+  imageOf,
+  comments,
+}: {
+  archived: ChecklistView[];
+  canEdit: boolean;
+  pending: boolean;
+  handlers: ChecklistHandlers;
+  nameOf?: NameResolver;
+  imageOf?: ImageResolver;
+  comments?: ChecklistCommentContext;
+}) {
+  const copy = strings.card.checklist;
+  const [open, setOpen] = useState(false);
+  const bodyId = 'checklist-archive-body';
+
+  return (
+    <div className="rounded-md border border-dashed">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        aria-label={copy.archivedSectionLabel}
+        className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+      >
+        {open ? (
+          <ChevronDownIcon className="size-4 shrink-0" aria-hidden />
+        ) : (
+          <ChevronRightIcon className="size-4 shrink-0" aria-hidden />
+        )}
+        <ArchiveIcon className="size-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">{copy.archivedSectionTitle}</span>
+        <span className="shrink-0 text-[11px] font-semibold tabular-nums">{archived.length}</span>
+      </button>
+      {open && (
+        <div id={bodyId} className="space-y-3 p-3 pt-0">
+          {archived.map((checklist) => (
+            <ChecklistBlock
+              key={checklist.id}
+              checklist={checklist}
+              archived
+              canEdit={canEdit}
+              pending={pending}
+              handlers={handlers}
+              nameOf={nameOf}
+              imageOf={imageOf}
+              comments={comments}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

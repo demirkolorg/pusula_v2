@@ -488,7 +488,8 @@ export const boardRouter = router({
               })
               .from(checklists)
               .leftJoin(checklistItems, eq(checklistItems.checklistId, checklists.id))
-              .where(inArray(checklists.cardId, cardIds))
+              // Arşivli checklist'ler kart rozeti sayımına girmez (invariant 23).
+              .where(and(inArray(checklists.cardId, cardIds), isNull(checklists.archivedAt)))
               .groupBy(checklists.cardId),
             ctx.db
               .select({ cardId: comments.cardId, count: sql<number>`(count(*))::int` })

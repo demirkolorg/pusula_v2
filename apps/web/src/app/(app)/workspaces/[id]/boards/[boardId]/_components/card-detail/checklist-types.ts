@@ -22,6 +22,8 @@ export type ChecklistView = {
   cardId: string;
   title: string;
   position: string;
+  /** Checklist arşiv durumu (invariant 23): `null` = aktif, aksi arşivli. */
+  archivedAt: Date | string | null;
   items: ChecklistItemView[];
 };
 
@@ -29,6 +31,8 @@ export type ChecklistHandlers = {
   onCreateChecklist: (title: string) => void;
   onRenameChecklist: (input: { checklistId: string; title: string }) => void;
   onDeleteChecklist: (checklistId: string) => void;
+  /** Arşivle (`archived: true`) / arşivden çıkar (`false`) bir checklist. */
+  onArchiveChecklist: (input: { checklistId: string; archived: boolean }) => void;
   onAddItem: (input: { checklistId: string; content: string }) => void;
   onToggleItem: (input: { checklistId: string; itemId: string; completed: boolean }) => void;
   onEditItem: (input: { checklistId: string; itemId: string; content: string }) => void;

@@ -12,7 +12,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-18
+updated: 2026-07-05
 ---
 
 # 01 — Ürün Modeli ve Çekirdek Invariant'lar
@@ -55,7 +55,7 @@ Workspace
        ├─ List (arşivlenebilir)
        │    └─ Card (arşivlenebilir, due_at)
        │         ├─ Card member (assignee / watcher)
-       │         ├─ Checklist → Checklist item
+       │         ├─ Checklist (arşivlenebilir) → Checklist item
        │         ├─ Comment
        │         ├─ Attachment
        │         └─ Card label
@@ -89,3 +89,4 @@ Kullanıcı (User)
 20. **Hızlı Not tam olarak bir kullanıcıya aittir ve hiyerarşiden bağımsızdır (DEM-203):** Bir Hızlı Not (`Quick Note`) tam olarak bir kullanıcıya (`user_id` = sahip) aittir; hiçbir board/list/workspace'e bağlı **değildir** — `quick_notes` tablosunda `board_id`/`list_id`/`workspace_id` kolonu **yoktur**. Hızlı Not **kişiye özeldir ve globaldir**: kullanıcının tüm sistemde tek bir Hızlı Notlar listesi vardır, yalnız sahibi görür/oluşturur/düzenler/siler; başka hiçbir kullanıcı (workspace owner/admin dahil) erişemez. "Board favorisi" gibi per-user bir kişisel kayıttır (bkz. invariant 19) ama favori bir junction işaretiyken Hızlı Not içerikli (`content`, düz metin) bir entity'dir. Kullanıcı silinince (`User` — invariant 14) bağlı `quick_notes` satırları cascade ile temizlenir.
 21. **Hızlı Not karta dönüştürüldüğünde tüketilir (DEM-203):** Bir Hızlı Not bir hedef listeye **karta dönüştürülebilir** (`quickNote.convertToCard`): aynı transaction içinde hedef listenin sonuna (ya da verilen komşulara göre) `position` ile yeni bir kart oluşur — Hızlı Not'un `content`'i kartın başlığı (`title`) olur — ve Hızlı Not satırı **silinir (tüketilir)**. Yarı-dönüşmüş durum yoktur: ya kart oluşur ve not silinir, ya da hiçbiri (tek atomik tx). Kart oluşturma `card.create` ile aynı domain etkilerini üretir (kart ⊆ liste.board invariant'ı 3, `card.created` activity, `boards.version` artışı, Faz 5+ realtime/bildirim); Hızlı Not'un silinmesi **sessizdir** (invariant 22). Caller hedef listenin board'unda kart oluşturma yetkisine sahip olmalıdır (`member+` — bkz. [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md)); hedef liste/board arşivli olamaz.
 22. **Hızlı Notlar activity / notification / realtime / outbox üretmez (DEM-203):** Hızlı Not CRUD'u (`create`/`update`/`delete`) ve karta dönüştürmedeki **not silme** adımı `activity_events`'e **yazılmaz**, `notification_outbox` kaydı **üretmez**, `realtime_events` **yaymaz** ve `boards.version`'ı **artırmaz** — Hızlı Not kullanıcının kişisel scratch alanıdır, hiçbir board zaman tünelini veya başka kullanıcının görünümünü kirletmez. Tek istisna `convertToCard`'ın **kart oluşturma** adımıdır: o normal `card.created` activity'sini ve (ileri fazlarda) realtime/bildirim etkilerini üretir; not silme yine sessiz kalır.
+23. **Checklist (kontrol listesi) arşivleme:** Bir kart içi kontrol listesi (`checklist`) silinmeden **arşivlenebilir** — `archived_at` (`null` = aktif, timestamptz = arşivli). Amaç: liste sayısı artınca kartı sadeleştirmek, veriyi (maddeler/yorumlar) kaybetmeden listeyi göz önünden kaldırmak. `checklist.archive({ archived })` çift yönlüdür (arşivle / geri al), board `member+` ister, arşivli board'da reddedilir (board salt-okunur kapısı), aynı duruma tekrar set/clear **idempotent no-op** (`changed:false`). Arşivli checklist **salt-görünümdür**: maddeleri korunur ve görüntülenebilir ama madde ekleme/işaretleme/düzenleme/silme/sıralama ve checklist yeniden adlandırma yapılamaz — yalnız "arşivden çıkar" ve "sil". Arşivli checklist'in maddeleri kartın ilerleme sayımından **ve** board kart rozeti (`checklistTotal`/`checklistDone`) hesabından **düşülür** (yalnız aktif checklist'ler sayılır — `board.get` toplama sorgusu `archived_at IS NULL` filtreler). Arşivleme **düşük sinyaldir**: `activity_events` üretmez (rename/edit/reorder gibi — invariant 13) ama `boards.version`'ı artırır ve `checklist.updated` realtime payload'ı (`patch: { archivedAt }`) yayar; `clientMutationId` taşınır. **Kapsam:** web'de tam arşiv görünümü (kontrol listeleri bölümünün en altında katlanabilir, varsayılan kapalı "Arşiv" bölümü); mobilde arşivli listeler yalnız gizlenir (ayrı arşiv görünümü yok). Procedure haritası → [`../architecture/03-backend.md`](../architecture/03-backend.md) (Faz 2.5 — checklist).

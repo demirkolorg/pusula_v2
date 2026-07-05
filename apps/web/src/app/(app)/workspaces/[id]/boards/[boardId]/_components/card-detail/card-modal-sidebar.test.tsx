@@ -3,12 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 
-// The attachments tab is its own trpc-wired component (Faz 11D); stub it so the
-// sidebar test stays presentational.
-vi.mock('./card-detail-attachments', () => ({
-  CardDetailAttachments: () => <div>Ekler paneli</div>,
-}));
-
 import { CardModalSidebar } from './card-modal-sidebar';
 import type { CommentView } from './card-detail-comments';
 import type { CardActivityEvent } from './activity-summary';
@@ -43,12 +37,10 @@ const activity: CardActivityEvent[] = [
 
 function setup(overrides: Partial<Parameters<typeof CardModalSidebar>[0]> = {}) {
   const props = {
-    cardId: 'card-1',
     comments,
     activity,
     activityPending: false,
     activityError: null,
-    attachmentCount: 0,
     nameOf,
     imageOf,
     viewerUserId: 'u1',
@@ -68,13 +60,19 @@ function setup(overrides: Partial<Parameters<typeof CardModalSidebar>[0]> = {}) 
 }
 
 describe('<CardModalSidebar>', () => {
-  it('shows the tab strip with counts and the comment composer for an editor', () => {
+  it('shows the tab strip (Yorumlar / Aktivite) with the comment composer for an editor', () => {
     setup();
     expect(screen.getByRole('tab', { name: new RegExp(tabs.comments) })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: new RegExp(tabs.activity) })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: new RegExp(tabs.attachments) })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: new RegExp(tabs.all) })).toBeInTheDocument();
     expect(screen.getByLabelText(detailCopy.composer.placeholder)).toBeInTheDocument();
+  });
+
+  it('no longer renders an "Ekler" or "Tümü" tab', () => {
+    setup();
+    expect(
+      screen.queryByRole('tab', { name: new RegExp(tabs.attachments) }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Tümü/ })).not.toBeInTheDocument();
   });
 
   it('hides the composer for a viewer (cannot comment)', () => {
@@ -82,7 +80,7 @@ describe('<CardModalSidebar>', () => {
     expect(screen.queryByLabelText(detailCopy.composer.placeholder)).not.toBeInTheDocument();
   });
 
-  it('Yorumlar tab lists comments; Aktivite tab lists activity; Ekler tab is empty', async () => {
+  it('Yorumlar tab lists comments; Aktivite tab lists activity', async () => {
     const user = userEvent.setup();
     setup();
     expect(screen.getByText('Yorum bir')).toBeInTheDocument();
@@ -93,9 +91,6 @@ describe('<CardModalSidebar>', () => {
       'aria-selected',
       'true',
     );
-
-    await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
-    expect(screen.getByText('Ekler paneli')).toBeInTheDocument();
   });
 
   it('the comment composer lives only in the Yorumlar tab', async () => {
@@ -104,9 +99,6 @@ describe('<CardModalSidebar>', () => {
     expect(screen.getByLabelText(detailCopy.composer.placeholder)).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.activity) }));
-    expect(screen.queryByLabelText(detailCopy.composer.placeholder)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('tab', { name: new RegExp(tabs.attachments) }));
     expect(screen.queryByLabelText(detailCopy.composer.placeholder)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: new RegExp(tabs.comments) }));

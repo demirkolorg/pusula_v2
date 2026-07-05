@@ -98,6 +98,8 @@ export const checklists = pgTable(
       .references(() => cards.id, { onDelete: 'cascade' }),
     title: text().notNull(),
     position: text().notNull(),
+    /** Checklist arşivleme (invariant 23): `null` = aktif, timestamp = arşivli. */
+    archivedAt: archivedAt(),
     ...timestamps,
   },
   (t) => [index('checklists_card_position_idx').on(t.cardId, t.position)],

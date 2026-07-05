@@ -127,6 +127,12 @@ export {
   type AttachmentTileKind,
 } from './components/attachment-tile';
 export {
+  AttachmentGalleryCard,
+  type AttachmentGalleryCardProps,
+  type AttachmentGalleryCardLabels,
+  type AttachmentGalleryKind,
+} from './components/attachment-gallery-card';
+export {
   AttachmentPreviewDialog,
   type AttachmentPreviewDialogProps,
   type AttachmentPreviewLabels,

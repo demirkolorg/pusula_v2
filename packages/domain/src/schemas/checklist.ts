@@ -36,6 +36,18 @@ export const deleteChecklistInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * Checklist arşivle / geri al (invariant 23). `archived: true` → arşive taşır,
+ * `false` → aktif listeye geri getirir. İki yönlü tek mutation (`card.archive`
+ * deseni). Silmeden göz önünden kaldırma — arşivli checklist salt-görünümdür.
+ */
+export const archiveChecklistInput = z.object({
+  cardId: idSchema,
+  checklistId: idSchema,
+  archived: z.boolean(),
+  ...withClientMutationId,
+});
+
 export const createChecklistItemInput = z.object({
   cardId: idSchema,
   checklistId: idSchema,
@@ -78,6 +90,7 @@ export const reorderChecklistItemInput = z.object({
 export type CreateChecklistInput = z.infer<typeof createChecklistInput>;
 export type UpdateChecklistInput = z.infer<typeof updateChecklistInput>;
 export type DeleteChecklistInput = z.infer<typeof deleteChecklistInput>;
+export type ArchiveChecklistInput = z.infer<typeof archiveChecklistInput>;
 export type CreateChecklistItemInput = z.infer<typeof createChecklistItemInput>;
 export type ToggleChecklistItemInput = z.infer<typeof toggleChecklistItemInput>;
 export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemInput>;

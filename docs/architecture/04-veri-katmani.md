@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-20
+updated: 2026-07-05
 ---
 
 # 04 — Veri Katmanı (PostgreSQL + Drizzle)
@@ -49,6 +49,7 @@ quick_notes                                            (kişiye özel hızlı no
 ```txt
 lists:  id, board_id, title, position, color, icon, icon_color, archived_at, created_at, updated_at
 cards:  id, board_id, list_id, title, description, position, due_at, completed, completed_at, completed_by, cover_color, archived_at, created_at, updated_at
+checklists: id, card_id, title, position, archived_at, created_at, updated_at  (archived_at → checklist arşivleme — bkz. ../domain/01-urun-modeli.md invariant 23)
 boards: id, workspace_id, title, background, version, ... (background nullable text — `null` = varsayılan, `gradient:<ad>` / `solid:<ad>` / `image:<attachmentId>`; version → client realtime sequence kontrolü)
 workspace_invitations: id, workspace_id, email, role, token (uniq), invited_by_id, status (invitation_status enum: pending/accepted/declined/revoked/expired), expires_at, accepted_by_id, accepted_at, created_at, updated_at
 activity_events:  id, workspace_id, board_id, card_id, actor_id, type, payload, created_at

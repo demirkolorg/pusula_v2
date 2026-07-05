@@ -222,7 +222,10 @@ export default function CardDetailScreen() {
 
   const labels = labelsQuery.data ?? [];
   const members = membersQuery.data ?? [];
-  const checklists = checklistsQuery.data ?? [];
+  // Arşivlenen checklist'ler mobilde gizlenir — web'de tam arşiv görünümü var,
+  // mobilde yok (invariant 23; sadece-web kararı). Backend `checklist.list` aktif
+  // + arşivli hepsini döndürür, ayrım burada.
+  const checklists = (checklistsQuery.data ?? []).filter((c) => !c.archivedAt);
   const comments = commentsQuery.data ?? [];
   const activity = activityQuery.data ?? [];
   const boardMembers = boardMembersQuery.data ?? [];

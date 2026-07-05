@@ -1,19 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-export type CardSidebarTab = 'comments' | 'activity' | 'attachments' | 'all';
-import { ActivityIcon } from 'lucide-react';
-import {
-  EmptyState,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  type MentionSource,
-} from '@pusula/ui';
+export type CardSidebarTab = 'comments' | 'activity';
+import { Tabs, TabsContent, TabsList, TabsTrigger, type MentionSource } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardDetailActivity } from './card-detail-activity';
-import { CardDetailAttachments } from './card-detail-attachments';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
 import type { CardActivityEvent } from './activity-summary';
 
@@ -27,14 +18,10 @@ function TabLabel({ label, count }: { label: string; count: number }) {
 }
 
 type CardModalSidebarProps = {
-  /** Card id — drives the attachments tab queries (Faz 11D). */
-  cardId: string;
   comments: CommentView[];
   activity: CardActivityEvent[];
   activityPending: boolean;
   activityError: string | null;
-  /** Committed-attachment count — drives the "Ekler" tab counter. */
-  attachmentCount: number;
   /** Resolve a user id to a display name. */
   nameOf: (userId: string) => string | null | undefined;
   /** Resolve a user id to an avatar URL (`null` when unset). */
@@ -54,17 +41,12 @@ type CardModalSidebarProps = {
   /** Optional @-mention picker source (board members) for composer + inline edit. */
   mentions?: MentionSource;
   /**
-   * Optional controlled tab — when set, the parent owns the active tab (used
-   * by the "Ek" meta chip to jump to the attachments tab). Falls back to
-   * internal state when omitted.
+   * Optional controlled tab — when set, the parent owns the active tab. Falls
+   * back to internal state when omitted.
    */
   tab?: CardSidebarTab;
   onTabChange?: (tab: CardSidebarTab) => void;
 };
-
-type FeedItem =
-  | { kind: 'comment'; at: number; comment: CommentView }
-  | { kind: 'activity'; at: number; event: CardActivityEvent };
 
 function timeOf(value: Date | string): number {
   const d = value instanceof Date ? value : new Date(value);
@@ -73,20 +55,18 @@ function timeOf(value: Date | string): number {
 }
 
 /**
- * Card modal right panel: a sticky header with the tab strip (Yorumlar / Aktivite
- * / Ekler / Tümü, each with a count), then the scrolling tab content. The comment
- * composer lives inside the Yorumlar tab only (mirroring how the upload dropzone
- * lives inside the Ekler tab). Comments newest-first; activity newest-first; Ekler
- * is an empty placeholder (attachments — Faz 8); Tümü merges comments + activity
- * by `createdAt` (descending). Presentational — the dialog wires the mutations.
+ * Card modal right panel: a sticky header with the tab strip (Yorumlar /
+ * Aktivite, each with a count), then the scrolling tab content. The comment
+ * composer lives inside the Yorumlar tab only. Comments newest-first; activity
+ * newest-first. Attachments are no longer a tab here (2026-07-05) — ek yönetimi
+ * sol kolon altındaki collapsible galeride (`CardDetailAttachments`).
+ * Presentational — the dialog wires the mutations.
  */
 export function CardModalSidebar({
-  cardId,
   comments,
   activity,
   activityPending,
   activityError,
-  attachmentCount,
   nameOf,
   imageOf,
   viewerUserId,
@@ -116,28 +96,12 @@ export function CardModalSidebar({
     [comments],
   );
   const activityCount = activity.length;
-  const allCount = comments.length + activityCount;
 
-  // Newest-first ordering for the lists.
+  // Newest-first ordering for the comment list.
   const commentsNewestFirst = useMemo(
     () => [...comments].sort((a, b) => timeOf(b.createdAt) - timeOf(a.createdAt)),
     [comments],
   );
-  const allItems = useMemo<FeedItem[]>(() => {
-    const items: FeedItem[] = [
-      ...comments.map((comment) => ({
-        kind: 'comment' as const,
-        at: timeOf(comment.createdAt),
-        comment,
-      })),
-      ...activity.map((event) => ({
-        kind: 'activity' as const,
-        at: timeOf(event.createdAt),
-        event,
-      })),
-    ];
-    return items.sort((a, b) => b.at - a.at);
-  }, [comments, activity]);
 
   const commentsList = (
     <CardDetailComments
@@ -176,12 +140,6 @@ export function CardModalSidebar({
             <TabsTrigger value="activity" className="px-2 py-[3px] text-[11.5px]">
               <TabLabel label={copy.tabs.activity} count={activityCount} />
             </TabsTrigger>
-            <TabsTrigger value="attachments" className="px-2 py-[3px] text-[11.5px]">
-              <TabLabel label={copy.tabs.attachments} count={attachmentCount} />
-            </TabsTrigger>
-            <TabsTrigger value="all" className="px-2 py-[3px] text-[11.5px]">
-              <TabLabel label={copy.tabs.all} count={allCount} />
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -200,50 +158,6 @@ export function CardModalSidebar({
             {commentsList}
           </TabsContent>
           <TabsContent value="activity">{activityList}</TabsContent>
-          <TabsContent value="attachments">
-            <CardDetailAttachments
-              cardId={cardId}
-              canEdit={canComment}
-              isBoardAdmin={isBoardAdmin}
-              viewerUserId={viewerUserId}
-            />
-          </TabsContent>
-          <TabsContent value="all">
-            {allItems.length === 0 ? (
-              <EmptyState
-                icon={<ActivityIcon className="size-8" />}
-                message={strings.card.activity.empty}
-              />
-            ) : (
-              <div className="space-y-3">
-                {allItems.map((item) =>
-                  item.kind === 'comment' ? (
-                    <CardDetailComments
-                      key={`c-${item.comment.id}`}
-                      comments={[item.comment]}
-                      nameOf={nameOf}
-                      imageOf={imageOf}
-                      viewerUserId={viewerUserId}
-                      isBoardAdmin={isBoardAdmin}
-                      canComment={canComment}
-                      onEdit={onEditComment}
-                      onDelete={onDeleteComment}
-                      pending={commentPending}
-                      error={null}
-                      mentions={mentions}
-                    />
-                  ) : (
-                    <CardDetailActivity
-                      key={`a-${item.event.id}`}
-                      events={[item.event]}
-                      pending={false}
-                      error={null}
-                    />
-                  ),
-                )}
-              </div>
-            )}
-          </TabsContent>
         </div>
       </Tabs>
     </aside>

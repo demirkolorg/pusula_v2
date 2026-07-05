@@ -10,6 +10,7 @@ const handlers = () => ({
   onCreateChecklist: vi.fn(),
   onRenameChecklist: vi.fn(),
   onDeleteChecklist: vi.fn(),
+  onArchiveChecklist: vi.fn(),
   onAddItem: vi.fn(),
   onToggleItem: vi.fn(),
   onEditItem: vi.fn(),
@@ -23,6 +24,7 @@ const checklists: ChecklistView[] = [
     cardId: 'card1',
     title: 'Hazırlık',
     position: 'a0',
+    archivedAt: null,
     items: [
       {
         id: 'i1',
@@ -118,5 +120,45 @@ describe('<CardDetailChecklists>', () => {
     }
     expect(screen.queryByRole('button', { name: copy.itemAddAction })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: copy.addAction })).not.toBeInTheDocument();
+  });
+
+  it('archived checklist: kept out of the active list + top progress, shown in a collapsed archive section', async () => {
+    const user = userEvent.setup();
+    const withArchived: ChecklistView[] = [
+      ...checklists,
+      {
+        id: 'c2',
+        cardId: 'card1',
+        title: 'Eski liste',
+        position: 'a1',
+        archivedAt: new Date('2026-01-01'),
+        items: [
+          {
+            id: 'i9',
+            checklistId: 'c2',
+            content: 'Arşiv maddesi',
+            position: 'a0',
+            completed: false,
+            completedBy: null,
+            commentCount: 0,
+          },
+        ],
+      },
+    ];
+    render(<CardDetailChecklists checklists={withArchived} canEdit {...handlers()} />);
+
+    // Aktif liste görünür; arşivli listenin başlığı/maddesi başta gizli (bölüm kapalı).
+    expect(screen.getByText('Hazırlık')).toBeInTheDocument();
+    expect(screen.queryByText('Eski liste')).not.toBeInTheDocument();
+    expect(screen.queryByText('Arşiv maddesi')).not.toBeInTheDocument();
+
+    // Arşiv bölümü başlığı var, sayaç 1, varsayılan kapalı.
+    const archiveToggle = screen.getByRole('button', { name: copy.archivedSectionLabel });
+    expect(archiveToggle).toHaveAttribute('aria-expanded', 'false');
+
+    // Aç → arşivli liste başlığı görünür (blok kendi içinde salt-görünüm, default kapalı).
+    await user.click(archiveToggle);
+    expect(archiveToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Eski liste')).toBeInTheDocument();
   });
 });

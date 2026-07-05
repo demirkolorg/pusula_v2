@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { TRPCClientError } from '@trpc/client';
+import { ChevronDownIcon, ChevronUpIcon, PaperclipIcon } from 'lucide-react';
 import {
   CARD_COVER_COLORS,
   CARD_COVER_IMAGE_MAX_BYTES,
@@ -43,6 +44,7 @@ import { useTRPC } from '@/trpc/client';
 import type { CoverImage } from '../card-cover-image';
 import { ShortcutHelpDialog } from '../shortcut-help-dialog';
 import { CardAttachmentAddForm } from './card-attachment-add-form';
+import { CardDetailAttachments } from './card-detail-attachments';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
 import { CardDetailCoverColor } from './card-detail-cover-color';
 import { CardDetailDescription } from './card-detail-description';
@@ -93,12 +95,7 @@ type CardDetailDialogProps = {
 
 /** Narrow an arbitrary `?tab=` string to a known sidebar tab, else `null`. */
 function asSidebarTab(value: string | null | undefined): CardSidebarTab | null {
-  return value === 'comments' ||
-    value === 'activity' ||
-    value === 'attachments' ||
-    value === 'all'
-    ? value
-    : null;
+  return value === 'comments' || value === 'activity' ? value : null;
 }
 
 /**
@@ -133,15 +130,20 @@ export function CardDetailDialog({
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [titleFocusToken, setTitleFocusToken] = useState(0);
   const [addMenu, setAddMenu] = useState<CardAddView | null>(null);
-  // Deep-link ile gelen yorum/ek hedefi sidebar'ı açar; checklist maddesi hedefi
-  // sol sütundadır (sidebar gerekmez). `useState` başlangıç değeri sabit prop'tan
-  // türetilir — bir kez; modal aynı kart için yeniden açılırsa route yeni bir
-  // dialog mount eder (cardId/key değişir), state taze başlar.
+  // Deep-link ile gelen yorum hedefi sidebar'ı açar; ek hedefi (2026-07-05
+  // sonrası) sol kolon altındaki EKLER galerisini açar; checklist maddesi hedefi
+  // sol sütundadır (ikisi de sidebar gerektirmez). `useState` başlangıç değeri
+  // sabit prop'tan türetilir — bir kez; modal aynı kart için yeniden açılırsa
+  // route yeni bir dialog mount eder (cardId/key değişir), state taze başlar.
   const requestedTab = asSidebarTab(initialTab);
-  const deepLinkWantsSidebar =
-    Boolean(highlightCommentId) || Boolean(highlightAttachmentId) || requestedTab != null;
+  const deepLinkWantsSidebar = Boolean(highlightCommentId) || requestedTab != null;
+  // Ek deep-link'i (bildirim → ek) galeriyi açılışta açar; `initialTab` geriye
+  // dönük olarak eski `attachments` değeriyle de gelebilir.
+  const deepLinkWantsAttachments =
+    Boolean(highlightAttachmentId) || initialTab === 'attachments';
   const [sidebarOpen, setSidebarOpen] = useState(deepLinkWantsSidebar);
   const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>(requestedTab ?? 'comments');
+  const [attachmentsOpen, setAttachmentsOpen] = useState(deepLinkWantsAttachments);
   const [fullscreen, setFullscreen] = useState(false);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
@@ -354,6 +356,7 @@ export function CardDetailDialog({
   const createChecklist = useMutation(trpc.checklist.create.mutationOptions(onMutated));
   const renameChecklist = useMutation(trpc.checklist.update.mutationOptions(onMutated));
   const deleteChecklist = useMutation(trpc.checklist.delete.mutationOptions(onMutated));
+  const archiveChecklist = useMutation(trpc.checklist.archive.mutationOptions(onMutated));
   const addItem = useMutation(trpc.checklist.item.create.mutationOptions(onMutated));
   const toggleItem = useMutation(trpc.checklist.item.toggle.mutationOptions(onMutated));
   const editItem = useMutation(trpc.checklist.item.update.mutationOptions(onMutated));
@@ -656,9 +659,9 @@ export function CardDetailDialog({
   // tab is active — `deepLinkWantsSidebar` + the requested tab handle that above.
   useTargetFlash(highlightChecklistItemId, 'checklist-item-id', !checklistsQ.isPending);
   useTargetFlash(highlightCommentId, 'comment-id', sidebarOpen && !commentsQ.isPending);
-  // Attachments load inside the sidebar tab itself; the bounded RAF hunt waits
-  // for the tile to mount, so gating on `sidebarOpen` alone is enough.
-  useTargetFlash(highlightAttachmentId, 'attachment-id', sidebarOpen);
+  // Ekler artık sol kolon galerisinde; galeri açıkken tile mount olur, bounded
+  // RAF hunt onu bulup scroll + flash uygular.
+  useTargetFlash(highlightAttachmentId, 'attachment-id', attachmentsOpen);
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>
@@ -884,9 +887,16 @@ export function CardDetailDialog({
                   </div>
                 )}
 
-                <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5">
-                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
-                    <CardDetailDescription
+                <div className="flex min-h-0 flex-1 flex-col gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5">
+                  {/* Üst satır: AÇIKLAMA | KONTROL LİSTESİ — EKLER açıkken dikeyde 50/50 böl */}
+                  <div
+                    className={cn(
+                      'grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden',
+                      attachmentsOpen ? 'flex-1 basis-0' : 'flex-1',
+                    )}
+                  >
+                    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
+                      <CardDetailDescription
                       description={card.description}
                       cardTitle={card.title}
                       canEdit={canEdit}
@@ -924,6 +934,14 @@ export function CardDetailDialog({
                       }
                       onDeleteChecklist={(checklistId) =>
                         deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
+                      }
+                      onArchiveChecklist={({ checklistId, archived }) =>
+                        archiveChecklist.mutate({
+                          cardId,
+                          checklistId,
+                          archived,
+                          clientMutationId: cmid(),
+                        })
                       }
                       onAddItem={({ checklistId, content }) =>
                         addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
@@ -977,6 +995,7 @@ export function CardDetailDialog({
                         createChecklist.isPending ||
                         renameChecklist.isPending ||
                         deleteChecklist.isPending ||
+                        archiveChecklist.isPending ||
                         addItem.isPending ||
                         toggleItem.isPending ||
                         editItem.isPending ||
@@ -986,12 +1005,69 @@ export function CardDetailDialog({
                         errOf(createChecklist) ||
                         errOf(renameChecklist) ||
                         errOf(deleteChecklist) ||
+                        errOf(archiveChecklist) ||
                         errOf(addItem) ||
                         errOf(toggleItem) ||
                         errOf(editItem) ||
                         errOf(deleteItem)
                       }
                     />
+                    </div>
+                  </div>
+
+                  {/* Alt satır: EKLER galerisi — collapsible, varsayılan kapalı.
+                      Kapalıyken yalnız header bar görünür (shrink-0); açıkken üst
+                      satırla dikeyde 50/50 (flex-1 basis-0) ve kendi içinde scroll —
+                      modal geneli scroll çıkmaz (§13.10.9). */}
+                  <div
+                    className={cn(
+                      'flex min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30',
+                      attachmentsOpen ? 'min-h-0 flex-1 basis-0' : 'shrink-0',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setAttachmentsOpen((value) => !value)}
+                      aria-expanded={attachmentsOpen}
+                      aria-controls="card-attachments-panel"
+                      className="flex shrink-0 items-center justify-between gap-2 border-b bg-muted/50 px-4 py-2.5 text-left transition-colors hover:bg-muted/70"
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                        <PaperclipIcon className="size-3.5 shrink-0" aria-hidden />
+                        <span className="text-[11px] font-semibold tracking-wide uppercase">
+                          {strings.attachment.section.title}
+                        </span>
+                        {attachmentCount > 0 && (
+                          <span className="text-[11px] font-semibold text-muted-foreground/80">
+                            {attachmentCount}
+                          </span>
+                        )}
+                      </span>
+                      {attachmentsOpen ? (
+                        <ChevronUpIcon
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                      ) : (
+                        <ChevronDownIcon
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                    {attachmentsOpen && (
+                      <div
+                        id="card-attachments-panel"
+                        className="pusula-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
+                      >
+                        <CardDetailAttachments
+                          cardId={cardId}
+                          canEdit={canEdit}
+                          isBoardAdmin={isBoardAdmin}
+                          viewerUserId={viewerUserId}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -999,11 +1075,9 @@ export function CardDetailDialog({
               {/* Right panel ------------------------------------------------ */}
               {sidebarOpen && (
                 <CardModalSidebar
-                  cardId={cardId}
                   comments={commentsQ.data ?? []}
                   activity={activityQ.data ?? []}
                   activityPending={activityQ.isPending}
-                  attachmentCount={attachmentCount}
                   activityError={
                     activityQ.isError
                       ? activityQ.error?.message || strings.common.unknownError

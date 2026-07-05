@@ -125,6 +125,7 @@ vi.mock('@/trpc/client', () => ({
       create: deepProxy,
       update: deepProxy,
       delete: deepProxy,
+      archive: deepProxy,
       item: {
         create: deepProxy,
         toggle: deepProxy,
@@ -160,6 +161,12 @@ vi.mock('@/trpc/client', () => ({
       },
     },
   }),
+}));
+
+// Galeri (sol kolon EKLER) kendi trpc-wired bileşeni; sidebar testindeki gibi
+// stub'la — dialog testi collapsible davranışa (header + aç/kapat) odaklansın.
+vi.mock('./card-detail-attachments', () => ({
+  CardDetailAttachments: () => <div>Ekler galerisi</div>,
 }));
 
 import { CardDetailDialog } from './card-detail-dialog';
@@ -324,5 +331,19 @@ describe('<CardDetailDialog>', () => {
 
     expect(screen.getByRole('dialog', { name: strings.shortcuts.dialogTitle })).toBeInTheDocument();
     expect(screen.getByText(strings.shortcuts.groups.cardModal)).toBeInTheDocument();
+  });
+
+  it('renders the collapsible Ekler gallery header (closed by default; opens on click)', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    const toggle = screen.getByRole('button', {
+      name: new RegExp(strings.attachment.section.title),
+    });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Ekler galerisi')).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Ekler galerisi')).toBeInTheDocument();
   });
 });
