@@ -5,6 +5,7 @@ import {
   RichTextContent,
   RichTextEditor,
   parseRichTextValue,
+  richTextToPlainText,
   type MentionSource,
   type RichTextEditorLabels,
 } from '@pusula/ui';
@@ -51,6 +52,49 @@ describe('parseRichTextValue', () => {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: '{"foo":1}' }] }],
     });
+  });
+});
+
+describe('richTextToPlainText', () => {
+  it('returns legacy plain text unchanged', () => {
+    expect(richTextToPlainText('Alışveriş yap')).toBe('Alışveriş yap');
+  });
+
+  it('flattens a Tiptap JSON doc to plain text — never leaks raw JSON', () => {
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Süt' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Ekmek' }] },
+      ],
+    });
+    const plain = richTextToPlainText(doc);
+    expect(plain).toBe('Süt Ekmek');
+    expect(plain).not.toContain('{');
+  });
+
+  it('renders a mention as @label', () => {
+    const doc = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Selam ' },
+            { type: 'mention', attrs: { id: 'u1', label: 'Alice' } },
+          ],
+        },
+      ],
+    });
+    expect(richTextToPlainText(doc)).toBe('Selam @Alice');
+  });
+
+  it('returns an empty string for null / blank / empty-doc input', () => {
+    expect(richTextToPlainText(null)).toBe('');
+    expect(richTextToPlainText('   ')).toBe('');
+    expect(
+      richTextToPlainText(JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] })),
+    ).toBe('');
   });
 });
 

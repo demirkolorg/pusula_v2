@@ -48,6 +48,7 @@ import {
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
 import { parseMentions } from '../lib/mention-parser';
+import { richTextPreview } from '../lib/rich-text-preview';
 import {
   bumpBoardVersionForRealtime,
   insertRealtimeEvent,
@@ -94,66 +95,8 @@ async function assertChecklistItemOnCard(
   }
 }
 
-/**
- * Tiptap doc body'sini düz metin önizlemesine indirger. Faz 6 review fix
- * (W1 DEM-91): mention/comment-reply email template'i `commentPreview`
- * bekliyor; ayrıca DEM-93 review S1'in işaret ettiği gibi realtime
- * envelope'taki `bodyPreview` de JSON.stringify çıktısı yerine okunabilir
- * metin taşımalı. Parser ile aynı root-only-JSON.parse + depth-cap
- * disiplinini uygular (mention-parser.ts K1/K3 fix'iyle simetrik).
- */
-function bodyPreview(body: unknown, max = 200): string {
-  const MAX_DEPTH = 32;
-  const buf: string[] = [];
-
-  const visit = (node: unknown, depth: number): void => {
-    if (depth > MAX_DEPTH) return;
-    if (typeof node === 'string') {
-      if (depth === 0) {
-        const trimmed = node.trim();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-          try {
-            const parsed = JSON.parse(node) as unknown;
-            if (parsed && typeof parsed === 'object') {
-              visit(parsed, depth + 1);
-              return;
-            }
-          } catch {
-            // Düz metin olarak değerlendir.
-          }
-        }
-      }
-      buf.push(node);
-      return;
-    }
-    if (!node || typeof node !== 'object') return;
-    const rec = node as Record<string, unknown>;
-    if (rec.type === 'text' && typeof rec.text === 'string') {
-      buf.push(rec.text);
-    }
-    if (rec.type === 'mention' && rec.attrs && typeof rec.attrs === 'object') {
-      const attrs = rec.attrs as Record<string, unknown>;
-      const label = typeof attrs.label === 'string' ? attrs.label : '';
-      if (label) buf.push('@' + label);
-    }
-    if (Array.isArray(rec.content)) {
-      const before = buf.length;
-      for (const child of rec.content) visit(child, depth + 1);
-      // Paragraph/list-item arası boşluk: aksi halde "Birinci paragrafIkinci"
-      // şeklinde okunaksız olur.
-      if (
-        (rec.type === 'paragraph' || rec.type === 'listItem' || rec.type === 'heading') &&
-        buf.length > before
-      ) {
-        buf.push(' ');
-      }
-    }
-  };
-
-  visit(body, 0);
-  const flat = buf.join('').replace(/\s+/g, ' ').trim();
-  return flat.length > max ? flat.slice(0, max - 1) + '…' : flat;
-}
+// `bodyPreview` → `richTextPreview` (`../lib/rich-text-preview`) olarak taşındı;
+// comment gövdesi + checklist maddesi içeriği aynı düz-metin indirgemeyi paylaşır.
 
 export const commentRouter = router({
   /**
@@ -230,7 +173,7 @@ export const commentRouter = router({
       // konur ve notification-rules.buildPayload whitelist'i üzerinden email
       // template'ine kadar uzanır. Daha önce hesaplanır, hem `comment.created`
       // hem `comment.mentioned` activity'lerinde aynı değer kullanılır.
-      const commentPreview = bodyPreview(input.body);
+      const commentPreview = richTextPreview(input.body);
       const [activity] = await tx
         .insert(activityEvents)
         .values({
@@ -260,7 +203,7 @@ export const commentRouter = router({
           data: {
             commentId: createdComment.id,
             authorId: createdComment.authorId,
-            bodyPreview: bodyPreview(createdComment.body),
+            bodyPreview: richTextPreview(createdComment.body),
             mentionedUserIds,
             createdAt: createdComment.createdAt.toISOString(),
             comment: createdComment,
@@ -443,7 +386,7 @@ export const commentRouter = router({
         seq,
         data: {
           commentId: comment.id,
-          bodyPreview: bodyPreview(updated.body),
+          bodyPreview: richTextPreview(updated.body),
           editedAt: updated.editedAt?.toISOString() ?? null,
           patch: { body: updated.body, editedAt: updated.editedAt },
           // Madde thread'i ise dispatcher cache patch'ini o maddenin

@@ -313,6 +313,11 @@ export const strings = {
     checklistsEmpty: 'Bu kartta kontrol listesi yok.',
     checklistItemAdd: 'Madde ekle',
     checklistItemPlaceholder: 'Yeni madde…',
+    // İç içe (nested) alt madde — bir maddenin altına 3 seviyeye kadar
+    // (`CHECKLIST_MAX_DEPTH`) çocuk madde eklenir. Tetikleyici her satırdaki
+    // küçük "+" ikon-butonu; seçilince o maddenin altında girintili composer açılır.
+    checklistSubItemAdd: 'Alt madde ekle',
+    checklistSubItemPlaceholder: 'Bir alt madde ekle…',
     checklistItemEdit: 'Maddeyi düzenle',
     checklistItemDelete: 'Maddeyi sil',
     // Madde sürükle-bırak sıralama (manuel reanimated sortable) erişilebilirlik

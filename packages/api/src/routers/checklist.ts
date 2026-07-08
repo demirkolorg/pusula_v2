@@ -31,13 +31,15 @@
  * See `docs/architecture/03-backend.md` (Faz 2.5 — checklist / checklist.item
  * procedure'leri) and `docs/domain/02-yetkilendirme-kurallari.md`.
  */
-import { and, asc, count, desc, eq, inArray, isNull } from '@pusula/db';
-import { activityEvents, boards, checklistItems, checklists, comments } from '@pusula/db';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from '@pusula/db';
+import { activityEvents, attachments, boards, checklistItems, checklists, comments } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
+  CHECKLIST_MAX_DEPTH,
   archiveChecklistInput,
   bulkImportChecklistsInput,
   canEditBoardContent,
+  collectDescendantItemIds,
   createChecklistInput,
   createChecklistItemInput,
   deleteChecklistInput,
@@ -52,6 +54,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
+import { maybeEnqueueAttachmentCleanup } from '../lib/attachment-cleanup';
 import { accessFromBoardRole } from '../middleware/board';
 import { cardProcedure } from '../middleware/card';
 import {
@@ -63,6 +66,7 @@ import {
   insertRealtimeEvent,
   maybeEnqueueRealtimePublish,
 } from '../lib/realtime-publish';
+import { richTextPreview } from '../lib/rich-text-preview';
 import { router } from '../trpc';
 
 /** A Drizzle transaction handle for our schema, as passed to `db.transaction(cb)`. */
@@ -83,6 +87,11 @@ const checklistCols = {
 const itemCols = {
   id: checklistItems.id,
   checklistId: checklistItems.checklistId,
+  // İç içe (nested) madde alanları — istemci düz listeyi ağaca çevirir
+  // (`@pusula/domain` `buildChecklistTree`). `parentItemId` kök için `null`,
+  // `depth` 0/1/2 (`CHECKLIST_MAX_DEPTH` = 3 seviye).
+  parentItemId: checklistItems.parentItemId,
+  depth: checklistItems.depth,
   content: checklistItems.content,
   position: checklistItems.position,
   completed: checklistItems.completed,
@@ -162,17 +171,43 @@ const itemRouter = router({
       await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
 
+      // İç içe madde: ebeveyni doğrula (aynı checklist) + derinlik sınırı
+      // (`CHECKLIST_MAX_DEPTH` = 3 seviye). `depth` ebeveynden türetilir ve sabit
+      // kalır (aynı-seviye reorder ebeveyni değiştirmez).
+      let parentItemId: string | null = null;
+      let depth = 0;
+      if (input.parentItemId) {
+        const parent = await loadItem(tx, input.parentItemId, input.checklistId, ctx.card.id);
+        depth = parent.depth + 1;
+        if (depth >= CHECKLIST_MAX_DEPTH) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'En fazla 3 seviye iç içe madde eklenebilir.',
+          });
+        }
+        parentItemId = parent.id;
+      }
+
+      // Append: aynı ebeveyn (kardeşler) içindeki son maddeden sonra — kök
+      // maddeler `parentItemId IS NULL` grubunda, alt maddeler ebeveyn id'siyle.
       const [last] = await tx
         .select({ position: checklistItems.position })
         .from(checklistItems)
-        .where(eq(checklistItems.checklistId, input.checklistId))
+        .where(
+          and(
+            eq(checklistItems.checklistId, input.checklistId),
+            parentItemId === null
+              ? isNull(checklistItems.parentItemId)
+              : eq(checklistItems.parentItemId, parentItemId),
+          ),
+        )
         .orderBy(desc(checklistItems.position))
         .limit(1);
       const position = nextPosition(last?.position);
 
       const [created] = await tx
         .insert(checklistItems)
-        .values({ checklistId: input.checklistId, content: input.content, position })
+        .values({ checklistId: input.checklistId, parentItemId, depth, content: input.content, position })
         .returning(itemCols);
       if (!created) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
 
@@ -180,7 +215,10 @@ const itemRouter = router({
         checklistId: input.checklistId,
         itemId: created.id,
         cardId: ctx.card.id,
-        content: created.content,
+        // İçerik Tiptap JSON olabilir (2026-07-08 zengin metin) — activity /
+        // bildirim payload'ına ham JSON değil düz-metin önizlemesi konur; realtime
+        // data (aşağıda) tam içeriği taşır (client `RichTextContent` render eder).
+        content: richTextPreview(created.content),
       };
       const [activity] = await tx
         .insert(activityEvents)
@@ -268,7 +306,8 @@ const itemRouter = router({
         checklistId: input.checklistId,
         itemId: item.id,
         cardId: ctx.card.id,
-        content: item.content,
+        // Tiptap JSON → düz-metin önizleme (activity / bildirim); bkz. item.create.
+        content: richTextPreview(item.content),
       };
       const toggleType = input.completed ? 'checklist.item_checked' : 'checklist.item_unchecked';
       const [activity] = await tx
@@ -390,9 +429,31 @@ const itemRouter = router({
 
     let realtimeEventId: string | undefined;
     let notificationEventId: string | undefined;
+    let attachmentCleanups: Array<{ attachmentId: string; storageKey: string }> = [];
     const result = await ctx.db.transaction(async (tx) => {
       const item = await loadItem(tx, input.itemId, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
+
+      // İç içe madde: alt ağaç `on delete cascade` ile birlikte gider; peer'ların
+      // (realtime) ve silen istemcinin optimistic cache'inin de düşürebilmesi için
+      // önce silinecek tüm id'leri topla (kök + descendant'lar).
+      const flat = await tx
+        .select({ id: checklistItems.id, parentItemId: checklistItems.parentItemId })
+        .from(checklistItems)
+        .where(eq(checklistItems.checklistId, input.checklistId));
+      const removedItemIds = [item.id, ...collectDescendantItemIds(flat, item.id)];
+
+      // Silinecek madde(ler)in eklerini post-commit MinIO temizliği için snapshot'la:
+      // satırlar `tx.delete` cascade ile gider ama storage objesi kalır; storageKey
+      // önce toplanır (card.delete deseni; nested alt ağacı da kapsar).
+      const removedAttachments = await tx
+        .select({ id: attachments.id, storageKey: attachments.storageKey })
+        .from(attachments)
+        .where(inArray(attachments.checklistItemId, removedItemIds));
+      attachmentCleanups = removedAttachments.map((a) => ({
+        attachmentId: a.id,
+        storageKey: a.storageKey,
+      }));
 
       await tx.delete(checklistItems).where(eq(checklistItems.id, item.id));
 
@@ -400,9 +461,10 @@ const itemRouter = router({
         checklistId: input.checklistId,
         itemId: item.id,
         cardId: ctx.card.id,
-        // Bildirim detay / audit (2026-06-20) — silinen maddenin metni (madde
-        // başlığı kısa; ≤2KB sınırına takılmaz, item.content silmeden önce okundu).
-        content: item.content,
+        // Bildirim detay / audit (2026-06-20) — silinen maddenin metni. İçerik
+        // Tiptap JSON olabilir (2026-07-08); ham JSON değil düz-metin önizlemesi
+        // konur (item.content silmeden önce okundu).
+        content: richTextPreview(item.content),
       };
       const [activity] = await tx
         .insert(activityEvents)
@@ -438,12 +500,17 @@ const itemRouter = router({
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
         seq,
-        data: { itemId: item.id, checklistId: input.checklistId },
+        // `removedItemIds` = kök madde + cascade ile silinen tüm alt ağaç; peer
+        // handler'lar hepsini cache'ten düşürür (aksi halde alt maddeler orphan
+        // kalır ve `buildChecklistTree` onları köke çıkarırdı).
+        data: { itemId: item.id, checklistId: input.checklistId, removedItemIds },
       });
-      return { id: item.id, deleted: true as const };
+      return { id: item.id, deleted: true as const, removedItemIds };
     });
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    // Cascade ile silinen madde eklerinin MinIO objelerini temizle (tx sonrası).
+    for (const cleanup of attachmentCleanups) maybeEnqueueAttachmentCleanup(ctx, cleanup);
     return result;
   }),
 
@@ -492,6 +559,20 @@ const itemRouter = router({
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Komşu öğeler aynı checklist içinde olmalı.',
+        });
+      }
+
+      // Aynı-seviye reorder: komşular taşınan madde ile AYNI ebeveynde olmalı
+      // (sürükleme seviye/ebeveyn değiştirmez). Kök maddeler `parentItemId = null`
+      // grubunda; alt maddeler kendi ebeveynleri içinde sıralanır.
+      const itemParent = item.parentItemId ?? null;
+      if (
+        (before && (before.parentItemId ?? null) !== itemParent) ||
+        (after && (after.parentItemId ?? null) !== itemParent)
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Komşu öğeler aynı seviyede olmalı.',
         });
       }
 
@@ -556,9 +637,33 @@ export const checklistRouter = router({
       if (row.checklistItemId) commentCountByItem.set(row.checklistItemId, Number(row.count));
     }
 
-    const itemsByChecklist = new Map<string, Array<(typeof itemRows)[number] & { commentCount: number }>>();
+    // Madde başına ek (attachment) sayısı — satır ek rozeti bundan okur. Yalnız
+    // commit'lenmiş ekler (`committed_at IS NOT NULL`); draft'lar sayılmaz.
+    // `attachments_checklist_item_committed_idx` partial index'ini kullanır.
+    const attachmentCountRows = itemIds.length
+      ? await ctx.db
+          .select({ checklistItemId: attachments.checklistItemId, count: count() })
+          .from(attachments)
+          .where(
+            and(inArray(attachments.checklistItemId, itemIds), isNotNull(attachments.committedAt)),
+          )
+          .groupBy(attachments.checklistItemId)
+      : [];
+    const attachmentCountByItem = new Map<string, number>();
+    for (const row of attachmentCountRows) {
+      if (row.checklistItemId) attachmentCountByItem.set(row.checklistItemId, Number(row.count));
+    }
+
+    const itemsByChecklist = new Map<
+      string,
+      Array<(typeof itemRows)[number] & { commentCount: number; attachmentCount: number }>
+    >();
     for (const item of itemRows) {
-      const withCount = { ...item, commentCount: commentCountByItem.get(item.id) ?? 0 };
+      const withCount = {
+        ...item,
+        commentCount: commentCountByItem.get(item.id) ?? 0,
+        attachmentCount: attachmentCountByItem.get(item.id) ?? 0,
+      };
       const bucket = itemsByChecklist.get(item.checklistId);
       if (bucket) bucket.push(withCount);
       else itemsByChecklist.set(item.checklistId, [withCount]);
@@ -771,9 +876,12 @@ export const checklistRouter = router({
       // Reassemble created checklists (input order) with their items for the
       // mutation RESPONSE (the caller can patch its own cache); the realtime
       // event below deliberately omits this and just carries counts.
-      const itemsByChecklist = new Map<string, Array<(typeof createdItems)[number] & { commentCount: number }>>();
+      const itemsByChecklist = new Map<
+        string,
+        Array<(typeof createdItems)[number] & { commentCount: number; attachmentCount: number }>
+      >();
       for (const item of createdItems) {
-        const withCount = { ...item, commentCount: 0 };
+        const withCount = { ...item, commentCount: 0, attachmentCount: 0 };
         const bucket = itemsByChecklist.get(item.checklistId);
         if (bucket) bucket.push(withCount);
         else itemsByChecklist.set(item.checklistId, [withCount]);
@@ -917,9 +1025,23 @@ export const checklistRouter = router({
     }
 
     let realtimeEventId: string | undefined;
+    let attachmentCleanups: Array<{ attachmentId: string; storageKey: string }> = [];
     const result = await ctx.db.transaction(async (tx) => {
       const checklist = await loadChecklist(tx, input.checklistId, ctx.card.id);
       await assertBoardWritable(tx, ctx.card.boardId);
+
+      // Checklist'in tüm maddelerinin eklerini post-commit MinIO temizliği için
+      // snapshot'la (checklist silinince maddeler + ekleri cascade gider; storage
+      // objeleri kalır — card.delete deseni).
+      const removedAttachments = await tx
+        .select({ id: attachments.id, storageKey: attachments.storageKey })
+        .from(attachments)
+        .innerJoin(checklistItems, eq(attachments.checklistItemId, checklistItems.id))
+        .where(eq(checklistItems.checklistId, checklist.id));
+      attachmentCleanups = removedAttachments.map((a) => ({
+        attachmentId: a.id,
+        storageKey: a.storageKey,
+      }));
 
       await tx.delete(checklists).where(eq(checklists.id, checklist.id));
 
@@ -937,6 +1059,8 @@ export const checklistRouter = router({
       return { id: checklist.id, deleted: true as const };
     });
     maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    // Cascade ile silinen checklist maddelerinin eklerinin MinIO objelerini temizle.
+    for (const cleanup of attachmentCleanups) maybeEnqueueAttachmentCleanup(ctx, cleanup);
     return result;
   }),
 

@@ -10,12 +10,15 @@ type ChecklistItem = RouterOutputs['checklist']['list'][number]['items'][number]
 const baseItem: ChecklistItem = {
   id: 'item-1',
   checklistId: 'cl-1',
+  parentItemId: null,
+  depth: 0,
   content: 'Kira sözleşmesi fotokopisi',
   position: 'a0',
   completed: false,
   completedAt: null,
   completedBy: null,
   commentCount: 0,
+  attachmentCount: 0,
   createdAt: new Date('2026-05-19T00:00:00Z'),
   updatedAt: new Date('2026-05-19T00:00:00Z'),
 };

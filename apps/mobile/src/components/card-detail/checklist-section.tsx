@@ -4,6 +4,13 @@ import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import type { AnimatedRef } from 'react-native-reanimated';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RouterOutputs } from '@pusula/api';
+import {
+  CHECKLIST_MAX_DEPTH,
+  buildChecklistTree,
+  collectDescendantItemIds,
+  positionBetween,
+  type ChecklistTreeNode,
+} from '@pusula/domain';
 import { useTRPC } from '@/trpc/provider';
 import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
@@ -18,8 +25,9 @@ import {
 } from '@/components/card-detail/checklist-item-thread-sheet';
 import type { AuthorResolver } from '@/components/card-detail/comment-list';
 import { newClientMutationId } from '@/lib/client-mutation-id';
-import { OPTIMISTIC_PREFIX, applyOrder } from '@/lib/checklist-reorder';
+import { OPTIMISTIC_PREFIX, isOptimisticItemId } from '@/lib/checklist-reorder';
 import { strings } from '@/lib/strings';
+import { tiptapToPlainText } from '@/lib/tiptap';
 import { useTheme } from '@/theme/theme-provider';
 
 type Checklists = RouterOutputs['checklist']['list'];
@@ -178,31 +186,44 @@ export function ChecklistSection({
 
   const createItem = useMutation(
     trpc.checklist.item.create.mutationOptions({
-      onMutate: (vars) => {
-        const now = new Date();
-        const optimistic: ChecklistItem = {
-          id: `${OPTIMISTIC_PREFIX}${vars.clientMutationId ?? newClientMutationId()}`,
-          checklistId: vars.checklistId,
-          content: vars.content,
-          // Sona eklenir — gerçek pozisyon `onSettled` invalidate ile gelir.
-          position: 'zzzzzz',
-          completed: false,
-          completedAt: null,
-          completedBy: null,
-          // Yeni madde henüz yorum almadı — optimistic satır 0 ile başlar,
-          // gerçek sayı `onSettled` invalidate ile gelir.
-          commentCount: 0,
-          createdAt: now,
-          updatedAt: now,
-        };
-        return patch((lists) =>
-          lists.map((list) =>
+      onMutate: (vars) =>
+        patch((lists) => {
+          const now = new Date();
+          // İç içe (nested) madde: `parentItemId` verilirse o maddenin altına
+          // eklenir; `depth` ebeveynin depth'ine +1 (kök için 0). Ebeveyn cache'te
+          // bulunamazsa (yarış) makul varsayılan: kök=0, çocuk=1 — gerçek değer
+          // `onSettled` invalidate ile sunucudan gelir.
+          const parentItemId = vars.parentItemId ?? null;
+          const parent = parentItemId
+            ? lists.flatMap((list) => list.items).find((item) => item.id === parentItemId)
+            : undefined;
+          const depth = parentItemId ? (parent ? parent.depth + 1 : 1) : 0;
+          const optimistic: ChecklistItem = {
+            id: `${OPTIMISTIC_PREFIX}${vars.clientMutationId ?? newClientMutationId()}`,
+            checklistId: vars.checklistId,
+            parentItemId,
+            depth,
+            content: vars.content,
+            // Kendi kardeş grubunun sonuna eklenir — `buildChecklistTree` her
+            // düzeyi `position`'a göre sıraladığından 'zzzzzz' o grupta en sona
+            // düşer. Gerçek pozisyon `onSettled` invalidate ile gelir.
+            position: 'zzzzzz',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+            // Yeni madde henüz yorum/ek almadı — optimistic satır 0 ile başlar,
+            // gerçek sayılar `onSettled` invalidate ile gelir.
+            commentCount: 0,
+            attachmentCount: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          return lists.map((list) =>
             list.id === vars.checklistId
               ? { ...list, items: [...list.items, optimistic] }
               : list,
-          ),
-        );
-      },
+          );
+        }),
       onError: (_error, _vars, ctx) => rollback(ctx),
       onSettled: invalidate,
     }),
@@ -232,11 +253,19 @@ export function ChecklistSection({
     trpc.checklist.item.delete.mutationOptions({
       onMutate: (vars) =>
         patch((lists) =>
-          lists.map((list) =>
-            list.id === vars.checklistId
-              ? { ...list, items: list.items.filter((item) => item.id !== vars.itemId) }
-              : list,
-          ),
+          lists.map((list) => {
+            if (list.id !== vars.checklistId) return list;
+            // Silme sunucuda `on delete cascade` ile alt ağacı da götürür; cache'te
+            // de maddeyle birlikte tüm torunlarını kaldır — aksi halde çocuklar bir
+            // an "orphan" (ebeveyni gitmiş) kalır. `onSettled` invalidate tazeler.
+            const descendantIds = new Set(collectDescendantItemIds(list.items, vars.itemId));
+            return {
+              ...list,
+              items: list.items.filter(
+                (item) => item.id !== vars.itemId && !descendantIds.has(item.id),
+              ),
+            };
+          }),
         ),
       onError: (_error, _vars, ctx) => rollback(ctx),
       onSettled: invalidate,
@@ -257,9 +286,13 @@ export function ChecklistSection({
   );
 
   /**
-   * Sürükleme bittiğinde (sortable `onReorder`) — önce cache'te ilgili
-   * checklist'in `items` dizisini yeni sıraya göre yeniden dizip (optimistic,
-   * anında), sonra `reorder` mutation'ını gerçek komşularla atar. Hata → elle
+   * Sürükleme bittiğinde (sortable `onReorder`) — reorder YALNIZ aynı kardeş
+   * grubu içindedir (kök seviye; alt maddeler sürüklenmez — bkz. render). Düz
+   * `items` dizisini yeniden dizmek yerine (bu, iç içe alt maddeleri düşürürdü)
+   * taşınan maddenin `position`'ını yeni komşularının arasına ayarlarız; render
+   * `buildChecklistTree` ile her düzeyi `position`'a göre yeniden sıraladığından
+   * madde doğru yere oturur ve diğer maddeler/gruplar cache'te korunur (web ile
+   * aynı desen). Sonra `reorder` mutation'ı gerçek komşularla atılır. Hata → elle
    * `rollback(snapshot)`; başarı/hata fark etmez `onSettled` invalidate eder.
    */
   const handleReorder = (
@@ -271,13 +304,28 @@ export function ChecklistSection({
       orderedIds: string[];
     },
   ) => {
-    // Optimistic sıra patch'i — snapshot rollback için saklanır.
+    // Optimistic pozisyon patch'i — snapshot rollback için saklanır.
     void patch((lists) =>
-      lists.map((list) =>
-        list.id === checklistId
-          ? { ...list, items: applyOrder(list.items, args.orderedIds) }
-          : list,
-      ),
+      lists.map((list) => {
+        if (list.id !== checklistId) return list;
+        const before = args.beforeItemId
+          ? list.items.find((item) => item.id === args.beforeItemId)
+          : undefined;
+        const after = args.afterItemId
+          ? list.items.find((item) => item.id === args.afterItemId)
+          : undefined;
+        // Komşular aynı kardeş grubunda ardışık olduğundan `before.position <
+        // after.position` garanti (sortable optimistic madde varken kapalı →
+        // pozisyonlar gerçek LexoRank). `positionBetween(null, x)` / `(x, null)`
+        // grup başı/sonu.
+        const nextPosition = positionBetween(before?.position ?? null, after?.position ?? null);
+        return {
+          ...list,
+          items: list.items.map((item) =>
+            item.id === args.itemId ? { ...item, position: nextPosition } : item,
+          ),
+        };
+      }),
     ).then((ctx) => {
       reorderItem.mutate(
         {
@@ -303,6 +351,8 @@ export function ChecklistSection({
           title: vars.title,
           // Sona eklenir — gerçek pozisyon `onSettled` invalidate ile gelir.
           position: 'zzzzzz',
+          // Yeni liste aktif (arşivsiz) doğar.
+          archivedAt: null,
           createdAt: now,
           updatedAt: now,
           items: [],
@@ -426,54 +476,78 @@ export function ChecklistSection({
               ) : null}
             </View>
 
-            {checklist.items.length > 0 ? (
-              <SortableChecklistItems
-                items={checklist.items}
-                // Sürükleme yalnız düzenleyebilen + optimistic olmayan liste için
-                // (sortable içinde optimistic madde varken de kendiliğinden
-                // kapanır — `hasOptimistic`). Optimistic liste hiç sürüklenemez.
-                canDrag={canEdit && !optimisticList}
-                onReorder={(args) => handleReorder(checklist.id, args)}
-                onDragActiveChange={onDragActiveChange}
-                scrollRef={scrollRef}
-                renderItem={(item) => (
-                  <ChecklistItemRow
-                    item={item}
-                    optimistic={item.id.startsWith(OPTIMISTIC_PREFIX)}
-                    canEdit={canEdit}
-                    onToggle={(completed) =>
-                      toggleItem.mutate({
-                        cardId,
-                        checklistId: checklist.id,
-                        itemId: item.id,
-                        completed,
-                        clientMutationId: newClientMutationId(),
-                      })
-                    }
-                    onEdit={() =>
-                      setEditTarget({
-                        checklistId: checklist.id,
-                        itemId: item.id,
-                        content: item.content,
-                      })
-                    }
-                    onDelete={() =>
-                      deleteItem.mutate({
-                        cardId,
-                        checklistId: checklist.id,
-                        itemId: item.id,
-                        clientMutationId: newClientMutationId(),
-                      })
-                    }
-                    // Yorum bağlamı varsa satır rozeti + thread sheet açma.
-                    onOpenComments={
-                      comments ? () => setOpenThreadItemId(item.id) : undefined
-                    }
-                    highlighted={item.id === highlightItemId}
-                  />
-                )}
-              />
-            ) : null}
+            {(() => {
+              // Düz madde listesini iç içe (3 seviye — `CHECKLIST_MAX_DEPTH`)
+              // ağaca çevir. YALNIZ kök (depth 0) maddeler sürüklenir (aynı-seviye
+              // reorder); alt maddeler girintili + sürüklemesiz çizilir (iç içe
+              // reanimated sortable'ın gesture çakışması riski nedeniyle — bkz.
+              // rapor). Kök sortable'a yalnız kök düğümler beslenir; komşuları hep
+              // kök kardeşler olduğundan backend'in aynı-parent kısıtıyla uyumlu.
+              const tree = buildChecklistTree(checklist.items);
+              if (tree.length === 0) return null;
+              const rootNodeById = new Map(tree.map((node) => [node.id, node]));
+              // Optimistic madde (kök YA DA çocuk) varken tüm kök sürüklemesini
+              // kapat — eski (düz) sortable tüm maddeleri gördüğünden herhangi bir
+              // optimistic madde drag'i kapatırdı; kök sortable yalnız kök id'leri
+              // gördüğünden bu kontrolü burada elle koru.
+              const anyOptimistic = checklist.items.some((item) =>
+                isOptimisticItemId(item.id),
+              );
+              return (
+                <SortableChecklistItems
+                  items={tree}
+                  canDrag={canEdit && !optimisticList && !anyOptimistic}
+                  onReorder={(args) => handleReorder(checklist.id, args)}
+                  onDragActiveChange={onDragActiveChange}
+                  scrollRef={scrollRef}
+                  renderItem={(item) => {
+                    const node = rootNodeById.get(item.id);
+                    if (!node) return null;
+                    return (
+                      <ChecklistTreeItem
+                        node={node}
+                        checklistId={checklist.id}
+                        editable={canEdit}
+                        createPending={createItem.isPending}
+                        highlightItemId={highlightItemId}
+                        onToggle={(itemId, completed) =>
+                          toggleItem.mutate({
+                            cardId,
+                            checklistId: checklist.id,
+                            itemId,
+                            completed,
+                            clientMutationId: newClientMutationId(),
+                          })
+                        }
+                        onEdit={(itemId, content) =>
+                          setEditTarget({ checklistId: checklist.id, itemId, content })
+                        }
+                        onDelete={(itemId) =>
+                          deleteItem.mutate({
+                            cardId,
+                            checklistId: checklist.id,
+                            itemId,
+                            clientMutationId: newClientMutationId(),
+                          })
+                        }
+                        onOpenComments={
+                          comments ? (itemId) => setOpenThreadItemId(itemId) : undefined
+                        }
+                        onCreateSubItem={(parentItemId, content) =>
+                          createItem.mutate({
+                            cardId,
+                            checklistId: checklist.id,
+                            content,
+                            parentItemId,
+                            clientMutationId: newClientMutationId(),
+                          })
+                        }
+                      />
+                    );
+                  }}
+                />
+              );
+            })()}
 
             {canEdit && !optimisticList ? (
               <ChecklistItemComposer
@@ -538,7 +612,10 @@ export function ChecklistSection({
       <ChecklistItemEditSheet
         key={editTarget.itemId}
         visible
-        initialContent={editTarget.content}
+        // Web zengin metin (Tiptap JSON) yazmış olabilir — düz metne indirip
+        // taslağı tohumla (ham JSON düzenlenmesin). Kullanıcı değiştirmezse
+        // resolveChecklistItemRename no-op'lar → JSON içerik korunur.
+        initialContent={tiptapToPlainText(editTarget.content)}
         pending={updateItem.isPending}
         onSave={(content) =>
           updateItem.mutate({
@@ -553,6 +630,104 @@ export function ChecklistSection({
       />
     ) : null}
     </>
+  );
+}
+
+type ChecklistTreeItemProps = {
+  node: ChecklistTreeNode<ChecklistItem>;
+  checklistId: string;
+  /** Board `member+` mi — `false` ise satır salt-okunur (toggle/düzenle/sil/ekle kapalı). */
+  editable: boolean;
+  /** `createItem` mutation uçuşta mı — alt madde composer'ının submit'ini kilitler. */
+  createPending: boolean;
+  /** Bildirim deep-link vurgusu için hedef madde id'si. */
+  highlightItemId?: string;
+  onToggle: (itemId: string, completed: boolean) => void;
+  onEdit: (itemId: string, content: string) => void;
+  onDelete: (itemId: string) => void;
+  /** Yorum bağlamı varsa — madde thread sheet'ini açar. */
+  onOpenComments?: (itemId: string) => void;
+  /** Bir maddenin altına alt madde ekler (`parentItemId` = ebeveyn madde id'si). */
+  onCreateSubItem: (parentItemId: string, content: string) => void;
+};
+
+/**
+ * İç içe (nested) bir madde düğümü — kendini alt ağaç için özyineli çağırır
+ * (`CHECKLIST_MAX_DEPTH` = 3 seviye). Web `ChecklistItemTreeNode` simetrisi.
+ * Her düğüm bir {@link ChecklistItemRow} çizer; çocukları soldan girintili + ince
+ * sol sınırlı bir blokta satırın kendi altına (`children` slot'u) yerleştirir.
+ * "Alt madde ekle" (+) yalnız derinlik sınırı altındaki (kök + çocuk) maddelerde
+ * görünür ve seçilince o düğümün altına girintili bir composer açar.
+ *
+ * Sürükle-bırak YALNIZ kök seviyededir (üst bileşen kök düğümleri
+ * `SortableChecklistItems`'a besler); alt maddeler burada düz (sürüklemesiz)
+ * render edilir. Bir kök maddeye uzun basıp sürüklendiğinde alt ağacı da (bu
+ * `children` bloğu kök satırın drag alanı içinde olduğundan) blok olarak taşınır.
+ */
+function ChecklistTreeItem({
+  node,
+  checklistId,
+  editable,
+  createPending,
+  highlightItemId,
+  onToggle,
+  onEdit,
+  onDelete,
+  onOpenComments,
+  onCreateSubItem,
+}: ChecklistTreeItemProps) {
+  // "Alt madde ekle" formu açık mı — satırdaki (+) ile açılır; ekleme/vazgeç
+  // sonrası kapanır. Bileşen-içi (her düğüm kendi durumunu tutar).
+  const [addingSub, setAddingSub] = useState(false);
+  const optimistic = isOptimisticItemId(node.id);
+  // Derinlik sınırı: torun (depth `CHECKLIST_MAX_DEPTH - 1`) altına eklenemez.
+  const canAddSub = editable && !optimistic && node.depth < CHECKLIST_MAX_DEPTH - 1;
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <ChecklistItemRow
+      item={node}
+      optimistic={optimistic}
+      canEdit={editable}
+      onToggle={(completed) => onToggle(node.id, completed)}
+      onEdit={() => onEdit(node.id, node.content)}
+      onDelete={() => onDelete(node.id)}
+      onOpenComments={onOpenComments ? () => onOpenComments(node.id) : undefined}
+      highlighted={node.id === highlightItemId}
+      onAddSubItem={canAddSub ? () => setAddingSub(true) : undefined}
+    >
+      {hasChildren || (addingSub && editable) ? (
+        // Girintili alt ağaç bloğu — soldan ~20px (ml + pl) + ince sol sınır
+        // (web `ml-2.5 border-l pl-2.5` simetrisi). Token renk (`border-border`).
+        <View className="ml-2.5 mt-1 gap-1 border-l border-border pl-2.5">
+          {node.children.map((child) => (
+            <ChecklistTreeItem
+              key={child.id}
+              node={child}
+              checklistId={checklistId}
+              editable={editable}
+              createPending={createPending}
+              highlightItemId={highlightItemId}
+              onToggle={onToggle}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onOpenComments={onOpenComments}
+              onCreateSubItem={onCreateSubItem}
+            />
+          ))}
+          {addingSub && editable ? (
+            <ChecklistItemComposer
+              open
+              onClose={() => setAddingSub(false)}
+              pending={createPending}
+              label={strings.cardDetail.checklistSubItemAdd}
+              placeholder={strings.cardDetail.checklistSubItemPlaceholder}
+              onCreate={(content) => onCreateSubItem(node.id, content)}
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </ChecklistItemRow>
   );
 }
 
@@ -639,11 +814,17 @@ function ChecklistItemComposer({
   onClose,
   pending,
   onCreate,
+  // Kök madde ekleme varsayılanları; alt madde (nested) composer'ı "Alt madde
+  // ekle" etiketi + alt madde placeholder'ıyla çağırır.
+  label = strings.cardDetail.checklistItemAdd,
+  placeholder = strings.cardDetail.checklistItemPlaceholder,
 }: {
   open: boolean;
   onClose: () => void;
   pending: boolean;
   onCreate: (content: string) => void;
+  label?: string;
+  placeholder?: string;
 }) {
   const [content, setContent] = useState('');
 
@@ -668,8 +849,8 @@ function ChecklistItemComposer({
   return (
     <View className="mt-1 gap-2">
       <TextField
-        label={strings.cardDetail.checklistItemAdd}
-        placeholder={strings.cardDetail.checklistItemPlaceholder}
+        label={label}
+        placeholder={placeholder}
         value={content}
         onChangeText={setContent}
         editable={!pending}
@@ -688,7 +869,7 @@ function ChecklistItemComposer({
         </View>
         <View className="flex-1">
           <Button
-            label={strings.cardDetail.checklistItemAdd}
+            label={label}
             onPress={submit}
             pending={pending}
             disabled={content.trim().length === 0 || pending}

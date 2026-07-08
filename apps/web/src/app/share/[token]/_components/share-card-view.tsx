@@ -17,7 +17,8 @@ import {
   MessageSquareIcon,
   UsersIcon,
 } from 'lucide-react';
-import { Avatar, MetaChip, RichTextContent, cn } from '@pusula/ui';
+import { buildChecklistTree, type ChecklistTreeNode } from '@pusula/domain';
+import { Avatar, MetaChip, RichTextContent, cn, richTextToPlainText } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { ShareCommentForm } from './share-comment-form';
 
@@ -41,7 +42,14 @@ export type ShareSnapshot = {
   checklists: Array<{
     id: string;
     title: string;
-    items: Array<{ id: string; content: string; completed: boolean; position: string }>;
+    items: Array<{
+      id: string;
+      content: string;
+      completed: boolean;
+      position: string;
+      /** İç içe (nested) madde ebeveyni; `null` = kök. İstemci ağaç kurup girintiler. */
+      parentItemId: string | null;
+    }>;
   }>;
   comments: Array<{
     id: string;
@@ -249,27 +257,11 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
                           {clDone}/{cl.items.length}
                         </span>
                       </div>
+                      {/* İç içe (nested) madde: düz liste `buildChecklistTree` ile
+                          ağaca çevrilir; salt-okur girintili gösterim. */}
                       <ul className="space-y-1">
-                        {cl.items.map((item) => (
-                          <li key={item.id} className="flex items-start gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              readOnly
-                              disabled
-                              aria-label={item.content}
-                              className="border-input mt-1 size-3.5 rounded"
-                            />
-                            <span
-                              className={cn(
-                                'flex-1',
-                                item.completed &&
-                                  'text-muted-foreground line-through',
-                              )}
-                            >
-                              {item.content}
-                            </span>
-                          </li>
+                        {buildChecklistTree(cl.items).map((node) => (
+                          <ShareChecklistItem key={node.id} node={node} />
                         ))}
                       </ul>
                     </div>
@@ -336,6 +328,45 @@ export function ShareCardView({ token, snapshot, apiUrl }: ShareCardViewProps) {
         {snapshot.attachments.length > 0 && <p>{copy.attachmentsDownloadNotice}</p>}
       </footer>
     </div>
+  );
+}
+
+/**
+ * Misafir görünümünde iç içe (nested) bir checklist maddesi — kendini alt ağaç
+ * için özyineli çağırır (salt-okur; düzenleme/sürükleme yok). Çocuklar soldan
+ * girintili bir `<ul>` ile o maddenin `<li>`'sine yerleşir.
+ */
+function ShareChecklistItem({
+  node,
+}: {
+  node: ChecklistTreeNode<ShareSnapshot['checklists'][number]['items'][number]>;
+}) {
+  return (
+    <li className="text-sm">
+      <div className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={node.completed}
+          readOnly
+          disabled
+          aria-label={richTextToPlainText(node.content)}
+          className="border-input mt-1 size-3.5 rounded"
+        />
+        {/* Madde içeriği zengin (Tiptap JSON) olabilir — RichTextContent ile
+            render edilir (ham JSON sızmaz). */}
+        <RichTextContent
+          value={node.content}
+          className={cn('flex-1', node.completed && 'text-muted-foreground line-through')}
+        />
+      </div>
+      {node.children.length > 0 && (
+        <ul className="border-border/60 mt-1 ml-2.5 space-y-1 border-l pl-2.5">
+          {node.children.map((child) => (
+            <ShareChecklistItem key={child.id} node={child} />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 

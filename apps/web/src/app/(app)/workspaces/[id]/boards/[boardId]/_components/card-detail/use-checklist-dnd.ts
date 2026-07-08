@@ -44,6 +44,8 @@ export type ChecklistDnd = {
     dragHandle: HTMLElement;
     itemId: string;
     position: string;
+    /** İç içe madde ebeveyni (kök için `null`) — aynı-seviye reorder kısıtı. */
+    parentItemId: string | null;
   }) => () => void;
 };
 
@@ -60,7 +62,7 @@ export type ChecklistDnd = {
  */
 export function useChecklistDnd(opts: {
   checklistId: string;
-  items: readonly { id: string; position: string }[];
+  items: readonly { id: string; position: string; parentItemId?: string | null }[];
   enabled: boolean;
   onReorder: (args: ChecklistReorderArgs) => void;
 }): ChecklistDnd {
@@ -102,7 +104,13 @@ export function useChecklistDnd(opts: {
           return;
         }
         const td = target.data;
-        if (!isDrop(td) || td.checklistId !== checklistId || td.itemId === source.data.itemId) {
+        if (
+          !isDrop(td) ||
+          td.checklistId !== checklistId ||
+          td.itemId === source.data.itemId ||
+          // Aynı-seviye reorder: farklı ebeveyndeki maddeye drop göstergesi çizme.
+          td.parentItemId !== source.data.parentItemId
+        ) {
           clearIndicator();
           return;
         }
@@ -117,9 +125,18 @@ export function useChecklistDnd(opts: {
         if (!target) return;
         const td = target.data;
         if (!isDrop(td) || td.checklistId !== checklistId) return;
+        // Aynı-seviye reorder: hedef, sürüklenenle aynı ebeveynde değilse no-op.
+        if (td.parentItemId !== source.data.parentItemId) return;
         const edge: ChecklistItemEdge = extractClosestEdge(td) === 'top' ? 'top' : 'bottom';
+        // Plan yalnız aynı kardeş grubu (aynı `parentItemId`) içinde hesaplanır —
+        // komşular ve `newPosition` yalnız o gruptan türetilir; diğer seviyeler
+        // etkilenmez.
+        const siblingParent = source.data.parentItemId;
+        const siblings = itemsRef.current.filter(
+          (i) => (i.parentItemId ?? null) === siblingParent,
+        );
         const plan = planChecklistReorder({
-          items: itemsRef.current,
+          items: siblings,
           movedItemId: source.data.itemId,
           targetItemId: td.itemId,
           edge,
@@ -138,13 +155,19 @@ export function useChecklistDnd(opts: {
   }, [enabled, checklistId, clearIndicator, showIndicator]);
 
   const registerItem = useCallback<ChecklistDnd['registerItem']>(
-    ({ element, dragHandle, itemId, position }) => {
+    ({ element, dragHandle, itemId, position, parentItemId }) => {
       if (!enabled) return () => {};
       return combine(
         draggable({
           element,
           dragHandle,
-          getInitialData: () => ({ type: 'checklist-item', checklistId, itemId, position }),
+          getInitialData: () => ({
+            type: 'checklist-item',
+            checklistId,
+            itemId,
+            position,
+            parentItemId,
+          }),
           // Default native drag bitmap is fine for a simple text row; no custom
           // portal needed (unlike the board card with its rich preview).
         }),
@@ -153,10 +176,12 @@ export function useChecklistDnd(opts: {
           canDrop: ({ source }) =>
             isDrag(source.data) &&
             source.data.checklistId === checklistId &&
-            source.data.itemId !== itemId,
+            source.data.itemId !== itemId &&
+            // Aynı-seviye reorder: yalnız aynı ebeveyndeki maddeler birbirine hedef.
+            source.data.parentItemId === parentItemId,
           getData: ({ input, element: el }) =>
             attachClosestEdge(
-              { type: 'checklist-item', checklistId, itemId, position },
+              { type: 'checklist-item', checklistId, itemId, position, parentItemId },
               { element: el, input, allowedEdges: ['top', 'bottom'] },
             ),
           getIsSticky: () => true,

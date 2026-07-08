@@ -8,6 +8,7 @@ import { AddChecklistFormPanel, AddChecklistTrigger } from './checklist-add-form
 import { ChecklistBlock } from './checklist-block';
 import { ChecklistBulkImportDialog } from './checklist-bulk-import-dialog';
 import type {
+  ChecklistAttachmentContext,
   ChecklistCommentContext,
   ChecklistHandlers,
   ChecklistView,
@@ -27,6 +28,8 @@ type CardDetailChecklistsProps = ChecklistHandlers & {
   imageOf?: ImageResolver;
   /** Per-item comment-thread context — forwarded to each item row's toggle. */
   comments?: ChecklistCommentContext;
+  /** Per-item attachment context — forwarded to each item row's toggle. */
+  attachments?: ChecklistAttachmentContext;
   pending?: boolean;
   error?: string | null;
   /**
@@ -54,6 +57,7 @@ export function CardDetailChecklists({
   nameOf,
   imageOf,
   comments,
+  attachments,
   pending = false,
   error,
   bulkImportPending = false,
@@ -152,6 +156,7 @@ export function CardDetailChecklists({
                 nameOf={nameOf}
                 imageOf={imageOf}
                 comments={comments}
+                attachments={attachments}
               />
             ))}
             {archived.length > 0 && (
@@ -163,6 +168,7 @@ export function CardDetailChecklists({
                 nameOf={nameOf}
                 imageOf={imageOf}
                 comments={comments}
+                attachments={attachments}
               />
             )}
           </div>
@@ -187,6 +193,7 @@ function ArchivedChecklistsSection({
   nameOf,
   imageOf,
   comments,
+  attachments,
 }: {
   archived: ChecklistView[];
   canEdit: boolean;
@@ -195,6 +202,7 @@ function ArchivedChecklistsSection({
   nameOf?: NameResolver;
   imageOf?: ImageResolver;
   comments?: ChecklistCommentContext;
+  attachments?: ChecklistAttachmentContext;
 }) {
   const copy = strings.card.checklist;
   const [open, setOpen] = useState(false);
@@ -232,6 +240,7 @@ function ArchivedChecklistsSection({
               nameOf={nameOf}
               imageOf={imageOf}
               comments={comments}
+              attachments={attachments}
             />
           ))}
         </div>

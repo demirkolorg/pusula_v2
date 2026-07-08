@@ -770,6 +770,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         fileName: 'cover.png',
         mimeType: 'image/png',
         size: 2048,
+        committedAt: new Date(),
       })
       .returning();
     const [otherCover] = await db()
@@ -782,6 +783,7 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
         fileName: 'other-cover.png',
         mimeType: 'image/png',
         size: 1024,
+        committedAt: new Date(),
       })
       .returning();
 
@@ -864,6 +866,49 @@ describe.runIf(dbAvailable)('card router (integration)', () => {
     expect(forCard('card.cover_image_cleared')[0]?.payload).toMatchObject({
       fromCoverImageAttachmentId: cover!.id,
     });
+  });
+
+  it('update: bir checklist maddesinin ekini kart kapağı YAPAMAZ (madde eki invariant)', async () => {
+    const card = await callerFor(ownerId).card.create({
+      listId,
+      title: 'Madde eki kapak testi',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const checklist = await callerFor(memberId).checklist.create({
+      cardId: card.id,
+      title: 'Liste',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const listItem = await callerFor(memberId).checklist.item.create({
+      cardId: card.id,
+      checklistId: checklist.id,
+      content: 'Madde',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Madde eki: image + committed, ama `checklist_item_id` dolu → kapak olamaz.
+    // UI "kapak yap"ı gizler; bu test sunucunun da reddettiğini garanti eder.
+    const [itemAttachment] = await db()
+      .insert(attachments)
+      .values({
+        cardId: card.id,
+        checklistItemId: listItem.id,
+        boardId,
+        uploaderId: memberId,
+        storageKey: `boards/${boardId}/cards/${card.id}/checklist-items/${listItem.id}/x.png`,
+        fileName: 'x.png',
+        mimeType: 'image/png',
+        size: 1024,
+        committedAt: new Date(),
+      })
+      .returning();
+
+    await expect(
+      callerFor(memberId).card.update({
+        cardId: card.id,
+        coverImageAttachmentId: itemAttachment!.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   // -------------------------------------------------------------- archived board guards (DEM-66/67)

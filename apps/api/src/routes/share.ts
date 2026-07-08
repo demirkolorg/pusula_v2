@@ -148,7 +148,13 @@ async function buildSnapshot(
   const checklistIds = checklistRows.map((row) => row.id);
   const itemsByChecklist = new Map<
     string,
-    Array<{ id: string; content: string; completed: boolean; position: string }>
+    Array<{
+      id: string;
+      content: string;
+      completed: boolean;
+      position: string;
+      parentItemId: string | null;
+    }>
   >();
   if (checklistIds.length > 0) {
     const itemRows = await db
@@ -158,6 +164,9 @@ async function buildSnapshot(
         content: checklistItems.content,
         completed: checklistItems.completed,
         position: checklistItems.position,
+        // İç içe (nested) madde ebeveyni — misafir görünümü de ağaç kurup girintili
+        // gösterir (salt-okur). `null` = kök madde.
+        parentItemId: checklistItems.parentItemId,
       })
       .from(checklistItems)
       .where(inArray(checklistItems.checklistId, checklistIds))
@@ -169,6 +178,7 @@ async function buildSnapshot(
         content: item.content,
         completed: item.completed,
         position: item.position,
+        parentItemId: item.parentItemId,
       });
       itemsByChecklist.set(item.checklistId, bucket);
     }

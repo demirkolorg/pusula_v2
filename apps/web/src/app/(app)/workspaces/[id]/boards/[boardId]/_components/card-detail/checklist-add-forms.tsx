@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { PlusIcon } from 'lucide-react';
-import { checklistItemContentSchema, checklistTitleSchema } from '@pusula/domain';
-import { Button, Input, Tooltip, TooltipContent, TooltipTrigger } from '@pusula/ui';
+import { checklistTitleSchema } from '@pusula/domain';
+import { Button, Input, RichTextEditor, Tooltip, TooltipContent, TooltipTrigger } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 
 // ---------------------------------------------------------------------------
@@ -116,14 +116,54 @@ export function AddChecklistFormPanel({
 export function AddItemForm({
   onSubmit,
   pending,
+  startOpen = false,
+  onClose,
+  placeholder,
 }: {
   onSubmit: (content: string) => void;
   pending: boolean;
+  /**
+   * İç içe (nested) alt madde modu: form açık başlar, tetikleyici buton
+   * gösterilmez; ekleme/vazgeç sonrası `onClose` çağrılır (üst bileşen formu
+   * söker). Varsayılan (`false`) kök madde davranışı: buton → form, ekleme
+   * sonrası form kapanır ve buton geri gelir.
+   */
+  startOpen?: boolean;
+  /** `startOpen` modunda ekleme/vazgeç sonrası — üst bileşen formu kapatır. */
+  onClose?: () => void;
+  /** Editör placeholder'ı (alt madde için farklı metin); yoksa kök madde metni. */
+  placeholder?: string;
 }) {
   const copy = strings.card.checklist;
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // Madde metni artık zengin (Tiptap) — yorum composer'ıyla aynı editör. `value`
+  // Tiptap JSON string (boşken `null`); `empty` boş-doc submit'ini engeller;
+  // `resetSeq` bump'ı editörü remount ederek temizler (composer deseni).
+  const richTextLabels = strings.card.detail.richText;
+  const [open, setOpen] = useState(startOpen);
+  const [value, setValue] = useState<string | null>(null);
+  const [empty, setEmpty] = useState(true);
+  const [resetSeq, setResetSeq] = useState(0);
+  const fieldPlaceholder = placeholder ?? copy.itemPlaceholder;
+
+  const reset = () => {
+    setValue(null);
+    setEmpty(true);
+    setResetSeq((n) => n + 1);
+  };
+  const submit = () => {
+    if (empty || value == null) return;
+    onSubmit(value);
+    reset();
+    // Alt madde: tek seferlik, üst bileşen formu kapatır. Kök madde: form kapanır,
+    // buton geri gelir (art arda madde girişi mümkün).
+    if (startOpen) onClose?.();
+    else setOpen(false);
+  };
+  const cancel = () => {
+    reset();
+    if (startOpen) onClose?.();
+    else setOpen(false);
+  };
 
   if (!open) {
     return (
@@ -140,35 +180,33 @@ export function AddItemForm({
     );
   }
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        const parsed = checklistItemContentSchema.safeParse(value);
-        if (!parsed.success) {
-          setError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
-          return;
-        }
-        setError(null);
-        onSubmit(parsed.data);
-        setValue('');
-        setOpen(false);
-      }}
-      noValidate
-      className="space-y-2"
-    >
-      <Input
-        name="checklistItemContent"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        placeholder={copy.itemPlaceholder}
-        aria-label={copy.itemPlaceholder}
-        disabled={pending}
-        autoComplete="off"
-        aria-invalid={error ? true : undefined}
-      />
-      {error && <p className="text-destructive text-sm">{error}</p>}
+    <div className="space-y-2">
+      {/* Enter = yeni satır (Tiptap); kaydet = Cmd/Ctrl+Enter veya "Ekle". */}
+      <div
+        onKeyDownCapture={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      >
+        <RichTextEditor
+          key={resetSeq}
+          value={value}
+          placeholder={fieldPlaceholder}
+          labels={richTextLabels}
+          toolbar="mini"
+          collapsibleToolbar
+          ariaLabel={fieldPlaceholder}
+          disabled={pending}
+          onChange={(serialized, isEmpty) => {
+            setValue(isEmpty ? null : serialized);
+            setEmpty(isEmpty);
+          }}
+        />
+      </div>
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={pending}>
+        <Button type="button" size="sm" disabled={pending || empty} onClick={submit}>
           {pending ? copy.itemAdding : copy.itemAddSubmit}
         </Button>
         <Button
@@ -176,15 +214,11 @@ export function AddItemForm({
           variant="outline"
           size="sm"
           disabled={pending}
-          onClick={() => {
-            setOpen(false);
-            setValue('');
-            setError(null);
-          }}
+          onClick={cancel}
         >
           {copy.itemCancel}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

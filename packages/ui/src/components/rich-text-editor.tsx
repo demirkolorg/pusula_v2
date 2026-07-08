@@ -196,6 +196,41 @@ export function renderRichTextToHTML(value: string | null | undefined): string {
   return generateHTML(doc, buildContentExtensions());
 }
 
+/**
+ * Reduce a stored Tiptap value (JSON string or legacy plain text) to plain text —
+ * for `aria-label`s, previews, and any non-visual consumer that must never leak
+ * raw Tiptap JSON. Mirrors the server `richTextPreview` and the mobile
+ * `tiptapToPlainText`: `text` nodes plus `@mention` labels, block nodes
+ * (paragraph / list-item / heading) separated by a single space. Formatting
+ * (bold / list markers / links) is dropped. Empty values yield `''`.
+ */
+export function richTextToPlainText(value: string | null | undefined): string {
+  const parts: string[] = [];
+  const visit = (node: JSONContent): void => {
+    if (node.type === 'text' && typeof node.text === 'string') {
+      parts.push(node.text);
+      return;
+    }
+    if (node.type === 'mention') {
+      const label = node.attrs?.label;
+      if (typeof label === 'string' && label) parts.push('@' + label);
+      return;
+    }
+    const children = node.content;
+    if (!Array.isArray(children)) return;
+    const before = parts.length;
+    for (const child of children) visit(child);
+    if (
+      (node.type === 'paragraph' || node.type === 'listItem' || node.type === 'heading') &&
+      parts.length > before
+    ) {
+      parts.push(' ');
+    }
+  };
+  visit(parseRichTextValue(value));
+  return parts.join('').replace(/\s+/g, ' ').trim();
+}
+
 /** Tiptap suggestion configuration the editor actually consumes. */
 type MentionSuggestionWire = {
   char: string;

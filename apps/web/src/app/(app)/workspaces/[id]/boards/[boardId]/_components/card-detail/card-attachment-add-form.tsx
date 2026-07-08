@@ -18,6 +18,13 @@ const cmid = () => crypto.randomUUID();
 type CardAttachmentAddFormProps = {
   cardId: string;
   canEdit: boolean;
+  /**
+   * Checklist maddesine ek yükleniyorsa o maddenin id'si. Verilirse ek karta
+   * değil maddeye bağlanır (`initiate` `checklistItemId` taşır) ve başarıdan
+   * sonra hem madde ek listesi hem `checklist.list` (rozet sayacı) tazelenir.
+   * Yoksa kart eki (mevcut davranış).
+   */
+  checklistItemId?: string;
   /** Yükleme başarıyla biterse popover'ı kapatmak için. */
   onSuccess?: () => void;
 };
@@ -28,10 +35,17 @@ type CardAttachmentAddFormProps = {
  * bu form sadece yeni bir dosya commit'lemek için. Başarıdan sonra
  * `attachment.list` cache'i invalidate edilir ve board.get içindeki kart
  * `attachmentCount` chip'i optimistic olarak +1 ilerletilir.
+ *
+ * `checklistItemId` verilerek checklist maddesine ek yüklemek için de yeniden
+ * kullanılır (madde-yorum composer'ıyla simetrik): o durumda liste filtresi
+ * `{ cardId, checklistItemId }`'e daralır ve başarıda madde rozeti için
+ * `checklist.list` da invalidate edilir. Board kart chip'i (toplam ek sayısı)
+ * her iki durumda da +1 ilerletilir.
  */
 export function CardAttachmentAddForm({
   cardId,
   canEdit,
+  checklistItemId,
   onSuccess,
 }: CardAttachmentAddFormProps) {
   const trpc = useTRPC();
@@ -39,8 +53,11 @@ export function CardAttachmentAddForm({
   const copy = strings.attachment;
 
   const listFilter = useMemo(
-    () => trpc.attachment.list.queryFilter({ cardId }),
-    [trpc, cardId],
+    () =>
+      trpc.attachment.list.queryFilter(
+        checklistItemId ? { cardId, checklistItemId } : { cardId },
+      ),
+    [trpc, cardId, checklistItemId],
   );
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -115,6 +132,7 @@ export function CardAttachmentAddForm({
     try {
       const initiated = await initiate.mutateAsync({
         cardId,
+        checklistItemId,
         fileName: pendingFile.name,
         mimeType: pendingFile.type as (typeof ATTACHMENT_MIME_TYPES)[number],
         size: pendingFile.size,
@@ -139,6 +157,11 @@ export function CardAttachmentAddForm({
       if (!mountedRef.current) return;
       bumpBoardAttachmentCount(1);
       void queryClient.invalidateQueries(listFilter);
+      // Madde eki: rozet sayacı `checklist.list`'ten türer — o maddenin
+      // `attachmentCount`'u tazelensin (yorum composer'ıyla simetrik).
+      if (checklistItemId) {
+        void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+      }
       resetUpload();
       onSuccess?.();
     } catch (error) {
@@ -155,6 +178,8 @@ export function CardAttachmentAddForm({
     pendingFile,
     description,
     cardId,
+    checklistItemId,
+    trpc,
     initiate,
     commit,
     queryClient,

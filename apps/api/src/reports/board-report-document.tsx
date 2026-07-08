@@ -756,7 +756,8 @@ function CardRow({ card, t }: CardRowProps) {
                       : styles.indentedItem
                   }
                 >
-                  └─ [{item.completed ? '✓' : ' '}] {item.content}
+                  └─ [{item.completed ? '✓' : ' '}]{' '}
+                  {clampPlain(tiptapJsonToPlainText(item.content), 200)}
                 </Text>
               ))}
             </View>

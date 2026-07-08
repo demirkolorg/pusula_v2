@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   CheckIcon,
   CopyIcon,
   GripVerticalIcon,
+  ListPlusIcon,
   MessageSquareIcon,
+  PaperclipIcon,
   PencilIcon,
   SquareIcon,
   Trash2Icon,
 } from 'lucide-react';
-import { checklistItemContentSchema } from '@pusula/domain';
 import {
   Avatar,
   Button,
@@ -20,7 +21,8 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-  Input,
+  RichTextContent,
+  RichTextEditor,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -28,15 +30,18 @@ import {
   toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+import { ChecklistItemAttachments } from './checklist-item-attachments';
 import { ChecklistItemThread } from './checklist-item-thread';
+import { copyRichTextToClipboard, isSameRichText } from './rich-text-helpers';
 import type {
+  ChecklistAttachmentContext,
   ChecklistCommentContext,
   ChecklistItemView,
   ImageResolver,
   NameResolver,
 } from './checklist-types';
 
-export type { ChecklistCommentContext } from './checklist-types';
+export type { ChecklistAttachmentContext, ChecklistCommentContext } from './checklist-types';
 
 /**
  * One checklist item: a `Checkbox` + content, with inline edit/delete for board
@@ -50,12 +55,16 @@ export function ChecklistItemRow({
   nameOf,
   imageOf,
   comments,
+  attachments,
   onToggle,
   onEdit,
   onDelete,
+  canAddSubItem = false,
+  onAddSubItem,
   registerDnd,
   dragging = false,
   dropEdge = null,
+  children,
 }: {
   item: ChecklistItemView;
   canEdit: boolean;
@@ -64,9 +73,19 @@ export function ChecklistItemRow({
   imageOf?: ImageResolver;
   /** Comment-thread context — when present, the row shows a thread toggle. */
   comments?: ChecklistCommentContext;
+  /** Attachment context — when present, the row shows an attachment toggle. */
+  attachments?: ChecklistAttachmentContext;
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
+  /**
+   * İç içe (nested) madde — bu maddenin altına alt madde eklenebilir mi (derinlik
+   * sınırı `CHECKLIST_MAX_DEPTH` altında). `true` ise context menüde "Alt madde
+   * ekle" görünür ve `onAddSubItem` tetiklenir.
+   */
+  canAddSubItem?: boolean;
+  /** "Alt madde ekle" seçilince — üst bileşen bu maddenin altına ekleme formunu açar. */
+  onAddSubItem?: () => void;
   /**
    * Register this row with the checklist's drag-and-drop (Pragmatic DnD).
    * Receives the row element + its drag handle; returns a cleanup. Absent /
@@ -77,13 +96,19 @@ export function ChecklistItemRow({
   dragging?: boolean;
   /** Drop indicator edge for this row (`null` when not a drop target). */
   dropEdge?: 'top' | 'bottom' | null;
+  /** Alt ağaç (bu maddenin çocukları) + "alt madde ekle" formu — `<li>` içinde render. */
+  children?: ReactNode;
 }) {
   const copy = strings.card.checklist;
+  const richTextLabels = strings.card.detail.richText;
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(item.content);
-  const [error, setError] = useState<string | null>(null);
+  // Madde metni artık zengin (Tiptap); `draft` düzenlenen Tiptap JSON string.
+  const [draft, setDraft] = useState<string>(item.content);
+  const [editorEmpty, setEditorEmpty] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const commentCount = item.commentCount;
+  const attachmentCount = item.attachmentCount;
   const rowRef = useRef<HTMLLIElement>(null);
   const handleRef = useRef<HTMLButtonElement>(null);
 
@@ -106,14 +131,23 @@ export function ChecklistItemRow({
   const showHandle = Boolean(registerDnd) && canEdit && !editing;
 
   // Madde metnini panoya kopyala — yetkiden bağımsız (okuma yetkisi olan da
-  // kopyalayabilir; kopyalama yıkıcı değil). Clipboard erişilemezse uyarı.
+  // kopyalayabilir; kopyalama yıkıcı değil). Zengin metni HTML + düz metin olarak
+  // kopyalar (ham JSON değil). Clipboard erişilemezse uyarı.
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(item.content);
+      await copyRichTextToClipboard(item.content);
       toast.success(copy.itemCopied);
     } catch {
       toast.error(copy.itemCopyError);
     }
+  };
+
+  // Inline düzenlemeyi kaydet — boş-doc engellenir; içerik *anlamsal* olarak
+  // değişmediyse (legacy düz metin ↔ Tiptap JSON serileştirmesi dahil) no-op.
+  const saveEdit = () => {
+    if (editorEmpty) return;
+    if (!isSameRichText(draft, item.content)) onEdit(draft);
+    setEditing(false);
   };
 
   return (
@@ -160,33 +194,32 @@ export function ChecklistItemRow({
         className="mt-0.5 shrink-0"
       />
       {editing && canEdit ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const parsed = checklistItemContentSchema.safeParse(value);
-            if (!parsed.success) {
-              setError(parsed.error.issues[0]?.message ?? strings.common.unknownError);
-              return;
-            }
-            setError(null);
-            if (parsed.data !== item.content) onEdit(parsed.data);
-            setEditing(false);
-          }}
-          noValidate
-          className="flex-1 space-y-2"
-        >
-          <Input
-            name="itemContent"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            aria-label={copy.itemEdit}
-            disabled={pending}
-            autoComplete="off"
-            aria-invalid={error ? true : undefined}
-          />
-          {error && <p className="text-destructive text-sm">{error}</p>}
+        <div className="flex-1 space-y-2">
+          {/* Enter = yeni satır (Tiptap); kaydet = Cmd/Ctrl+Enter veya "Kaydet". */}
+          <div
+            onKeyDownCapture={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+              }
+            }}
+          >
+            <RichTextEditor
+              value={draft || null}
+              placeholder={copy.itemPlaceholder}
+              labels={richTextLabels}
+              toolbar="mini"
+              collapsibleToolbar
+              ariaLabel={copy.itemEdit}
+              disabled={pending}
+              onChange={(serialized, isEmpty) => {
+                setDraft(serialized);
+                setEditorEmpty(isEmpty);
+              }}
+            />
+          </div>
           <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={pending}>
+            <Button type="button" size="sm" disabled={pending || editorEmpty} onClick={saveEdit}>
               {pending ? copy.itemSaving : copy.itemSave}
             </Button>
             <Button
@@ -195,42 +228,26 @@ export function ChecklistItemRow({
               size="sm"
               disabled={pending}
               onClick={() => {
-                setValue(item.content);
-                setError(null);
+                setDraft(item.content);
+                setEditorEmpty(false);
                 setEditing(false);
               }}
             >
               {copy.itemCancel}
             </Button>
           </div>
-        </form>
+        </div>
       ) : (
         <>
-          {comments ? (
-            // Yorum mümkünse madde metni tıklanabilir — tıklayınca thread
-            // açılır/kapanır (kart açar gibi). Sağ tık yine context menüyü açar.
-            <button
-              type="button"
-              aria-expanded={threadOpen}
-              onClick={() => setThreadOpen((open) => !open)}
-              className={cn(
-                'focus-visible:ring-ring/60 min-w-0 flex-1 break-words rounded-sm text-left outline-none focus-visible:ring-2',
-                item.completed && 'italic text-muted-foreground/70',
-              )}
-            >
-              {item.content}
-            </button>
-          ) : (
-            <span
-              className={
-                item.completed
-                  ? 'min-w-0 flex-1 break-words italic text-muted-foreground/70'
-                  : 'min-w-0 flex-1 break-words'
-              }
-            >
-              {item.content}
-            </span>
-          )}
+          {/* Madde metni artık zengin (Tiptap) render edilir. Önceki "metne tıkla
+              → thread aç" davranışı kaldırıldı: RichTextContent link/tıklanabilir
+              içerik taşıyabildiğinden buton'a gömülemez; thread yalnızca sağdaki
+              mesaj rozetinden açılır (yorum/açıklama ile tutarlı). */}
+          <div
+            className={cn('min-w-0 flex-1 break-words', item.completed && 'italic opacity-60')}
+          >
+            <RichTextContent value={item.content} />
+          </div>
           {/* İşlem yapan (tamamlayan) avatarı + yorum rozeti tek bir
               dikey-ortalı grupta hizalanır. Yorum rozeti satırda kalır —
               yorum yetkisi (canComment) edit yetkisinden bağımsız ve viewer
@@ -238,7 +255,7 @@ export function ChecklistItemRow({
               `commentCount > 0` ise rozet hep görünür; 0 ise yalnız
               hover/focus/touch'ta. Düzenle/sil/tamamla eylemleri maddeye
               sağ tık (context) menüsünde. */}
-          {(completerName || comments) && (
+          {(completerName || comments || attachments) && (
             <div className="flex shrink-0 items-center gap-1 self-start">
               {completerName && (
                 <Avatar name={completerName} image={completerImage} size="xs" />
@@ -275,6 +292,47 @@ export function ChecklistItemRow({
                   </TooltipContent>
                 </Tooltip>
               )}
+              {/* Ek rozeti — yorum rozetiyle birebir simetrik. Ek yetkisi
+                  (canEdit) edit yetkisinden bağımsız değil (upload edit gerektirir)
+                  ama viewer da galeriyi açıp görebildiğinden rozet her zaman
+                  (attachments context varsa) görünür. `attachmentCount > 0` ise
+                  hep görünür; 0 ise yalnız hover/focus/touch'ta. */}
+              {attachments && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={
+                        attachmentsOpen
+                          ? copy.itemAttachmentsToggleClose
+                          : copy.itemAttachmentsToggle
+                      }
+                      aria-expanded={attachmentsOpen}
+                      className={cn(
+                        'text-muted-foreground hover:text-foreground size-6 gap-1 px-1.5 touch:size-11',
+                        attachmentCount === 0 &&
+                          'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
+                        attachmentsOpen && 'text-foreground opacity-100',
+                      )}
+                      onClick={() => setAttachmentsOpen((open) => !open)}
+                    >
+                      <PaperclipIcon className="size-3.5" aria-hidden />
+                      {attachmentCount > 0 && (
+                        <span className="text-[11px] font-medium tabular-nums">
+                          {attachmentCount}
+                        </span>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {attachmentsOpen
+                      ? copy.itemAttachmentsToggleClose
+                      : copy.itemAttachmentsToggle}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           )}
         </>
@@ -294,6 +352,12 @@ export function ChecklistItemRow({
                 {copy.itemCommentsToggle}
               </ContextMenuItem>
             )}
+            {attachments && (
+              <ContextMenuItem onSelect={() => setAttachmentsOpen(true)}>
+                <PaperclipIcon className="size-3.5" aria-hidden />
+                {copy.itemAttachmentsToggle}
+              </ContextMenuItem>
+            )}
             {canEdit && (
               <>
                 <ContextMenuSeparator />
@@ -311,13 +375,21 @@ export function ChecklistItemRow({
                 <ContextMenuItem
                   disabled={pending}
                   onSelect={() => {
-                    setValue(item.content);
+                    setDraft(item.content);
+                    setEditorEmpty(false);
                     setEditing(true);
                   }}
                 >
                   <PencilIcon className="size-3.5" aria-hidden />
                   {copy.itemEdit}
                 </ContextMenuItem>
+                {/* İç içe madde: yalnız derinlik sınırı altındaki maddede görünür. */}
+                {canAddSubItem && onAddSubItem && (
+                  <ContextMenuItem disabled={pending} onSelect={onAddSubItem}>
+                    <ListPlusIcon className="size-3.5" aria-hidden />
+                    {copy.itemAddSubAction}
+                  </ContextMenuItem>
+                )}
                 <ContextMenuSeparator />
                 <ContextMenuItem variant="destructive" disabled={pending} onSelect={onDelete}>
                   <Trash2Icon className="size-3.5" aria-hidden />
@@ -343,6 +415,21 @@ export function ChecklistItemRow({
           mentions={comments.mentions}
         />
       )}
+
+      {attachments && attachmentsOpen && (
+        <ChecklistItemAttachments
+          cardId={attachments.cardId}
+          checklistItemId={item.id}
+          canEdit={attachments.canEdit}
+          isBoardAdmin={attachments.isBoardAdmin}
+          viewerUserId={attachments.viewerUserId}
+        />
+      )}
+
+      {/* İç içe (nested) alt ağaç + "alt madde ekle" formu — üst bileşen girintili
+          bir <ul> olarak geçirir; maddenin kendi <li>'si içinde kalır (DOM ağacı
+          domain ağacını yansıtır). */}
+      {children}
     </li>
   );
 }

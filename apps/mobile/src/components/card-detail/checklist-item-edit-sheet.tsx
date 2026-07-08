@@ -28,9 +28,10 @@ type ChecklistItemEditSheetProps = {
  * ettiğinden taslak her madde için `useState` tohumuyla tazelenir (effect yok).
  *
  * Boş ya da değişmemiş içerik `resolveChecklistItemRename` ile elenir → gereksiz
- * mutation atılmaz, sheet yine kapanır. İçerik çok satırlı (`multiline`,
- * 2000 karaktere kadar); kaydetme açık "Kaydet" butonuyla (multiline'da
- * `return` yeni satır ekler, gönderim yapmaz).
+ * mutation atılmaz, sheet yine kapanır. İçerik çok satırlı (`multiline`, 2000
+ * karaktere kadar — mobil düz-metin sınırı; backend 20 000'e izin verir ama mobil
+ * kısa düz metin yazar, biçimli editör sonraki tur); kaydetme açık "Kaydet"
+ * butonuyla (multiline'da `return` yeni satır ekler, gönderim yapmaz).
  */
 export function ChecklistItemEditSheet({
   visible,

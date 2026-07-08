@@ -751,6 +751,183 @@ describe.runIf(dbAvailable)('checklist router (integration)', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
+  describe('nested items (DEM — iç içe alt madde, 3 seviye)', () => {
+    /** Bir checklist + kök/çocuk/torun zinciri kurar; her düzeyin id'sini döndürür. */
+    async function makeChain(title: string) {
+      const c = await callerFor(memberId).checklist.create({
+        cardId,
+        title,
+        clientMutationId: crypto.randomUUID(),
+      });
+      const root = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'root',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const child = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'child',
+        parentItemId: root.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+      const grandchild = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'grandchild',
+        parentItemId: child.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+      return { c, root, child, grandchild };
+    }
+
+    it('item.create: parentItemId ile alt madde ekler; parentItemId + depth doğru damgalanır (kök 0, çocuk 1, torun 2)', async () => {
+      const { root, child, grandchild } = await makeChain('Nested host');
+      expect(root).toMatchObject({ parentItemId: null, depth: 0 });
+      expect(child).toMatchObject({ parentItemId: root.id, depth: 1 });
+      expect(grandchild).toMatchObject({ parentItemId: child.id, depth: 2 });
+    });
+
+    it('item.create: torunun (depth 2) altına eklemek BAD_REQUEST (CHECKLIST_MAX_DEPTH = 3 seviye)', async () => {
+      const { c, grandchild } = await makeChain('Depth limit host');
+      await expect(
+        callerFor(memberId).checklist.item.create({
+          cardId,
+          checklistId: c.id,
+          content: 'too deep',
+          parentItemId: grandchild.id,
+          clientMutationId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+
+    it('item.create: parentItemId başka bir checklist\'in maddesiyse NOT_FOUND (ebeveyn aynı checklist\'te olmalı)', async () => {
+      const target = await callerFor(memberId).checklist.create({
+        cardId,
+        title: 'Target checklist',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const foreignHost = await callerFor(memberId).checklist.create({
+        cardId,
+        title: 'Foreign parent host',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const foreignItem = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: foreignHost.id,
+        content: 'foreign parent',
+        clientMutationId: crypto.randomUUID(),
+      });
+      await expect(
+        callerFor(memberId).checklist.item.create({
+          cardId,
+          checklistId: target.id,
+          content: 'orphan attempt',
+          parentItemId: foreignItem.id,
+          clientMutationId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+
+    it('list: maddeleri parentItemId + depth alanlarıyla düz döndürür (istemci ağaç kurar)', async () => {
+      const { c, root, child, grandchild } = await makeChain('List shape host');
+      const listed = await callerFor(memberId).checklist.list({ cardId });
+      const target = listed.find((cl) => cl.id === c.id);
+      expect(target).toBeDefined();
+      const byId = new Map(target!.items.map((i) => [i.id, i] as const));
+      expect(byId.get(root.id)).toMatchObject({ parentItemId: null, depth: 0 });
+      expect(byId.get(child.id)).toMatchObject({ parentItemId: root.id, depth: 1 });
+      expect(byId.get(grandchild.id)).toMatchObject({ parentItemId: child.id, depth: 2 });
+    });
+
+    it('item.reorder: farklı ebeveyndeki komşu BAD_REQUEST; aynı ebeveyn içinde reorder çalışır (aynı-seviye kısıtı)', async () => {
+      const c = await callerFor(memberId).checklist.create({
+        cardId,
+        title: 'Nested reorder host',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const root = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'root',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const rootSibling = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'root sibling',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const childA = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'child A',
+        parentItemId: root.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+      const childB = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'child B',
+        parentItemId: root.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+
+      // Bir alt maddeyi kök-seviye bir komşuya göre taşımak → farklı ebeveyn → BAD_REQUEST.
+      await expect(
+        callerFor(memberId).checklist.item.reorder({
+          cardId,
+          checklistId: c.id,
+          itemId: childA.id,
+          beforeItemId: rootSibling.id,
+          clientMutationId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+      // Aynı ebeveyn (root) içindeki kardeşler arasında reorder çalışır.
+      const moved = await callerFor(memberId).checklist.item.reorder({
+        cardId,
+        checklistId: c.id,
+        itemId: childB.id,
+        afterItemId: childA.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+      expect(moved).toMatchObject({ id: childB.id, changed: true });
+      expect(moved.position < childA.position).toBe(true);
+    });
+
+    it('item.delete: bir maddeyi silince alt ağaç cascade ile gider; removedItemIds kökü + torunları içerir, kardeşi içermez', async () => {
+      const { c, root, child, grandchild } = await makeChain('Cascade delete host');
+      const sibling = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: c.id,
+        content: 'untouched sibling',
+        clientMutationId: crypto.randomUUID(),
+      });
+
+      const deleted = await callerFor(memberId).checklist.item.delete({
+        cardId,
+        checklistId: c.id,
+        itemId: root.id,
+        clientMutationId: crypto.randomUUID(),
+      });
+      expect(deleted.removedItemIds).toEqual(
+        expect.arrayContaining([root.id, child.id, grandchild.id]),
+      );
+      expect(deleted.removedItemIds).not.toContain(sibling.id);
+
+      // Alt ağaç DB'den gitti (cascade); kardeş duruyor.
+      const listed = await callerFor(memberId).checklist.list({ cardId });
+      const target = listed.find((cl) => cl.id === c.id);
+      const ids = (target?.items ?? []).map((i) => i.id);
+      expect(ids).not.toContain(root.id);
+      expect(ids).not.toContain(child.id);
+      expect(ids).not.toContain(grandchild.id);
+      expect(ids).toContain(sibling.id);
+    });
+  });
+
   it('item.*: a board viewer (workspace guest) cannot mutate checklist items (FORBIDDEN)', async () => {
     const c = await callerFor(memberId).checklist.create({
       cardId,

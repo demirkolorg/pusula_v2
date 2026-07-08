@@ -73,6 +73,17 @@ export const attachments = pgTable(
     cardId: text()
       .notNull()
       .references((): AnyPgColumn => cards.id, { onDelete: 'cascade' }),
+    /**
+     * Ek bir checklist (yapılacaklar) maddesine (kök veya iç içe alt madde) aitse
+     * o maddenin id'si; `NULL` iken ek doğrudan karta aittir (klasik kart eki).
+     * `cardId` her durumda doludur — izin, realtime room, board sorgusu ve storage
+     * key hep kart üzerinden çalışır; bu kolon yalnızca eki madde altında gruplayan
+     * bir hedef boyutudur (`comments.checklistItemId` deseniyle simetrik). Madde
+     * silinince ekleri de cascade gider (kart eki geçmişi etkilenmez). Karar: 2026-07-08.
+     */
+    checklistItemId: text().references((): AnyPgColumn => checklistItems.id, {
+      onDelete: 'cascade',
+    }),
     boardId: text()
       .notNull()
       .references(() => boards.id, { onDelete: 'cascade' }),
@@ -108,6 +119,12 @@ export const attachments = pgTable(
     index('attachments_orphan_sweep_idx')
       .on(t.committedAt)
       .where(sql`${t.committedAt} IS NULL`),
+    // Madde eki listesi (`attachment.list({ checklistItemId })`) + `checklist.list`
+    // attachmentCount bu partial index'ten okur; kart ekleri (checklist_item_id IS
+    // NULL) bunu doldurmaz (`comments_checklist_item_created_idx` ile simetrik).
+    index('attachments_checklist_item_committed_idx')
+      .on(t.checklistItemId, t.committedAt.desc())
+      .where(sql`${t.checklistItemId} IS NOT NULL`),
   ],
 );
 

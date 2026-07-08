@@ -1948,6 +1948,10 @@ export const strings = {
       progress: 'maddeden',
       progressDone: 'tamamlandı',
       itemAddAction: 'Madde ekle',
+      // İç içe (nested) alt madde ekleme — maddeye sağ tık menüsünde. Yalnız
+      // derinlik sınırı (CHECKLIST_MAX_DEPTH) altındaki maddelerde görünür.
+      itemAddSubAction: 'Alt madde ekle',
+      itemSubPlaceholder: 'Bir alt madde ekle…',
       itemPlaceholder: 'Bir madde ekle…',
       itemAddSubmit: 'Ekle',
       itemAdding: 'Ekleniyor…',
@@ -1975,6 +1979,12 @@ export const strings = {
       itemCommentsToggleClose: 'Madde yorumlarını kapat',
       itemCommentsCountLabel: 'Madde yorumu',
       itemCommentsThreadLabel: 'Madde yorumları',
+      // Madde eki galerisi (DEM — yapılacaklar maddesine dosya eki; yorum
+      // rozetiyle simetrik). Madde eki kart kapağı olamaz.
+      itemAttachmentsToggle: 'Maddeye dosya ekle',
+      itemAttachmentsToggleClose: 'Madde eklerini kapat',
+      itemAttachmentsCountLabel: 'Madde eki',
+      itemAttachmentsGalleryLabel: 'Madde ekleri',
       // JSON ile toplu içe aktarma dialog'u — bir karta tek seferde birden fazla
       // liste + maddelerini ekler. Tüm metinler entity-bağımsız (i18n uyumlu);
       // sayısal sınırlar açıklamada domain sabitleriyle uyumlu tutulur.

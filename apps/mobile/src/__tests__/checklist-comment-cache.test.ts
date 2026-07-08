@@ -15,12 +15,15 @@ const now = new Date('2026-06-03T00:00:00.000Z');
 function makeItem(over: Partial<ChecklistItem> & { id: string }): ChecklistItem {
   return {
     checklistId: 'cl-1',
+    parentItemId: null,
+    depth: 0,
     content: 'Madde',
     position: 'a0',
     completed: false,
     completedAt: null,
     completedBy: null,
     commentCount: 0,
+    attachmentCount: 0,
     createdAt: now,
     updatedAt: now,
     ...over,
@@ -34,6 +37,7 @@ function makeLists(items: ChecklistItem[]): Checklists {
       cardId: 'card-1',
       title: 'Liste',
       position: 'a0',
+      archivedAt: null,
       createdAt: now,
       updatedAt: now,
       items,

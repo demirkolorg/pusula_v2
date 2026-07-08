@@ -19,7 +19,7 @@ related:
   - '[[docs/architecture/13-ui-tasarim-dili|UI Tasarım Dili]]'
   - '[[docs/domain/05-aktivite-kurallari|Aktivite Kuralları]]'
   - '[[docs/domain/04-bildirim-kurallari|Bildirim Kuralları]]'
-updated: 2026-05-15
+updated: 2026-07-08
 ---
 
 # 07 — Ek (Attachment) Kuralları
@@ -129,6 +129,36 @@ Detay queue + processor → [`../architecture/06-bildirim-altyapisi.md`](../arch
 Faz 9 (kart paylaşım linki) kapsam dışı satırı: _"misafir attachment yükleme V1 kapsam dışı"_. Faz 11 bunu sertleştirir: **misafir attachment'ı görmez de**. Paylaşım sayfası SSR (`apps/web/src/app/share/[token]/page.tsx`) `forbidden:guest` flag'iyle attachment listesini gizler; `attachment.list` `cardProcedure` üstünde olduğu için misafir token ile çağrı yapsa bile 401/403 döner.
 
 Sonraki tur (Faz 11+ veya kullanıcı talebi): misafir attachment **görüntüleme** (download yok) tartışılabilir. V1 net: hayır.
+
+## Checklist maddesi eki (madde-scoped attachment — 2026-07-08)
+
+Bir checklist maddesine (kök **veya** iç içe/nested alt madde) da dosya eki eklenebilir — maddeye
+yorum yazma (`comments.checklist_item_id` thread'i) ile **aynı model**. Karar →
+[`../architecture/02-teknoloji-kararlari.md`](../architecture/02-teknoloji-kararlari.md) Karar kaydı 2026-07-08.
+
+- **Model:** `attachments.checklist_item_id` nullable FK (`checklist_items.id`, `ON DELETE CASCADE`).
+  `card_id` **her zaman dolu** kalır — izin, realtime room, board sorgusu ve storage hep kart üzerinden
+  çalışır; `checklist_item_id` yalnız eki bir madde altında gruplayan hedef boyutudur. `NULL` = kart eki
+  (mevcut davranış), dolu = madde eki. (Yorum tablosundaki `checklist_item_id` deseniyle birebir simetrik.)
+- **Kart galerisi vs madde eki:** `attachment.list({ cardId })` (checklistItemId'siz) yalnız **kart
+  eklerini** (`checklist_item_id IS NULL`) döner — madde eklerini karıştırmaz (`comment.list` ile aynı
+  ayrım). `attachment.list({ cardId, checklistItemId })` yalnız o maddenin eklerini döner.
+- **Yetki:** Kart ekiyle **aynı** (yükleme board member+, silme uploader/admin, görüntüleme board'a erişen
+  herkes, misafir göremez). Ek olarak madde gerçekten bu karta ait mi doğrulanır (`assertChecklistItemOnCard`
+  — item → checklist → card zinciri; cross-card madde id reddedilir).
+- **Kapak olamaz:** Madde eki `cards.cover_image_attachment_id` kapağı **yapılamaz** — kapak yalnız
+  kart-seviyesi resim ekleridir. Madde eki UI'ında "kapak yap" gösterilmez.
+- **Storage key:** `boards/{boardId}/cards/{cardId}/checklist-items/{itemId}/{uuid}-{safe-fileName}` — madde
+  segmenti eklenir; geri kalan sanitize + UUID4 disiplini kart ekiyle aynı (tahmin edilemez).
+- **Activity / bildirim / realtime:** `attachment.added` / `attachment.removed` tipi **korunur** (yeni
+  bildirim tipi açılmaz — mevcut kart watcher fan-out'u yeterli); payload madde bağlamını opsiyonel taşır.
+  Madde adıyla zenginleştirilmiş bildirim metni sonraki tur.
+- **Sayaç:** `checklist.list` her maddeye `commentCount` yanında `attachmentCount` (yalnız
+  `committed_at IS NOT NULL`) döner — satırdaki ek rozeti bundan beslenir (nested maddeler dahil).
+- **Madde silinince:** `checklist_item_id` FK `ON DELETE CASCADE` → madde silinirse ek satırları otomatik
+  silinir; storage temizlik `attachment.delete` / cleanup worker ile (kart silme deseniyle aynı: DB cascade
+  ile satır + toplu obje temizliği).
+- **Kapsam:** Önce **web**; mobil madde-eki UI sonraki tur (2026-07-08 karar kaydı).
 
 ## Kapsam dışı (V1 — Faz 11.x veya Faz 8 sertleştirme)
 

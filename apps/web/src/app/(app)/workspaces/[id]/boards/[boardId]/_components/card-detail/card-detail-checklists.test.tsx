@@ -34,6 +34,7 @@ const checklists: ChecklistView[] = [
         completed: false,
         completedBy: null,
         commentCount: 0,
+        attachmentCount: 0,
       },
       {
         id: 'i2',
@@ -43,6 +44,7 @@ const checklists: ChecklistView[] = [
         completed: true,
         completedBy: null,
         commentCount: 0,
+        attachmentCount: 0,
       },
     ],
   },
@@ -76,14 +78,23 @@ describe('<CardDetailChecklists>', () => {
     });
   });
 
-  it('member: "add item" form submits the trimmed content', async () => {
+  it('member: "add item" form submits rich-text content as Tiptap JSON', async () => {
     const user = userEvent.setup();
     const h = handlers();
     render(<CardDetailChecklists checklists={checklists} canEdit {...h} />);
     await user.click(screen.getByRole('button', { name: copy.itemAddAction }));
-    await user.type(screen.getByLabelText(copy.itemPlaceholder), '  Üçüncü  ');
+    // Madde metni artık zengin (Tiptap) — girilen metin serileştirilmiş JSON
+    // olarak gönderilir (düz metin değil), gövdesinde yazılan metni taşır.
+    const editor = screen.getByLabelText(copy.itemPlaceholder);
+    await user.click(editor);
+    await user.keyboard('Üçüncü');
     await user.click(screen.getByRole('button', { name: copy.itemAddSubmit }));
-    expect(h.onAddItem).toHaveBeenCalledWith({ checklistId: 'c1', content: 'Üçüncü' });
+    expect(h.onAddItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checklistId: 'c1',
+        content: expect.stringContaining('Üçüncü'),
+      }),
+    );
   });
 
   it('collapses and re-expands the checklist body when the header is clicked', async () => {
@@ -141,6 +152,7 @@ describe('<CardDetailChecklists>', () => {
             completed: false,
             completedBy: null,
             commentCount: 0,
+            attachmentCount: 0,
           },
         ],
       },

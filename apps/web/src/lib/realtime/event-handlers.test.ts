@@ -955,6 +955,68 @@ describe('dispatchRealtimeEvent — board cache reconciliation', () => {
     expect(invalidate).toHaveBeenCalledWith(boardFilter);
   });
 
+  it('checklist.item_deleted -> removedItemIds ile kök + tüm alt ağaç kaldırılır, kardeş kalır (nested cascade)', () => {
+    // Cache'i iç içe yapıyla kur: i1 kök · i1a çocuk · i1b torun · i2 dokunulmayan kardeş.
+    qc.setQueryData<FixChecklist[]>(checklistKey('c1'), [
+      {
+        id: 'cl1',
+        title: 'Checklist',
+        position: 'a0',
+        items: [
+          {
+            id: 'i1',
+            checklistId: 'cl1',
+            position: 'a0',
+            content: 'root',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          },
+          {
+            id: 'i1a',
+            checklistId: 'cl1',
+            position: 'a0',
+            content: 'child',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          },
+          {
+            id: 'i1b',
+            checklistId: 'cl1',
+            position: 'a0',
+            content: 'grandchild',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          },
+          {
+            id: 'i2',
+            checklistId: 'cl1',
+            position: 'a1',
+            content: 'sibling',
+            completed: false,
+            completedAt: null,
+            completedBy: null,
+          },
+        ],
+      },
+    ]);
+    dispatchRealtimeEvent(
+      qc,
+      makeFilters(),
+      envelope(
+        'checklist.item_deleted',
+        { checklistId: 'cl1', itemId: 'i1', removedItemIds: ['i1', 'i1a', 'i1b'] },
+        { cardId: 'c1' },
+      ),
+    );
+    // Kök + çocuk + torun düşer; yalnız kardeş (i2) kalır.
+    expect(
+      qc.getQueryData<FixChecklist[]>(checklistKey('c1'))?.[0]?.items.map((i) => i.id),
+    ).toEqual(['i2']);
+  });
+
   it('card.label_added -> appends card labels', () => {
     dispatchRealtimeEvent(
       qc,

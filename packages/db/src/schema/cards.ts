@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -112,6 +113,22 @@ export const checklistItems = pgTable(
     checklistId: text()
       .notNull()
       .references(() => checklists.id, { onDelete: 'cascade' }),
+    /**
+     * İç içe (nested) madde ebeveyni (DEM — 3 seviye). `null` = kök (üst düzey)
+     * madde; doluysa aynı checklist içindeki başka bir maddenin id'si. Kendi
+     * kendine referans; ebeveyn silinince tüm alt ağaç `cascade` ile birlikte
+     * silinir. `position` yalnız aynı ebeveyn (kardeşler) arasında anlamlıdır.
+     */
+    parentItemId: text().references((): AnyPgColumn => checklistItems.id, {
+      onDelete: 'cascade',
+    }),
+    /**
+     * Ağaç derinliği: kök = 0, çocuk = 1, torun = 2 (`CHECKLIST_MAX_DEPTH` = 3
+     * seviye). `create` sırasında `parent.depth + 1` ile yazılır ve sabit kalır
+     * (aynı-seviye reorder ebeveyni değiştirmez). Girinti + derinlik sınırı
+     * kontrolü bu kolondan O(1) okunur (ebeveyn zinciri yürünmez).
+     */
+    depth: integer().notNull().default(0),
     content: text().notNull(),
     position: text().notNull(),
     completed: boolean().notNull().default(false),
@@ -119,7 +136,11 @@ export const checklistItems = pgTable(
     completedBy: text().references(() => users.id, { onDelete: 'set null' }),
     ...timestamps,
   },
-  (t) => [index('checklist_items_checklist_position_idx').on(t.checklistId, t.position)],
+  (t) => [
+    index('checklist_items_checklist_position_idx').on(t.checklistId, t.position),
+    // Kardeş (aynı ebeveyn) append pozisyonu + alt ağaç okuması bu index'i kullanır.
+    index('checklist_items_parent_position_idx').on(t.parentItemId, t.position),
+  ],
 );
 
 export type Card = typeof cards.$inferSelect;

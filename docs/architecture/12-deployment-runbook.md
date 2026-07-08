@@ -16,7 +16,7 @@ parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/10-platform|10 — Platform]]'
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
-updated: 2026-05-21
+updated: 2026-07-06
 ---
 
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
@@ -482,7 +482,7 @@ Hepsi yeşilse → Aşama 6.
 
 ## 12.14 Mobil iOS yayını (EAS Build + App Store) — Faz 7O
 
-Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür ([DEM-191](https://linear.app/demirkol/issue/DEM-191)). Android (Google Play) ilk turda **ertelendi** (kullanıcı kararı 2026-05-19) — iOS öncelikli; Google Play adımları sonraki turda ayrı yazılır. Adımları sırayla uygula.
+Bu bölüm `apps/mobile` Expo uygulamasının App Store yayınını yürütür ([DEM-191](https://linear.app/demirkol/issue/DEM-191)). Android (Google Play) ilk turda ertelenmişti (kullanıcı kararı 2026-05-19) — iOS öncelikli; **Google Play yayını artık [§12.17](#1217-mobil-android-yayını-eas-build--google-play)'de** (2026-07-06 turu). Adımları sırayla uygula.
 
 ### 12.14.1 Önkoşullar
 
@@ -802,6 +802,89 @@ Bonus (V2): `report.cache.hit` / `report.cache.miss` custom metric Grafana dashb
 - Render request'leri kuyrukta birikir; UI "hazırlanıyor" toast'unda kalır. Sorun çözülünce resume.
 
 **Backup:** Faz 13 deploy öncesi günlük `pg_dump` zaten alınıyor (§12.12) — felaket durumunda son `pg_dump`'tan dön.
+
+---
+
+## 12.17 Mobil Android yayını (EAS Build + Google Play)
+
+`apps/mobile` Expo uygulamasının Google Play yayınını yürütür. iOS yayını ([§12.14](#1214-mobil-ios-yayını-eas-build--app-store--faz-7o)) tamamlandıktan sonra ertelenen (kullanıcı kararı 2026-05-19) Android turu budur. **Aynı kod tabanı, aynı `app.config.ts`** — Android'e özel farklar: FCM push credential'ı, Play Console service account'ları, Data Safety formu, App Signing. Adımları sırayla uygula.
+
+> **Bireysel hesap uyarısı (2026-07-06 kullanıcı durumu):** Play Console **bireysel** developer hesabı. Google, Kasım 2023 sonrası açılan bireysel hesaplar için **production'a çıkmadan önce en az 20 test kullanıcısıyla 14 gün kesintisiz kapalı test (closed testing)** şartı koyar. **Internal testing bu kurala tabi değildir** — bu ilk tur internal testing hedefli; build + submit hattını doğrularız. Production yolu: internal test ✅ → closed test (14 gün / 20 kişi) → production review.
+
+### 12.17.1 Önkoşullar
+
+- **Google Play Console** developer hesabı **aktif** (bireysel, $25 tek seferlik + kimlik/adres doğrulaması tamam).
+- Expo hesabı + EAS CLI (iOS turunda zaten kurulu; `eas whoami` ile doğrula). `projectId` bağlı (✓).
+- `app.config.ts` Android bloğu hazır (✓): `package: 'com.pusula.app'` · `adaptiveIcon` (fg + `#0f9171` bg) · `edgeToEdgeEnabled` · `intentFilters` (App Links, `autoVerify: true`) · `expo-splash-screen` `#0f9171`. `newArchEnabled: true`.
+- ⚠️ `android/` klasörü git'te tracked değil (`.gitignore`'da) — **ama EAS cloud build yine de fiziksel `android/`'yi "bare" algılayıp kullanır** (prebuild yapmaz); yerel `gradle.properties` cloud'u **ETKİLER**. Bu yüzden ABI için `eas.json` production `env`'inde `ORG_GRADLE_PROJECT_reactNativeArchitectures` **şart** (bkz. adım 3), yoksa AAB yerel emülatör ayarına göre `x86_64`-only çıkar ve gerçek arm64 telefonlar "uyumlu değil" verir. `.easignore` ile `/android` hariç tutma **işe yaramaz** (bare detection klasör varlığına bakar). Kaynak: [[eas-android-abi-x86-only-fix]] (2026-07-06 incident).
+- 1024×1024 opak ikon (`assets/icon.png`, alpha kanalsız) + `adaptive-icon.png` (Android adaptive foreground). shadcn/marka safe-zone → [`13-ui-tasarim-dili.md`](13-ui-tasarim-dili.md) §13.9.
+- Gizlilik politikası URL'i canlı (`https://pusulaportal.com/gizlilik`) — Play Store listing + Data Safety **zorunlu**.
+
+### 12.17.2 Adımlar
+
+1. **Play Console'da uygulama oluştur** — [play.google.com/console](https://play.google.com/console) → **Create app**: ad "Pusula", varsayılan dil Türkçe, tip **App**, ücretsiz. Paket adı build'den gelir (`com.pusula.app`); burada girilmez.
+2. **Service account (submit otomasyonu için)** — ⚠️ Google 2024+ akışında Play Console'daki eski "API access" sayfası **kaldırıldı**. Güncel akış: **Google Cloud Console** → [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) → proje oluştur/seç → **Create service account** (rol vermeden) → [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com)'yi **Enable** → SA'ya **Keys → Add key → JSON** → indir. Sonra **Play Console → Kullanıcılar ve izinler → Yeni kullanıcı davet et** → SA e-postasını (`...iam.gserviceaccount.com`) yapıştır → **Yönetici (tüm uygulamalar)**. Key'i repoya **koyma**; `apps/mobile/google-play-service-account.json` yoluna yerleştir (`.gitignore`'da). `eas.json` `submit.production.android.serviceAccountKeyPath` bunu okur. Doğrulama (build harcamadan): SA JWT → `androidpublisher.../applications/com.pusula.app/edits` POST 200 mü (bkz. [[eas-android-abi-x86-only-fix]] komşusu [[play-store-yayin-durumu]]). Kaynak: `expo.fyi/creating-google-service-account`.
+3. **Production build (AAB)** — `eas build --profile production --platform android` (`eas` global değil → `pnpm exec eas`). İlk çalıştırmada EAS **Android upload keystore**'u otomatik üretmeyi teklif eder → kabul et (EAS yönetir; Google Play App Signing ile önerilen akış). `appVersionSource: remote` + `autoIncrement: true` → `versionCode` EAS'te otomatik artar. **ABI kontrolü (zorunlu):** `eas.json` production `env`'inde `ORG_GRADLE_PROJECT_reactNativeArchitectures: "armeabi-v7a,arm64-v8a,x86,x86_64"` **olmalı** — yoksa yerel `android/gradle.properties` sızıp AAB `x86_64`-only çıkar. Build sonrası doğrula: AAB'yi indir (`eas build:view <id> --json` → `artifacts.applicationArchiveUrl` → curl) → `unzip -l app.aab | grep base/lib` → `arm64-v8a` görünmeli (sağlıklı AAB ~89MB, x86_64-only ~48MB).
+4. **FCM push credential (Android bildirim teslimi)** — bkz. [§12.17.3](#12173-fcm-push-credential-android). Internal test'te bildirim doğrulaması için gerekli; uygulama kurulumunu bloklamaz ama push'suz kalmamak için build sonrası kur.
+5. **Gönderim (internal track)** — `eas submit --profile production --platform android`. `eas.json` `track: internal` → build internal testing kanalına yüklenir. İlk submit'te Play Console uygulamayı build'in imzasıyla eşler; App Signing anahtarı Google'da oluşur.
+6. **Internal test dağıtımı** — Play Console → **Testing → Internal testing** → test kullanıcısı e-posta listesi (kendi hesabın + varsa ekip) → **opt-in linki** ile cihaza kur. Smoke test: login → board → drag-drop → realtime → bildirim (FCM kuruluysa) → deep link (`pusulaportal.com/...`).
+7. **App Links doğrulama (`assetlinks.json`)** — bkz. [§12.17.4](#12174-app-links-assetlinksjson). App Signing SHA-256 gerektirir; Adım 5'ten sonra üretilebilir. Doğrulanmazsa uygulama çalışır, yalnız `https://pusulaportal.com` linkleri otomatik uygulamada açılmaz.
+8. **Production'a giden yol** — internal test yeşilse: **Store listing** (metin + ekran görüntüleri + feature graphic) + **Data Safety** ([§12.17.6](#12176-data-safety-formu-taslak)) + **Content rating** anketi + **Target audience** → **closed testing** (14 gün / 20 kişi, bireysel hesap şartı) → **production review**.
+
+### 12.17.3 FCM push credential (Android)
+
+Android'de Expo push token teslimi **Firebase Cloud Messaging V1** gerektirir (iOS'un APNs karşılığı). Repoda `google-services.json` **yok** → Android push henüz hiç kurulmadı; iOS'ta çalışan bildirim zinciri Android'de FCM olmadan **teslim edilmez** (token üretilir, push düşmez).
+
+**Kurulum:**
+
+1. [Firebase Console](https://console.firebase.google.com) → proje oluştur (veya submit için açılan Google Cloud projesini kullan) → Android app ekle, paket `com.pusula.app`.
+2. **FCM V1**: Firebase → Project Settings → **Service accounts** → **Generate new private key** (JSON).
+3. Bu JSON'u EAS'e yükle: `eas credentials -p android` → **"Google Service Account" → "Manage your Google Service Account Key for Push Notifications (FCM V1)"** → dosyayı seç. (Submit key'inden **ayrı** bir credential'dır; aynı service account gerekli rollerle kullanılabilir ama Expo ayrı yönetir.)
+4. Managed workflow'da `google-services.json` gerekmez — EAS credential'ı üzerinden çözülür. (Bare/yerel build isteniyorsa `google-services.json` `app.config.ts` `android.googleServicesFile` ile bağlanır; cloud managed akışında gerekmez.)
+5. Doğrulama: internal test build'i gerçek cihaza kur → worker bir bildirim üretsin (kart atama vb.) → cihaza push düşmeli. Düşmezse `expo-notifications` token log'u + EAS FCM credential + worker push log'u (`push-sweeper`) sırayla kontrol.
+
+### 12.17.4 App Links (`assetlinks.json`)
+
+`app.config.ts` `android.intentFilters` `autoVerify: true` → Android, `https://pusulaportal.com` linklerini uygulamada açmadan önce **Digital Asset Links** doğrular. iOS AASA'nın ([§12.14](#1214-mobil-ios-yayını-eas-build--app-store--faz-7o) Adım 3) Android karşılığı:
+
+- Dosya: `https://pusulaportal.com/.well-known/assetlinks.json` (web'de route handler — AASA ile aynı desen, `apps/web/src/app/.well-known/`).
+- İçerik: paket `com.pusula.app` + **App Signing anahtarının SHA-256 fingerprint'i**. Fingerprint kaynağı: Play Console → **Setup → App signing → App signing key certificate → SHA-256**. (EAS App Signing kullanıyorsa Google'ın imzaladığı anahtarın SHA-256'sı — upload key'inki değil.)
+- Bu yüzden Adım 5 (ilk submit → App Signing anahtarı oluşur) **öncesinde** üretilemez. Fingerprint netleşince web'e `assetlinks.json` route'u eklenir + deploy edilir.
+
+### 12.17.5 İlerleme
+
+| # | Adım | Durum |
+| - | ---- | ----- |
+| 0 | Play Console bireysel hesap aktif | ✅ 2026-07-06 |
+| 0 | `eas.json` `submit.production.android` (track: internal) + gitignore | ✅ bu tur |
+| 1 | Play Console → Create app "Pusula" | ⬜ |
+| 2 | Service account + JSON key (submit) | ⬜ |
+| 3 | Production AAB build (`eas build -p android`) | ✅ 2026-07-06 (vc 2 **x86_64-only bug** → `ORG_GRADLE_PROJECT` env fix → **vc 4 tüm ABI**, keystore `e55Rw3hPQv`) |
+| 4 | FCM V1 credential (push) | ⬜ |
+| 5 | `eas submit` → internal testing | ✅ 2026-07-06 (COMPLETED, vc 4, `pusula-eas-submit` SA) |
+| 6 | Internal test smoke (login/board/drag/realtime/push/deep link) | ✅ 2026-07-06 (Redmi 2312DRA50G arm64 — kuruldu, açıldı, sorunsuz) |
+| 7 | `assetlinks.json` (App Signing SHA-256) → web deploy | ⬜ |
+| 8 | Store listing + Data Safety + Content rating + Target audience | ⬜ |
+| 9 | Closed testing (14 gün / 20 kişi — bireysel hesap şartı) | ⬜ |
+| 10 | Production review + yayın | ⬜ |
+
+### 12.17.6 Data Safety formu (taslak)
+
+Play Console "Data safety" bölümü (Apple "App Privacy" karşılığı). Pusula **kullanıcı izleme yapmaz**, üçüncü-taraf reklam SDK'sı içermez. Metin asset'leri iOS ile ortak — [§12.14.5](#12145-app-store-metin-assetleri-taslak) (ad/alt başlık/açıklama TR+EN aynen kullanılır).
+
+| Veri tipi (Play kategorisi) | Pusula karşılığı | Toplanıyor | Paylaşılıyor | Amaç |
+| --------------------------- | ---------------- | ---------- | ------------ | ---- |
+| Personal info — E-posta adresi | Better Auth hesabı | Evet | Hayır | App functionality, Account management |
+| Personal info — Ad | Kullanıcı profili | Evet | Hayır | App functionality |
+| Photos and videos | Kart eki (kamera/galeri) | Evet | Hayır | App functionality |
+| App activity — diğer kullanıcı içeriği | Kart/liste/yorum/kontrol listesi | Evet | Hayır | App functionality |
+| App info & performance — Crash logs | Sentry çökme/performans | Evet | Hayır | App functionality, Analytics |
+
+Notlar:
+
+- **Encryption in transit:** Evet (HTTPS/TLS). **Kullanıcı verisini silme talebi:** hesap silme akışı üzerinden.
+- Push token bildirim altyapısının parçası — ayrı "data type" değil.
+- Konum, kişi rehberi, sağlık, finans, reklam verisi **toplanmaz**.
 
 ---
 

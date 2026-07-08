@@ -394,6 +394,12 @@ export const cardRouter = router({
           !coverAttachment ||
           coverAttachment.cardId !== card.id ||
           coverAttachment.boardId !== card.boardId ||
+          // Madde eki (checklist_item_id dolu) kart kapağı olamaz (domain invariant,
+          // docs/domain/07-ek-kurallari.md); UI gizlemesi güvenlik değildir.
+          coverAttachment.checklistItemId !== null ||
+          // Yalnız commit'lenmiş ek kapak olabilir — taslak (draft, henüz yüklenmemiş
+          // / orphan olabilecek) ek reddedilir.
+          coverAttachment.committedAt === null ||
           !coverAttachment.mimeType.startsWith('image/')
         ) {
           throw new TRPCError({

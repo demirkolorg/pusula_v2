@@ -51,6 +51,12 @@ export const getAttachmentDownloadUrlInput = z.object({
  */
 export const attachmentInitiateInput = z.object({
   cardId: idSchema,
+  /**
+   * Ek bir checklist maddesine (kök veya iç içe/nested) aitse o maddenin id'si;
+   * verilmezse (klasik) kart eki. Sunucu maddenin bu karta ait olduğunu doğrular
+   * (`assertChecklistItemOnCard`) ve storage key'e madde segmenti ekler (2026-07-08).
+   */
+  checklistItemId: idSchema.optional(),
   fileName: z.string().trim().min(1).max(255),
   mimeType: attachmentMimeTypeSchema,
   size: z.number().int().positive().max(ATTACHMENT_MAX_BYTES),
@@ -71,6 +77,11 @@ export const attachmentCommitInput = z.object({
 /** List committed attachments for a card (`committed_at IS NOT NULL`). */
 export const attachmentListInput = z.object({
   cardId: idSchema,
+  /**
+   * Verilirse yalnız o checklist maddesinin ekleri; verilmezse yalnız kart ekleri
+   * (`checklist_item_id IS NULL`). `comment.list` ile aynı ayrım (2026-07-08).
+   */
+  checklistItemId: idSchema.optional(),
 });
 
 /** Edit the optional description after commit. */

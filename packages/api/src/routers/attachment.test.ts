@@ -1311,4 +1311,133 @@ describe.runIf(dbAvailable)('attachment router (integration)', () => {
       ).resolves.toMatchObject({ attachmentId: expect.any(String) });
     });
   });
+
+  describe('checklist item attachment (madde eki, 2026-07-08)', () => {
+    // `initiateRateState` modül-seviyesi; önceki rate-limit suite'i cap'i doldurur.
+    // Her testte temizle ki initiate rate-limit'e takılmasın (rate-limit suite deseni).
+    beforeEach(() => {
+      initiateRateState.clear();
+    });
+
+    it('madde ekine initiate: draft row checklistItemId dolu + storage key madde segmenti', async () => {
+      const checklist = await callerFor(ownerId).checklist.create({
+        cardId,
+        title: 'Ekli liste',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const listItem = await callerFor(memberId).checklist.item.create({
+        cardId,
+        checklistId: checklist.id,
+        content: 'Ekli madde',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const storage = fakeObjectStorage();
+      const result = await callerFor(memberId, { objectStorage: storage }).attachment.initiate({
+        cardId,
+        checklistItemId: listItem.id,
+        fileName: 'ek.pdf',
+        mimeType: 'application/pdf',
+        size: 1_000,
+        clientMutationId: crypto.randomUUID(),
+      });
+
+      const [row] = await db()
+        .select()
+        .from(attachments)
+        .where(dbMod.eq(attachments.id, result.attachmentId));
+      expect(row).toMatchObject({ cardId, checklistItemId: listItem.id, committedAt: null });
+      // Storage key kart ekinden farklı — madde segmenti içerir.
+      expect(row?.storageKey).toMatch(
+        new RegExp(
+          `^boards/${boardId}/cards/${cardId}/checklist-items/${listItem.id}/[0-9a-f-]+-ek\\.pdf$`,
+        ),
+      );
+    });
+
+    it('başka bir kartın maddesine initiate reddedilir (NOT_FOUND)', async () => {
+      const otherCard = await callerFor(ownerId).card.create({
+        listId,
+        title: 'Öteki kart',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const otherChecklist = await callerFor(ownerId).checklist.create({
+        cardId: otherCard.id,
+        title: 'Öteki liste',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const otherItem = await callerFor(memberId).checklist.item.create({
+        cardId: otherCard.id,
+        checklistId: otherChecklist.id,
+        content: 'Öteki madde',
+        clientMutationId: crypto.randomUUID(),
+      });
+
+      await expect(
+        callerFor(memberId, { objectStorage: fakeObjectStorage() }).attachment.initiate({
+          cardId, // bu kart
+          checklistItemId: otherItem.id, // ama başka kartın maddesi
+          fileName: 'x.pdf',
+          mimeType: 'application/pdf',
+          size: 100,
+          clientMutationId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+
+    it('list izolasyonu: kart galerisi madde eklerini hariç tutar; madde listesi yalnız o maddenin eklerini döner', async () => {
+      const isoCard = await callerFor(ownerId).card.create({
+        listId,
+        title: 'İzolasyon kartı',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const checklist = await callerFor(ownerId).checklist.create({
+        cardId: isoCard.id,
+        title: 'İzolasyon listesi',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const listItem = await callerFor(memberId).checklist.item.create({
+        cardId: isoCard.id,
+        checklistId: checklist.id,
+        content: 'İzolasyon maddesi',
+        clientMutationId: crypto.randomUUID(),
+      });
+      const call = callerFor(memberId, { objectStorage: fakeObjectStorage() });
+
+      // Kart eki (checklistItemId yok) → commit.
+      const cardInit = await call.attachment.initiate({
+        cardId: isoCard.id,
+        fileName: 'kart-eki.pdf',
+        mimeType: 'application/pdf',
+        size: 100,
+        clientMutationId: crypto.randomUUID(),
+      });
+      await call.attachment.commit({
+        attachmentId: cardInit.attachmentId,
+        clientMutationId: crypto.randomUUID(),
+      });
+      // Madde eki → commit.
+      const itemInit = await call.attachment.initiate({
+        cardId: isoCard.id,
+        checklistItemId: listItem.id,
+        fileName: 'madde-eki.pdf',
+        mimeType: 'application/pdf',
+        size: 100,
+        clientMutationId: crypto.randomUUID(),
+      });
+      await call.attachment.commit({
+        attachmentId: itemInit.attachmentId,
+        clientMutationId: crypto.randomUUID(),
+      });
+
+      // Kart galerisi: yalnız kart eki (madde eki HARİÇ).
+      const cardList = await call.attachment.list({ cardId: isoCard.id });
+      const cardListIds = cardList.map((a) => a.id);
+      expect(cardListIds).toContain(cardInit.attachmentId);
+      expect(cardListIds).not.toContain(itemInit.attachmentId);
+
+      // Madde listesi: yalnız o maddenin eki.
+      const itemList = await call.attachment.list({ cardId: isoCard.id, checklistItemId: listItem.id });
+      expect(itemList.map((a) => a.id)).toEqual([itemInit.attachmentId]);
+    });
+  });
 });

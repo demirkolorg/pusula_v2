@@ -33,7 +33,7 @@
  */
 import { and, desc, eq, isNotNull, isNull } from '@pusula/db';
 import type { Database } from '@pusula/db';
-import { activityEvents, attachments, cards, users } from '@pusula/db';
+import { activityEvents, attachments, cards, checklistItems, checklists, users } from '@pusula/db';
 import {
   attachmentCommitInput,
   attachmentDeleteInput,
@@ -234,14 +234,33 @@ export const attachmentRouter = router({
     }
 
     const objectStorage = requireObjectStorage(ctx);
-    const storageKey = `boards/${ctx.card.boardId}/cards/${ctx.card.id}/${crypto.randomUUID()}-${safeStorageFileName(
-      input.fileName,
-    )}`;
+
+    // Madde eki: hedef madde gerçekten bu karta ait mi (item → checklist → card).
+    // Cross-card madde id'si reddedilir (comment.checklistItemId ile aynı kontrol).
+    if (input.checklistItemId) {
+      const [owner] = await ctx.db
+        .select({ cardId: checklists.cardId })
+        .from(checklistItems)
+        .innerJoin(checklists, eq(checklistItems.checklistId, checklists.id))
+        .where(eq(checklistItems.id, input.checklistItemId))
+        .limit(1);
+      if (!owner || owner.cardId !== ctx.card.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist ogesi bulunamadi.' });
+      }
+    }
+
+    // Storage key: madde ekiyse `checklist-items/{itemId}` segmenti eklenir; geri
+    // kalan (UUID + sanitize) kart ekiyle aynı, tahmin edilemez.
+    const keyBase = input.checklistItemId
+      ? `boards/${ctx.card.boardId}/cards/${ctx.card.id}/checklist-items/${input.checklistItemId}`
+      : `boards/${ctx.card.boardId}/cards/${ctx.card.id}`;
+    const storageKey = `${keyBase}/${crypto.randomUUID()}-${safeStorageFileName(input.fileName)}`;
 
     const [row] = await ctx.db
       .insert(attachments)
       .values({
         cardId: ctx.card.id,
+        checklistItemId: input.checklistItemId ?? null,
         boardId: ctx.card.boardId,
         uploaderId: ctx.session.user.id,
         storageKey,
@@ -337,6 +356,9 @@ export const attachmentRouter = router({
         size: row.size,
         hasDescription,
       };
+      // Madde eki bağlamı — bildirim/deep-link maddeye götürebilsin diye payload'a
+      // taşınır; `attachment.added` tipi korunur (yeni bildirim tipi açılmaz).
+      if (existing.checklistItemId) activityPayload.checklistItemId = existing.checklistItemId;
       if (ctx.clientMutationId) activityPayload.clientMutationId = ctx.clientMutationId;
       const [activity] = await tx
         .insert(activityEvents)
@@ -371,6 +393,9 @@ export const attachmentRouter = router({
         seq,
         data: {
           attachmentId: row.id,
+          // Madde eki: web handler bu alanla o maddenin ek listesini + checklist.list
+          // rozetini invalidate eder (kart eki için alan hiç eklenmez).
+          ...(existing.checklistItemId ? { checklistItemId: existing.checklistItemId } : {}),
           fileName: row.fileName,
           mimeType: row.mimeType,
           size: row.size,
@@ -421,7 +446,7 @@ export const attachmentRouter = router({
    * (already enforced by `cardProcedure`). Drafts are excluded — the orphan
    * sweeper reaps them.
    */
-  list: cardProcedure.input(attachmentListInput).query(async ({ ctx }) => {
+  list: cardProcedure.input(attachmentListInput).query(async ({ ctx, input }) => {
     const [rows, [cardRow]] = await Promise.all([
       ctx.db
         .select({
@@ -441,7 +466,17 @@ export const attachmentRouter = router({
         })
         .from(attachments)
         .leftJoin(users, eq(users.id, attachments.uploaderId))
-        .where(and(eq(attachments.cardId, ctx.card.id), isNotNull(attachments.committedAt)))
+        .where(
+          and(
+            eq(attachments.cardId, ctx.card.id),
+            isNotNull(attachments.committedAt),
+            // Kart galerisi madde eklerini karıştırmaz: `checklistItemId` yoksa yalnız
+            // kart ekleri (IS NULL), varsa yalnız o maddenin ekleri (`comment.list` ile aynı).
+            input.checklistItemId
+              ? eq(attachments.checklistItemId, input.checklistItemId)
+              : isNull(attachments.checklistItemId),
+          ),
+        )
         .orderBy(desc(attachments.committedAt)),
       ctx.db
         .select({ coverImageAttachmentId: cards.coverImageAttachmentId })
@@ -568,6 +603,9 @@ export const attachmentRouter = router({
         attachmentId: existing.id,
         fileName: existing.fileName,
       };
+      // Madde eki bağlamı — uzak client `checklist.list` rozetini (attachmentCount)
+      // bununla tazeler; `attachment.added` ile simetrik.
+      if (existing.checklistItemId) payload.checklistItemId = existing.checklistItemId;
       if (ctx.clientMutationId) payload.clientMutationId = ctx.clientMutationId;
       const [activity] = await tx
         .insert(activityEvents)
@@ -602,7 +640,10 @@ export const attachmentRouter = router({
         actorId: ctx.session.user.id,
         clientMutationId: ctx.clientMutationId,
         seq,
-        data: { attachmentId: existing.id },
+        data: {
+          attachmentId: existing.id,
+          ...(existing.checklistItemId ? { checklistItemId: existing.checklistItemId } : {}),
+        },
       });
 
       // Faz 8E (DEM-282) — attachment silme forensic audit'e (hard delete: objesi

@@ -36,7 +36,6 @@ import {
   type CardDetailCache,
 } from '@/lib/board-cache';
 import { AppSpinner } from '@/components/app-spinner';
-import { applyOrder } from '@/lib/checklist-reorder';
 import { friendlyErrorMessage } from '@/lib/error-message';
 import { useShortcutScope } from '@/lib/shortcuts';
 import { strings } from '@/lib/strings';
@@ -377,29 +376,36 @@ export function CardDetailDialog({
     () => trpc.checklist.list.queryFilter({ cardId }),
     [trpc, cardId],
   );
-  // Optimistic patch sırası `onMutate` içinde gerekli; mutation input'u taşımaz
-  // (yalnız komşu id'leri gider). Drop'tan gelen `orderedIds`'i `mutate`
-  // çağrısından hemen önce ref'e yazıp `onMutate`'te okuruz.
-  const reorderOrderedIdsRef = useRef<string[] | null>(null);
+  // Optimistic patch verisi `onMutate` içinde gerekli; mutation input'u taşımaz
+  // (yalnız komşu id'leri gider). İç içe maddelerde sıralama global değil kardeş
+  // grubu içindir — bu yüzden optimistic reorder taşınan maddenin `position`'ını
+  // `newPosition` yapar; render katmanı düz listeyi `buildChecklistTree` ile
+  // position'a göre yeniden dizer (grup-bazlı applyOrder diğer grupları düşürürdü).
+  const reorderPatchRef = useRef<{ itemId: string; newPosition: string } | null>(null);
   const reorderItem = useMutation(
     trpc.checklist.item.reorder.mutationOptions({
       onMutate: async (vars) => {
         await queryClient.cancelQueries(checklistListFilter);
         // Cache tipi `checklist.list` çıktısından çıkarsanır (ChecklistView'dan
-        // daha zengin: createdAt/updatedAt/completedAt vb.). `applyOrder` generic
-        // (`{id}` yeter) olduğundan tam tip korunur.
+        // daha zengin: createdAt/updatedAt/completedAt vb.).
         type ChecklistListData = NonNullable<typeof checklistsQ.data>;
         const queryKey = trpc.checklist.list.queryKey({ cardId });
         const prev = queryClient.getQueryData<ChecklistListData>(queryKey);
-        // `orderedIds` mutation input'unda yok (yalnız komşu id'leri gider); drop
-        // callback'i `mutate` öncesi ref'e yazar, burada okunur — optimistic
-        // sırayı komşulardan değil tam yeni diziden uygularız.
-        const orderedIds = reorderOrderedIdsRef.current;
-        if (prev && orderedIds) {
+        // `newPosition` mutation input'unda yok (yalnız komşu id'leri gider); drop
+        // callback'i `mutate` öncesi ref'e yazar, burada okunur.
+        const reorderPatch = reorderPatchRef.current;
+        if (prev && reorderPatch) {
           queryClient.setQueryData<ChecklistListData>(queryKey, (lists) =>
             (lists ?? []).map((list) =>
               list.id === vars.checklistId
-                ? { ...list, items: applyOrder(list.items, orderedIds) }
+                ? {
+                    ...list,
+                    items: list.items.map((it) =>
+                      it.id === reorderPatch.itemId
+                        ? { ...it, position: reorderPatch.newPosition }
+                        : it,
+                    ),
+                  }
                 : list,
             ),
           );
@@ -926,6 +932,12 @@ export function CardDetailDialog({
                         viewerImage,
                         mentions: mentionSource,
                       }}
+                      attachments={{
+                        cardId,
+                        canEdit,
+                        isBoardAdmin,
+                        viewerUserId,
+                      }}
                       onCreateChecklist={(title) =>
                         createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
                       }
@@ -948,8 +960,14 @@ export function CardDetailDialog({
                           clientMutationId: cmid(),
                         })
                       }
-                      onAddItem={({ checklistId, content }) =>
-                        addItem.mutate({ cardId, checklistId, content, clientMutationId: cmid() })
+                      onAddItem={({ checklistId, content, parentItemId }) =>
+                        addItem.mutate({
+                          cardId,
+                          checklistId,
+                          content,
+                          parentItemId: parentItemId ?? undefined,
+                          clientMutationId: cmid(),
+                        })
                       }
                       onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
                         toggleItem.mutate({
@@ -982,11 +1000,12 @@ export function CardDetailDialog({
                         itemId,
                         beforeItemId,
                         afterItemId,
-                        orderedIds,
+                        newPosition,
                       }) => {
-                        // `orderedIds`'i optimistic patch için ref'e koy, sonra
-                        // mutation'ı gerçek komşularla at (drop'ta bir kez).
-                        reorderOrderedIdsRef.current = orderedIds;
+                        // Taşınan maddenin `newPosition`'ını optimistic patch için
+                        // ref'e koy, sonra mutation'ı gerçek komşularla at (drop'ta
+                        // bir kez). Render `buildChecklistTree` ile yeniden dizer.
+                        reorderPatchRef.current = { itemId, newPosition };
                         reorderItem.mutate({
                           cardId,
                           checklistId,

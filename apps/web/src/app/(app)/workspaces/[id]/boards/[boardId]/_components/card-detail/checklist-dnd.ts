@@ -15,6 +15,12 @@ export type ChecklistItemDragData = {
   checklistId: string;
   itemId: string;
   position: string;
+  /**
+   * İç içe madde ebeveyni (kök için `null`). Reorder yalnız AYNI seviyede
+   * (aynı `parentItemId`) — sürükleme ebeveyni/derinliği değiştirmez; farklı
+   * seviyedeki maddeler drop hedefi olmaz.
+   */
+  parentItemId: string | null;
 };
 
 /** `getData` payload — bir checklist maddesi drop hedefi (maddelerin kendisi). */
@@ -23,6 +29,8 @@ export type ChecklistItemDropData = {
   checklistId: string;
   itemId: string;
   position: string;
+  /** Bkz. {@link ChecklistItemDragData.parentItemId} — aynı-seviye drop kısıtı. */
+  parentItemId: string | null;
 };
 
 export function isChecklistItemDragData(

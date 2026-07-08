@@ -732,10 +732,20 @@ export function dispatchRealtimeEvent(
     }
     case 'checklist.item_deleted': {
       const cardId = cardIdFrom(envelope, payload);
-      const { checklistId, itemId } = payload as { checklistId: string; itemId: string };
+      const { checklistId, itemId, removedItemIds } = payload as {
+        checklistId: string;
+        itemId: string;
+        removedItemIds?: string[];
+      };
       if (!cardId || !checklistId || !itemId) return;
+      // İç içe madde: kök + `on delete cascade` ile giden tüm alt ağaç düşürülür
+      // (`removedItemIds`). Eski event / kök-only maddede `itemId`'ye düşer.
+      const ids = removedItemIds && removedItemIds.length > 0 ? removedItemIds : [itemId];
       setList<ChecklistRow>(qc, filters.checklists?.(cardId), (data) =>
-        applyChecklistItemRemove(data, checklistId, itemId),
+        ids.reduce<readonly ChecklistRow[]>(
+          (acc, id) => applyChecklistItemRemove(acc, checklistId, id),
+          data,
+        ),
       );
       invalidate(qc, filters.board);
       return;
@@ -883,6 +893,11 @@ export function dispatchRealtimeEvent(
       if (!cardId) return;
       invalidate(qc, filters.attachments?.(cardId));
       bumpCardNumber(qc, filters, cardId, 'attachmentCount', 1);
+      // Madde eki (2026-07-08): o maddenin `checklist.list` rozeti (attachmentCount)
+      // uzak client'ta da tazelensin (comment.created deseniyle simetrik). Madde
+      // panelinin kendi `attachment.list` query'si `filters.attachments(cardId)`
+      // partial-match'iyle zaten kapsanır; eksik olan kapalı-satır rozetidir.
+      if (stringField(payload, 'checklistItemId')) invalidate(qc, filters.checklists?.(cardId));
       return;
     }
     case 'attachment.removed': {
@@ -890,6 +905,7 @@ export function dispatchRealtimeEvent(
       if (!cardId) return;
       invalidate(qc, filters.attachments?.(cardId));
       bumpCardNumber(qc, filters, cardId, 'attachmentCount', -1);
+      if (stringField(payload, 'checklistItemId')) invalidate(qc, filters.checklists?.(cardId));
       return;
     }
     default: {

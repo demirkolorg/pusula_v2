@@ -10,11 +10,19 @@ export type ChecklistItemView = {
   checklistId: string;
   content: string;
   position: string;
+  /**
+   * İç içe (nested) madde ebeveyni; `null`/eksik = kök madde. İstemci düz listeyi
+   * `@pusula/domain` `buildChecklistTree` ile ağaca çevirir (3 seviye). `position`
+   * yalnız aynı ebeveyn (kardeşler) arasında anlamlıdır.
+   */
+  parentItemId?: string | null;
   completed: boolean;
   /** User id who last checked the item (`null` if open or the user was deleted). */
   completedBy?: string | null;
   /** Count of non-deleted comments on this item — drives the thread toggle badge. */
   commentCount: number;
+  /** Count of committed attachments on this item — drives the attachment toggle badge. */
+  attachmentCount: number;
 };
 
 export type ChecklistView = {
@@ -40,7 +48,12 @@ export type ChecklistHandlers = {
   onDeleteChecklist: (checklistId: string) => void;
   /** Arşivle (`archived: true`) / arşivden çıkar (`false`) bir checklist. */
   onArchiveChecklist: (input: { checklistId: string; archived: boolean }) => void;
-  onAddItem: (input: { checklistId: string; content: string }) => void;
+  /**
+   * Madde ekle — `parentItemId` verilirse o maddenin altına (iç içe) eklenir,
+   * yoksa checklist'in köküne. Sunucu derinlik sınırını (`CHECKLIST_MAX_DEPTH`)
+   * doğrular; UI "alt madde ekle"yi yalnız sınır altındaki maddelerde gösterir.
+   */
+  onAddItem: (input: { checklistId: string; content: string; parentItemId?: string | null }) => void;
   onToggleItem: (input: { checklistId: string; itemId: string; completed: boolean }) => void;
   onEditItem: (input: { checklistId: string; itemId: string; content: string }) => void;
   onDeleteItem: (input: { checklistId: string; itemId: string }) => void;
@@ -83,4 +96,23 @@ export type ChecklistCommentContext = {
   viewerImage?: string | null;
   /** Optional @-mention picker source (board members). Typed at the row. */
   mentions?: import('@pusula/ui').MentionSource;
+};
+
+/**
+ * Per-item attachment context, threaded from the card detail dialog down to each
+ * {@link ChecklistItemRow} — the file-attachment mirror of
+ * {@link ChecklistCommentContext}. When present, each row shows an attachment
+ * toggle; `null`/`undefined` (e.g. the share view) hides it entirely. Unlike the
+ * comment context there is no viewer identity/mention payload: the gallery +
+ * upload form (`ChecklistItemAttachments`) self-fetch and derive per-row
+ * affordances from `canEdit` / `isBoardAdmin` / `viewerUserId` alone. A checklist
+ * item attachment can never become the card cover, so no cover context is passed.
+ */
+export type ChecklistAttachmentContext = {
+  cardId: string;
+  /** Board `member+` and board active — may upload / delete own attachments. */
+  canEdit: boolean;
+  /** Whether the viewer is a board `admin` (may delete others' attachments). */
+  isBoardAdmin: boolean;
+  viewerUserId: string;
 };

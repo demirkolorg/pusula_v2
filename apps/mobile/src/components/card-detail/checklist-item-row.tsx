@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -13,6 +13,7 @@ import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
 import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
+import { tiptapToPlainText } from '@/lib/tiptap';
 import { useTheme } from '@/theme/theme-provider';
 
 type ChecklistItem = RouterOutputs['checklist']['list'][number]['items'][number];
@@ -36,6 +37,20 @@ type ChecklistItemRowProps = {
   onOpenComments?: () => void;
   /** Bildirim deep-link'iyle gelinince bu satır flash vurgulanır (bir kez). */
   highlighted?: boolean;
+  /**
+   * Verilirse satır sağında küçük bir "alt madde ekle" (+) ikon-butonu çizilir —
+   * dokununca bu çağrılır (üst bileşen o maddenin altında girintili bir composer
+   * açar). Yalnız derinlik sınırı altındaki (kök + çocuk) maddelerde geçilir;
+   * torun (`depth === CHECKLIST_MAX_DEPTH - 1`) satırında geçilmez. Optimistic
+   * satırda gizlenir (madde henüz sunucuda yok, ebeveyn id'si optimistic olur).
+   */
+  onAddSubItem?: () => void;
+  /**
+   * İç içe (nested) alt maddeler — satırın ALTINA girintili çizilir (üst bileşen
+   * özyineli olarak çocukları + alt-madde composer'ını sarar). Kaydırma-sil
+   * (`SwipeRow`) yalnız satırın kendisini kapsar; çocuklar dışında kalır.
+   */
+  children?: ReactNode;
 };
 
 /**
@@ -61,8 +76,14 @@ export function ChecklistItemRow({
   onDelete,
   onOpenComments,
   highlighted = false,
+  onAddSubItem,
+  children,
 }: ChecklistItemRowProps) {
   const theme = useTheme();
+  // Madde içeriği artık zengin (Tiptap JSON) olabilir (web, 2026-07-08) — mobil
+  // şimdilik düz metne indirip gösterir (ham JSON'u önler; biçimli render sonraki
+  // tur). Yazma tarafı (composer / edit sheet) da düz metin kalır.
+  const plainText = tiptapToPlainText(item.content);
 
   const interactive = canEdit && !optimistic;
 
@@ -122,6 +143,24 @@ export function ChecklistItemRow({
       </Pressable>
     ) : null;
 
+  // "Alt madde ekle" (+) ikon-butonu — derinlik sınırı altındaki maddelerde
+  // (üst bileşen `onAddSubItem`'i yalnız o zaman geçer) + satır optimistic
+  // değilken. 44×44 dokunma hedefi; `corner-down-right` ikonu "altına ekle"
+  // (girintili) niyetini iletir. Sürükleme long-press ile ayrıştığından bu
+  // Pressable'ın tek dokunuşu drag'i tetiklemez.
+  const addSubButton =
+    onAddSubItem && !optimistic ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.cardDetail.checklistSubItemAdd}
+        hitSlop={6}
+        onPress={onAddSubItem}
+        className="h-11 w-11 items-center justify-center active:opacity-60"
+      >
+        <Icon name="corner-down-right" size={16} color={theme.mutedForeground} />
+      </Pressable>
+    ) : null;
+
   const row = (
     <View
       ref={scrollHighlight.ref}
@@ -132,7 +171,7 @@ export function ChecklistItemRow({
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.completed, disabled: !interactive }}
-        accessibilityLabel={item.content}
+        accessibilityLabel={plainText}
         disabled={!interactive}
         onPress={() => onToggle(!item.completed)}
         className="h-12 w-11 items-center justify-center active:opacity-60"
@@ -156,9 +195,13 @@ export function ChecklistItemRow({
             item.completed ? 'text-muted-foreground line-through' : 'text-foreground'
           }`}
         >
-          {item.content}
+          {plainText}
         </Text>
       </Pressable>
+
+      {/* "Alt madde ekle" (+) — derinlik sınırı altındaki maddelerde; yorum
+          rozetinin solunda. */}
+      {addSubButton}
 
       {/* Madde yorum rozeti — `commentCount > 0` ise mesaj ikonu + sayı, 0 ise
           yalnız ikon (boş thread'i açıp ilk yorumu yazmak için). Optimistic
@@ -169,10 +212,9 @@ export function ChecklistItemRow({
     </View>
   );
 
-  // Salt-okunur / optimistic satır — kaydırma yok, düz satır.
-  if (!interactive) return row;
-
-  return (
+  // Satırın kendisi: interaktif ise kaydır-sil (`SwipeRow`) ile, değilse düz.
+  // Kaydırma yalnız satırı kapsar; iç içe çocuklar (aşağıda) dışında kalır.
+  const swipeableRow = interactive ? (
     <SwipeRow
       actions={[
         {
@@ -187,5 +229,19 @@ export function ChecklistItemRow({
     >
       {row}
     </SwipeRow>
+  ) : (
+    row
+  );
+
+  // Çocuk (alt madde) yoksa fazladan sarmalayıcı View çizme — düz satır döndür
+  // (mevcut satır düzeni/testleri korunur). Çocuk varsa satırın altına girintili
+  // blok eklenir (girinti + sol sınır üst bileşende, `children` içinde).
+  if (!children) return swipeableRow;
+
+  return (
+    <View>
+      {swipeableRow}
+      {children}
+    </View>
   );
 }

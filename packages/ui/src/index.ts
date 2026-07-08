@@ -112,6 +112,7 @@ export {
   serializeRichTextValue,
   isRichTextEmpty,
   renderRichTextToHTML,
+  richTextToPlainText,
   type RichTextEditorProps,
   type RichTextEditorLabels,
   type RichTextContentProps,

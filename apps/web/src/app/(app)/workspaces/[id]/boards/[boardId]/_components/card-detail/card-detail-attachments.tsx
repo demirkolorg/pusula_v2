@@ -47,6 +47,19 @@ type CardDetailAttachmentsProps = {
   isBoardAdmin: boolean;
   /** The viewer's own user id — gates per-attachment delete. */
   viewerUserId: string;
+  /**
+   * Checklist maddesine ait ekleri göster. Verilirse liste `{ cardId,
+   * checklistItemId }`'e daralır (backend madde eklerini döner), silme
+   * `onSettled`'da `checklist.list` de (rozet sayacı) invalidate edilir ve
+   * kapak yapma otomatik kapanır (madde eki kart kapağı olamaz).
+   */
+  checklistItemId?: string;
+  /**
+   * "Kapak yap" eylemini gizle (madde eki bağlamı gibi). `checklistItemId` set
+   * ise zaten kapak devre dışıdır; bu bayrak niyet belirtmek için ayrıca da
+   * geçilebilir.
+   */
+  hideCover?: boolean;
 };
 
 /**
@@ -67,14 +80,29 @@ export function CardDetailAttachments({
   canEdit,
   isBoardAdmin,
   viewerUserId,
+  checklistItemId,
+  hideCover = false,
 }: CardDetailAttachmentsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const copy = strings.attachment;
 
-  const listFilter = useMemo(() => trpc.attachment.list.queryFilter({ cardId }), [trpc, cardId]);
-  const listQuery = useQuery(trpc.attachment.list.queryOptions({ cardId }));
+  // Madde eki bağlamında liste `{ cardId, checklistItemId }`'e daralır; aksi
+  // halde kart eklerini (backend `checklist_item_id IS NULL`) döner.
+  const listInput = useMemo(
+    () => (checklistItemId ? { cardId, checklistItemId } : { cardId }),
+    [cardId, checklistItemId],
+  );
+  const listFilter = useMemo(
+    () => trpc.attachment.list.queryFilter(listInput),
+    [trpc, listInput],
+  );
+  const listQuery = useQuery(trpc.attachment.list.queryOptions(listInput));
   const attachments = (listQuery.data ?? []) as AttachmentView[];
+
+  // Madde eki kart kapağı OLAMAZ — `checklistItemId` ya da `hideCover` set ise
+  // "kapak yap" hiç gösterilmez (kart galerisiyle simetri korunur, davranış değil).
+  const coverDisabled = hideCover || checklistItemId != null;
 
   /**
    * Bump the board card's `attachmentCount` meta chip by `delta`. The
@@ -125,7 +153,14 @@ export function CardDetailAttachments({
         bumpBoardAttachmentCount(1);
         toast.error(copy.error.deleteFailed);
       },
-      onSettled: () => void queryClient.invalidateQueries(listFilter),
+      onSettled: () => {
+        void queryClient.invalidateQueries(listFilter);
+        // Madde eki: silme sonrası o maddenin `attachmentCount` rozeti (checklist.list
+        // türevi) tazelensin — yükleme akışıyla simetrik.
+        if (checklistItemId) {
+          void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+        }
+      },
     }),
   );
 
@@ -233,7 +268,7 @@ export function CardDetailAttachments({
             const isUploader = row.uploader.id === viewerUserId;
             const canManage = (isUploader && canEdit) || isBoardAdmin;
             const canPreview = row.kind === 'image' || row.kind === 'pdf';
-            const canSetCover = canEdit && row.kind === 'image';
+            const canSetCover = !coverDisabled && canEdit && row.kind === 'image';
             return (
               // Bildirim deep-link hedefi: `useTargetFlash` bu id ile eki bulup
               // scroll + flash uygular (card-detail-dialog). Kartı saran div id'yi taşır.

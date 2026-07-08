@@ -14,8 +14,22 @@ import { idSchema, withClientMutationId } from './common';
 
 /** Checklist title — non-empty after trimming. */
 export const checklistTitleSchema = z.string().trim().min(1).max(500);
-/** Checklist item content — non-empty after trimming. */
-export const checklistItemContentSchema = z.string().trim().min(1).max(2_000);
+/**
+ * Checklist item content — non-empty after trimming. **Format-agnostic string**:
+ * a single item created / edited from the web carries Tiptap `getJSON()` serialised
+ * to a string (same storage as card description / comments), while legacy rows and
+ * bulk-import lines carry plain text — both are parsed back with `parseRichTextValue`
+ * at render time, so no migration is needed (2026-07-08 karar kaydı). The `max`
+ * matches `commentBodySchema` (JSON overhead over the old 2 000 plain-text cap); the
+ * single schema is shared by both the per-item create/update and bulk-import (whose
+ * lines stay plain text), so the bulk-import plain-text contract is preserved.
+ *
+ * NOT: `.min(1)` yalnız *string*'in boş olmadığını garanti eder; anlamsal olarak
+ * boş bir Tiptap doc (`{"type":"doc","content":[{"type":"paragraph"}]}`) yine geçer.
+ * Boş içerik client tarafında engellenir (web `isRichTextEmpty` / `empty` guard'ları,
+ * mobil `resolveChecklistItemRename`) — `commentBodySchema` ile aynı desen.
+ */
+export const checklistItemContentSchema = z.string().trim().min(1).max(20_000);
 
 export const createChecklistInput = z.object({
   cardId: idSchema,
@@ -48,10 +62,25 @@ export const archiveChecklistInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * İç içe (nested) madde maksimum derinliği — **3 seviye**. Kök madde `depth 0`,
+ * çocuk `depth 1`, torun `depth 2`. `item.create` yeni maddenin derinliğini
+ * `parent.depth + 1` ile hesaplar; sonuç `>= CHECKLIST_MAX_DEPTH` (yani torunun
+ * altına eklemek) reddedilir. Tek kaynak: hem sunucu doğrulaması hem UI'daki
+ * "alt madde ekle" görünürlüğü bu sabiti okur.
+ */
+export const CHECKLIST_MAX_DEPTH = 3;
+
 export const createChecklistItemInput = z.object({
   cardId: idSchema,
   checklistId: idSchema,
   content: checklistItemContentSchema,
+  /**
+   * İç içe madde için ebeveyn madde id'si (aynı checklist içinde). `null` / eksik
+   * = kök (üst düzey) madde. Sunucu ebeveynin aynı checklist'e ait olduğunu ve
+   * derinlik sınırını (`CHECKLIST_MAX_DEPTH`) doğrular.
+   */
+  parentItemId: idSchema.nullish(),
   ...withClientMutationId,
 });
 

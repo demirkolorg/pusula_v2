@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -10,7 +10,12 @@ import {
   PencilIcon,
   Trash2Icon,
 } from 'lucide-react';
-import { checklistTitleSchema } from '@pusula/domain';
+import {
+  CHECKLIST_MAX_DEPTH,
+  buildChecklistTree,
+  checklistTitleSchema,
+  type ChecklistTreeNode,
+} from '@pusula/domain';
 import {
   Button,
   Dialog,
@@ -31,8 +36,9 @@ import {
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
 import { ChecklistItemRow } from './checklist-item-row';
-import { useChecklistDnd } from './use-checklist-dnd';
+import { useChecklistDnd, type ChecklistDnd } from './use-checklist-dnd';
 import type {
+  ChecklistAttachmentContext,
   ChecklistCommentContext,
   ChecklistHandlers,
   ChecklistView,
@@ -57,6 +63,7 @@ export function ChecklistBlock({
   nameOf,
   imageOf,
   comments,
+  attachments,
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
@@ -72,6 +79,8 @@ export function ChecklistBlock({
   imageOf?: ImageResolver;
   /** Per-item comment-thread context — forwarded to each row's toggle. */
   comments?: ChecklistCommentContext;
+  /** Per-item attachment context — forwarded to each row's toggle. */
+  attachments?: ChecklistAttachmentContext;
 }) {
   const copy = strings.card.checklist;
   const [renaming, setRenaming] = useState(false);
@@ -103,6 +112,11 @@ export function ChecklistBlock({
     enabled: editable && checklist.items.length > 1,
     onReorder: (args) => handlers.onReorderItem(args),
   });
+
+  // Düz madde listesini iç içe (nested) ağaca çevir (3 seviye). `position` yalnız
+  // aynı ebeveyn (kardeşler) arasında anlamlı; `buildChecklistTree` her düzeyi
+  // kendi içinde `position`'a göre sıralar + `depth`'i damgalar (girinti + sınır).
+  const tree = useMemo(() => buildChecklistTree(checklist.items), [checklist.items]);
 
   return (
     <div className="space-y-2 rounded-md border p-3">
@@ -259,6 +273,7 @@ export function ChecklistBlock({
         )}
       </div>
 
+      {/* body */}
       {!collapsed && (
         <div id={bodyId} className="space-y-2">
           <div className="flex items-center gap-2">
@@ -277,39 +292,21 @@ export function ChecklistBlock({
             {done}/{total} {copy.progress} {copy.progressDone}
           </p>
 
-          {checklist.items.length > 0 && (
+          {tree.length > 0 && (
             <ul className="space-y-1.5">
-              {checklist.items.map((item) => (
-                <ChecklistItemRow
-                  key={item.id}
-                  item={item}
-                  canEdit={editable}
+              {tree.map((node) => (
+                <ChecklistItemTreeNode
+                  key={node.id}
+                  node={node}
+                  checklistId={checklist.id}
+                  editable={editable}
                   pending={pending}
+                  dnd={dnd}
+                  handlers={handlers}
                   nameOf={nameOf}
                   imageOf={imageOf}
                   comments={comments}
-                  registerDnd={
-                    dnd.enabled
-                      ? (element, dragHandle) =>
-                          dnd.registerItem({
-                            element,
-                            dragHandle,
-                            itemId: item.id,
-                            position: item.position,
-                          })
-                      : undefined
-                  }
-                  dragging={dnd.draggingItemId === item.id}
-                  dropEdge={dnd.dropIndicator?.itemId === item.id ? dnd.dropIndicator.edge : null}
-                  onToggle={(completed) =>
-                    handlers.onToggleItem({ checklistId: checklist.id, itemId: item.id, completed })
-                  }
-                  onEdit={(content) =>
-                    handlers.onEditItem({ checklistId: checklist.id, itemId: item.id, content })
-                  }
-                  onDelete={() =>
-                    handlers.onDeleteItem({ checklistId: checklist.id, itemId: item.id })
-                  }
+                  attachments={attachments}
                 />
               ))}
             </ul>
@@ -324,5 +321,113 @@ export function ChecklistBlock({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * İç içe (nested) bir madde düğümü — kendini alt ağaç için özyineli çağırır
+ * (`CHECKLIST_MAX_DEPTH` = 3 seviye). Her düğüm bir {@link ChecklistItemRow}
+ * çizer; çocukları soldan girintili bir `<ul>` olarak satırın kendi `<li>`'sine
+ * (row `children`) yerleştirir — DOM ağacı domain ağacını yansıtır. "Alt madde
+ * ekle" yalnız derinlik sınırı altındaki (kök + çocuk) maddelerde görünür ve
+ * seçilince o düğümün altına girintili bir ekleme formu açar. Sürükle-bırak tüm
+ * seviyeler için aynı `dnd` örneğiyle çalışır; reorder AYNI seviyeyle sınırlıdır
+ * (drag payload `parentItemId` taşır — bkz. `use-checklist-dnd`).
+ */
+function ChecklistItemTreeNode({
+  node,
+  checklistId,
+  editable,
+  pending,
+  dnd,
+  handlers,
+  nameOf,
+  imageOf,
+  comments,
+  attachments,
+}: {
+  node: ChecklistTreeNode<ChecklistView['items'][number]>;
+  checklistId: string;
+  editable: boolean;
+  pending: boolean;
+  dnd: ChecklistDnd;
+  handlers: ChecklistHandlers;
+  nameOf?: NameResolver;
+  imageOf?: ImageResolver;
+  comments?: ChecklistCommentContext;
+  attachments?: ChecklistAttachmentContext;
+}) {
+  // "Alt madde ekle" formu açık mı — context menüden tetiklenir, ekleme/vazgeç
+  // sonrası kapanır.
+  const [addingSub, setAddingSub] = useState(false);
+  // Derinlik sınırı: torun (depth `CHECKLIST_MAX_DEPTH - 1`) altına eklenemez.
+  const canAddSub = editable && node.depth < CHECKLIST_MAX_DEPTH - 1;
+  const parentItemId = node.parentItemId ?? null;
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <ChecklistItemRow
+      item={node}
+      canEdit={editable}
+      pending={pending}
+      nameOf={nameOf}
+      imageOf={imageOf}
+      comments={comments}
+      attachments={attachments}
+      canAddSubItem={canAddSub}
+      onAddSubItem={() => setAddingSub(true)}
+      registerDnd={
+        dnd.enabled
+          ? (element, dragHandle) =>
+              dnd.registerItem({
+                element,
+                dragHandle,
+                itemId: node.id,
+                position: node.position,
+                parentItemId,
+              })
+          : undefined
+      }
+      dragging={dnd.draggingItemId === node.id}
+      dropEdge={dnd.dropIndicator?.itemId === node.id ? dnd.dropIndicator.edge : null}
+      onToggle={(completed) => handlers.onToggleItem({ checklistId, itemId: node.id, completed })}
+      onEdit={(content) => handlers.onEditItem({ checklistId, itemId: node.id, content })}
+      onDelete={() => handlers.onDeleteItem({ checklistId, itemId: node.id })}
+    >
+      {(hasChildren || (addingSub && editable)) && (
+        <div className="mt-1.5 ml-2.5 space-y-1.5 border-l border-border/60 pl-2.5">
+          {hasChildren && (
+            <ul className="space-y-1.5">
+              {node.children.map((child) => (
+                <ChecklistItemTreeNode
+                  key={child.id}
+                  node={child}
+                  checklistId={checklistId}
+                  editable={editable}
+                  pending={pending}
+                  dnd={dnd}
+                  handlers={handlers}
+                  nameOf={nameOf}
+                  imageOf={imageOf}
+                  comments={comments}
+                  attachments={attachments}
+                />
+              ))}
+            </ul>
+          )}
+          {addingSub && editable && (
+            <AddItemForm
+              startOpen
+              placeholder={strings.card.checklist.itemSubPlaceholder}
+              onClose={() => setAddingSub(false)}
+              onSubmit={(content) =>
+                handlers.onAddItem({ checklistId, content, parentItemId: node.id })
+              }
+              pending={pending}
+            />
+          )}
+        </div>
+      )}
+    </ChecklistItemRow>
   );
 }

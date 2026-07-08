@@ -13,8 +13,10 @@
  *   madde silinmez) ya da değişmemiş metin (gereksiz mutation).
  * - Aksi halde kırpılmış yeni içerik döner.
  *
- * Backend `checklistItemContentSchema` (min 1 / max 2000) içeriği yine
- * doğrular; bu helper yalnızca anlamsız/gereksiz mutation'ı eler.
+ * Backend `checklistItemContentSchema` (min 1 / max 20 000) içeriği yine
+ * doğrular; bu helper yalnızca anlamsız/gereksiz mutation'ı eler. Mobil düz metin
+ * yazar (rich editör sonraki tur); web'in yazdığı Tiptap JSON, düzenleme sheet'ine
+ * `tiptapToPlainText` ile düz metne indirilmiş olarak gelir.
  */
 export function resolveChecklistItemRename(original: string, draft: string): string | null {
   const trimmed = draft.trim();
