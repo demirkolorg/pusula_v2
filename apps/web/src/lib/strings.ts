@@ -2009,8 +2009,11 @@ export const strings = {
       adding: 'Ekleniyor…',
       deletedPlaceholder: 'Bu yorum silindi.',
       editedSuffix: '(düzenlendi)',
-      // Yorum satırındaki üç nokta menüsü (düzenle + sil).
+      // Yorum satırına sağ tık context menüsü (kopyala + düzenle + sil).
       actions: 'Yorum işlemleri',
+      copy: 'Kopyala',
+      copySuccess: 'Yorum kopyalandı',
+      copyError: 'Yorum kopyalanamadı',
       edit: 'Düzenle',
       editSave: 'Kaydet',
       editSaving: 'Kaydediliyor…',

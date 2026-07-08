@@ -24,7 +24,7 @@ import {
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { asciiSlug } from '@/lib/pdf/filename';
-import { isSameRichText } from './rich-text-helpers';
+import { copyRichTextToClipboard, isSameRichText } from './rich-text-helpers';
 
 type CardDetailDescriptionProps = {
   /** Persisted description — Tiptap JSON string or legacy plain text (`null` ⇒ none). */
@@ -111,25 +111,7 @@ export function CardDetailDescription({
 
   const handleCopy = async () => {
     try {
-      const html = renderRichTextToHTML(current);
-      // Plain-text fallback: strip tags via a detached element (no document
-      // append, no XSS — innerHTML on a non-rendered element is safe for
-      // extraction). Used both as the `text/plain` clipboard variant and the
-      // single-format fallback for browsers without ClipboardItem.
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html;
-      const plain = tmp.textContent ?? '';
-
-      if (typeof window !== 'undefined' && typeof window.ClipboardItem !== 'undefined') {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': new Blob([html], { type: 'text/html' }),
-            'text/plain': new Blob([plain], { type: 'text/plain' }),
-          }),
-        ]);
-      } else {
-        await navigator.clipboard.writeText(plain);
-      }
+      await copyRichTextToClipboard(current);
       toast.success(copy.descriptionCopySuccess);
     } catch {
       toast.error(copy.descriptionCopyError);

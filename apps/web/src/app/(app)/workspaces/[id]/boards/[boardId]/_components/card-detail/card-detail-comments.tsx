@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import {
+  CopyIcon,
   MessageSquareIcon,
-  MoreHorizontalIcon,
   PencilIcon,
   SendIcon,
   Trash2Icon,
@@ -13,6 +13,11 @@ import {
   AlertDescription,
   Avatar,
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   Dialog,
   DialogClose,
   DialogContent,
@@ -20,20 +25,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   EmptyState,
   RichTextContent,
   RichTextEditor,
   cn,
+  toast,
   type MentionSource,
 } from '@pusula/ui';
 import { formatDate } from '@/lib/format';
 import { strings } from '@/lib/strings';
-import { isSameRichText } from './rich-text-helpers';
+import { copyRichTextToClipboard, isSameRichText } from './rich-text-helpers';
 
 export type CommentView = {
   id: string;
@@ -184,149 +185,176 @@ function CommentRow({
 
   const deleted = comment.deletedAt != null;
 
+  // Yorum gövdesini panoya kopyala — Tiptap JSON'dan HTML + düz metin (kart
+  // açıklaması "Kopyala" ile aynı davranış). Yetkiden bağımsız; okuma yetkisi
+  // olan da kopyalayabilir (kopyalama yıkıcı değil). Erişilemezse uyarı.
+  const handleCopy = async () => {
+    try {
+      await copyRichTextToClipboard(comment.body);
+      toast.success(copy.copySuccess);
+    } catch {
+      toast.error(copy.copyError);
+    }
+  };
+
   return (
     <li
       // Bildirim deep-link hedefi: `useTargetFlash` bu id ile satırı bulup
       // scroll + flash uygular (apps/web card-detail-dialog).
       data-comment-id={comment.id}
       className={cn(
-        'group flex items-start gap-2 rounded-lg transition-colors',
+        'group rounded-lg transition-colors',
         compact ? '' : 'bg-card/55 hover:bg-accent/35 border p-2',
       )}
     >
-      <Avatar name={authorName} image={authorImage} size={compact ? 'xs' : 'sm'} />
-      <div className="min-w-0 flex-1 space-y-1 text-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{authorName}</span>
-          <span className="text-muted-foreground text-xs">{formatDate(comment.createdAt)}</span>
-          {!deleted && comment.editedAt != null && (
-            <span className="text-muted-foreground text-xs">{copy.editedSuffix}</span>
-          )}
-        </div>
+      <ContextMenu>
+        {/* Düzenleme (inline editor) sırasında context menüyü açma — kullanıcı
+            metin düzenliyor olabilir, normal metin context menüsü çıksın.
+            Silinmiş yorumda da menü yok (kopyalanacak/düzenlenecek içerik yok).
+            Salt-okur (canEdit=false) durumda menü açılır: yalnızca "Kopyala"
+            görünür (checklist maddesiyle aynı desen). */}
+        <ContextMenuTrigger asChild disabled={editing || deleted}>
+          <div className="flex items-start gap-2">
+            <Avatar name={authorName} image={authorImage} size={compact ? 'xs' : 'sm'} />
+            <div className="min-w-0 flex-1 space-y-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{authorName}</span>
+                <span className="text-muted-foreground text-xs">
+                  {formatDate(comment.createdAt)}
+                </span>
+                {!deleted && comment.editedAt != null && (
+                  <span className="text-muted-foreground text-xs">{copy.editedSuffix}</span>
+                )}
+              </div>
 
-        {deleted ? (
-          <p className="text-muted-foreground italic">{copy.deletedPlaceholder}</p>
-        ) : editing && canEdit ? (
-          <div className="space-y-1.5">
-            <RichTextEditor
-              value={draft || null}
-              placeholder={detailCopy.composer.placeholder}
-              labels={richTextLabels}
-              toolbar="mini"
-              ariaLabel={copy.edit}
-              disabled={pending}
-              mentions={mentions}
-              onChange={(serialized, isEmpty) => {
-                setDraft(serialized);
-                setEditorEmpty(isEmpty);
-              }}
-            />
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending || editorEmpty}
-                onClick={() => {
-                  // No-op when the body is *semantically* unchanged — including
-                  // the case where `comment.body` is legacy plain text and
-                  // `draft` is its Tiptap JSON serialisation (raw strings differ).
-                  if (!isSameRichText(draft, comment.body)) onEdit(draft);
-                  setEditing(false);
-                }}
-              >
-                {pending ? copy.editSaving : copy.editSave}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => {
-                  setDraft(comment.body);
-                  setEditing(false);
-                }}
-              >
-                {copy.editCancel}
-              </Button>
+              {deleted ? (
+                <p className="text-muted-foreground italic">{copy.deletedPlaceholder}</p>
+              ) : editing && canEdit ? (
+                <div className="space-y-1.5">
+                  <RichTextEditor
+                    value={draft || null}
+                    placeholder={detailCopy.composer.placeholder}
+                    labels={richTextLabels}
+                    toolbar="mini"
+                    ariaLabel={copy.edit}
+                    disabled={pending}
+                    mentions={mentions}
+                    onChange={(serialized, isEmpty) => {
+                      setDraft(serialized);
+                      setEditorEmpty(isEmpty);
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending || editorEmpty}
+                      onClick={() => {
+                        // No-op when the body is *semantically* unchanged —
+                        // including the case where `comment.body` is legacy plain
+                        // text and `draft` is its Tiptap JSON serialisation (raw
+                        // strings differ).
+                        if (!isSameRichText(draft, comment.body)) onEdit(draft);
+                        setEditing(false);
+                      }}
+                    >
+                      {pending ? copy.editSaving : copy.editSave}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => {
+                        setDraft(comment.body);
+                        setEditing(false);
+                      }}
+                    >
+                      {copy.editCancel}
+                    </Button>
+                  </div>
+                </div>
+              ) : compact ? (
+                // Sohbet baloncuğu — gövde hafif arka planlı, içeriğe göre genişler.
+                <div className="bg-muted/60 w-fit max-w-full rounded-2xl rounded-tl-sm px-3 py-1.5">
+                  <RichTextContent value={comment.body} />
+                </div>
+              ) : (
+                <RichTextContent value={comment.body} />
+              )}
             </div>
           </div>
-        ) : compact ? (
-          // Sohbet baloncuğu — gövde hafif arka planlı, içeriğe göre genişler.
-          <div className="bg-muted/60 w-fit max-w-full rounded-2xl rounded-tl-sm px-3 py-1.5">
-            <RichTextContent value={comment.body} />
-          </div>
-        ) : (
-          <RichTextContent value={comment.body} />
-        )}
-      </div>
-
-      {!deleted && canEdit && !editing && (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={copy.actions}
-                disabled={pending}
-                // Hover/focus/touch'ta belirir; satırı kalabalıklaştırmaz.
-                // DEM-248 — dokunmatikte ≥44px dokunma hedefi.
-                className="-mr-0.5 -mt-0.5 size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 data-[state=open]:opacity-100 touch:size-11 touch:opacity-100"
-              >
-                <MoreHorizontalIcon className="size-4" aria-hidden />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={() => {
-                  setDraft(comment.body);
-                  setEditing(true);
-                }}
-              >
-                <PencilIcon className="size-3.5" aria-hidden />
-                {copy.edit}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
-                <Trash2Icon className="size-3.5" aria-hidden />
-                {copy.delete}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Dialog
-            open={deleteOpen}
-            onOpenChange={(next) => {
-              if (pending) return;
-              setDeleteOpen(next);
-            }}
-          >
-            <DialogContent closeLabel={strings.common.close}>
-              <DialogHeader>
-                <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
-                <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline" disabled={pending}>
-                    {strings.common.cancel}
-                  </Button>
-                </DialogClose>
-                <Button
-                  type="button"
-                  variant="destructive"
+        </ContextMenuTrigger>
+        {!deleted && !editing && (
+          <ContextMenuContent aria-label={copy.actions}>
+            {/* Kopyala — yetkiden bağımsız, her zaman görünür. */}
+            <ContextMenuItem onSelect={() => void handleCopy()}>
+              <CopyIcon className="size-3.5" aria-hidden />
+              {copy.copy}
+            </ContextMenuItem>
+            {canEdit && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
                   disabled={pending}
-                  onClick={() => {
-                    onDelete();
-                    setDeleteOpen(false);
+                  onSelect={() => {
+                    setDraft(comment.body);
+                    setEditing(true);
                   }}
                 >
-                  {pending ? copy.deleting : copy.deleteConfirm}
+                  <PencilIcon className="size-3.5" aria-hidden />
+                  {copy.edit}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  variant="destructive"
+                  disabled={pending}
+                  onSelect={() => setDeleteOpen(true)}
+                >
+                  <Trash2Icon className="size-3.5" aria-hidden />
+                  {copy.delete}
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+        )}
+      </ContextMenu>
+
+      {/* Silme onayı — context menü "Sil" bunu açar; yorum silmek yıkıcı olduğu
+          için doğrudan değil onaylı. */}
+      {!deleted && canEdit && (
+        <Dialog
+          open={deleteOpen}
+          onOpenChange={(next) => {
+            if (pending) return;
+            setDeleteOpen(next);
+          }}
+        >
+          <DialogContent closeLabel={strings.common.close}>
+            <DialogHeader>
+              <DialogTitle>{copy.deleteConfirmTitle}</DialogTitle>
+              <DialogDescription>{copy.deleteConfirmDescription}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={pending}>
+                  {strings.common.cancel}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </>
+              </DialogClose>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={pending}
+                onClick={() => {
+                  onDelete();
+                  setDeleteOpen(false);
+                }}
+              >
+                {pending ? copy.deleting : copy.deleteConfirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </li>
   );

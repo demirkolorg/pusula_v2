@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strings } from '@/lib/strings';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
 
@@ -61,10 +61,12 @@ describe('<CardDetailComments>', () => {
     expect(screen.getByText(copy.deletedPlaceholder)).toBeInTheDocument();
   });
 
-  it('author sees the actions menu on their own comment; not others', () => {
+  it('author opens edit + delete from the row context menu', async () => {
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
     render(
       <CardDetailComments
-        comments={comments}
+        comments={[first]}
         nameOf={nameOf}
         viewerUserId="u1"
         isBoardAdmin={false}
@@ -73,9 +75,30 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    // Tek yorum yazara ait (u1); ikincisi silinmiş → tek bir işlemler menüsü.
-    const menus = screen.getAllByRole('button', { name: copy.actions });
-    expect(menus).toHaveLength(1);
+    fireEvent.contextMenu(screen.getByText('İlk yorum'));
+    expect(await screen.findByRole('menuitem', { name: copy.edit })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: copy.delete })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: copy.copy })).toBeInTheDocument();
+  });
+
+  it('a non-author viewer sees only copy — no edit/delete in the context menu', async () => {
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[first]}
+        nameOf={nameOf}
+        viewerUserId="u2"
+        isBoardAdmin={false}
+        canComment
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText('İlk yorum'));
+    expect(await screen.findByRole('menuitem', { name: copy.copy })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: copy.edit })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: copy.delete })).not.toBeInTheDocument();
   });
 
   it('editing a legacy plain-text comment and saving without a semantic change is a no-op', async () => {
@@ -94,8 +117,8 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.actions }));
-    await user.click(screen.getByRole('menuitem', { name: copy.edit }));
+    fireEvent.contextMenu(screen.getByText('Eski düz metin'));
+    await user.click(await screen.findByRole('menuitem', { name: copy.edit }));
     // Editor seeded from the legacy plain text (now a Tiptap JSON serialisation).
     const region = await screen.findByLabelText(copy.edit);
     // Touch the editor so its `onChange` fires with the JSON serialisation, then
@@ -122,8 +145,8 @@ describe('<CardDetailComments>', () => {
         onDelete={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: copy.actions }));
-    await user.click(screen.getByRole('menuitem', { name: copy.edit }));
+    fireEvent.contextMenu(screen.getByText('Eski düz metin'));
+    await user.click(await screen.findByRole('menuitem', { name: copy.edit }));
     const region = await screen.findByLabelText(copy.edit);
     await user.click(region);
     await user.keyboard(' güncel');
@@ -132,6 +155,51 @@ describe('<CardDetailComments>', () => {
     const { commentId, body } = onEdit.mock.calls[0]?.[0] as { commentId: string; body: string };
     expect(commentId).toBe(first.id);
     expect(JSON.parse(body)).toMatchObject({ type: 'doc' });
+  });
+
+  it('deleting a comment goes through the confirm dialog', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[first]}
+        nameOf={nameOf}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText('İlk yorum'));
+    await user.click(await screen.findByRole('menuitem', { name: copy.delete }));
+    // The context-menu "Sil" only opens the confirm dialog — no mutation yet.
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole('button', { name: copy.deleteConfirm }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('a soft-deleted comment exposes no row context menu (disabled trigger)', () => {
+    const deleted = comments[1];
+    if (!deleted) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[deleted]}
+        nameOf={nameOf}
+        viewerUserId="u2"
+        isBoardAdmin={false}
+        canComment
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    // Trigger `disabled` (deleted) — right-click must not open the menu.
+    fireEvent.contextMenu(screen.getByText(copy.deletedPlaceholder));
+    expect(screen.queryByRole('menuitem', { name: copy.copy })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: copy.edit })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: copy.delete })).not.toBeInTheDocument();
   });
 
   it('falls back to a generic name when the author cannot be resolved', () => {
@@ -149,6 +217,56 @@ describe('<CardDetailComments>', () => {
       />,
     );
     expect(screen.getByText('ghost')).toBeInTheDocument();
+  });
+});
+
+describe('<CardDetailComments> context-menu copy', () => {
+  const writeText = vi.fn(() => Promise.resolve());
+
+  beforeEach(() => {
+    writeText.mockClear();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('copies the comment body to the clipboard from the context menu', async () => {
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[{ ...first, body: 'Kopyalanacak yorum' }]}
+        nameOf={nameOf}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText('Kopyalanacak yorum'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: copy.copy }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Kopyalanacak yorum'));
+  });
+
+  it('exposes the copy action to read-only viewers (canComment=false)', async () => {
+    const [first] = comments;
+    if (!first) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[{ ...first, body: 'Salt okunur yorum' }]}
+        nameOf={nameOf}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment={false}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText('Salt okunur yorum'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: copy.copy }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Salt okunur yorum'));
   });
 });
 
