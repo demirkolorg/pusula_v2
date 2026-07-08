@@ -32,7 +32,7 @@ import {
   toast,
   type MentionSource,
 } from '@pusula/ui';
-import { formatDate } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
 import { strings } from '@/lib/strings';
 import { copyRichTextToClipboard, isSameRichText } from './rich-text-helpers';
 
@@ -220,7 +220,7 @@ function CommentRow({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{authorName}</span>
                 <span className="text-muted-foreground text-xs">
-                  {formatDate(comment.createdAt)}
+                  {formatDateTime(comment.createdAt)}
                 </span>
                 {!deleted && comment.editedAt != null && (
                   <span className="text-muted-foreground text-xs">{copy.editedSuffix}</span>
