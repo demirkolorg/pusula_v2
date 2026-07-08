@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
   Input,
   Progress,
+  cn,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { AddItemForm } from './checklist-add-forms';
@@ -41,6 +42,7 @@ import type {
   ChecklistAttachmentContext,
   ChecklistCommentContext,
   ChecklistHandlers,
+  ChecklistItemDetailTab,
   ChecklistView,
   ImageResolver,
   NameResolver,
@@ -64,6 +66,8 @@ export function ChecklistBlock({
   imageOf,
   comments,
   attachments,
+  selectedItemId = null,
+  onSelectItem,
 }: {
   checklist: ChecklistView;
   canEdit: boolean;
@@ -77,10 +81,14 @@ export function ChecklistBlock({
   handlers: ChecklistHandlers;
   nameOf?: NameResolver;
   imageOf?: ImageResolver;
-  /** Per-item comment-thread context — forwarded to each row's toggle. */
+  /** Per-item comment-thread context — forwarded to each row's count badge. */
   comments?: ChecklistCommentContext;
-  /** Per-item attachment context — forwarded to each row's toggle. */
+  /** Per-item attachment context — forwarded to each row's count badge. */
   attachments?: ChecklistAttachmentContext;
+  /** Şu an detay panelinde açık olan madde (bu blokta ise satır vurgulanır). */
+  selectedItemId?: string | null;
+  /** Bir madde seçilince (detay panelini açar) — opsiyonel deep-link sekmesiyle. */
+  onSelectItem: (itemId: string, tab?: ChecklistItemDetailTab) => void;
 }) {
   const copy = strings.card.checklist;
   const [renaming, setRenaming] = useState(false);
@@ -118,8 +126,19 @@ export function ChecklistBlock({
   // kendi içinde `position`'a göre sıralar + `depth`'i damgalar (girinti + sınır).
   const tree = useMemo(() => buildChecklistTree(checklist.items), [checklist.items]);
 
+  // Seçili madde bu listede mi — detay panelini besleyen liste kartı vurgulanır
+  // (kullanıcı hangi listede çalıştığını kaybetmesin).
+  const isActive = selectedItemId != null && checklist.items.some((i) => i.id === selectedItemId);
+
   return (
-    <div className="space-y-2 rounded-md border p-3">
+    <div
+      className={cn(
+        'space-y-2 rounded-lg border p-3 transition-colors',
+        isActive
+          ? 'border-primary/40 bg-primary/[0.03] ring-1 ring-primary/20'
+          : 'border-border',
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         {renaming && editable ? (
           <form
@@ -307,6 +326,8 @@ export function ChecklistBlock({
                   imageOf={imageOf}
                   comments={comments}
                   attachments={attachments}
+                  selectedItemId={selectedItemId}
+                  onSelectItem={onSelectItem}
                 />
               ))}
             </ul>
@@ -345,6 +366,8 @@ function ChecklistItemTreeNode({
   imageOf,
   comments,
   attachments,
+  selectedItemId,
+  onSelectItem,
 }: {
   node: ChecklistTreeNode<ChecklistView['items'][number]>;
   checklistId: string;
@@ -356,6 +379,8 @@ function ChecklistItemTreeNode({
   imageOf?: ImageResolver;
   comments?: ChecklistCommentContext;
   attachments?: ChecklistAttachmentContext;
+  selectedItemId?: string | null;
+  onSelectItem: (itemId: string, tab?: ChecklistItemDetailTab) => void;
 }) {
   // "Alt madde ekle" formu açık mı — context menüden tetiklenir, ekleme/vazgeç
   // sonrası kapanır.
@@ -374,6 +399,8 @@ function ChecklistItemTreeNode({
       imageOf={imageOf}
       comments={comments}
       attachments={attachments}
+      selected={selectedItemId === node.id}
+      onSelect={(tab) => onSelectItem(node.id, tab)}
       canAddSubItem={canAddSub}
       onAddSubItem={() => setAddingSub(true)}
       registerDnd={
@@ -411,6 +438,8 @@ function ChecklistItemTreeNode({
                   imageOf={imageOf}
                   comments={comments}
                   attachments={attachments}
+                  selectedItemId={selectedItemId}
+                  onSelectItem={onSelectItem}
                 />
               ))}
             </ul>

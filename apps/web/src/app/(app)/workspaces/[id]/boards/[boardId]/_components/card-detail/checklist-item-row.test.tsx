@@ -9,27 +9,10 @@ import {
 } from './checklist-item-row';
 import type { ChecklistItemView } from './checklist-types';
 
-// The thread self-fetches via tRPC — stub it so the row test stays
-// provider-free and asserts only the toggle/mount behaviour.
-vi.mock('./checklist-item-thread', () => ({
-  ChecklistItemThread: ({ checklistItemId }: { checklistItemId: string }) => (
-    <div data-testid="thread">thread:{checklistItemId}</div>
-  ),
-}));
-
-// The attachment gallery + uploader self-fetch via tRPC too — stub it so the
-// row test stays provider-free and asserts only the toggle/mount behaviour
-// (mirror of the thread stub above).
-vi.mock('./checklist-item-attachments', () => ({
-  ChecklistItemAttachments: ({ checklistItemId }: { checklistItemId: string }) => (
-    <div data-testid="attachments">attachments:{checklistItemId}</div>
-  ),
-}));
-
 // The item content is now rich text. Stub the read-only Tiptap renderer to a
-// plain <div> so the row's behaviour (toggle / copy / drag / context menu) is
-// tested without mounting a real Tiptap editor in jsdom, and stub the editor
-// used in inline-edit mode. Everything else in @pusula/ui stays real.
+// plain <div> so the row's behaviour (select / toggle / copy / drag / context
+// menu) is tested without mounting a real Tiptap editor in jsdom, and stub the
+// editor used in inline-edit mode. Everything else in @pusula/ui stays real.
 vi.mock('@pusula/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@pusula/ui')>();
   return {
@@ -91,6 +74,7 @@ const renderRow = (props: Partial<Parameters<typeof ChecklistItemRow>[0]> = {}) 
         canEdit={false}
         pending={false}
         comments={commentsContext}
+        onSelect={vi.fn()}
         onToggle={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -99,41 +83,49 @@ const renderRow = (props: Partial<Parameters<typeof ChecklistItemRow>[0]> = {}) 
     </ul>,
   );
 
-describe('<ChecklistItemRow> comment thread toggle', () => {
+describe('<ChecklistItemRow> selection', () => {
+  it('clicking the item content selects the item (default tab)', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderRow({ onSelect });
+    await user.click(screen.getByRole('button', { name: copy.itemSelectLabel }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    // No explicit tab — the detail keeps/derives its default tab.
+    expect(onSelect).toHaveBeenCalledWith();
+  });
+});
+
+describe('<ChecklistItemRow> comment badge', () => {
   it('shows the comment-count badge when there are comments', () => {
     renderRow({ item: item({ commentCount: 3 }) });
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
-  it('renders the toggle and opens the thread on click', async () => {
+  it('selects the item and deep-links to the comments tab on click', async () => {
     const user = userEvent.setup();
-    renderRow();
-    expect(screen.queryByTestId('thread')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: copy.itemCommentsToggle }));
-    expect(screen.getByTestId('thread')).toHaveTextContent('thread:i1');
-    // Second click collapses it (lazy unmount).
-    await user.click(screen.getByRole('button', { name: copy.itemCommentsToggleClose }));
-    expect(screen.queryByTestId('thread')).not.toBeInTheDocument();
+    const onSelect = vi.fn();
+    renderRow({ onSelect });
+    await user.click(screen.getByRole('button', { name: copy.itemCommentsCountLabel }));
+    expect(onSelect).toHaveBeenCalledWith('comments');
   });
 
-  it('hides the toggle entirely when no comment context is provided', () => {
+  it('hides the comment badge entirely when no comment context is provided', () => {
     renderRow({ comments: undefined });
     expect(
-      screen.queryByRole('button', { name: copy.itemCommentsToggle }),
+      screen.queryByRole('button', { name: copy.itemCommentsCountLabel }),
     ).not.toBeInTheDocument();
   });
 
-  it('read-only viewer can still open the thread (canComment=false)', async () => {
+  it('read-only viewer can still select via the badge (canComment=false)', async () => {
     const user = userEvent.setup();
-    renderRow({ comments: { ...commentsContext, canComment: false }, canEdit: false });
-    await user.click(screen.getByRole('button', { name: copy.itemCommentsToggle }));
-    expect(screen.getByTestId('thread')).toBeInTheDocument();
+    const onSelect = vi.fn();
+    renderRow({ comments: { ...commentsContext, canComment: false }, canEdit: false, onSelect });
+    await user.click(screen.getByRole('button', { name: copy.itemCommentsCountLabel }));
+    expect(onSelect).toHaveBeenCalledWith('comments');
   });
 });
 
-describe('<ChecklistItemRow> attachment gallery toggle', () => {
-  // Isolate the attachment badge from the comment badge so `getByRole` by the
-  // attachment aria-label is unambiguous; the two badges are otherwise siblings.
+describe('<ChecklistItemRow> attachment badge', () => {
   const renderAttachments = (props: Partial<Parameters<typeof ChecklistItemRow>[0]> = {}) =>
     renderRow({ comments: undefined, attachments: attachmentsContext, ...props });
 
@@ -142,29 +134,19 @@ describe('<ChecklistItemRow> attachment gallery toggle', () => {
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 
-  it('renders the toggle and opens the gallery on click', async () => {
+  it('selects the item and deep-links to the attachments tab on click', async () => {
     const user = userEvent.setup();
-    renderAttachments();
-    expect(screen.queryByTestId('attachments')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: copy.itemAttachmentsToggle }));
-    expect(screen.getByTestId('attachments')).toHaveTextContent('attachments:i1');
-    // Second click collapses it (lazy unmount).
-    await user.click(screen.getByRole('button', { name: copy.itemAttachmentsToggleClose }));
-    expect(screen.queryByTestId('attachments')).not.toBeInTheDocument();
+    const onSelect = vi.fn();
+    renderAttachments({ onSelect });
+    await user.click(screen.getByRole('button', { name: copy.itemAttachmentsCountLabel }));
+    expect(onSelect).toHaveBeenCalledWith('attachments');
   });
 
-  it('hides the toggle entirely when no attachment context is provided', () => {
+  it('hides the attachment badge entirely when no attachment context is provided', () => {
     renderRow({ comments: undefined, attachments: undefined });
     expect(
-      screen.queryByRole('button', { name: copy.itemAttachmentsToggle }),
+      screen.queryByRole('button', { name: copy.itemAttachmentsCountLabel }),
     ).not.toBeInTheDocument();
-  });
-
-  it('read-only viewer can still open the gallery (canEdit=false)', async () => {
-    const user = userEvent.setup();
-    renderAttachments({ attachments: { ...attachmentsContext, canEdit: false }, canEdit: false });
-    await user.click(screen.getByRole('button', { name: copy.itemAttachmentsToggle }));
-    expect(screen.getByTestId('attachments')).toBeInTheDocument();
   });
 });
 
@@ -190,6 +172,17 @@ describe('<ChecklistItemRow> context-menu copy', () => {
   });
 });
 
+describe('<ChecklistItemRow> context-menu select', () => {
+  it('selects the comments tab from the context menu', async () => {
+    const onSelect = vi.fn();
+    renderRow({ item: item({ content: 'Menü metni' }), canEdit: true, onSelect });
+    fireEvent.contextMenu(screen.getByText('Menü metni'));
+    const menuItem = await screen.findByRole('menuitem', { name: copy.itemCommentsToggle });
+    fireEvent.click(menuItem);
+    expect(onSelect).toHaveBeenCalledWith('comments');
+  });
+});
+
 describe('<ChecklistItemRow> drag handle', () => {
   it('shows a labelled drag handle when reorder is enabled (canEdit + registerDnd)', () => {
     const registerDnd = vi.fn(() => vi.fn());
@@ -201,9 +194,7 @@ describe('<ChecklistItemRow> drag handle', () => {
 
   it('hides the drag handle when reorder is disabled (no registerDnd)', () => {
     renderRow({ canEdit: true });
-    expect(
-      screen.queryByRole('button', { name: copy.itemDragHandle }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy.itemDragHandle })).not.toBeInTheDocument();
   });
 
   it('hides the drag handle for a read-only viewer even if registerDnd is passed', () => {

@@ -1976,15 +1976,25 @@ export const strings = {
       checklistProgressLabel: 'Liste ilerlemesi',
       // Madde yorum thread'i (DEM — yapılacaklar maddesine yorum).
       itemCommentsToggle: 'Maddeye yorum yaz',
-      itemCommentsToggleClose: 'Madde yorumlarını kapat',
       itemCommentsCountLabel: 'Madde yorumu',
       itemCommentsThreadLabel: 'Madde yorumları',
       // Madde eki galerisi (DEM — yapılacaklar maddesine dosya eki; yorum
       // rozetiyle simetrik). Madde eki kart kapağı olamaz.
       itemAttachmentsToggle: 'Maddeye dosya ekle',
-      itemAttachmentsToggleClose: 'Madde eklerini kapat',
       itemAttachmentsCountLabel: 'Madde eki',
       itemAttachmentsGalleryLabel: 'Madde ekleri',
+      // Detay paneli yeniden düzeni (DEM — "detay paneli" checklist): seçili
+      // maddenin alt maddeleri / ekleri / yorumları sağ panelde sekmelere
+      // ayrılır (üst üste yığılma çözümü); madde seçilince kart açıklaması
+      // geçici gizlenir, "Açıklamaya dön" ile geri gelir. Sol kolonda her liste
+      // belirgin bir kart (accordion). Tüm metinler entity-bağımsız (i18n).
+      itemSelectLabel: 'Maddeyi aç',
+      itemDetailLabel: 'Madde detayı',
+      detailClose: 'Detayı kapat',
+      tabSubItems: 'Alt maddeler',
+      tabAttachments: 'Ekler',
+      tabComments: 'Yorumlar',
+      subItemsEmpty: 'Bu maddenin alt maddesi yok.',
       // JSON ile toplu içe aktarma dialog'u — bir karta tek seferde birden fazla
       // liste + maddelerini ekler. Tüm metinler entity-bağımsız (i18n uyumlu);
       // sayısal sınırlar açıklamada domain sabitleriyle uyumlu tutulur.

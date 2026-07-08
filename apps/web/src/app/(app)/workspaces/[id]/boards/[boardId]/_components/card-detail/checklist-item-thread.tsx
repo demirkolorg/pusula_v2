@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState, type MentionSource } from '@pusula/ui';
+import { EmptyState, cn, type MentionSource } from '@pusula/ui';
 import { AppSpinner } from '@/components/app-spinner';
 import { getMutationErrorMessage } from '@/lib/board-cache';
 import { strings } from '@/lib/strings';
@@ -28,6 +28,11 @@ type ChecklistItemThreadProps = {
   imageOf?: (userId: string) => string | null;
   /** Optional @-mention picker source (board members) for composer + inline edit. */
   mentions?: MentionSource;
+  /**
+   * Detay paneli sekmesinde render edilirken (inline satır altında değil) sol
+   * kenar çizgisi + girinti kaldırılır — sekme zaten kapsamı belli eder.
+   */
+  flush?: boolean;
 };
 
 /**
@@ -61,6 +66,7 @@ export function ChecklistItemThread({
   nameOf,
   imageOf,
   mentions,
+  flush = false,
 }: ChecklistItemThreadProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -101,8 +107,9 @@ export function ChecklistItemThread({
   return (
     <div
       // Sol kenar çizgisi + hafif girinti: thread'in maddeye ait olduğunu
-      // görsel olarak bağlar; kart yorum bölümünden daha kompakt.
-      className="border-border/60 ml-1.5 mt-2 space-y-2.5 border-l-2 pl-3"
+      // görsel olarak bağlar; kart yorum bölümünden daha kompakt. Detay
+      // panelinde (`flush`) sekme kapsamı belli olduğundan çizgi/girinti yok.
+      className={cn('space-y-2.5', !flush && 'border-border/60 ml-1.5 mt-2 border-l-2 pl-3')}
       aria-label={copy.itemCommentsThreadLabel}
     >
       {commentsQuery.isPending ? (

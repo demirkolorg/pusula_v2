@@ -173,4 +173,28 @@ describe('<CardDetailChecklists>', () => {
     expect(archiveToggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Eski liste')).toBeInTheDocument();
   });
+
+  it('selecting an item opens the detail panel and signals focus (onFocusedChange)', async () => {
+    const user = userEvent.setup();
+    const onFocusedChange = vi.fn();
+    // comments/attachments context YOK → detay yalnızca "Alt maddeler" sekmesini
+    // gösterir (self-fetching thread/gallery mount etmez), bu yüzden test
+    // tRPC provider'sız kalır.
+    render(
+      <CardDetailChecklists
+        checklists={checklists}
+        canEdit={false}
+        {...handlers()}
+        onFocusedChange={onFocusedChange}
+      />,
+    );
+    const [firstItem] = screen.getAllByRole('button', { name: copy.itemSelectLabel });
+    if (!firstItem) throw new Error('expected at least one selectable checklist item');
+    await user.click(firstItem);
+    // Dialog'a "odaklandık" sinyali (açıklamayı gizle + tam genişlik).
+    expect(onFocusedChange).toHaveBeenCalledWith(true);
+    // Detay paneli açıldı: "Detayı kapat" + sekme başlığı görünür.
+    expect(screen.getByRole('button', { name: copy.detailClose })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: new RegExp(copy.tabSubItems) })).toBeInTheDocument();
+  });
 });

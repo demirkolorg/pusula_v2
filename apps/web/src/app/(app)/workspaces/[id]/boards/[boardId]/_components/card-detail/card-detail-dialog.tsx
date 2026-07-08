@@ -143,6 +143,9 @@ export function CardDetailDialog({
   const [sidebarOpen, setSidebarOpen] = useState(deepLinkWantsSidebar);
   const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>(requestedTab ?? 'comments');
   const [attachmentsOpen, setAttachmentsOpen] = useState(deepLinkWantsAttachments);
+  // Kontrol listesinde bir madde detayı açık mı — açıksa açıklama paneli gizlenip
+  // kontrol listesi tam genişliğe yayılır ("odaklanınca genişlet").
+  const [checklistFocused, setChecklistFocused] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
@@ -899,10 +902,17 @@ export function CardDetailDialog({
                 )}
 
                 <div className="flex min-h-0 flex-1 flex-col gap-[22px] overflow-hidden px-4 pb-4 sm:px-6 sm:pb-5">
-                  {/* Üst satır: AÇIKLAMA | KONTROL LİSTESİ — EKLER açıkken dikeyde 50/50 böl */}
+                  {/* Üst satır: AÇIKLAMA | KONTROL LİSTESİ — bir checklist maddesi
+                      detayı açılınca 3 eşit sütuna bölünür (açıklama | liste |
+                      detay): açıklama 1/3, kontrol listesi 2/3 (içinde liste +
+                      detay eşit ⇒ her biri 1/3). EKLER açıkken dikeyde 50/50 böl. */}
                   <div
                     className={cn(
-                      'grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[22px] overflow-hidden',
+                      'grid min-h-0 gap-[22px] overflow-hidden',
+                      'md:transition-[grid-template-columns] md:duration-(--duration-slow) md:ease-standard md:motion-reduce:transition-none',
+                      checklistFocused
+                        ? 'grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
+                        : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]',
                       attachmentsOpen ? 'flex-1 basis-0' : 'flex-1',
                     )}
                   >
@@ -921,6 +931,7 @@ export function CardDetailDialog({
                     <CardDetailChecklists
                       checklists={(checklistsQ.data ?? []) as ChecklistView[]}
                       canEdit={canEdit}
+                      onFocusedChange={setChecklistFocused}
                       nameOf={nameOf}
                       imageOf={imageOf}
                       comments={{

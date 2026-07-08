@@ -23,19 +23,15 @@ import {
   ContextMenuTrigger,
   RichTextContent,
   RichTextEditor,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
   toast,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
-import { ChecklistItemAttachments } from './checklist-item-attachments';
-import { ChecklistItemThread } from './checklist-item-thread';
 import { copyRichTextToClipboard, isSameRichText } from './rich-text-helpers';
 import type {
   ChecklistAttachmentContext,
   ChecklistCommentContext,
+  ChecklistItemDetailTab,
   ChecklistItemView,
   ImageResolver,
   NameResolver,
@@ -44,9 +40,17 @@ import type {
 export type { ChecklistAttachmentContext, ChecklistCommentContext } from './checklist-types';
 
 /**
- * One checklist item: a `Checkbox` + content, with inline edit/delete for board
- * `member+`. A completed item shows the completer's avatar (resolved via
- * `nameOf`, when known). Viewers see a disabled checkbox and no affordances.
+ * One checklist item row in the left "grouped list" column of the detail-panel
+ * layout. A `Checkbox` + rich content, with inline edit/delete/copy (board
+ * `member+`) via a right-click context menu and DnD reorder. The row is
+ * **selectable**: clicking the content (or a count badge) selects the item so
+ * the right-hand {@link ChecklistItemDetail} shows its sub-items / attachments /
+ * comments — the item's expandable content no longer lives inline (that was the
+ * source of the "stacked panels" clutter). The comment/attachment badges are
+ * pure counters that also deep-select the matching detail tab.
+ *
+ * Nested children (the item's sub-tree) are still rendered inline as an indented
+ * `<ul>` passed via `children` — the left column mirrors the domain tree.
  */
 export function ChecklistItemRow({
   item,
@@ -56,6 +60,8 @@ export function ChecklistItemRow({
   imageOf,
   comments,
   attachments,
+  selected = false,
+  onSelect,
   onToggle,
   onEdit,
   onDelete,
@@ -71,10 +77,18 @@ export function ChecklistItemRow({
   pending: boolean;
   nameOf?: NameResolver;
   imageOf?: ImageResolver;
-  /** Comment-thread context — when present, the row shows a thread toggle. */
+  /** Comment-thread context — when present, the row shows a comment count badge. */
   comments?: ChecklistCommentContext;
-  /** Attachment context — when present, the row shows an attachment toggle. */
+  /** Attachment context — when present, the row shows an attachment count badge. */
   attachments?: ChecklistAttachmentContext;
+  /** Whether this row is the currently selected item (its detail is open). */
+  selected?: boolean;
+  /**
+   * Select this item — opens its detail in the right panel. An optional `tab`
+   * deep-links straight to that detail tab (used by the count badges). Absent /
+   * `undefined` ⇒ the detail keeps/derives its default tab.
+   */
+  onSelect: (tab?: ChecklistItemDetailTab) => void;
   onToggle: (completed: boolean) => void;
   onEdit: (content: string) => void;
   onDelete: () => void;
@@ -105,8 +119,6 @@ export function ChecklistItemRow({
   // Madde metni artık zengin (Tiptap); `draft` düzenlenen Tiptap JSON string.
   const [draft, setDraft] = useState<string>(item.content);
   const [editorEmpty, setEditorEmpty] = useState(false);
-  const [threadOpen, setThreadOpen] = useState(false);
-  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const commentCount = item.commentCount;
   const attachmentCount = item.attachmentCount;
   const rowRef = useRef<HTMLLIElement>(null);
@@ -172,171 +184,155 @@ export function ChecklistItemRow({
             Salt-okur (canEdit=false) durumda da açılır: yalnızca "Kopyala"
             görünür (kopyalama yıkıcı değil, okuma yetkisi olan kopyalayabilir). */}
         <ContextMenuTrigger asChild disabled={editing}>
-          <div className="flex items-start gap-1.5">
-      {/* Sürükle tutamacı — yalnız düzenlenebilir + DnD aktifken. Sürüklerken
-          satır yüksekliği değişmesin diye editing/viewer'da yer ayrılmaz; grip
-          klavyeyle odaklanabilir ve aria-label taşır (erişilebilirlik). */}
-      {showHandle ? (
-        <button
-          ref={handleRef}
-          type="button"
-          aria-label={copy.itemDragHandle}
-          className="text-muted-foreground/50 hover:text-foreground focus-visible:ring-ring/60 mt-0.5 shrink-0 cursor-grab touch-none rounded-sm opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 group-hover/item:opacity-100 group-focus-within/item:opacity-100 active:cursor-grabbing touch:opacity-100"
-        >
-          <GripVerticalIcon className="size-4" aria-hidden />
-        </button>
-      ) : null}
-      <Checkbox
-        checked={item.completed}
-        disabled={!canEdit || pending}
-        aria-label={copy.itemToggleLabel}
-        onCheckedChange={(checked) => onToggle(checked === true)}
-        className="mt-0.5 shrink-0"
-      />
-      {editing && canEdit ? (
-        <div className="flex-1 space-y-2">
-          {/* Enter = yeni satır (Tiptap); kaydet = Cmd/Ctrl+Enter veya "Kaydet". */}
           <div
-            onKeyDownCapture={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                saveEdit();
-              }
-            }}
+            className={cn(
+              'flex items-start gap-1.5 rounded-md px-1.5 py-1 transition-colors',
+              // Seçili madde: sol şerit + primary-soft zemin (detay bu maddede).
+              selected
+                ? 'bg-primary/10 shadow-[inset_2px_0_0_var(--color-primary)]'
+                : 'hover:bg-accent/50',
+            )}
           >
-            <RichTextEditor
-              value={draft || null}
-              placeholder={copy.itemPlaceholder}
-              labels={richTextLabels}
-              toolbar="mini"
-              collapsibleToolbar
-              ariaLabel={copy.itemEdit}
-              disabled={pending}
-              onChange={(serialized, isEmpty) => {
-                setDraft(serialized);
-                setEditorEmpty(isEmpty);
-              }}
+            {/* Sürükle tutamacı — yalnız düzenlenebilir + DnD aktifken. Sürüklerken
+                satır yüksekliği değişmesin diye editing/viewer'da yer ayrılmaz; grip
+                klavyeyle odaklanabilir ve aria-label taşır (erişilebilirlik). */}
+            {showHandle ? (
+              <button
+                ref={handleRef}
+                type="button"
+                aria-label={copy.itemDragHandle}
+                className="text-muted-foreground/50 hover:text-foreground focus-visible:ring-ring/60 mt-0.5 shrink-0 cursor-grab touch-none rounded-sm opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 group-hover/item:opacity-100 group-focus-within/item:opacity-100 active:cursor-grabbing touch:opacity-100"
+              >
+                <GripVerticalIcon className="size-4" aria-hidden />
+              </button>
+            ) : null}
+            <Checkbox
+              checked={item.completed}
+              disabled={!canEdit || pending}
+              aria-label={copy.itemToggleLabel}
+              onCheckedChange={(checked) => onToggle(checked === true)}
+              className="mt-0.5 shrink-0"
             />
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={pending || editorEmpty} onClick={saveEdit}>
-              {pending ? copy.itemSaving : copy.itemSave}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => {
-                setDraft(item.content);
-                setEditorEmpty(false);
-                setEditing(false);
-              }}
-            >
-              {copy.itemCancel}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Madde metni artık zengin (Tiptap) render edilir. Önceki "metne tıkla
-              → thread aç" davranışı kaldırıldı: RichTextContent link/tıklanabilir
-              içerik taşıyabildiğinden buton'a gömülemez; thread yalnızca sağdaki
-              mesaj rozetinden açılır (yorum/açıklama ile tutarlı). */}
-          <div
-            className={cn('min-w-0 flex-1 break-words', item.completed && 'italic opacity-60')}
-          >
-            <RichTextContent value={item.content} />
-          </div>
-          {/* İşlem yapan (tamamlayan) avatarı + yorum rozeti tek bir
-              dikey-ortalı grupta hizalanır. Yorum rozeti satırda kalır —
-              yorum yetkisi (canComment) edit yetkisinden bağımsız ve viewer
-              da thread açabildiği için context menüye taşınmadı.
-              `commentCount > 0` ise rozet hep görünür; 0 ise yalnız
-              hover/focus/touch'ta. Düzenle/sil/tamamla eylemleri maddeye
-              sağ tık (context) menüsünde. */}
-          {(completerName || comments || attachments) && (
-            <div className="flex shrink-0 items-center gap-1 self-start">
-              {completerName && (
-                <Avatar name={completerName} image={completerImage} size="xs" />
-              )}
-              {comments && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={
-                        threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle
-                      }
-                      aria-expanded={threadOpen}
-                      className={cn(
-                        'text-muted-foreground hover:text-foreground size-6 gap-1 px-1.5 touch:size-11',
-                        commentCount === 0 &&
-                          'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
-                        threadOpen && 'text-foreground opacity-100',
-                      )}
-                      onClick={() => setThreadOpen((open) => !open)}
-                    >
-                      <MessageSquareIcon className="size-3.5" aria-hidden />
-                      {commentCount > 0 && (
-                        <span className="text-[11px] font-medium tabular-nums">
-                          {commentCount}
-                        </span>
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {threadOpen ? copy.itemCommentsToggleClose : copy.itemCommentsToggle}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {/* Ek rozeti — yorum rozetiyle birebir simetrik. Ek yetkisi
-                  (canEdit) edit yetkisinden bağımsız değil (upload edit gerektirir)
-                  ama viewer da galeriyi açıp görebildiğinden rozet her zaman
-                  (attachments context varsa) görünür. `attachmentCount > 0` ise
-                  hep görünür; 0 ise yalnız hover/focus/touch'ta. */}
-              {attachments && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={
-                        attachmentsOpen
-                          ? copy.itemAttachmentsToggleClose
-                          : copy.itemAttachmentsToggle
-                      }
-                      aria-expanded={attachmentsOpen}
-                      className={cn(
-                        'text-muted-foreground hover:text-foreground size-6 gap-1 px-1.5 touch:size-11',
-                        attachmentCount === 0 &&
-                          'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
-                        attachmentsOpen && 'text-foreground opacity-100',
-                      )}
-                      onClick={() => setAttachmentsOpen((open) => !open)}
-                    >
-                      <PaperclipIcon className="size-3.5" aria-hidden />
-                      {attachmentCount > 0 && (
-                        <span className="text-[11px] font-medium tabular-nums">
-                          {attachmentCount}
-                        </span>
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {attachmentsOpen
-                      ? copy.itemAttachmentsToggleClose
-                      : copy.itemAttachmentsToggle}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          )}
-        </>
-      )}
+            {editing && canEdit ? (
+              <div className="flex-1 space-y-2">
+                {/* Enter = yeni satır (Tiptap); kaydet = Cmd/Ctrl+Enter veya "Kaydet". */}
+                <div
+                  onKeyDownCapture={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      saveEdit();
+                    }
+                  }}
+                >
+                  <RichTextEditor
+                    value={draft || null}
+                    placeholder={copy.itemPlaceholder}
+                    labels={richTextLabels}
+                    toolbar="mini"
+                    collapsibleToolbar
+                    ariaLabel={copy.itemEdit}
+                    disabled={pending}
+                    onChange={(serialized, isEmpty) => {
+                      setDraft(serialized);
+                      setEditorEmpty(isEmpty);
+                    }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={pending || editorEmpty}
+                    onClick={saveEdit}
+                  >
+                    {pending ? copy.itemSaving : copy.itemSave}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => {
+                      setDraft(item.content);
+                      setEditorEmpty(false);
+                      setEditing(false);
+                    }}
+                  >
+                    {copy.itemCancel}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Madde metni: tıklayınca maddeyi seç (detay panelini aç). İçerik
+                    zengin metin (Tiptap) olduğundan link (`<a>`) taşıyabilir; bu
+                    yüzden `<button>` DEĞİL, `role="button"` bir `<div>` — iç içe
+                    etkileşimli (button>a) geçersiz HTML'i önler. Link kendi
+                    davranışını korur; satır seçimi zararsız yan etkidir. */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelect()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelect();
+                    }
+                  }}
+                  aria-pressed={selected}
+                  aria-label={copy.itemSelectLabel}
+                  className={cn(
+                    'min-w-0 flex-1 cursor-pointer rounded text-left break-words outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                    item.completed && 'italic opacity-60',
+                  )}
+                >
+                  <RichTextContent value={item.content} />
+                </div>
+                {/* İşlem yapan (tamamlayan) avatarı + yorum/ek sayaç rozetleri.
+                    Rozetler artık toggle değil; tıklayınca maddeyi seçip ilgili
+                    detay sekmesini açar. `count > 0` ise hep görünür; 0 ise yalnız
+                    hover/focus/touch'ta. Düzenle/sil/tamamla maddeye sağ tıkta. */}
+                {(completerName || comments || attachments) && (
+                  <div className="flex shrink-0 items-center gap-0.5 self-start">
+                    {completerName && (
+                      <Avatar name={completerName} image={completerImage} size="xs" />
+                    )}
+                    {comments && (
+                      <button
+                        type="button"
+                        aria-label={copy.itemCommentsCountLabel}
+                        className={cn(
+                          'text-muted-foreground hover:text-foreground hover:bg-accent/60 flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium tabular-nums transition-colors touch:h-11',
+                          commentCount === 0 &&
+                            'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
+                          selected && 'text-foreground opacity-100',
+                        )}
+                        onClick={() => onSelect('comments')}
+                      >
+                        <MessageSquareIcon className="size-3.5" aria-hidden />
+                        {commentCount > 0 && <span>{commentCount}</span>}
+                      </button>
+                    )}
+                    {attachments && (
+                      <button
+                        type="button"
+                        aria-label={copy.itemAttachmentsCountLabel}
+                        className={cn(
+                          'text-muted-foreground hover:text-foreground hover:bg-accent/60 flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium tabular-nums transition-colors touch:h-11',
+                          attachmentCount === 0 &&
+                            'opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 touch:opacity-100',
+                          selected && 'text-foreground opacity-100',
+                        )}
+                        onClick={() => onSelect('attachments')}
+                      >
+                        <PaperclipIcon className="size-3.5" aria-hidden />
+                        {attachmentCount > 0 && <span>{attachmentCount}</span>}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </ContextMenuTrigger>
         {!editing && (
@@ -347,13 +343,13 @@ export function ChecklistItemRow({
               {copy.itemContextCopy}
             </ContextMenuItem>
             {comments && (
-              <ContextMenuItem onSelect={() => setThreadOpen(true)}>
+              <ContextMenuItem onSelect={() => onSelect('comments')}>
                 <MessageSquareIcon className="size-3.5" aria-hidden />
                 {copy.itemCommentsToggle}
               </ContextMenuItem>
             )}
             {attachments && (
-              <ContextMenuItem onSelect={() => setAttachmentsOpen(true)}>
+              <ContextMenuItem onSelect={() => onSelect('attachments')}>
                 <PaperclipIcon className="size-3.5" aria-hidden />
                 {copy.itemAttachmentsToggle}
               </ContextMenuItem>
@@ -361,10 +357,7 @@ export function ChecklistItemRow({
             {canEdit && (
               <>
                 <ContextMenuSeparator />
-                <ContextMenuItem
-                  disabled={pending}
-                  onSelect={() => onToggle(!item.completed)}
-                >
+                <ContextMenuItem disabled={pending} onSelect={() => onToggle(!item.completed)}>
                   {item.completed ? (
                     <SquareIcon className="size-3.5" aria-hidden />
                   ) : (
@@ -400,31 +393,6 @@ export function ChecklistItemRow({
           </ContextMenuContent>
         )}
       </ContextMenu>
-
-      {comments && threadOpen && (
-        <ChecklistItemThread
-          cardId={comments.cardId}
-          checklistItemId={item.id}
-          canComment={comments.canComment}
-          isBoardAdmin={comments.isBoardAdmin}
-          viewerUserId={comments.viewerUserId}
-          viewerName={comments.viewerName}
-          viewerImage={comments.viewerImage}
-          nameOf={(userId) => nameOf?.(userId)}
-          imageOf={imageOf ? (userId) => imageOf(userId) : undefined}
-          mentions={comments.mentions}
-        />
-      )}
-
-      {attachments && attachmentsOpen && (
-        <ChecklistItemAttachments
-          cardId={attachments.cardId}
-          checklistItemId={item.id}
-          canEdit={attachments.canEdit}
-          isBoardAdmin={attachments.isBoardAdmin}
-          viewerUserId={attachments.viewerUserId}
-        />
-      )}
 
       {/* İç içe (nested) alt ağaç + "alt madde ekle" formu — üst bileşen girintili
           bir <ul> olarak geçirir; maddenin kendi <li>'si içinde kalır (DOM ağacı

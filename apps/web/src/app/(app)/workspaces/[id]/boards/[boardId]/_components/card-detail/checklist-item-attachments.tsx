@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardAttachmentAddForm } from './card-attachment-add-form';
 import { CardDetailAttachments } from './card-detail-attachments';
@@ -12,6 +13,11 @@ type ChecklistItemAttachmentsProps = {
   /** Whether the viewer is a board `admin` (may delete others' attachments). */
   isBoardAdmin: boolean;
   viewerUserId: string;
+  /**
+   * Detay paneli sekmesinde render edilirken (inline satır altında değil) sol
+   * kenar çizgisi + girinti kaldırılır — sekme zaten kapsamı belli eder.
+   */
+  flush?: boolean;
 };
 
 /**
@@ -36,14 +42,19 @@ export function ChecklistItemAttachments({
   canEdit,
   isBoardAdmin,
   viewerUserId,
+  flush = false,
 }: ChecklistItemAttachmentsProps) {
   const copy = strings.card.checklist;
 
   return (
     <div
       // Sol kenar çizgisi + hafif girinti — thread ile aynı görsel bağ: ek
-      // galerisinin bu maddeye ait olduğunu gösterir.
-      className="border-border/60 ml-1.5 mt-2 space-y-2.5 border-l-2 pl-3"
+      // galerisinin bu maddeye ait olduğunu gösterir. Detay panelinde (`flush`)
+      // sekme kapsamı belli olduğundan çizgi/girinti kaldırılır.
+      className={cn(
+        'space-y-2.5',
+        !flush && 'border-border/60 ml-1.5 mt-2 border-l-2 pl-3',
+      )}
       aria-label={copy.itemAttachmentsGalleryLabel}
     >
       <CardDetailAttachments

@@ -5,6 +5,13 @@
  * the dialog wires these handlers to tRPC mutations.
  */
 
+/**
+ * Detay panelindeki (sağ kolon) sekme kimliği. Seçili maddenin alt maddeleri /
+ * ekleri / yorumları burada sekmelere ayrılır — inline yığılma yerine tek anda
+ * tek içerik türü. Sol kolondaki sayaç rozetleri ilgili sekmeye deep-link atar.
+ */
+export type ChecklistItemDetailTab = 'subItems' | 'attachments' | 'comments';
+
 export type ChecklistItemView = {
   id: string;
   checklistId: string;
