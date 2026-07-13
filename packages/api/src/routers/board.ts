@@ -52,6 +52,7 @@ import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import { workspaceProcedure } from '../middleware/workspace';
 import { router } from '../trpc';
 import { boardAccessRequestsRouter } from './board-access-requests';
+import { boardApiKeysRouter } from './board-api-keys';
 import { boardInvitationsRouter } from './board-invitations';
 import { boardMembersRouter } from './board-members';
 
@@ -1002,4 +1003,6 @@ export const boardRouter = router({
   members: boardMembersRouter,
   invitations: boardInvitationsRouter,
   accessRequests: boardAccessRequestsRouter,
+  // Public API + Bot Erişimi (Task 7) — board-scoped API key / bot yönetimi.
+  apiKeys: boardApiKeysRouter,
 });
