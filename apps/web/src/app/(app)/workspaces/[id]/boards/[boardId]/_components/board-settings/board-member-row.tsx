@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BotIcon } from 'lucide-react';
 import { BOARD_ROLES, type BoardRole } from '@pusula/domain';
 import {
   Alert,
@@ -37,6 +38,8 @@ export type BoardMemberRowMember = {
   role: BoardRole;
   /** `true` for a workspace owner/admin who inherits board access without an explicit row. */
   inherited: boolean;
+  /** `true` for a bot service account (API key actor) — surfaces a "Bot" badge. */
+  isBot?: boolean;
 };
 
 type BoardMemberRowProps = {
@@ -91,10 +94,14 @@ export function BoardMemberRow({
   // Demoting/removing the sole explicit admin is rejected server-side; lock it here too.
   const lockedAsLastAdmin = isLastAdmin && member.role === 'admin';
 
-  // Managers may change an *explicit*, non-self member's role (but not the last admin's).
-  const showRoleSelect = canManage && !member.inherited && !isSelf && !lockedAsLastAdmin;
-  // Managers may remove an *explicit*, non-self member (but not the last admin).
-  const showRemove = canManage && !member.inherited && !isSelf && !lockedAsLastAdmin;
+  // A bot service account's membership/role is governed only by the board's
+  // API-key section — the human member surface never re-roles or removes it
+  // (the server rejects it too — MAJOR-3).
+  const isBot = member.isBot === true;
+  // Managers may change an *explicit*, non-self, non-bot member's role (but not the last admin's).
+  const showRoleSelect = canManage && !member.inherited && !isSelf && !lockedAsLastAdmin && !isBot;
+  // Managers may remove an *explicit*, non-self, non-bot member (but not the last admin).
+  const showRemove = canManage && !member.inherited && !isSelf && !lockedAsLastAdmin && !isBot;
   // The viewer may leave their own *explicit* membership (unless they're the last admin).
   const showLeave = isSelf && !member.inherited && !lockedAsLastAdmin;
 
@@ -105,6 +112,12 @@ export function BoardMemberRow({
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate font-medium">{displayName}</span>
+            {member.isBot && (
+              <Badge variant="secondary" className="gap-1">
+                <BotIcon className="size-3" aria-hidden />
+                {strings.common.botBadge}
+              </Badge>
+            )}
             {isSelf && <Badge variant="outline">{copy.youBadge}</Badge>}
           </div>
           {member.email && member.email !== displayName && (

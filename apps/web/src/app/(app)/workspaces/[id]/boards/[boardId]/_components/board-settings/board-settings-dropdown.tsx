@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  KeyRoundIcon,
   PaletteIcon,
   PencilIcon,
   Settings2Icon,
@@ -27,6 +28,7 @@ import {
   cn,
 } from '@pusula/ui';
 import { strings } from '@/lib/strings';
+import { BoardApiKeysSection } from './board-api-keys-section';
 import { BoardBackgroundPicker } from './background-picker';
 import { BoardIconPicker } from './board-icon-picker';
 
@@ -41,7 +43,7 @@ import { BoardIconPicker } from './board-icon-picker';
  * dropdown derinliği yerine tek-tık eski Pusula refleksi (kullanıcı geri
  * bildirimi 2026-05-25).
  */
-export type BoardSettingsTab = 'background' | 'actions';
+export type BoardSettingsTab = 'background' | 'actions' | 'apiKeys';
 
 type BoardSettingsDropdownProps = {
   boardId: string;
@@ -151,6 +153,15 @@ export function BoardSettingsDropdown({
                 <WrenchIcon className="size-3.5" />
                 {settingsCopy.tabActions}
               </TabsTrigger>
+              {/* API anahtarları yalnız board admin'e görünür (key envanteri
+                  hassas). Members/labels bölümlerinin admin gate deseni gibi
+                  görünürlük mount seviyesinde kısıtlanır. */}
+              {canManage && (
+                <TabsTrigger value="apiKeys" className="h-8 shrink-0 flex-none px-3">
+                  <KeyRoundIcon className="size-3.5" />
+                  {settingsCopy.tabApiKeys}
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -218,6 +229,18 @@ export function BoardSettingsDropdown({
               </div>
             </SettingsPanel>
           </TabsContent>
+
+          {canManage && (
+            <TabsContent value="apiKeys" className="max-h-[60vh] overflow-y-auto px-1 pt-1">
+              <SettingsPanel
+                icon={<KeyRoundIcon className="size-3.5" />}
+                title={settingsCopy.apiKeysTitle}
+                description={settingsCopy.apiKeysDescription}
+              >
+                <BoardApiKeysSection boardId={boardId} />
+              </SettingsPanel>
+            </TabsContent>
+          )}
         </Tabs>
       </DropdownMenuContent>
     </DropdownMenu>

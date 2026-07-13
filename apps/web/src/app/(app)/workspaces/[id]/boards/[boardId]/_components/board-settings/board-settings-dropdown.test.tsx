@@ -10,14 +10,18 @@ vi.mock('./board-icon-picker', () => ({
   BoardIconPicker: () => <div>board icon picker</div>,
 }));
 
-function renderDropdown(activeTab: BoardSettingsTab) {
+vi.mock('./board-api-keys-section', () => ({
+  BoardApiKeysSection: () => <div>board api keys section</div>,
+}));
+
+function renderDropdown(activeTab: BoardSettingsTab, canManage = true) {
   render(
     <BoardSettingsDropdown
       boardId="b1"
       workspaceId="w1"
       currentIcon="layout-grid"
       currentBackground={null}
-      canManage
+      canManage={canManage}
       boardActive
       archived={false}
       open
@@ -54,5 +58,16 @@ describe('<BoardSettingsDropdown>', () => {
     expect(screen.queryByRole('tab', { name: /Davetler/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Talepler/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Etiketler/ })).not.toBeInTheDocument();
+  });
+
+  it('renders the API keys section on the apiKeys tab (admin)', () => {
+    renderDropdown('apiKeys');
+    expect(screen.getByText('board api keys section')).toBeInTheDocument();
+  });
+
+  it('hides the API keys tab from non-admins', () => {
+    renderDropdown('background', false);
+    expect(screen.queryByRole('tab', { name: /API/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('board api keys section')).not.toBeInTheDocument();
   });
 });

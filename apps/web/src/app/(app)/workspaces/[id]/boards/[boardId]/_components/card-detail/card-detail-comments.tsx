@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  BotIcon,
   CopyIcon,
   MessageSquareIcon,
   PencilIcon,
@@ -12,6 +13,7 @@ import {
   Alert,
   AlertDescription,
   Avatar,
+  Badge,
   Button,
   ContextMenu,
   ContextMenuContent,
@@ -158,6 +160,7 @@ function CommentRow({
   comment,
   authorName,
   authorImage,
+  authorIsBot = false,
   canEdit,
   pending,
   onEdit,
@@ -168,6 +171,8 @@ function CommentRow({
   comment: CommentView;
   authorName: string;
   authorImage: string | null;
+  /** `true` when the author is a bot service account — surfaces a "Bot" badge. */
+  authorIsBot?: boolean;
   canEdit: boolean;
   pending: boolean;
   onEdit: (body: string) => void;
@@ -219,6 +224,12 @@ function CommentRow({
             <div className="min-w-0 flex-1 space-y-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{authorName}</span>
+                {authorIsBot && (
+                  <Badge variant="secondary" className="gap-1">
+                    <BotIcon className="size-3" aria-hidden />
+                    {strings.common.botBadge}
+                  </Badge>
+                )}
                 <span className="text-muted-foreground text-xs">
                   {formatDateTime(comment.createdAt)}
                 </span>
@@ -368,6 +379,8 @@ type CardDetailCommentsProps = {
   nameOf: (userId: string) => string | null | undefined;
   /** Resolve a user id to an avatar URL (board/card members; `null` when unset). */
   imageOf?: (userId: string) => string | null;
+  /** Resolve a user id to whether it's a bot service account (board/card members). */
+  isBotOf?: (userId: string) => boolean;
   /** The viewer's own user id. */
   viewerUserId: string;
   /** Whether the viewer is a board `admin` (may edit/delete others' comments). */
@@ -396,6 +409,7 @@ export function CardDetailComments({
   comments,
   nameOf,
   imageOf,
+  isBotOf,
   viewerUserId,
   isBoardAdmin,
   canComment,
@@ -437,12 +451,15 @@ export function CardDetailComments({
             const authorImage = comment.authorId
               ? (imageOf?.(comment.authorId) ?? null)
               : null;
+            // Bot yorumlarında (authorId bir bot servis hesabı) "Bot" rozeti.
+            const authorIsBot = comment.authorId ? (isBotOf?.(comment.authorId) ?? false) : false;
             return (
               <CommentRow
                 key={comment.id}
                 comment={comment}
                 authorName={authorName}
                 authorImage={authorImage}
+                authorIsBot={authorIsBot}
                 canEdit={canEditThis}
                 pending={pending}
                 onEdit={(body) => onEdit({ commentId: comment.id, body })}

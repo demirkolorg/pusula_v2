@@ -163,6 +163,41 @@ describe('<BoardMemberRow>', () => {
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a "Bot" badge for a bot service-account member', () => {
+    render(
+      <BoardMemberRow
+        member={{ ...explicitMember, name: 'Otomasyon botu', isBot: true }}
+        viewerUserId="u-other"
+        canManage={false}
+      />,
+    );
+    expect(screen.getByText(strings.common.botBadge)).toBeInTheDocument();
+  });
+
+  it('renders no "Bot" badge for a human member', () => {
+    render(<BoardMemberRow member={explicitMember} viewerUserId="u-other" canManage={false} />);
+    expect(screen.queryByText(strings.common.botBadge)).not.toBeInTheDocument();
+  });
+
+  it('manager viewer, bot member: hides role select + remove controls (MAJOR-3), keeps the Bot badge', () => {
+    render(
+      <BoardMemberRow
+        member={{ ...explicitMember, name: 'Otomasyon botu', isBot: true }}
+        viewerUserId="u-admin"
+        canManage
+        onRoleChange={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    // The bot's membership/role is managed only from the API-key section — the
+    // human member surface must not offer role-change / remove controls.
+    expect(screen.queryByRole('combobox', { name: copy.roleLabel })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy.remove })).not.toBeInTheDocument();
+    // The Bot badge is still shown, and the role is a static badge.
+    expect(screen.getByText(strings.common.botBadge)).toBeInTheDocument();
+    expect(screen.getByText('Üye')).toBeInTheDocument();
+  });
+
   it('surfaces an inline error for the row', () => {
     render(
       <BoardMemberRow

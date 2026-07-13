@@ -202,6 +202,25 @@ describe('<CardDetailComments>', () => {
     expect(screen.queryByRole('menuitem', { name: copy.delete })).not.toBeInTheDocument();
   });
 
+  it('renders a "Bot" badge next to a bot author, and none for a human', () => {
+    const [first, second] = comments;
+    if (!first || !second) throw new Error('fixture missing');
+    render(
+      <CardDetailComments
+        comments={[first, { ...second, deletedAt: null, body: 'Bot yorumu' }]}
+        nameOf={nameOf}
+        isBotOf={(id) => id === 'u2'}
+        viewerUserId="u1"
+        isBoardAdmin={false}
+        canComment={false}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    // Exactly one bot author (u2) → exactly one badge.
+    expect(screen.getAllByText(strings.common.botBadge)).toHaveLength(1);
+  });
+
   it('falls back to a generic name when the author cannot be resolved', () => {
     const [first] = comments;
     if (!first) throw new Error('fixture missing');

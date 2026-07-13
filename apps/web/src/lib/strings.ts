@@ -42,6 +42,8 @@ export const strings = {
      */
     signIn: 'Giriş yap',
     unknownError: 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
+    /** Bot (servis hesabı / API key) kullanıcıların yanında gösterilen küçük rozet metni. */
+    botBadge: 'Bot',
     navigationRail: 'Navigasyon çubuğu',
     panels: {
       closeAll: 'Tüm panelleri kapat',
@@ -1134,6 +1136,50 @@ export const strings = {
       labelDeleteConfirmDescription:
         'Bu etiket silinir ve tüm kartlardan kaldırılır. Geri alınamaz.',
       labelDeleteConfirm: 'Sil',
+      // --- Public API + Bot Erişimi (Task 8) — API anahtarları bölümü. Yalnız
+      // board admin görür (mount `board-settings-dropdown` içinde gate'li).
+      apiKeysDropdownTitle: 'API anahtarları',
+      tabApiKeys: 'API',
+      apiKeysTitle: 'API anahtarları',
+      apiKeysDescription:
+        'Bu panoya bot/otomasyon erişimi için API anahtarları oluşturun ve yönetin. Her anahtar panoya üye bir bot hesabına bağlıdır.',
+      apiKeysInfoLabel: 'API anahtarı bilgisi',
+      apiKeysInfo:
+        'Anahtar oluşturan bota panoda seçtiğiniz rol (Üye veya İzleyici) verilir. Bot bildirimleri polling ile takip eder; kendisine bildirim gönderilmez. Anahtarı iptal edince bot panodan çıkarılır.',
+      apiKeysLoading: 'API anahtarları yükleniyor…',
+      apiKeysLoadErrorTitle: 'API anahtarları yüklenemedi',
+      apiKeysEmpty: 'Bu panoda API anahtarı yok.',
+      apiKeyNewButton: 'Yeni anahtar',
+      apiKeyCreateTitle: 'Yeni API anahtarı',
+      apiKeyCreateDescription: 'Bota bir ad ve rol verin. Anahtar oluşturulunca yalnızca bir kez gösterilir.',
+      apiKeyNameLabel: 'Ad',
+      apiKeyNamePlaceholder: 'Örn. Otomasyon botu',
+      apiKeyRoleLabel: 'Rol',
+      apiKeyExpiresLabel: 'Son kullanma tarihi (isteğe bağlı)',
+      apiKeyExpiresHint: 'Boş bırakılırsa anahtar süresizdir.',
+      apiKeyCreateSubmit: 'Anahtar oluştur',
+      apiKeyCreating: 'Oluşturuluyor…',
+      apiKeyTokenTitle: 'API anahtarı oluşturuldu',
+      apiKeyTokenWarning:
+        'Bu anahtar bir daha gösterilmeyecek. Kapatmadan önce güvenli bir yere kopyalayın.',
+      apiKeyTokenLabel: 'API anahtarı',
+      apiKeyTokenCopy: 'Kopyala',
+      apiKeyTokenCopied: 'Kopyalandı',
+      apiKeyTokenCopyError: 'Anahtar kopyalanamadı. Elle seçip kopyalayın.',
+      apiKeyTokenDone: 'Kapat',
+      apiKeyPrefixLabel: 'Önek',
+      apiKeyRevokedBadge: 'İptal edildi',
+      apiKeyLastUsedLabel: 'Son kullanım',
+      apiKeyLastUsedNever: 'Hiç kullanılmadı',
+      apiKeyExpiresAtLabel: 'Geçerlilik',
+      apiKeyExpiresNever: 'Süresiz',
+      apiKeyExpiredBadge: 'Süresi doldu',
+      apiKeyRevoke: 'İptal et',
+      apiKeyRevoking: 'İptal ediliyor…',
+      apiKeyRevokeConfirmTitle: 'API anahtarı iptal edilsin mi?',
+      apiKeyRevokeConfirmDescription:
+        'Bu anahtar anında geçersiz olur ve bağlı bot panodan çıkarılır. İşlem geri alınamaz.',
+      apiKeyRevokeConfirm: 'Anahtarı iptal et',
     },
     background: {
       title: 'Arka plan',

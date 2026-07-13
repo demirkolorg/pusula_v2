@@ -448,6 +448,15 @@ export function CardDetailDialog({
     for (const m of cardMembers) if (!map.has(m.userId)) map.set(m.userId, m.image);
     return (userId: string) => map.get(userId) ?? null;
   }, [boardMembers, cardMembers]);
+  // Bot resolver — mirrors `nameOf`/`imageOf`; a bot service account (API key
+  // actor) is a board/card member with `isBot`. Used to badge bot comment
+  // authors. `board.members.list` / `card.members.list` now carry `isBot`.
+  const isBotOf = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of boardMembers) if (m.isBot) set.add(m.userId);
+    for (const m of cardMembers) if (m.isBot) set.add(m.userId);
+    return (userId: string) => set.has(userId);
+  }, [boardMembers, cardMembers]);
   const viewerName = nameOf(viewerUserId) ?? null;
   // Viewer avatar — resolved from the board/card member lists (the viewer is
   // always a board member, so this carries the uploaded avatar when present).
@@ -1131,6 +1140,7 @@ export function CardDetailDialog({
                   }
                   nameOf={nameOf}
                   imageOf={imageOf}
+                  isBotOf={isBotOf}
                   viewerUserId={viewerUserId}
                   viewerName={viewerName}
                   viewerImage={viewerImage}

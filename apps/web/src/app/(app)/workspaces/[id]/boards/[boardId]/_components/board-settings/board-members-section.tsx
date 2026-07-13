@@ -141,6 +141,7 @@ export function BoardMembersSection({ boardId, workspaceId, canManage }: BoardMe
                     image: member.image,
                     role: member.role as BoardRole,
                     inherited: member.inherited,
+                    isBot: member.isBot,
                   }}
                   viewerUserId={viewerUserId}
                   canManage={canManage}

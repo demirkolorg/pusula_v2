@@ -26,6 +26,8 @@ type CardModalSidebarProps = {
   nameOf: (userId: string) => string | null | undefined;
   /** Resolve a user id to an avatar URL (`null` when unset). */
   imageOf: (userId: string) => string | null;
+  /** Resolve a user id to whether it's a bot service account. */
+  isBotOf?: (userId: string) => boolean;
   viewerUserId: string;
   viewerName: string | null;
   /** The viewer's avatar URL (`null` when unset) — for the comment composer. */
@@ -69,6 +71,7 @@ export function CardModalSidebar({
   activityError,
   nameOf,
   imageOf,
+  isBotOf,
   viewerUserId,
   viewerName,
   viewerImage,
@@ -108,6 +111,7 @@ export function CardModalSidebar({
       comments={commentsNewestFirst}
       nameOf={nameOf}
       imageOf={imageOf}
+      isBotOf={isBotOf}
       viewerUserId={viewerUserId}
       isBoardAdmin={isBoardAdmin}
       canComment={canComment}
