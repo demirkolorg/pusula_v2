@@ -140,7 +140,11 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
 
     // explicit rows: ownerId (creator → admin), boardAdminId (admin), boardViewerId (viewer)
     const owner = rows.find((r) => r.userId === ownerId);
-    expect(owner).toMatchObject({ role: 'admin', inherited: false });
+    expect(owner).toMatchObject({ role: 'admin', inherited: false, isBot: false });
+
+    // Public API + Bot (Task 8) — every row carries an `isBot` flag; these are
+    // all human accounts, so none is a bot.
+    expect(rows.every((r) => r.isBot === false)).toBe(true);
     expect(rows.find((r) => r.userId === boardAdminId)).toMatchObject({
       role: 'admin',
       inherited: false,
@@ -367,6 +371,75 @@ describe.runIf(dbAvailable)('board-members router (integration)', () => {
         clientMutationId: crypto.randomUUID(),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Kendinizi davet edemezsiniz.' });
+  });
+
+  it('add: adding a bot service account to a board is FORBIDDEN (Task 9 — bots join only via key management)', async () => {
+    // A bot user with an account: `board.members.add` resolves it by e-mail and
+    // must reject it with FORBIDDEN. Bot board membership is established only
+    // through API-key management, never the human invite/add surface.
+    const botId = newId('u-bmb-bot');
+    await db().insert(users).values({ id: botId, name: 'Bot', email: emailOf(botId), isBot: true });
+    createdUserIds.push(botId);
+    await expect(
+      callerFor(ownerId).board.members.add({
+        boardId,
+        email: emailOf(botId),
+        role: 'member',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // No board membership row was created for the bot.
+    const rows = await db()
+      .select()
+      .from(boardMembers)
+      .where(
+        dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, botId)),
+      );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('updateRole/remove: a bot service-account member cannot be re-roled or removed via member management (FORBIDDEN — MAJOR-3)', async () => {
+    // A bot is an explicit board member (established via API-key management).
+    // The human member-management surface must not touch it: its role/membership
+    // are governed only by the board's API-key section.
+    const botBoard = await callerFor(ownerId).board.create({
+      workspaceId,
+      title: 'Bot Guard Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const botId = newId('u-bmb-mgmt-bot');
+    await db()
+      .insert(users)
+      .values({ id: botId, name: 'Yönetim Botu', email: emailOf(botId), isBot: true });
+    createdUserIds.push(botId);
+    await db().insert(boardMembers).values({ boardId: botBoard.id, userId: botId, role: 'member' });
+
+    await expect(
+      callerFor(ownerId).board.members.updateRole({
+        boardId: botBoard.id,
+        userId: botId,
+        role: 'viewer',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      callerFor(ownerId).board.members.remove({
+        boardId: botBoard.id,
+        userId: botId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // the bot membership row is untouched (role unchanged, still present).
+    const [row] = await db()
+      .select({ role: boardMembers.role })
+      .from(boardMembers)
+      .where(
+        dbMod.and(dbMod.eq(boardMembers.boardId, botBoard.id), dbMod.eq(boardMembers.userId, botId)),
+      )
+      .limit(1);
+    expect(row).toMatchObject({ role: 'member' });
   });
 
   it('add: an archived board is read-only (BAD_REQUEST)', async () => {

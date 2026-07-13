@@ -366,8 +366,10 @@ describe.runIf(dbAvailable)('card-members router (integration)', () => {
     const ownerWatcher = rows.find((r) => r.userId === ownerId && r.role === 'watcher');
     expect(ownerAssignee).toBeTruthy();
     expect(ownerAssignee?.name).toBe(ownerId);
-    // e-mail must not leak to board viewers — only `{ userId, role, name }` is returned.
+    // e-mail must not leak to board viewers — only `{ userId, role, name, image, isBot }` is returned.
     expect(ownerAssignee).not.toHaveProperty('email');
+    // Public API + Bot (Task 8) — the row carries an `isBot` flag; a human is false.
+    expect(ownerAssignee?.isBot).toBe(false);
     expect(ownerWatcher).toBeTruthy();
   });
 

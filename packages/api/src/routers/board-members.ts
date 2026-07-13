@@ -11,8 +11,11 @@
  *
  * `list` returns the union of *explicit* `board_members` rows and the workspace
  * `owner`/`admin`s who have an effective board `admin` role *without* an explicit
- * row (`inherited: true`). E-mail addresses are intentionally **not** returned
- * (privacy — board `viewer` is enough to call `list`; Trello-style names only).
+ * row (`inherited: true`). Each row carries the account **e-mail** — the web
+ * board-settings UI shows it to disambiguate members whose names collide
+ * (DEM-157). The public REST adapter (`/api/v1/board/members`) strips `email`
+ * before returning to a bot (PII minimization — M1); the procedure itself keeps
+ * it for the trusted web caller.
  *
  * `add` resolves the target by email: (a) a user that already has an account is
  * added straight to `board_members` (creating a workspace `guest` membership
@@ -103,6 +106,26 @@ async function withConflict<T>(fn: () => PromiseLike<T>, message: string): Promi
 /** Cryptographically-random, single-use board-invitation token (64 hex chars from 32 bytes). */
 const newInvitationToken = () => randomBytes(32).toString('hex');
 
+/**
+ * Reject a bot service account as a member-management *target* (MAJOR-3). A bot's
+ * board membership + role are governed solely by the board's API-key section
+ * (`board.apiKeys.*`); the human member surface (`updateRole`/`remove`) must not
+ * touch it. See `docs/domain/10-bot-ve-api-key-kurallari.md`.
+ */
+async function assertNotBotTarget(db: Queryable, userId: string): Promise<void> {
+  const [target] = await db
+    .select({ isBot: users.isBot })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (target?.isBot) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Bot üyeliği yalnız API anahtarı yönetiminden değiştirilebilir.',
+    });
+  }
+}
+
 /** Count of explicit `board_members` rows with role `admin` on this board. */
 async function explicitAdminCount(db: Queryable, boardId: string): Promise<number> {
   const [row] = await db
@@ -118,7 +141,8 @@ export const boardMembersRouter = router({
    * (`inherited: false`), plus workspace `owner`/`admin`s who have an effective
    * board `admin` role without an explicit row (`inherited: true`). Board
    * `viewer+` (already enforced by `boardProcedure`). No transaction (read-only).
-   * The user's e-mail is intentionally **not** returned (privacy — see header).
+   * Each row includes the account e-mail for the web settings UI (DEM-157); the
+   * public REST adapter strips it before a bot sees it (M1 — see header).
    */
   list: boardProcedure.query(async ({ ctx }) => {
     const explicit = await ctx.db
@@ -128,6 +152,9 @@ export const boardMembersRouter = router({
         name: users.name,
         email: users.email,
         image: users.image,
+        // Public API + Bot (Task 8) — bot servis hesapları `board_members`
+        // satırıyla üye görünür; UI'da yanlarında "Bot" rozeti gösterilir.
+        isBot: users.isBot,
         createdAt: boardMembers.createdAt,
       })
       .from(boardMembers)
@@ -163,6 +190,7 @@ export const boardMembersRouter = router({
         name: r.name,
         email: r.email,
         image: r.image,
+        isBot: r.isBot ?? false,
         inherited: false as const,
       })),
       ...inheritedAdmins
@@ -173,6 +201,8 @@ export const boardMembersRouter = router({
           name: r.name,
           email: r.email,
           image: r.image,
+          // Workspace owner/admin'ler insan (bot yalnız `guest` üyeliğiyle gelir).
+          isBot: false as const,
           inherited: true as const,
         })),
     ];
@@ -218,10 +248,20 @@ export const boardMembersRouter = router({
       const bumpVersion = () => bumpBoardVersionForRealtime(tx, ctx.board.id);
 
       const [existingUser] = await tx
-        .select({ id: users.id, name: users.name })
+        .select({ id: users.id, name: users.name, isBot: users.isBot })
         .from(users)
         .where(sql`lower(${users.email}) = ${email}`)
         .limit(1);
+
+      // Task 9 (Public API + Bot) — bir bot servis hesabı insan davet/ekle
+      // yüzeyinden board'a alınamaz; bot üyeliği yalnız API key yönetimiyle
+      // kurulur. `docs/domain/10-bot-ve-api-key-kurallari.md`.
+      if (existingUser?.isBot) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Bot hesabı board üyesi olarak eklenemez.',
+        });
+      }
 
       // ---- (a) the email already has an account -----------------------------
       if (existingUser) {
@@ -459,6 +499,8 @@ export const boardMembersRouter = router({
       }
       assertNotArchived('board', board);
 
+      await assertNotBotTarget(tx, input.userId);
+
       // `.for('update')` locks the target row so two concurrent demote/remove
       // calls serialize — neither can read `explicitAdminCount > 1` against a
       // stale snapshot and strand the board without an admin.
@@ -587,6 +629,10 @@ export const boardMembersRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
       }
       assertNotArchived('board', board);
+
+      // A self-leave is legitimate for humans; the bot guard below only bites a
+      // bot *target*, and a bot is never the caller (bots can't sign in).
+      await assertNotBotTarget(tx, input.userId);
 
       // `.for('update')` locks the target row so two concurrent demote/remove
       // calls serialize — neither can read `explicitAdminCount > 1` against a

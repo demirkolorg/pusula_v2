@@ -406,6 +406,72 @@ describe.runIf(dbAvailable)('workspace invitations (integration)', () => {
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
+  it('members.invite: inviting a bot service account by e-mail is FORBIDDEN (Task 9)', async () => {
+    // Bot users are API-key-bound machine accounts; they cannot be invited to a
+    // workspace. Bot e-mails are synthetic in production, but the guard keys off
+    // `users.is_bot` (not the address), so a plain address suffices here.
+    const botId = newId('u-inv-bot');
+    await db()
+      .insert(users)
+      .values({ id: botId, name: 'Bot', email: emailOf(botId), isBot: true });
+    invUserIds.push(botId);
+    await expect(
+      callerFor(invOwnerId).workspace.members.invite({
+        workspaceId,
+        email: emailOf(botId),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('members: a bot service account is hidden from the member list and cannot be re-roled or removed (MAJOR-3)', async () => {
+    // A bot joins a workspace only as a `guest` (via API-key management). It must
+    // not surface in the human member roster, and the human member surface must
+    // not re-role or remove it — that's the API-key section's job.
+    const botId = newId('u-ws-mgmt-bot');
+    await db()
+      .insert(users)
+      .values({ id: botId, name: 'Çalışma Alanı Botu', email: emailOf(botId), isBot: true });
+    invUserIds.push(botId);
+    await db().insert(workspaceMembers).values({ workspaceId, userId: botId, role: 'guest' });
+
+    // hidden from the member list.
+    const list = await callerFor(invOwnerId).workspace.members.list({ workspaceId });
+    expect(list.some((m) => m.userId === botId)).toBe(false);
+
+    // cannot be re-roled.
+    await expect(
+      callerFor(invOwnerId).workspace.members.updateRole({
+        workspaceId,
+        userId: botId,
+        role: 'member',
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // cannot be removed.
+    await expect(
+      callerFor(invOwnerId).workspace.members.remove({
+        workspaceId,
+        userId: botId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // still a workspace member (untouched).
+    const [row] = await db()
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, workspaceId),
+          dbMod.eq(workspaceMembers.userId, botId),
+        ),
+      )
+      .limit(1);
+    expect(row).toMatchObject({ role: 'guest' });
+  });
+
   it('members.invite: works for an email with no account yet (email outbox row only, recipientId null)', async () => {
     const res = await callerFor(invOwnerId).workspace.members.invite({
       workspaceId,

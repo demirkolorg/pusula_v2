@@ -69,8 +69,11 @@ export const auth = betterAuth({
     // just mail that link via Resend. This is best-effort and never throws — see
     // `./auth-emails.ts` and `docs/architecture/07-auth.md` (Şifre sıfırlama
     // akışı). `resetPasswordTokenExpiresIn` is left at the default (1 hour).
+    // Task 9 (Public API + Bot) — bot servis hesaplarına şifre sıfırlama
+    // e-postası GÖNDERILMEZ (sessiz no-op). Bot passwordless olduğundan bu
+    // savunma katmanıdır; `maybeSendResetPassword` bot kontrolünü yapar.
     sendResetPassword: async ({ user, url }) => {
-      await sendResetPasswordEmail({ to: user.email, url });
+      await maybeSendResetPassword({ id: user.id, email: user.email }, url);
     },
     // When the password is actually reset, drop the user's other sessions —
     // a reset is a strong signal the old credential may be compromised.
@@ -161,6 +164,14 @@ export const auth = betterAuth({
       // `docs/architecture/07-auth.md` (Yeni cihazda oturum maili — Faz 10I),
       // `docs/architecture/15-bildirim-ayar-ekrani.md` §15.4 Section 8.
       create: {
+        // Task 9 (Public API + Bot) — savunma katmanı: bir bot servis hesabına
+        // ASLA oturum açılamaz. Bot'lar passwordless (accounts satırı yok) →
+        // login zaten imkânsız; bu hook artık bir yoldan sızması durumunda da
+        // session yaratımını reddeder. `user.update.before` ile aynı APIError
+        // desenini kullanır (Better Auth temiz bir 403 döndürür).
+        before: async (session) => {
+          await assertSessionUserNotBot(session.userId);
+        },
         after: async (session) => {
           try {
             const result = await recordSessionDevice({
@@ -217,6 +228,54 @@ async function getUserEmail(userId: string): Promise<{ email: string; name: stri
     console.error(`[auth] failed to load user ${userId} for security email:`, error);
     return null;
   }
+}
+
+/**
+ * Task 9 (Public API + Bot) — is this user a bot service account (`users.is_bot`)?
+ * Bots are API-key-bound machine accounts: they cannot log in, be invited, or
+ * receive notifications. A missing row / transient lookup failure resolves to
+ * `false` (fail-safe: never block a real human on a DB hiccup — the real gate is
+ * that bots are passwordless). See `docs/domain/10-bot-ve-api-key-kurallari.md`.
+ */
+export async function isBotUser(userId: string): Promise<boolean> {
+  try {
+    const [row] = await getDb()
+      .select({ isBot: users.isBot })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row?.isBot === true;
+  } catch (error) {
+    console.error(`[auth] isBot lookup failed for user ${userId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Reject session creation for a bot service account. Wired into
+ * `databaseHooks.session.create.before`; throws the same `APIError` style the
+ * `user.update.before` hook uses so Better Auth surfaces a clean 403.
+ */
+export async function assertSessionUserNotBot(userId: string): Promise<void> {
+  if (await isBotUser(userId)) {
+    throw new APIError('FORBIDDEN', {
+      message: 'Bot hesapları oturum açamaz.',
+    });
+  }
+}
+
+/**
+ * Send the password-reset mail unless the target is a bot service account — bots
+ * have no password and must never receive reset links, so this is a silent no-op
+ * for them (defense-in-depth alongside the passwordless account). The human path
+ * is unchanged: best-effort via `sendResetPasswordEmail`.
+ */
+export async function maybeSendResetPassword(
+  user: { id: string; email: string },
+  url: string,
+): Promise<void> {
+  if (await isBotUser(user.id)) return;
+  await sendResetPasswordEmail({ to: user.email, url });
 }
 
 async function assertCanDeleteAccount(userId: string): Promise<void> {

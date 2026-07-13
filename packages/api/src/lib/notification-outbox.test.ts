@@ -372,4 +372,86 @@ describe.runIf(dbAvailable)('notification-outbox (integration)', () => {
       .delete(notificationOutbox)
       .where(dbMod.eq(notificationOutbox.recipientId, recipientId));
   });
+
+  // ─── Task 9 (Public API + Bot) — bot alıcı guard'ı ──────────────────
+  // Bot servis hesapları hiçbir bildirim almaz. Bot da insan da board +
+  // workspace üyesi; guard olmadan İKİSİ de `card_assigned` alırdı — bot'u
+  // düşüren tek şey guard. `docs/domain/10-bot-ve-api-key-kurallari.md`.
+  it('bot guard: a bot recipient gets NO outbox rows, a human recipient does', async () => {
+    const botId = newId('u-bot-recipient');
+    const humanId = newId('u-human-recipient');
+    await db()
+      .insert(users)
+      .values([
+        { id: botId, name: 'Bot', email: `${botId}@bots.pusula.internal`, isBot: true },
+        { id: humanId, name: 'Human', email: `${humanId}@example.test`, isBot: false },
+      ]);
+    // Bot: workspace guest + explicit board seat (so the permission filter keeps
+    // it — the guard, not access, must be the reason it is dropped). Human: member.
+    await db()
+      .insert(workspaceMembers)
+      .values([
+        { workspaceId, userId: botId, role: 'guest' },
+        { workspaceId, userId: humanId, role: 'member' },
+      ]);
+    await db()
+      .insert(boardMembers)
+      .values([
+        { boardId, userId: botId, role: 'member' },
+        { boardId, userId: humanId, role: 'member' },
+      ]);
+
+    try {
+      // (a) card.member_added whose target is the bot → recipient is the bot.
+      await db()
+        .delete(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.eventId, activityId));
+      const botEvent: ActivityEventForRules = {
+        id: activityId,
+        type: 'card.member_added',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { cardId, userId: botId, role: 'assignee' },
+      };
+      const botResult = await dispatchNotificationsForActivity(db(), botEvent);
+      expect(botResult.inserted).toBe(0);
+      const botRows = await db()
+        .select()
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.recipientId, botId));
+      expect(botRows).toHaveLength(0);
+
+      // (b) same event targeting the human → rows ARE inserted.
+      await db()
+        .delete(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.eventId, activityId));
+      const humanEvent: ActivityEventForRules = {
+        id: activityId,
+        type: 'card.member_added',
+        workspaceId,
+        boardId,
+        cardId,
+        actorId,
+        payload: { cardId, userId: humanId, role: 'assignee' },
+      };
+      const humanResult = await dispatchNotificationsForActivity(db(), humanEvent);
+      expect(humanResult.inserted).toBeGreaterThan(0);
+      const humanRows = await db()
+        .select()
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.recipientId, humanId));
+      expect(humanRows.length).toBeGreaterThan(0);
+    } finally {
+      await db()
+        .delete(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.eventId, activityId));
+      await db().delete(boardMembers).where(dbMod.inArray(boardMembers.userId, [botId, humanId]));
+      await db()
+        .delete(workspaceMembers)
+        .where(dbMod.inArray(workspaceMembers.userId, [botId, humanId]));
+      await db().delete(users).where(dbMod.inArray(users.id, [botId, humanId]));
+    }
+  });
 });

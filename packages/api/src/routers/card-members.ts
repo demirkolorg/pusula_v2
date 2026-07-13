@@ -80,6 +80,9 @@ export const cardMembersRouter = router({
         role: cardMembers.role,
         name: users.name,
         image: users.image,
+        // Public API + Bot (Task 8) — bot bir kart üyesi olabilir; UI'da
+        // ad yanında "Bot" rozeti gösterebilmek için `isBot`'u da döndür.
+        isBot: users.isBot,
       })
       .from(cardMembers)
       .leftJoin(users, eq(users.id, cardMembers.userId))

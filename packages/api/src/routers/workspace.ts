@@ -32,6 +32,7 @@ import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
 } from '../lib/notification-outbox';
+import type { Queryable } from '../middleware/board-access';
 import { INVITATION_MESSAGES } from '../lib/permission-strings';
 import { workspaceProcedure } from '../middleware/workspace';
 import { protectedProcedure, router } from '../trpc';
@@ -56,8 +57,33 @@ const accessFromWorkspaceRole = (workspaceRole: WorkspaceRole) => ({
 /** Cryptographically-random, URL-safe invitation token (~32 chars from 24 bytes). */
 const newInvitationToken = () => randomBytes(24).toString('base64url');
 
+/**
+ * Reject a bot service account as a member-management *target* (MAJOR-3). A bot's
+ * workspace membership is governed solely by the board's API-key section; the
+ * human member surface (`updateRole`/`remove`) must not touch it. See
+ * `docs/domain/10-bot-ve-api-key-kurallari.md`.
+ */
+async function assertNotBotTarget(db: Queryable, userId: string): Promise<void> {
+  const [target] = await db
+    .select({ isBot: users.isBot })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (target?.isBot) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Bot üyeliği yalnız API anahtarı yönetiminden değiştirilebilir.',
+    });
+  }
+}
+
 const workspaceMembersRouter = router({
-  /** Members of the workspace, with their user profile. */
+  /**
+   * Members of the workspace, with their user profile. Bot service accounts
+   * (`users.is_bot`, API-key actors that join as a `guest`) are **excluded** —
+   * they are managed only from the board's API-key section, never the human
+   * member roster (MAJOR-3). See `docs/domain/10-bot-ve-api-key-kurallari.md`.
+   */
   list: workspaceProcedure.query(({ ctx }) =>
     ctx.db
       .select({
@@ -70,7 +96,7 @@ const workspaceMembersRouter = router({
       })
       .from(workspaceMembers)
       .innerJoin(users, eq(workspaceMembers.userId, users.id))
-      .where(eq(workspaceMembers.workspaceId, ctx.workspace.id))
+      .where(and(eq(workspaceMembers.workspaceId, ctx.workspace.id), eq(users.isBot, false)))
       .orderBy(workspaceMembers.createdAt),
   ),
 
@@ -97,6 +123,7 @@ const workspaceMembersRouter = router({
         if (!target) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Üye bulunamadı.' });
         }
+        await assertNotBotTarget(tx, input.userId);
         if (target.role === 'owner') {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -191,6 +218,9 @@ const workspaceMembersRouter = router({
       if (!target) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Üye bulunamadı.' });
       }
+      // A bot is never the caller (bots can't sign in), so this only guards a bot
+      // *target*; a human self-leave is unaffected.
+      await assertNotBotTarget(tx, input.userId);
       if (target.role === 'owner') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -290,10 +320,20 @@ const workspaceMembersRouter = router({
       }
 
       const [existingUser] = await tx
-        .select({ id: users.id })
+        .select({ id: users.id, isBot: users.isBot })
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
+
+      // Task 9 (Public API + Bot) — bot servis hesapları workspace'e davet
+      // edilemez; bot erişimi yalnız API key yönetimiyle kurulur.
+      // `docs/domain/10-bot-ve-api-key-kurallari.md`.
+      if (existingUser?.isBot) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Bot hesabı çalışma alanına davet edilemez.',
+        });
+      }
 
       if (existingUser) {
         const [alreadyMember] = await tx

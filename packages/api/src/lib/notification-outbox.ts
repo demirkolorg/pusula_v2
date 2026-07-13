@@ -34,9 +34,11 @@
 import {
   and,
   eq,
+  inArray,
   isNull,
   notificationOutbox,
   notificationPreferences,
+  users,
 } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import type { EmailDigestMode, NotificationType } from '@pusula/domain';
@@ -176,6 +178,30 @@ export function maybeEnqueueNotificationPublish(
 }
 
 /**
+ * Task 9 (Public API + Bot) — drop notification rules whose recipient is a bot
+ * service account (`users.is_bot`). Bots never receive in-app / email / push
+ * notifications (they are API-key-bound machine users). Runs one batch query
+ * over the *distinct* recipient ids; returns the same array untouched when no
+ * recipient is a bot (the overwhelmingly common case, so the extra round-trip
+ * is cheap and short-circuits when there are no bots). See
+ * `docs/domain/10-bot-ve-api-key-kurallari.md`.
+ */
+async function filterOutBotRecipients(
+  tx: Queryable,
+  rules: NotificationRule[],
+): Promise<NotificationRule[]> {
+  const recipientIds = [...new Set(rules.map((r) => r.recipientUserId))];
+  if (recipientIds.length === 0) return rules;
+  const rows = await tx
+    .select({ id: users.id, isBot: users.isBot })
+    .from(users)
+    .where(inArray(users.id, recipientIds));
+  const botIds = new Set(rows.filter((r) => r.isBot).map((r) => r.id));
+  if (botIds.size === 0) return rules;
+  return rules.filter((r) => !botIds.has(r.recipientUserId));
+}
+
+/**
  * Convenience wrapper — runs the rule engine and inserts every produced row.
  * Mutation gövdeleri call this right after their `activity_events` insert,
  * inside the same transaction. Returns the *count* of rows inserted
@@ -189,9 +215,16 @@ export async function dispatchNotificationsForActivity(
 ): Promise<{ inserted: number; skipped: number }> {
   const rules = await computeNotifications(tx, activityEvent);
   if (rules.length === 0) return { inserted: 0, skipped: 0 };
+  // Bot guard (Task 9 — Public API + Bot) — servis hesapları hiçbir bildirim
+  // almaz: alıcısı `is_bot` olan kural satırlarını, outbox insert'inden ÖNCE
+  // düşür. Tek batch sorgu (distinct recipient id'ler); insan alıcılar
+  // etkilenmez. Bot kartına görev atama serbesttir ama bota bildirim gitmez —
+  // `docs/domain/10-bot-ve-api-key-kurallari.md`.
+  const deliverable = await filterOutBotRecipients(tx, rules);
+  if (deliverable.length === 0) return { inserted: 0, skipped: 0 };
   let inserted = 0;
   let skipped = 0;
-  for (const rule of rules) {
+  for (const rule of deliverable) {
     // Faz 10G (DEM-141): cooldown + email_mode_off skip'leri tek sayaca
     // düşer — caller'a fan-out sayısı gerek, hangi sebepten skip
     // edildiği test ve log seviyesinde önemli ama mutation gövdesinde
