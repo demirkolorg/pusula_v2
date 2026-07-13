@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  FolderInputIcon,
   LinkIcon,
   ListIcon,
   Maximize2Icon,
@@ -21,6 +22,7 @@ import { strings } from '@/lib/strings';
 import { CardReportsButton } from '@/components/reports/entity-tab/card-reports-button';
 import { CardCoverImage, type CoverImage } from '../card-cover-image';
 import { CardDetailSnooze } from './card-detail-snooze';
+import { MoveCardToBoardDialog } from './move-to-board-dialog';
 import { ShareDialog } from './share-dialog';
 
 /** Kapak görünümü tercihi localStorage anahtar öneki (kart id'si eklenir). */
@@ -48,6 +50,10 @@ type CardModalHeaderProps = {
   boardId: string;
   /** Paylaş butonu erişimi — board admin/member için `true`, viewer için `false`. */
   canShare: boolean;
+  /** Başka panoya taşıma erişimi — düzenleme yetkisi (member+) varsa `true`. */
+  canMove: boolean;
+  /** Taşıma başarıyla tamamlanınca çağrılır — kart bu panoda kalmadığı için modal kapatılır. */
+  onCardMoved?: () => void;
   boardName: string | null;
   listName: string | null;
   /** Cover image metadata; when present, the image band takes precedence over `coverColor`. */
@@ -88,6 +94,8 @@ export function CardModalHeader({
   cardId,
   boardId,
   canShare,
+  canMove,
+  onCardMoved,
   boardName,
   listName,
   coverImage = null,
@@ -103,6 +111,7 @@ export function CardModalHeader({
 }: CardModalHeaderProps) {
   const copy = strings.card.detail.modal;
   const [copied, setCopied] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   // Banner arka planı için görselin 1×1 örneklenmiş baskın rengi (CardCoverImage
   // callback'i). CORS engeli halinde `null` kalır ve `bg-muted` fallback görünür.
   const [coverBg, setCoverBg] = useState<string | null>(null);
@@ -238,6 +247,23 @@ export function CardModalHeader({
           {/* Faz 9D (DEM-130) — paylaşım dialogu ikon buton. */}
           <ShareDialog cardId={cardId} canShare={canShare} iconOnly onColored={onColored} />
 
+          {/* Kartı başka panoya taşı (icon-only). Yalnız düzenleme yetkisi varsa. */}
+          {canMove && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setMoveOpen(true)}
+                  aria-label={strings.board.moveToBoard.trigger}
+                  className={iconBtnClass}
+                >
+                  <FolderInputIcon aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{strings.board.moveToBoard.trigger}</TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Faz 10H (DEM-142) — Snooze dropdown (icon-only). */}
           <CardDetailSnooze cardId={cardId} onColored={onColored} />
 
@@ -309,6 +335,16 @@ export function CardModalHeader({
           </Tooltip>
         </div>
       </div>
+      {/* Kartı başka panoya taşıma diyalogu — başarıda modal kapanır (onCardMoved). */}
+      {moveOpen && (
+        <MoveCardToBoardDialog
+          cardId={cardId}
+          currentBoardId={boardId}
+          open={moveOpen}
+          onOpenChange={setMoveOpen}
+          onMoved={onCardMoved}
+        />
+      )}
     </div>
   );
 }

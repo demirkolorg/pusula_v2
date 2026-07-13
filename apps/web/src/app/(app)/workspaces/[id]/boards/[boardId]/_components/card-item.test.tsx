@@ -239,7 +239,9 @@ describe('<CardItem>', () => {
     expect(screen.getByRole('menuitem', { name: /sorumlular/i })).toBeInTheDocument();
     expect(screen.queryByText(/yetkililer/i)).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /son tarih/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /taşı/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Taşı' })).toBeInTheDocument();
+    // canEdit → "Başka panoya taşı…" (cross-workspace) aksiyonu da görünür.
+    expect(screen.getByRole('menuitem', { name: /başka panoya taşı/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('menuitem', { name: /kartı arşivle/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();

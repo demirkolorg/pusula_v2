@@ -1450,6 +1450,33 @@ export const strings = {
       announceQuickNoteGrabbed: 'Hızlı not kaldırıldı. Karta çevirmek için bir listeye bırakın.',
       announceDropped: 'Bırakıldı.',
     },
+    // Kartı başka bir panoya (board) taşıma diyalogu — context menü + kart
+    // detay modalı ortak. Cross-workspace: Çalışma alanı → Pano → Liste seçimi.
+    // Kaynak panodan optimistic çıkarma; server `card.moveToList` ile taşır.
+    moveToBoard: {
+      trigger: 'Başka panoya taşı…',
+      title: 'Kartı başka panoya taşı',
+      description: 'Kartı, düzenleme yetkin olan başka bir panonun listesine taşı.',
+      workspaceLabel: 'Çalışma alanı',
+      workspacePlaceholder: 'Çalışma alanı seç',
+      boardLabel: 'Pano',
+      boardPlaceholder: 'Pano seç',
+      listLabel: 'Liste',
+      listPlaceholder: 'Liste seç',
+      submit: 'Taşı',
+      submitting: 'Taşınıyor…',
+      cancel: 'İptal',
+      success: 'Kart taşındı',
+      error: 'Kart taşınamadı',
+      workspacesLoading: 'Çalışma alanları yükleniyor…',
+      workspacesEmpty: 'Çalışma alanı bulunamadı.',
+      boardsLoading: 'Panolar yükleniyor…',
+      listsLoading: 'Listeler yükleniyor…',
+      noEditableBoards: 'Bu çalışma alanında taşıyabileceğin başka pano yok.',
+      noLists: 'Bu panoda aktif liste yok.',
+      boardDisabledHint: 'Önce çalışma alanı seç.',
+      listDisabledHint: 'Önce pano seç.',
+    },
     // Planlayıcı paneli (Faz 16B / DEM-311) — sol kenarda 3. global panel.
     // Google Takvim etkinliklerini tek-gün dikey timeline'da gösterir
     // (Trello "Planlayıcı" pattern'ı). Bağlama Ayarlar > Entegrasyonlar'da

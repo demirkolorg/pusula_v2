@@ -9,6 +9,7 @@ import {
   ArchiveIcon,
   CalendarIcon,
   CircleOffIcon,
+  FolderInputIcon,
   ImageIcon,
   MoveIcon,
   Share2Icon,
@@ -78,6 +79,16 @@ import type { BoardList } from './list-column';
  */
 const ShareDialog = dynamic(
   () => import('./card-detail/share-dialog').then((mod) => mod.ShareDialog),
+  { ssr: false },
+);
+
+/**
+ * `MoveCardToBoardDialog` de aynı gerekçeyle (DEM-229 #3) lazy yüklenir: kartı
+ * başka panoya taşıma nadir bir aksiyon ve `workspace.list`/`board.list`/
+ * `board.get` ağaçlarını çeker. Yalnız `moveToBoardOpen` true iken render edilir.
+ */
+const MoveCardToBoardDialog = dynamic(
+  () => import('./card-detail/move-to-board-dialog').then((mod) => mod.MoveCardToBoardDialog),
   { ssr: false },
 );
 
@@ -250,6 +261,7 @@ function CardItemInner({
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [moveToBoardOpen, setMoveToBoardOpen] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingCoverImageRef = useRef<CoverImage | null>(null);
 
@@ -889,6 +901,15 @@ function CardItemInner({
             </ContextMenuSubContent>
           </ContextMenuSub>
 
+          {/* Kartı başka bir panoya (cross-workspace dahil) taşıma. Yalnız
+              düzenleme yetkisi olanlara gösterilir (server yine enforce eder). */}
+          {canEdit && (
+            <ContextMenuItem onSelect={() => setMoveToBoardOpen(true)}>
+              <FolderInputIcon className="size-4" aria-hidden />
+              {strings.board.moveToBoard.trigger}
+            </ContextMenuItem>
+          )}
+
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setShareOpen(true)}>
             <Share2Icon className="size-4" aria-hidden />
@@ -918,6 +939,15 @@ function CardItemInner({
             open={shareOpen}
             onOpenChange={setShareOpen}
             hideTrigger
+          />
+        )}
+        {/* Kartı başka panoya taşıma diyalogu — lazy, yalnız açıkken mount. */}
+        {moveToBoardOpen && (
+          <MoveCardToBoardDialog
+            cardId={card.id}
+            currentBoardId={boardId}
+            open={moveToBoardOpen}
+            onOpenChange={setMoveToBoardOpen}
           />
         )}
       </ContextMenu>

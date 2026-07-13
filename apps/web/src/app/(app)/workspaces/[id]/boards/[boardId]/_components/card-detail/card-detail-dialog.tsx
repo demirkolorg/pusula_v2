@@ -721,6 +721,8 @@ export function CardDetailDialog({
               cardId={cardId}
               boardId={boardId}
               canShare={canEdit}
+              canMove={canEdit}
+              onCardMoved={onClose}
               boardName={boardTitle}
               listName={listTitle}
               coverImage={card.coverImage ?? null}

@@ -66,6 +66,7 @@ function setup(overrides: Partial<Parameters<typeof CardModalHeader>[0]> = {}) {
     cardId: 'c_test',
     boardId: 'b_test',
     canShare: true,
+    canMove: true,
     boardName: 'Yol Haritası',
     listName: 'Yapılacaklar',
     archived: false,
@@ -92,6 +93,7 @@ describe('<CardModalHeader>', () => {
         cardId="c_test"
         boardId="b_test"
         canShare
+        canMove
         boardName="B"
         listName="L"
         archived={false}
@@ -107,6 +109,7 @@ describe('<CardModalHeader>', () => {
         cardId="c_test"
         boardId="b_test"
         canShare
+        canMove
         boardName="B"
         listName="L"
         archived
@@ -161,6 +164,7 @@ describe('<CardModalHeader>', () => {
         cardId="c_test"
         boardId="b_test"
         canShare
+        canMove
         boardName="B"
         listName="L"
         coverColor={null}
@@ -182,6 +186,7 @@ describe('<CardModalHeader>', () => {
         cardId="c_test"
         boardId="b_test"
         canShare
+        canMove
         boardName="B"
         listName="L"
         coverColor="mavi"
@@ -203,6 +208,7 @@ describe('<CardModalHeader>', () => {
         cardId="c_test"
         boardId="b_test"
         canShare
+        canMove
         boardName="B"
         listName="L"
         coverColor="mavi"
@@ -275,5 +281,19 @@ describe('<CardModalHeader>', () => {
     const cover = document.querySelector('[data-slot="card-modal-cover-image"]')!;
     expect(cover).toHaveAttribute('data-cover-view', 'banner');
     expect(screen.getByRole('img', { name: 'kapak.png' }).className).toMatch(/object-cover/);
+  });
+
+  it('shows the move-to-board button only when canMove is true', () => {
+    setup({ canMove: true });
+    expect(
+      screen.getByRole('button', { name: strings.board.moveToBoard.trigger }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the move-to-board button when canMove is false', () => {
+    setup({ canMove: false });
+    expect(
+      screen.queryByRole('button', { name: strings.board.moveToBoard.trigger }),
+    ).not.toBeInTheDocument();
   });
 });

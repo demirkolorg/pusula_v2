@@ -313,6 +313,8 @@ Mevcut permission kapıları (member/admin/owner) genel mutation'ları kapatıyo
 
 **Implementation:** `card.moveToList` (Faz 3E [DEM-69](https://linear.app/demirkol/issue/DEM-69)) zaten cross-board permission kontrolü içeriyor — **test eksik**. Faz 8F: Vitest matris testi (admin/member/viewer × source board + target board, 9 senaryo).
 
+> **Cross-workspace (UI):** Web'de "Başka panoya taşı" aksiyonu ([`../architecture/08-web-ve-mobil.md`](../architecture/08-web-ve-mobil.md) §8.1.8) hedef panoyu **workspace sınırı olmadan** seçtirir — kart, kullanıcının `member+` olduğu farklı bir workspace'teki panoya da taşınabilir. Yetki kuralı değişmez: kaynak + hedef board `member+` (server `resolveBoardAccess` ile enforce eder); ayrı bir workspace üyeliği koşulu **yoktur** (board üyeliği erişimi zaten kapsar).
+
 ### Edge case 6 — Workspace silme + audit retention çatışması
 
 **Senaryo:** Workspace owner workspace'i silmek istiyor; audit log satırları var (`audit_log.workspace_id` FK).
