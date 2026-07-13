@@ -3,7 +3,7 @@
 import { Suspense, use, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { boardRoleAtLeast } from '@pusula/domain';
@@ -141,6 +141,21 @@ export default function BoardDetailPage({
   // refetches on `seq` gap / reconnect. `connected` drives the disconnect banner;
   // `joined` marks deterministic room readiness for e2e sync tests.
   const realtime = useBoardRealtime(boardId, { enabled: hasBoardAccess && board.isSuccess });
+  // Pano taşıma (2026-07-13) — canonical URL. Board URL'si workspace segmenti
+  // taşır; pano başka çalışma alanına taşındığında (realtime
+  // `board.movedToWorkspace` patch'i veya bayat bir link/bildirim ile
+  // gelindiğinde) cache'teki gerçek `workspaceId` URL'dekinden sapar. Sapınca
+  // karta/aramaya ait query paramlarını koruyarak canonical adrese geç.
+  // (`useSearchParams` bu sayfada bilinçli olarak Suspense içinde — effect
+  // client-only olduğundan `window.location.search` yeterli.)
+  const router = useRouter();
+  const canonicalWorkspaceId = board.data?.board.workspaceId;
+  useEffect(() => {
+    if (!canonicalWorkspaceId || canonicalWorkspaceId === workspaceId) return;
+    router.replace(
+      `/workspaces/${encodeURIComponent(canonicalWorkspaceId)}/boards/${encodeURIComponent(boardId)}${window.location.search}`,
+    );
+  }, [canonicalWorkspaceId, workspaceId, boardId, router]);
   // Viewer identity drives the per-viewer "assigned to me" filter; it is not
   // needed for authorization (that stays server-side).
   const session = useSession();

@@ -25,7 +25,11 @@ import {
   comments,
   labels,
   lists,
+  notifications,
+  shareLinks,
   users,
+  workspaceMembers,
+  workspaces,
 } from '@pusula/db';
 import {
   activityEventTypeSchema,
@@ -35,6 +39,7 @@ import {
   createBoardInput,
   effectiveBoardRole,
   idSchema,
+  moveBoardToWorkspaceInput,
   setBoardFavoriteInput,
   updateBoardInput,
   type BoardRole,
@@ -973,6 +978,205 @@ export const boardRouter = router({
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
     return result;
   }),
+
+  /**
+   * Panoyu tüm içeriğiyle başka workspace'e taşır (2026-07-13). Board `admin`
+   * **ve** hedef workspace `member+` (`guest` hariç — `board.create` simetrisi)
+   * ister. Yalnız `boards.workspace_id` değişir; board-scope child satırlar
+   * (`lists`/`cards`/`labels`/`checklists`/`comments`/`attachments`/üyeler/
+   * davetler) `board_id` üzerinden bağlı olduğu için kendiliğinden gelir.
+   *
+   * Aynı transaction'da:
+   *  - hedef workspace'te üyeliği olmayan explicit board üyeleri workspace
+   *    `guest` yapılır (board davet kabulü / erişim talebi onayı emsali —
+   *    invariant 13; kişi başına `workspace.member_added` activity);
+   *  - denormalize `workspace_id` alanları hedefe taşınır: `activity_events`
+   *    (pano geçmişi panoyla gider), `notifications` (kolon + payload —
+   *    eski bildirim deep-link'leri kırılmasın), `share_links` (board'un
+   *    kartlarına ait) ve `search_documents` (scope re-sync). `audit_log`
+   *    tarihsel kayıt olarak taşınmaz; `notification_outbox` scope kolonu
+   *    taşımaz (scope payload'da — pending penceresini canonical redirect
+   *    telafi eder).
+   *
+   * Activity: tek `board.moved_workspace` (hedef workspace'e). **Bildirim
+   * üretmez** (v1 — `mapEventToNotificationType` null döner). Realtime
+   * `board.movedToWorkspace` board odasına yayınlanır; `boards.version` artar.
+   * İdempotent: hedef = mevcut workspace → `changed: false`, yazma yok.
+   * Kurallar: `docs/domain/02-yetkilendirme-kurallari.md` CRUD haritası.
+   */
+  moveToWorkspace: boardProcedure
+    .input(moveBoardToWorkspaceInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!canManageBoard(accessFromBoardRole(ctx.board.role))) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Panoyu taşıma yetkiniz yok.' });
+      }
+
+      let realtimeEventId: string | undefined;
+      const result = await ctx.db.transaction(async (tx) => {
+        const [current] = await tx
+          .select(boardCols)
+          .from(boards)
+          .where(eq(boards.id, ctx.board.id))
+          .limit(1);
+        if (!current) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+        }
+        if (current.archivedAt) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board taşınamaz.' });
+        }
+        if (current.workspaceId === input.toWorkspaceId) {
+          return { ...current, role: ctx.board.role, changed: false as const };
+        }
+
+        const [target] = await tx
+          .select({ id: workspaces.id, name: workspaces.name, archivedAt: workspaces.archivedAt })
+          .from(workspaces)
+          .where(eq(workspaces.id, input.toWorkspaceId))
+          .limit(1);
+        if (!target) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Hedef workspace bulunamadı.' });
+        }
+        if (target.archivedAt) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: "Arşivli workspace'e pano taşınamaz.",
+          });
+        }
+
+        const [targetMembership] = await tx
+          .select({ role: workspaceMembers.role })
+          .from(workspaceMembers)
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, input.toWorkspaceId),
+              eq(workspaceMembers.userId, ctx.session.user.id),
+            ),
+          )
+          .limit(1);
+        if (!targetMembership || targetMembership.role === 'guest') {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: "Hedef çalışma alanında pano taşıma yetkiniz yok.",
+          });
+        }
+
+        const [source] = await tx
+          .select({ name: workspaces.name })
+          .from(workspaces)
+          .where(eq(workspaces.id, current.workspaceId))
+          .limit(1);
+
+        const [updated] = await tx
+          .update(boards)
+          .set({ workspaceId: input.toWorkspaceId, version: sql`${boards.version} + 1` })
+          .where(eq(boards.id, ctx.board.id))
+          .returning(boardCols);
+        if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+        // Hedef workspace'te üyeliği olmayan explicit board üyelerini `guest`
+        // yap — board rolleri değişmediği için erişimleri kesintisiz sürer.
+        const explicitMembers = await tx
+          .select({ userId: boardMembers.userId })
+          .from(boardMembers)
+          .where(eq(boardMembers.boardId, ctx.board.id));
+        const targetMembers = await tx
+          .select({ userId: workspaceMembers.userId })
+          .from(workspaceMembers)
+          .where(eq(workspaceMembers.workspaceId, input.toWorkspaceId));
+        const targetMemberIds = new Set(targetMembers.map((m) => m.userId));
+        const missingMemberIds = explicitMembers
+          .map((m) => m.userId)
+          .filter((userId) => !targetMemberIds.has(userId));
+        if (missingMemberIds.length > 0) {
+          const insertedGuests = await tx
+            .insert(workspaceMembers)
+            .values(
+              missingMemberIds.map((userId) => ({
+                workspaceId: input.toWorkspaceId,
+                userId,
+                role: 'guest' as const,
+              })),
+            )
+            .onConflictDoNothing()
+            .returning({ userId: workspaceMembers.userId });
+          if (insertedGuests.length > 0) {
+            await tx.insert(activityEvents).values(
+              insertedGuests.map(({ userId }) => ({
+                workspaceId: input.toWorkspaceId,
+                actorId: ctx.session.user.id,
+                type: 'workspace.member_added' as const,
+                payload: { userId, role: 'guest', viaBoardMove: ctx.board.id },
+              })),
+            );
+          }
+        }
+
+        // Denormalize `workspace_id` alanlarını hedefe taşı. Board'un geçmiş
+        // activity satırları panoyla gider; bildirim satırlarının hem kolonu
+        // (FK cascade doğruluğu — kaynak workspace silinirse pano bildirimleri
+        // kaybolmasın) hem payload'daki `workspaceId` (web/mobil deep-link
+        // buradan kurulur) güncellenir; share link'ler workspace-scope
+        // envanter/audit görünümü için taşınır. `notification_outbox` scope
+        // kolonu taşımaz (scope payload'dadır; pending satır penceresi küçük —
+        // bayat deep-link'i board ekranının canonical redirect'i telafi eder).
+        // `audit_log` bilinçli olarak taşınmaz.
+        await tx
+          .update(activityEvents)
+          .set({ workspaceId: input.toWorkspaceId })
+          .where(eq(activityEvents.boardId, ctx.board.id));
+        await tx
+          .update(notifications)
+          .set({
+            workspaceId: input.toWorkspaceId,
+            payload: sql`CASE WHEN ${notifications.payload} ? 'workspaceId' THEN jsonb_set(${notifications.payload}, '{workspaceId}', to_jsonb(${input.toWorkspaceId}::text)) ELSE ${notifications.payload} END`,
+          })
+          .where(eq(notifications.boardId, ctx.board.id));
+        await tx
+          .update(shareLinks)
+          .set({ workspaceId: input.toWorkspaceId })
+          .where(
+            inArray(
+              shareLinks.cardId,
+              tx.select({ id: cards.id }).from(cards).where(eq(cards.boardId, ctx.board.id)),
+            ),
+          );
+
+        const movedPayload = {
+          fromWorkspaceId: current.workspaceId,
+          toWorkspaceId: input.toWorkspaceId,
+          ...(source ? { fromWorkspaceName: source.name } : {}),
+          toWorkspaceName: target.name,
+          clientMutationId: ctx.clientMutationId,
+        };
+        await tx.insert(activityEvents).values({
+          workspaceId: input.toWorkspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          type: 'board.moved_workspace',
+          payload: movedPayload,
+        });
+
+        realtimeEventId = await insertRealtimeEvent(tx, {
+          type: 'board.movedToWorkspace',
+          workspaceId: input.toWorkspaceId,
+          boardId: ctx.board.id,
+          actorId: ctx.session.user.id,
+          clientMutationId: ctx.clientMutationId,
+          seq: updated.version,
+          data: {
+            boardId: ctx.board.id,
+            fromWorkspaceId: current.workspaceId,
+            toWorkspaceId: input.toWorkspaceId,
+          },
+        });
+
+        await syncSearchDocumentsForScope(tx, { boardId: ctx.board.id });
+
+        return { ...updated, role: ctx.board.role, changed: true as const };
+      });
+      maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+      return result;
+    }),
 
   /**
    * DEM-192 — toggle the calling user's favorite state for a board. Favorites

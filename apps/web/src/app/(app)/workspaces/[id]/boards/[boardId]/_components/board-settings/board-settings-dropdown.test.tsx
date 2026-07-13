@@ -29,6 +29,7 @@ function renderDropdown(activeTab: BoardSettingsTab, canManage = true) {
       onOpenChange={vi.fn()}
       onActiveTabChange={vi.fn()}
       onRename={vi.fn()}
+      onMoveToWorkspace={vi.fn()}
       onArchive={vi.fn()}
       onRestore={vi.fn()}
       restorePending={false}
@@ -50,6 +51,13 @@ describe('<BoardSettingsDropdown>', () => {
   it('renders the board icon picker on the actions tab', () => {
     renderDropdown('actions');
     expect(screen.getByText('board icon picker')).toBeInTheDocument();
+  });
+
+  it('exposes the move-to-workspace action on the actions tab (pano taşıma, 2026-07-13)', () => {
+    renderDropdown('actions');
+    expect(
+      screen.getByRole('menuitem', { name: /Başka çalışma alanına taşı/ }),
+    ).toBeInTheDocument();
   });
 
   it('no longer exposes the membership or labels tabs', () => {

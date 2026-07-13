@@ -1523,6 +1523,25 @@ export const strings = {
       boardDisabledHint: 'Önce çalışma alanı seç.',
       listDisabledHint: 'Önce pano seç.',
     },
+    // Pano taşıma (2026-07-13) — pano ayarları "Eylemler" sekmesindeki
+    // "Başka çalışma alanına taşı…" aksiyonu + MoveBoardToWorkspaceDialog.
+    moveToWorkspace: {
+      trigger: 'Başka çalışma alanına taşı…',
+      title: 'Panoyu başka çalışma alanına taşı',
+      description:
+        'Pano; tüm listeleri, kartları ve üyeleriyle birlikte seçtiğin çalışma alanına taşınır.',
+      workspaceLabel: 'Hedef çalışma alanı',
+      workspacePlaceholder: 'Çalışma alanı seç',
+      workspacesLoading: 'Çalışma alanları yükleniyor…',
+      noTargets: 'Taşıyabileceğin başka çalışma alanı yok.',
+      membersNote:
+        'Hedef çalışma alanında üyeliği olmayan pano üyeleri misafir olarak eklenir; pano rolleri değişmez.',
+      submit: 'Taşı',
+      submitting: 'Taşınıyor…',
+      cancel: 'İptal',
+      success: 'Pano taşındı',
+      error: 'Pano taşınamadı',
+    },
     // Planlayıcı paneli (Faz 16B / DEM-311) — sol kenarda 3. global panel.
     // Google Takvim etkinliklerini tek-gün dikey timeline'da gösterir
     // (Trello "Planlayıcı" pattern'ı). Bağlama Ayarlar > Entegrasyonlar'da
@@ -1699,6 +1718,7 @@ export const strings = {
         'board.updated': 'panoyu güncelledi',
         'board.renamed': 'panoyu yeniden adlandırdı',
         'board.archived': 'panoyu arşivledi',
+        'board.moved_workspace': 'panoyu başka çalışma alanına taşıdı',
         'board.background_changed': 'pano arka planını değiştirdi',
         'board.background_cleared': 'pano arka planını kaldırdı',
         'board.access_requested': 'panoya erişim istedi',

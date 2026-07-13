@@ -13,7 +13,9 @@ import {
   cards,
   lists,
   notificationOutbox,
+  notifications,
   realtimeEvents,
+  searchDocuments,
   users,
   workspaceMembers,
   workspaces,
@@ -1325,6 +1327,283 @@ describe.runIf(dbAvailable)('board router — realtime outbox (Faz 5B / DEM-84)'
     const rt2 = await rtEventsFor(board.id);
     expect(rt2.filter((e) => e.type === 'board.archived')).toHaveLength(1);
     expect(enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe.runIf(dbAvailable)('board.moveToWorkspace (2026-07-13)', () => {
+  const db = () => probe!.db;
+  // Kaynak workspace sahibi, panoyu taşıyan board admin (kaynak `member`),
+  // hedef workspace'te üyeliği olmayan explicit board üyesi (kaynak `guest`).
+  const mvOwner = newId('u-mv-owner');
+  const mvAdmin = newId('u-mv-admin');
+  const mvBuddy = newId('u-mv-buddy');
+  const mvUserIds = [mvOwner, mvAdmin, mvBuddy];
+  let sourceWsId: string;
+  let targetWsId: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values(mvUserIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+    const source = await callerFor(mvOwner).workspace.create({
+      name: 'Move Source',
+      slug: newSlug('mv-source'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    sourceWsId = source.id;
+    const target = await callerFor(mvOwner).workspace.create({
+      name: 'Move Target',
+      slug: newSlug('mv-target'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    targetWsId = target.id;
+    createdWorkspaceIds.push(source.id, target.id);
+    await db()
+      .insert(workspaceMembers)
+      .values([
+        { workspaceId: sourceWsId, userId: mvAdmin, role: 'member' },
+        { workspaceId: sourceWsId, userId: mvBuddy, role: 'guest' },
+      ]);
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    for (const id of mvUserIds) {
+      await db().delete(users).where(dbMod.eq(users.id, id));
+    }
+  });
+
+  function realtimeCaller(userId: string, enqueueRealtimePublish: EnqueueRealtimePublish) {
+    const create = createCallerFactory(appRouter);
+    return create(createContext({ session: session(userId), db: db(), enqueueRealtimePublish }));
+  }
+
+  async function createBoardWithBuddy(title: string) {
+    const board = await callerFor(mvAdmin).board.create({
+      workspaceId: sourceWsId,
+      title,
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Explicit board üyesi (kaynak workspace guest'i) — taşımada hedefte
+    // `guest` provizyonu bu satır üzerinden doğrulanır.
+    await db().insert(boardMembers).values({ boardId: board.id, userId: mvBuddy, role: 'member' });
+    return board;
+  }
+
+  it('yetki: board admin olmayan, hedefte üyeliği olmayan ve hedefte guest olan çağrılar FORBIDDEN', async () => {
+    const board = await createBoardWithBuddy('Yetki Panosu');
+
+    // mvBuddy explicit board `member` — board admin değil.
+    await expect(
+      callerFor(mvBuddy).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: targetWsId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // mvAdmin board admin ama hedef workspace üyesi değil.
+    await expect(
+      callerFor(mvAdmin).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: targetWsId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // Hedefte yalnızca `guest` üyelik de yetmez (board.create simetrisi).
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: targetWsId, userId: mvAdmin, role: 'guest' });
+    await expect(
+      callerFor(mvAdmin).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: targetWsId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await db()
+      .delete(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, targetWsId),
+          dbMod.eq(workspaceMembers.userId, mvAdmin),
+        ),
+      );
+  });
+
+  it('taşıma: workspaceId + version + activity + realtime + guest provizyonu + denormalize alanlar', async () => {
+    const board = await createBoardWithBuddy('Taşınacak Pano');
+    // Deep-link payload'lı bir bildirim satırı — kolon + payload taşınmalı.
+    await db()
+      .insert(notifications)
+      .values({
+        recipientId: mvBuddy,
+        actorId: mvAdmin,
+        type: 'watched_activity',
+        workspaceId: sourceWsId,
+        boardId: board.id,
+        payload: { workspaceId: sourceWsId, boardId: board.id },
+      });
+    // mvAdmin hedefte artık `member` — taşıyabilir.
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: targetWsId, userId: mvAdmin, role: 'member' });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const moved = await realtimeCaller(mvAdmin, enqueue).board.moveToWorkspace({
+      boardId: board.id,
+      toWorkspaceId: targetWsId,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(moved).toMatchObject({
+      id: board.id,
+      workspaceId: targetWsId,
+      version: board.version + 1,
+      changed: true,
+    });
+
+    // Tek `board.moved_workspace` activity, hedef workspace'e, adlarla birlikte.
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(dbMod.eq(activityEvents.boardId, board.id));
+    const movedActs = acts.filter((a) => a.type === 'board.moved_workspace');
+    expect(movedActs).toHaveLength(1);
+    expect(movedActs[0]).toMatchObject({
+      workspaceId: targetWsId,
+      payload: {
+        fromWorkspaceId: sourceWsId,
+        toWorkspaceId: targetWsId,
+        fromWorkspaceName: 'Move Source',
+        toWorkspaceName: 'Move Target',
+      },
+    });
+    // Pano geçmişi panoyla gitti — board'a bağlı tüm activity satırları hedefte.
+    expect(acts.every((a) => a.workspaceId === targetWsId)).toBe(true);
+
+    // Realtime `board.movedToWorkspace` outbox satırı + enqueue.
+    const rt = await db()
+      .select()
+      .from(realtimeEvents)
+      .where(dbMod.eq(realtimeEvents.boardId, board.id));
+    const rtMoved = rt.filter((e) => e.type === 'board.movedToWorkspace');
+    expect(rtMoved).toHaveLength(1);
+    expect(rtMoved[0]!.workspaceId).toBe(targetWsId);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+
+    // mvBuddy hedef workspace'e `guest` olarak eklendi (board rolü değişmedi).
+    const [buddyMembership] = await db()
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, targetWsId),
+          dbMod.eq(workspaceMembers.userId, mvBuddy),
+        ),
+      );
+    expect(buddyMembership).toMatchObject({ role: 'guest' });
+    // mvAdmin zaten hedef `member` — dokunulmadı.
+    const [adminMembership] = await db()
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(
+        dbMod.and(
+          dbMod.eq(workspaceMembers.workspaceId, targetWsId),
+          dbMod.eq(workspaceMembers.userId, mvAdmin),
+        ),
+      );
+    expect(adminMembership).toMatchObject({ role: 'member' });
+
+    // Bildirim: kolon + payload `workspaceId` hedefe döndü.
+    const [notif] = await db()
+      .select()
+      .from(notifications)
+      .where(dbMod.eq(notifications.boardId, board.id));
+    expect(notif!.workspaceId).toBe(targetWsId);
+    expect((notif!.payload as { workspaceId?: string }).workspaceId).toBe(targetWsId);
+
+    // Search document scope re-sync.
+    const [searchDoc] = await db()
+      .select({ workspaceId: searchDocuments.workspaceId })
+      .from(searchDocuments)
+      .where(
+        dbMod.and(
+          dbMod.eq(searchDocuments.entityType, 'board'),
+          dbMod.eq(searchDocuments.entityId, board.id),
+        ),
+      );
+    expect(searchDoc).toMatchObject({ workspaceId: targetWsId });
+
+    // İdempotent no-op: hedef zaten mevcut workspace → yazma yok.
+    enqueue.mockClear();
+    const noop = await realtimeCaller(mvAdmin, enqueue).board.moveToWorkspace({
+      boardId: board.id,
+      toWorkspaceId: targetWsId,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(noop).toMatchObject({ workspaceId: targetWsId, version: moved.version, changed: false });
+    expect(enqueue).not.toHaveBeenCalled();
+    const actsAfterNoop = await db()
+      .select()
+      .from(activityEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(activityEvents.boardId, board.id),
+          dbMod.eq(activityEvents.type, 'board.moved_workspace'),
+        ),
+      );
+    expect(actsAfterNoop).toHaveLength(1);
+  });
+
+  it('hata: arşivli board BAD_REQUEST, bilinmeyen hedef NOT_FOUND, arşivli hedef BAD_REQUEST', async () => {
+    const board = await callerFor(mvAdmin).board.create({
+      workspaceId: sourceWsId,
+      title: 'Hata Panosu',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    await expect(
+      callerFor(mvAdmin).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: newId('ws-missing'),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    const archivedWs = await callerFor(mvAdmin).workspace.create({
+      name: 'Arşivli Hedef',
+      slug: newSlug('mv-archived'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    createdWorkspaceIds.push(archivedWs.id);
+    await db()
+      .update(workspaces)
+      .set({ archivedAt: new Date() })
+      .where(dbMod.eq(workspaces.id, archivedWs.id));
+    await expect(
+      callerFor(mvAdmin).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: archivedWs.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await callerFor(mvAdmin).board.archive({
+      boardId: board.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(mvAdmin).board.moveToWorkspace({
+        boardId: board.id,
+        toWorkspaceId: targetWsId,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
 

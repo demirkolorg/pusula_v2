@@ -29,6 +29,8 @@ vi.mock('next/link', () => ({
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
+  // Pano taşıma (2026-07-13) — canonical workspace redirect'i `router.replace` kullanır.
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({

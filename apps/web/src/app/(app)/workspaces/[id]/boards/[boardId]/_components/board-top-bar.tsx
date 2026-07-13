@@ -37,6 +37,7 @@ import {
   BoardSettingsDropdown,
   type BoardSettingsTab,
 } from './board-settings/board-settings-dropdown';
+import { MoveBoardToWorkspaceDialog } from './board-settings/move-board-to-workspace-dialog';
 import { RenameBoardForm } from './rename-board-form';
 import { SearchDialog } from '../../../../../_components/search-dialog';
 
@@ -246,6 +247,7 @@ export function BoardTopBar({
 
   const [renaming, setRenaming] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [moveWorkspaceDialogOpen, setMoveWorkspaceDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<BoardSettingsTab>('background');
   const restoreBoard = useRestoreBoard(boardId);
@@ -350,6 +352,7 @@ export function BoardTopBar({
           onOpenChange={setSettingsOpen}
           onActiveTabChange={setSettingsTab}
           onRename={startRenamingFromMenu}
+          onMoveToWorkspace={() => setMoveWorkspaceDialogOpen(true)}
           onArchive={() => setArchiveDialogOpen(true)}
           onRestore={() =>
             restoreBoard.mutate({
@@ -369,6 +372,12 @@ export function BoardTopBar({
             open={archiveDialogOpen}
             onOpenChange={setArchiveDialogOpen}
             hideTrigger
+          />
+          <MoveBoardToWorkspaceDialog
+            boardId={boardId}
+            currentWorkspaceId={workspaceId}
+            open={moveWorkspaceDialogOpen}
+            onOpenChange={setMoveWorkspaceDialogOpen}
           />
         </>
       )}

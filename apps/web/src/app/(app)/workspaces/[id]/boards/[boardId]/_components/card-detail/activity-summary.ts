@@ -53,6 +53,13 @@ export function summarizeCardActivity(event: CardActivityEvent, unknownActor: st
         typeof p === 'object' && p !== null ? (p as Record<string, unknown>).archived : undefined;
       return archived === false ? `${who} panoyu geri yükledi` : `${who} panoyu arşivledi`;
     }
+    case 'board.moved_workspace': {
+      const from = str(p, 'fromWorkspaceName');
+      const to = str(p, 'toWorkspaceName');
+      return from && to
+        ? `${who} panoyu “${from}” → “${to}” çalışma alanına taşıdı`
+        : `${who} panoyu başka bir çalışma alanına taşıdı`;
+    }
     case 'board.background_changed':
       return `${who} panonun arka planını değiştirdi`;
     case 'board.background_cleared':

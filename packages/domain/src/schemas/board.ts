@@ -42,6 +42,18 @@ export const archiveBoardInput = z.object({
   ...withClientMutationId,
 });
 
+/**
+ * `board.moveToWorkspace` input — panoyu tüm içeriğiyle başka workspace'e
+ * taşır (2026-07-13). Board `admin` + hedef workspace `member+` (`guest`
+ * hariç) ister; hedef = mevcut workspace idempotent no-op. Kurallar:
+ * `docs/domain/02-yetkilendirme-kurallari.md` CRUD haritası.
+ */
+export const moveBoardToWorkspaceInput = z.object({
+  boardId: idSchema,
+  toWorkspaceId: idSchema,
+  ...withClientMutationId,
+});
+
 // --------------------------------------------------------------------------
 // Phase 2.5C (DEM-52) — board member management (`board.members.*`) and the
 // token-based board invitation flow (`board.invitations.*`). These all carry
@@ -135,6 +147,7 @@ export const rejectBoardAccessRequestInput = z.object({
 export type CreateBoardInput = z.infer<typeof createBoardInput>;
 export type UpdateBoardInput = z.infer<typeof updateBoardInput>;
 export type ArchiveBoardInput = z.infer<typeof archiveBoardInput>;
+export type MoveBoardToWorkspaceInput = z.infer<typeof moveBoardToWorkspaceInput>;
 export type ListBoardMembersInput = z.infer<typeof listBoardMembersInput>;
 export type AddBoardMemberInput = z.infer<typeof addBoardMemberInput>;
 export type UpdateBoardMemberRoleInput = z.infer<typeof updateBoardMemberRoleInput>;

@@ -23,6 +23,7 @@
  *   - `card.deleted`    → `{ cardId, listId }`   (Faz 17 — hard delete)
  *   - `board.updated`   → `{ patch }`
  *   - `board.archived`  → `{ archived }`
+ *   - `board.movedToWorkspace` → `{ boardId, fromWorkspaceId, toWorkspaceId }` (pano taşıma, 2026-07-13)
  *
  * Spec: `05-board-mekanigi.md` §5.3, `08-web-ve-mobil.md` §8.1.10.
  */
@@ -90,6 +91,8 @@ export interface RealtimeFilters {
   boardAccessRequests?: (boardId: string) => QueryFilters;
   /** `attachment.list({ cardId })` filter factory — Faz 11D (DEM-150). */
   attachments?: (cardId: string) => QueryFilters;
+  /** `board.list({ workspaceId })` filter factory — pano taşıma (2026-07-13) iki workspace'in listesini tazeler. */
+  boardList?: (workspaceId: string) => QueryFilters;
 }
 
 type Payload = Record<string, unknown>;
@@ -606,6 +609,23 @@ export function dispatchRealtimeEvent(
       setBoard(qc, filters, (data) =>
         applyBoardPatch(data, { archivedAt } as Partial<BoardCache['board']>),
       );
+      return;
+    }
+    case 'board.movedToWorkspace': {
+      // Pano taşıma (2026-07-13) — `board.get` cache'ine yeni `workspaceId`
+      // patch'lenir; board ekranı cache'teki workspaceId URL'den sapınca
+      // canonical URL'ye `router.replace` eder. Kaynak + hedef workspace'in
+      // `board.list` cache'leri tazelenir (pano bir listeden düşer, diğerine girer).
+      const toWorkspaceId = stringField(payload, 'toWorkspaceId');
+      const fromWorkspaceId = stringField(payload, 'fromWorkspaceId');
+      if (!toWorkspaceId) return;
+      setBoard(qc, filters, (data) =>
+        applyBoardPatch(data, { workspaceId: toWorkspaceId } as Partial<BoardCache['board']>),
+      );
+      if (filters.boardList) {
+        if (fromWorkspaceId) void qc.invalidateQueries(filters.boardList(fromWorkspaceId));
+        void qc.invalidateQueries(filters.boardList(toWorkspaceId));
+      }
       return;
     }
     case 'comment.created': {

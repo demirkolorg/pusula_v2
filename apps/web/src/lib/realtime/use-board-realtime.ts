@@ -102,6 +102,7 @@ export function useBoardRealtime(
       boardAccessRequests: (boardId: string) =>
         cacheKeysRef.current.boardAccessRequests(boardId),
       attachments: (cardId: string) => cacheKeysRef.current.attachments(cardId),
+      boardList: (workspaceId: string) => cacheKeysRef.current.boards(workspaceId),
     };
     // Read the current `boards.version` straight from the cache. If multiple
     // queries match the filter (shouldn't, in practice — one board, one entry),

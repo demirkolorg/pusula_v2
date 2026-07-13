@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  FolderInputIcon,
   KeyRoundIcon,
   PaletteIcon,
   PencilIcon,
@@ -58,6 +59,8 @@ type BoardSettingsDropdownProps = {
   onOpenChange: (open: boolean) => void;
   onActiveTabChange: (tab: BoardSettingsTab) => void;
   onRename: () => void;
+  /** Pano taşıma (2026-07-13) — "Başka çalışma alanına taşı…" diyalogunu açar. */
+  onMoveToWorkspace: () => void;
   onArchive: () => void;
   onRestore: () => void;
   restorePending: boolean;
@@ -107,6 +110,7 @@ export function BoardSettingsDropdown({
   onOpenChange,
   onActiveTabChange,
   onRename,
+  onMoveToWorkspace,
   onArchive,
   onRestore,
   restorePending,
@@ -208,6 +212,12 @@ export function BoardSettingsDropdown({
                     <DropdownMenuItem onSelect={onRename} disabled={!canManage}>
                       <PencilIcon />
                       {topCopy.menuRename}
+                    </DropdownMenuItem>
+                  )}
+                  {!archived && (
+                    <DropdownMenuItem onSelect={onMoveToWorkspace} disabled={!canManage}>
+                      <FolderInputIcon />
+                      {strings.board.moveToWorkspace.trigger}
                     </DropdownMenuItem>
                   )}
                   {archived ? (

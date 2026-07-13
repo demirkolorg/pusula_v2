@@ -114,6 +114,18 @@ vi.mock('@/trpc/client', () => ({
       update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       get: { queryFilter: () => ({}) },
+      list: { queryFilter: () => ({}) },
+      // Pano taşıma (2026-07-13) — MoveBoardToWorkspaceDialog top bar'da mount edilir.
+      moveToWorkspace: { mutationOptions: (o: unknown) => o },
+    },
+    workspace: {
+      list: {
+        queryOptions: (_input: unknown, options?: { enabled?: boolean }) => ({
+          queryKey: ['workspace.list'],
+          enabled: options?.enabled,
+        }),
+        queryFilter: () => ({}),
+      },
     },
     card: {
       archive: { mutationOptions: (o: unknown) => o },

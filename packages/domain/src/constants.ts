@@ -135,6 +135,12 @@ export const ACTIVITY_EVENT_TYPES = [
   // dokunulmadan çalışır). Appended to keep the Postgres enum append-only.
   // See `docs/domain/05-aktivite-kurallari.md`.
   'checklist.bulk_imported',
+  // Pano taşıma (2026-07-13) — `board.moveToWorkspace` gerçek taşımada tek
+  // özet activity yazar; payload `{ fromWorkspaceId, toWorkspaceId,
+  // fromWorkspaceName, toWorkspaceName }`. Bildirim üretmez (v1 —
+  // `mapEventToNotificationType` null döner). Appended to keep the Postgres
+  // enum append-only. See `docs/domain/05-aktivite-kurallari.md`.
+  'board.moved_workspace',
 ] as const;
 
 /**
