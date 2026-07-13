@@ -9,6 +9,7 @@ import { appRouter, type RealtimeEmit } from '@pusula/api';
 import { auth } from './auth';
 import { env } from './env';
 import { boardReportRoute } from './routes/board-report';
+import { publicApiRoute } from './routes/public-api';
 import { shareRoute } from './routes/share';
 import { buildTrpcContext } from './trpc';
 
@@ -101,6 +102,12 @@ app.route('/share', shareRoute);
 // `apps/api`'ye taşındı. `GET /api/boards/:boardId/report` → senkron PDF
 // render + attachment stream. Bkz. `src/routes/board-report.ts`. ---
 app.route('/api/boards', boardReportRoute);
+
+// --- Public API + Bot Erişimi (Task 4): `/api/v1` bot REST yüzeyi. API key
+// kimlikli; body limit (1MB) + apiKeyAuth + per-key Redis rate limit alt-app
+// içinde. CORS'a bilinçli olarak açılmaz (server-to-server). Bkz.
+// `src/routes/public-api/index.ts`. ---
+app.route('/api/v1', publicApiRoute);
 
 // --- Better Auth: owns /api/auth/* (sign-up / sign-in / session / ...) ---
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));

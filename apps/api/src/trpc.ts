@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { Context as HonoContext } from 'hono';
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
-import { createContext, type Context } from '@pusula/api';
+import { createContext, type Context, type CreateContextOptions } from '@pusula/api';
 import { getRealtimeEmit } from './app';
 import { env } from './env';
 import { enqueueAttachmentCleanup } from './attachment-cleanup-queue';
@@ -13,40 +13,28 @@ import { enqueueRealtimePublish } from './realtime-publish-queue';
 import { reportCache } from './report-cache';
 import { enqueueReportRender } from './report-render-queue';
 
-/** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
-export async function buildTrpcContext(
-  _opts: FetchCreateContextFnOptions,
+/**
+ * Session-bağımsız, host'un enjekte ettiği best-effort bağımlılık seti
+ * (`requestId`/`ip`/`userAgent` korelasyon alanları + `enqueue*` outbox
+ * producer'ları + `realtime` emit + `objectStorage` + `reportCache`). Hem
+ * `buildTrpcContext` (Better Auth session yolu) hem `createPublicApiCaller`
+ * (bot API key yolu, `src/public-api/caller.ts`) aynı seti paylaşır — bir
+ * mutation'ın activity + realtime + notification zinciri her iki girişte de
+ * aynı çalışır (plan "Riskler": caller-context uyumu). `session`,
+ * `workerSharedSecret`, `printVerifyTokenSecret`, `googleCalendar` gibi
+ * kimliğe/oturuma özgü alanlar burada **değil**; çağıran ekler.
+ */
+export function buildHostContextDeps(
   c: HonoContext,
-): Promise<Context> {
-  const headers = c.req.raw.headers;
-  const sessionData = await auth.api.getSession({ headers });
-
-  // Faz 13I (DEM-265) — Worker `report.print.requestToken` çağrısı için
-  // `x-worker-secret` header doğrulaması. `timingSafeEqual` ile sabit-süreli
-  // compare; length mismatch → erken `false` (timingSafeEqual aksi halde
-  // throw eder). Eşleşmezse ctx `workerSharedSecret` undefined kalır →
-  // procedure UNAUTHORIZED.
-  const workerHeader = c.req.header('x-worker-secret');
-  const workerSharedSecret = (() => {
-    if (!workerHeader || !env.WORKER_SHARED_SECRET) return undefined;
-    const expected = Buffer.from(env.WORKER_SHARED_SECRET, 'utf8');
-    const actual = Buffer.from(workerHeader, 'utf8');
-    if (actual.length !== expected.length) return undefined;
-    return timingSafeEqual(actual, expected) ? env.WORKER_SHARED_SECRET : undefined;
-  })();
-
-  return createContext({
-    session: sessionData
-      ? {
-          user: {
-            id: sessionData.user.id,
-            email: sessionData.user.email,
-            name: sessionData.user.name,
-            image: sessionData.user.image ?? null,
-          },
-          sessionId: sessionData.session.id,
-        }
-      : null,
+): Omit<
+  CreateContextOptions,
+  | 'session'
+  | 'db'
+  | 'workerSharedSecret'
+  | 'printVerifyTokenSecret'
+  | 'googleCalendar'
+> {
+  return {
     requestId: c.get('requestId') as string | undefined,
     ip: c.req.header('x-forwarded-for') ?? null,
     userAgent: c.req.header('user-agent') ?? null,
@@ -83,6 +71,47 @@ export async function buildTrpcContext(
     // (operator manuel re-enqueue ile alabilir, 13P retention worker'ı
     // ileride eski 'queued' satırları sweeper edebilir).
     enqueueReportRender,
+  };
+}
+
+/** Builds the tRPC request context from a Hono request, resolving the Better Auth session. */
+export async function buildTrpcContext(
+  _opts: FetchCreateContextFnOptions,
+  c: HonoContext,
+): Promise<Context> {
+  const headers = c.req.raw.headers;
+  const sessionData = await auth.api.getSession({ headers });
+
+  // Faz 13I (DEM-265) — Worker `report.print.requestToken` çağrısı için
+  // `x-worker-secret` header doğrulaması. `timingSafeEqual` ile sabit-süreli
+  // compare; length mismatch → erken `false` (timingSafeEqual aksi halde
+  // throw eder). Eşleşmezse ctx `workerSharedSecret` undefined kalır →
+  // procedure UNAUTHORIZED.
+  const workerHeader = c.req.header('x-worker-secret');
+  const workerSharedSecret = (() => {
+    if (!workerHeader || !env.WORKER_SHARED_SECRET) return undefined;
+    const expected = Buffer.from(env.WORKER_SHARED_SECRET, 'utf8');
+    const actual = Buffer.from(workerHeader, 'utf8');
+    if (actual.length !== expected.length) return undefined;
+    return timingSafeEqual(actual, expected) ? env.WORKER_SHARED_SECRET : undefined;
+  })();
+
+  return createContext({
+    session: sessionData
+      ? {
+          user: {
+            id: sessionData.user.id,
+            email: sessionData.user.email,
+            name: sessionData.user.name,
+            image: sessionData.user.image ?? null,
+          },
+          sessionId: sessionData.session.id,
+        }
+      : null,
+    // Session-bağımsız host bağımlılıkları (requestId/ip/userAgent + enqueue*
+    // + realtime + objectStorage + reportCache). `createPublicApiCaller` ile
+    // paylaşılan ortak builder — bkz. `buildHostContextDeps` yukarıda.
+    ...buildHostContextDeps(c),
     // Faz 13I (DEM-265) — worker → print akışı için paylaşılan secret.
     // Yukarıda `x-worker-secret` header'ı `env.WORKER_SHARED_SECRET` ile
     // eşleşirse set edilir; eşleşmezse undefined → procedure UNAUTHORIZED.
