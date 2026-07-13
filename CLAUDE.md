@@ -65,6 +65,7 @@ Soğuk/uzun dosyaları (örn. `docs/architecture/12-deployment-runbook.md`) yaln
 9. **Auth ≠ Authorization:** Kimlik doğrulama Better Auth. Workspace/board/card yetkilendirmesi auth'a gömülmez; her tRPC procedure içinde server-side kontrol edilir (`@pusula/domain/permissions`).
 10. **Drag-drop:** Web tarafında yalnızca Atlassian Pragmatic Drag and Drop.
 11. **Billing yok.** `apps/mobile` kullanıcı istemeden oluşturulmaz.
+12. **Public API & bot:** Pano içeriği `/api/v1` REST + API key'li bot erişimiyle açılır (custom `api_keys` + `is_bot` kullanıcı, tRPC server-side caller köprüsü — paralel API değil) → `docs/architecture/21-public-api-ve-bot-erisimi.md` + `docs/domain/10-bot-ve-api-key-kurallari.md`.
 
 > Tam liste, gerekçeler ve "kaçınılması gerekenler": `docs/architecture/02-teknoloji-kararlari.md` ve `docs/architecture/README.md`.
 

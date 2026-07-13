@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-05-22
+updated: 2026-07-13
 ---
 
 # 07 — Auth (Kimlik Doğrulama)
@@ -51,6 +51,14 @@ protectedProcedure (Better Auth session check — @pusula/api, non-null session 
 - Bu zincirin somut tRPC implementasyonu katmanlı procedure tipleridir: `workspaceProcedure` / `boardProcedure` / `cardProcedure` — bkz. [`03-backend.md`](03-backend.md) (Scoped procedure middleware'leri).
 - Rol literal array'leri + helper'lar `@pusula/domain` içinde; kuralların kendisi → [`../domain/02-yetkilendirme-kurallari.md`](../domain/02-yetkilendirme-kurallari.md).
 - Güvenlik başlıkları (rate limit, CSRF/CORS, invite token expiration, session invalidation, webhook signature) → [`10-platform.md`](10-platform.md).
+
+## Makine kimliği: API key + bot kullanıcı
+
+İnsan kullanıcı Better Auth session'ıyla (cookie/`useSession`) kimliklenir; **makine** kimliği (bot/servis hesabı) bundan **ayrıdır**. Bir bot, `Authorization: Bearer psk_…` API key'iyle kimliklenir — session yok, cookie yok. Key'ler ayrı `api_keys` tablosunda tutulur (Better Auth tabloları değil); her key `users.is_bot = true` olan bir bot kullanıcısına 1:1 bağlıdır.
+
+- Bot kullanıcı **oturum açamaz**: `accounts` satırı yoktur (şifresiz) ve Better Auth `session.create.before` hook'u bot user'a session açılmasını reddeder; şifre sıfırlama / davet / erişim talebi yolları bota kapalıdır (defense-in-depth).
+- Bot, `activity_events.actor_id` / `comments.author_id` gibi FK'larda **kendi kimliğiyle** görünür (paylaşım linkindeki `NULL actor`'dan farklı) — bu yüzden Better Auth `apiKey` plugin'i yerine özel `api_keys` + `is_bot` tercih edildi.
+- Teknik akış (token hash/prefix, `apiKeyAuth` middleware, tRPC caller köprüsü, `/api/v1` yüzeyi) → [`21-public-api-ve-bot-erisimi.md`](21-public-api-ve-bot-erisimi.md); iş kuralları (kim key üretir, bot rol matrisi, revoke/expiry) → [`../domain/10-bot-ve-api-key-kurallari.md`](../domain/10-bot-ve-api-key-kurallari.md).
 
 ## Profil & hesap yönetimi (Faz 1)
 

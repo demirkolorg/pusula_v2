@@ -12,7 +12,7 @@ type: 'moc'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/README|Pusula Belgeleri]]'
-updated: 2026-05-25
+updated: 2026-07-13
 ---
 
 # Pusula — İş / Domain Kuralları (`docs/domain/`)
@@ -42,6 +42,7 @@ helper, domain/event tipleri). Domain paketi **framework-bağımsızdır** — D
 | 07  | [`07-ek-kurallari.md`](07-ek-kurallari.md)                         | Attachment: MIME/boyut limiti, kim yükleyebilir                                          |
 | 08  | [`08-paylasim-linki-kurallari.md`](08-paylasim-linki-kurallari.md) | Kart paylaşım linki: misafir görme/yorum, "Misafir" etiketi, mention yok, expiry, revoke |
 | 09  | [`09-raporlama-kurallari.md`](09-raporlama-kurallari.md)           | Raporlama domain kuralları: **Faz 13** (universal micro-report sözleşmesi + scope adapter semantiği + 30 micro-report kataloğu + 19 preset + yetki matrisi + restricted scope + comparison delta + filtre seti + persistence/cadence/stale davranışı + rich text içerik) ve **Faz 14 — Klasik Pano PDF** (§9.15; "tamamlanan kart" = `cards.completed = true`, "acil" göstergesi yok, yorum clamp son 5 + footer, checklist kart altında indented, arşivli kart/liste PDF dışı, permission Faz 13F reuse, boş pano "Veri yok" sayfası). Teknik mimari → [`../architecture/16-raporlama-mimarisi.md`](../architecture/16-raporlama-mimarisi.md). |
+| 10  | [`10-bot-ve-api-key-kurallari.md`](10-bot-ve-api-key-kurallari.md) | Bot ve API key: kim key üretebilir (yalnız board admin), key rolleri (member/viewer; admin yok), bot aktörünün kimliği + "Bot" rozeti, bot yapamaz (pano yönetimi/davet/kalıcı silme/çapraz board), bota bildirim gitmez, bot login olamaz, revoke/expiry semantiği, key başına tek pano. Teknik mimari → [`../architecture/21-public-api-ve-bot-erisimi.md`](../architecture/21-public-api-ve-bot-erisimi.md). |
 
 ## Kaçınılması gerekenler (domain)
 

@@ -12,7 +12,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-05-24
+updated: 2026-07-13
 ---
 
 # 02 — Yetkilendirme Kuralları
@@ -215,6 +215,15 @@ Workspace/board/card rollerinden bağımsız: Hızlı Not **kişiye özel ve glo
 | Hızlı Not'u karta dönüştür      | yalnız not sahibi **ve** ek olarak **hedef listenin board'unda `member+`** (`effectiveBoardRole` ∈ {`admin`,`member`} — kart oluşturma yetkisi); hedef liste/board arşivli olamaz |
 
 > **`quickNote.convertToCard` çift kontrol:** caller hem Hızlı Not'un **sahibi** olmalı (aksi `NOT_FOUND`) hem de hedef listenin board'unda **kart oluşturma yetkisine** sahip olmalı — `resolveBoardAccess` ile hedef listenin board'u çözülür ve `canEditBoardContent` (board `member+`) kontrol edilir; `viewer` veya erişimsiz kullanıcı `FORBIDDEN`. Arşivli hedef liste/board `BAD_REQUEST`. Atomik transaction: kart oluşturulur (`card.create` ile aynı invariant'lar + `card.created` activity) + Hızlı Not satırı silinir (sessiz — activity/realtime/outbox üretmez; invariant 22). Kart oluşturma adımı `card.create` yetki/idempotency disiplinine uyar. tRPC enforcement: `protectedProcedure` (sahiplik) → hedef liste board'u `resolveBoardAccess`. Procedure haritası → [`../architecture/03-backend.md`](../architecture/03-backend.md).
+
+### Bot aktörü (API key)
+
+Bir API key ile kimliklenen **bot**, panoya üye olan bir servis hesabıdır; ayrı bir yetki modeli değildir. Botun **effective rolü = key rolü** — `member` veya `viewer` (key oluşturulurken seçilir; `admin` yoktur). Botun panodaki tüm yetkisi bu rolün yukarıdaki **Board yetki matrisi**yle belirlenir; bota özel bir kural yoktur.
+
+- Tüm mevcut invariant'lar bot için de geçerlidir: **self-add yasağı (DEM-298)** — bot kendini karta ekleyemez; **son board admin** düşürülemez/çıkarılamaz (bot zaten admin olamaz); **arşivli board/liste salt-okunur**; kart ⊆ liste.board; yorum düzenleme/silme yalnız kendi yorumunda.
+- Bot **admin** olamadığı için pano yönetimi, üye/rol yönetimi, davet ve kalıcı silme (`list.delete`/`card.delete`) bota kapalıdır; `viewer` key yalnız okur.
+- Bota **bildirim gönderilmez**; botun yaptığı aksiyonlar insanlara normal bildirim akışını tetikler.
+- İş kuralları (kim key üretir, revoke/expiry semantiği, key başına tek pano, bota bildirim gitmez) → [`10-bot-ve-api-key-kurallari.md`](10-bot-ve-api-key-kurallari.md); teknik mimari → [`../architecture/21-public-api-ve-bot-erisimi.md`](../architecture/21-public-api-ve-bot-erisimi.md).
 
 ## Enforcement kuralları
 

@@ -100,6 +100,7 @@ Note: the tRPC package is `@pusula/api` (in `packages/api`); the Hono server app
 - Build custom web components on top of shadcn/ui, Tailwind CSS, and lucide-react. Shared web components live in `@pusula/ui`; design tokens live in `@pusula/ui/theme.css`.
 - Use Better Auth for authentication; it owns `${API_URL}/api/auth/*` on the Hono server. Its tables (`users`, `sessions`, `accounts`, `verifications`) live in `@pusula/db`.
 - Keep authorization separate from authentication; implement workspace/board/card permission checks in domain/API code (`@pusula/domain/permissions`, tRPC procedures).
+- Expose board content to bots via the `/api/v1` REST surface with API key auth (custom `api_keys` table + `is_bot` user), delegating to tRPC procedures through a server-side caller — not a parallel API; see `docs/architecture/21-public-api-ve-bot-erisimi.md` + `docs/domain/10-bot-ve-api-key-kurallari.md`.
 - Use Socket.IO for realtime board events and presence; do not treat sockets as persistent state.
 - Use outbox tables and workers for notifications, realtime event publishing, search indexing, and email/push delivery.
 - Use Expo Notifications for push; never use Socket.IO as a push notification substitute.

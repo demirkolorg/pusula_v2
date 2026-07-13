@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-07-05
+updated: 2026-07-13
 ---
 
 # 03 — Backend (Hono + tRPC + Worker)
@@ -35,7 +35,16 @@ Client → tRPC client → Hono server → tRPC router → service/domain layer 
 
 CORS · request id · logging · rate limiting · auth context hazırlığı · webhook endpoint'leri ·
 healthcheck · metrics endpoint'leri · tRPC handler mount · Better Auth (`${API_URL}/api/auth/*`) ·
-Socket.IO mount. Hono burada **kabuk**tur; iş mantığı taşımaz.
+**public API (`/api/v1`, API key auth)** · Socket.IO mount. Hono burada **kabuk**tur; iş mantığı taşımaz.
+
+### Public API (`/api/v1`) — bot erişimi
+
+Bot/servis hesapları için ham Hono REST yüzeyi. `apiKeyAuth` middleware `Authorization: Bearer psk_…`
+token'ını çözer (prefix lookup + `timingSafeEqual` hash), botun board scope'unu yükler ve per-key Redis
+rate limit uygular. Handler'lar iş mantığı yazmaz; **tRPC server-side caller** ile mevcut procedure'leri
+bot `SessionInfo`'suyla çağırır (`Idempotency-Key` → `clientMutationId`) — permission/invariant/activity+
+outbox+realtime disiplini procedure gövdesinden gelir. Ana sözleşme tRPC'de kalır; `/api/v1` webhook benzeri
+bir public yüzeydir. Detay → [`21-public-api-ve-bot-erisimi.md`](21-public-api-ve-bot-erisimi.md).
 
 ## tRPC'nin işi (API sözleşmesi)
 
