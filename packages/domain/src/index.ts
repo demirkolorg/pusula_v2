@@ -4,6 +4,7 @@ export * from './permissions';
 export * from './position';
 export * from './checklist-tree';
 export * from './events';
+export * from './rich-text';
 export * from './schemas';
 export * from './reports';
 export * from './audit';

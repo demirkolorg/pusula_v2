@@ -2,6 +2,7 @@ export * from './enums';
 export * from './auth';
 export * from './workspaces';
 export * from './boards';
+export * from './api-keys';
 export * from './board-favorites';
 export * from './lists';
 export * from './cards';

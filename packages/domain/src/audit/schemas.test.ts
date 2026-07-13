@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES, auditLogEntrySchema } from './index';
 
 describe('@pusula/domain/audit', () => {
-  it('AUDIT_ACTIONS — 12 forensic action (board.delete / card.delete forward-compat dahil)', () => {
-    expect(AUDIT_ACTIONS).toHaveLength(12);
+  it('AUDIT_ACTIONS — 14 forensic action (board.delete / card.delete forward-compat + api_key dahil)', () => {
+    expect(AUDIT_ACTIONS).toHaveLength(14);
     expect(AUDIT_ACTIONS).toContain('workspace.delete');
     expect(AUDIT_ACTIONS).toContain('workspace.member.role_change');
     expect(AUDIT_ACTIONS).toContain('workspace.member.remove');
@@ -16,9 +16,11 @@ describe('@pusula/domain/audit', () => {
     expect(AUDIT_ACTIONS).toContain('attachment.delete');
     expect(AUDIT_ACTIONS).toContain('share.create');
     expect(AUDIT_ACTIONS).toContain('share.revoke');
+    expect(AUDIT_ACTIONS).toContain('api_key.created');
+    expect(AUDIT_ACTIONS).toContain('api_key.revoked');
   });
 
-  it('AUDIT_TARGET_TYPES — 7 hedef türü', () => {
+  it('AUDIT_TARGET_TYPES — 8 hedef türü (api_key dahil)', () => {
     expect(AUDIT_TARGET_TYPES).toEqual([
       'workspace',
       'board',
@@ -27,6 +29,7 @@ describe('@pusula/domain/audit', () => {
       'user',
       'attachment',
       'share_link',
+      'api_key',
     ]);
   });
 

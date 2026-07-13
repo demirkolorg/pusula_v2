@@ -35,7 +35,7 @@ export const auditLog = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     actorId: text().references(() => users.id, { onDelete: 'set null' }),
-    /** AUDIT_ACTIONS literal (12 değer — `@pusula/domain` `AuditAction`). */
+    /** AUDIT_ACTIONS literal (`@pusula/domain` `AuditAction`). */
     action: text().notNull(),
     /** AUDIT_TARGET_TYPES literal (`@pusula/domain` `AuditTargetType`). */
     targetType: text().notNull(),

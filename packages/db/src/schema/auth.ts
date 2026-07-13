@@ -17,6 +17,12 @@ export const users = pgTable(
     email: text().notNull(),
     emailVerified: boolean().notNull().default(false),
     image: text(),
+    /**
+     * Service-account marker. `true` for bot users bound 1:1 to an `api_keys`
+     * row (public API + bot access). Bots never receive notifications, cannot
+     * log in and cannot be invited — see `docs/domain/10-bot-ve-api-key-kurallari.md`.
+     */
+    isBot: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

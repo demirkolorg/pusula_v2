@@ -33,6 +33,10 @@ export const AUDIT_ACTIONS = [
   // Share (forensic kritik — token üretimi + iptali)
   'share.create',
   'share.revoke',
+  // API key / bot (forensic kritik — bot key token üretimi + iptali; plain
+  // token audit'e YAZILMAZ, yalnız prefix/rol/expiry — `board-api-keys.ts`)
+  'api_key.created',
+  'api_key.revoked',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -50,6 +54,7 @@ export const AUDIT_TARGET_TYPES = [
   'user',
   'attachment',
   'share_link',
+  'api_key',
 ] as const;
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];

@@ -17,3 +17,4 @@ export * from './notification-preference';
 export * from './search';
 export * from './share';
 export * from './planner';
+export * from './api-key';
