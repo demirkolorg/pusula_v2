@@ -9,6 +9,8 @@ type CardActionsSheetProps = {
   visible: boolean;
   /** Kartı arşivler — çağıran onayı (`Alert`) + navigasyonu üstlenir. */
   onArchive: () => void;
+  /** Kartı başka panoya taşıma akışını açar (LocationPicker sheet — 2026-07-14). */
+  onMoveToBoard: () => void;
   onClose: () => void;
 };
 
@@ -38,13 +40,23 @@ function ActionRow({ icon, label, destructive = false, onPress }: ActionRowProps
 /**
  * DEM-196 — kart detay başlık yanı ⋮ menüsü. Web kart modalı `CardModalHeader`
  * ⋮ menüsünün mobil karşılığı; mevcut `Sheet` (bottom sheet) ile alttan açılır.
- * Şimdilik tek aksiyon (arşivle); ileride taşı/kopyala/geri yükle aynı menüye
- * eklenir. Yalnız board `member+` (`canEdit`) durumunda mount edilir.
+ * "Başka panoya taşı" (2026-07-14) + arşivle; ileride kopyala/geri yükle de
+ * buraya eklenir. Yalnız board `member+` (`canEdit`) durumunda mount edilir.
  */
-export function CardActionsSheet({ visible, onArchive, onClose }: CardActionsSheetProps) {
+export function CardActionsSheet({
+  visible,
+  onArchive,
+  onMoveToBoard,
+  onClose,
+}: CardActionsSheetProps) {
   return (
     <Sheet visible={visible} title={strings.cardDetail.cardActionsTitle} onClose={onClose}>
       <View className="gap-2">
+        <ActionRow
+          icon="corner-up-right"
+          label={strings.cardDetail.moveToBoardAction}
+          onPress={onMoveToBoard}
+        />
         <ActionRow
           icon="archive"
           label={strings.cardDetail.archiveAction}

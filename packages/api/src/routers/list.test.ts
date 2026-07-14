@@ -1508,6 +1508,481 @@ describe.runIf(dbAvailable)('list router — realtime outbox (Faz 5B / DEM-84)',
   });
 });
 
+describe.runIf(dbAvailable)('list.moveToBoard (2026-07-14)', () => {
+  const db = () => probe!.db;
+  // Kaynak workspace sahibi + kaynak board'da explicit rolü test başına değişen
+  // bir kullanıcı (hedef workspace'e hiç erişimi yok).
+  const mvOwner = newId('u-lmv-owner');
+  const mvViewer = newId('u-lmv-viewer');
+  const mvUserIds = [mvOwner, mvViewer];
+  let wsId: string;
+  let otherWsId: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values(mvUserIds.map((id) => ({ id, name: id, email: `${id}@example.test` })));
+    const ws = await callerFor(mvOwner).workspace.create({
+      name: 'ListMove Source',
+      slug: newSlug('lmv-source'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    wsId = ws.id;
+    const otherWs = await callerFor(mvOwner).workspace.create({
+      name: 'ListMove Target WS',
+      slug: newSlug('lmv-target'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    otherWsId = otherWs.id;
+    createdWorkspaceIds.push(ws.id, otherWs.id);
+    await db()
+      .insert(workspaceMembers)
+      .values({ workspaceId: wsId, userId: mvViewer, role: 'guest' });
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    for (const id of mvUserIds) {
+      await db().delete(users).where(dbMod.eq(users.id, id));
+    }
+  });
+
+  /** Kaynak board + 1 liste + listede etiketli 1 kart kur. */
+  async function setupSourceBoard() {
+    const board = await callerFor(mvOwner).board.create({
+      workspaceId: wsId,
+      title: 'LMV Kaynak',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const list = await callerFor(mvOwner).list.create({
+      boardId: board.id,
+      title: 'Taşınacak Liste',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const card = await callerFor(mvOwner).card.create({
+      listId: list.id,
+      title: 'Listeyle gelen kart',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const label = await callerFor(mvOwner).label.create({
+      boardId: board.id,
+      name: 'lmv',
+      color: 'red',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(mvOwner).card.labels.add({
+      cardId: card.id,
+      labelId: label.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    return { board, list, card };
+  }
+
+  it('taşıma: liste kartlarıyla hedefe gider, kart board_id günceller, etiket bağları düşer, activity/realtime/search doğru', async () => {
+    const { board, list, card } = await setupSourceBoard();
+    const target = await callerFor(mvOwner).board.create({
+      workspaceId: otherWsId,
+      title: 'LMV Hedef',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Hedefte halihazırda bir liste — taşınan sona eklenmeli.
+    const existing = await callerFor(mvOwner).list.create({
+      boardId: target.id,
+      title: 'Hedefteki Liste',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const moved = await callerWithRealtimeEnqueue(mvOwner, enqueue).list.moveToBoard({
+      boardId: board.id,
+      listId: list.id,
+      toBoardId: target.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(moved).toMatchObject({ id: list.id, boardId: target.id, changed: true });
+    expect(moved.position > existing.position).toBe(true);
+
+    // Kart listeyle geldi: board_id hedef, listId değişmedi; etiket bağı düştü.
+    const [movedCard] = await db()
+      .select({ boardId: dbMod.cards.boardId, listId: dbMod.cards.listId })
+      .from(dbMod.cards)
+      .where(dbMod.eq(dbMod.cards.id, card.id));
+    expect(movedCard).toMatchObject({ boardId: target.id, listId: list.id });
+    const labelLinks = await db()
+      .select()
+      .from(dbMod.cardLabels)
+      .where(dbMod.eq(dbMod.cardLabels.cardId, card.id));
+    expect(labelLinks).toHaveLength(0);
+
+    // Activity: `list.moved` hedef board/workspace'e, cross-board payload'la.
+    const acts = await db()
+      .select()
+      .from(activityEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(activityEvents.boardId, target.id),
+          dbMod.eq(activityEvents.type, 'list.moved'),
+        ),
+      );
+    expect(acts).toHaveLength(1);
+    expect(acts[0]).toMatchObject({
+      workspaceId: otherWsId,
+      payload: {
+        listId: list.id,
+        title: 'Taşınacak Liste',
+        fromBoardId: board.id,
+        toBoardId: target.id,
+        fromBoardTitle: 'LMV Kaynak',
+        toBoardTitle: 'LMV Hedef',
+      },
+    });
+
+    // Realtime: hedef board'a `list.movedToBoard` satırı, data'da fromBoardId
+    // (worker cross-board fanout bunu okur); enqueue çağrıldı.
+    const rt = await db()
+      .select()
+      .from(realtimeEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(realtimeEvents.boardId, target.id),
+          dbMod.eq(realtimeEvents.type, 'list.movedToBoard'),
+        ),
+      );
+    expect(rt).toHaveLength(1);
+    expect((rt[0]!.payload as { data: { fromBoardId: string } }).data.fromBoardId).toBe(board.id);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+
+    // İki board da version artırdı: hedef = create(0) + list.create(1) + taşıma(2);
+    // kaynak da taşımayla en az bir kez arttı.
+    const boardsAfter = await db()
+      .select({ id: dbMod.boards.id, version: dbMod.boards.version })
+      .from(dbMod.boards)
+      .where(dbMod.inArray(dbMod.boards.id, [board.id, target.id]));
+    const versionById = new Map(boardsAfter.map((b) => [b.id, b.version] as const));
+    expect(versionById.get(target.id)!).toBeGreaterThanOrEqual(2);
+    expect(versionById.get(board.id)!).toBeGreaterThan(0);
+
+    // Search: taşınan listenin dokümanı hedef board/workspace'i gösterir.
+    const [listDoc] = await db()
+      .select({
+        boardId: dbMod.searchDocuments.boardId,
+        workspaceId: dbMod.searchDocuments.workspaceId,
+      })
+      .from(dbMod.searchDocuments)
+      .where(
+        dbMod.and(
+          dbMod.eq(dbMod.searchDocuments.entityType, 'list'),
+          dbMod.eq(dbMod.searchDocuments.entityId, list.id),
+        ),
+      );
+    expect(listDoc).toMatchObject({ boardId: target.id, workspaceId: otherWsId });
+
+    // Duplicate teslim / idempotensi: liste zaten hedefte → no-op.
+    const retry = await callerFor(mvOwner).list.moveToBoard({
+      boardId: board.id,
+      listId: list.id,
+      toBoardId: target.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(retry.changed).toBe(false);
+  });
+
+  it('yetki + hata: viewer FORBIDDEN, hedefe erişimsiz FORBIDDEN, arşivli liste/hedef BAD_REQUEST, bilinmeyen hedef NOT_FOUND', async () => {
+    const { board, list } = await setupSourceBoard();
+    const target = await callerFor(mvOwner).board.create({
+      workspaceId: otherWsId,
+      title: 'LMV Hedef 2',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // mvViewer: kaynak board'da explicit viewer — kaynakta düzenleme yetkisi yok.
+    await db().insert(boardMembers).values({ boardId: board.id, userId: mvViewer, role: 'viewer' });
+    await expect(
+      callerFor(mvViewer).list.moveToBoard({
+        boardId: board.id,
+        listId: list.id,
+        toBoardId: target.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // mvViewer'ı kaynakta member yap — bu kez HEDEF workspace'e erişimi yok.
+    await db()
+      .update(boardMembers)
+      .set({ role: 'member' })
+      .where(
+        dbMod.and(
+          dbMod.eq(boardMembers.boardId, board.id),
+          dbMod.eq(boardMembers.userId, mvViewer),
+        ),
+      );
+    await expect(
+      callerFor(mvViewer).list.moveToBoard({
+        boardId: board.id,
+        listId: list.id,
+        toBoardId: target.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    // Arşivli liste taşınamaz.
+    await callerFor(mvOwner).list.archive({
+      boardId: board.id,
+      listId: list.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(mvOwner).list.moveToBoard({
+        boardId: board.id,
+        listId: list.id,
+        toBoardId: target.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await callerFor(mvOwner).list.archive({
+      boardId: board.id,
+      listId: list.id,
+      archived: false,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // Arşivli hedef board reddedilir.
+    await callerFor(mvOwner).board.archive({
+      boardId: target.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(mvOwner).list.moveToBoard({
+        boardId: board.id,
+        listId: list.id,
+        toBoardId: target.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    // Bilinmeyen hedef NOT_FOUND.
+    await expect(
+      callerFor(mvOwner).list.moveToBoard({
+        boardId: board.id,
+        listId: list.id,
+        toBoardId: newId('b-missing'),
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe.runIf(dbAvailable)('list.moveAllCards (2026-07-14)', () => {
+  const db = () => probe!.db;
+  const bulkOwner = newId('u-bulk-owner');
+  let wsId: string;
+  const createdWorkspaceIds: string[] = [];
+
+  beforeAll(async () => {
+    await db()
+      .insert(users)
+      .values({ id: bulkOwner, name: bulkOwner, email: `${bulkOwner}@example.test` });
+    const ws = await callerFor(bulkOwner).workspace.create({
+      name: 'Bulk Co',
+      slug: newSlug('bulk-co'),
+      clientMutationId: crypto.randomUUID(),
+    });
+    wsId = ws.id;
+    createdWorkspaceIds.push(ws.id);
+  });
+
+  afterAll(async () => {
+    for (const id of createdWorkspaceIds) {
+      await db().delete(workspaces).where(dbMod.eq(workspaces.id, id));
+    }
+    await db().delete(users).where(dbMod.eq(users.id, bulkOwner));
+  });
+
+  it('taşıma: kaynak listenin tüm aktif kartları hedefin sonuna sırayla gider (arşivli hariç), etiket korunur, activity yok', async () => {
+    const board = await callerFor(bulkOwner).board.create({
+      workspaceId: wsId,
+      title: 'Bulk Board',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const fromList = await callerFor(bulkOwner).list.create({
+      boardId: board.id,
+      title: 'Kaynak',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const toList = await callerFor(bulkOwner).list.create({
+      boardId: board.id,
+      title: 'Hedef',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Hedefte önceden bir kart — taşınanlar bunun ardına eklenmeli.
+    const existing = await callerFor(bulkOwner).card.create({
+      listId: toList.id,
+      title: 'Hedefteki kart',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Kaynağa 3 kart (oluşturma sırası = pozisyon sırası).
+    const c1 = await callerFor(bulkOwner).card.create({
+      listId: fromList.id,
+      title: 'K1',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const c2 = await callerFor(bulkOwner).card.create({
+      listId: fromList.id,
+      title: 'K2',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const c3 = await callerFor(bulkOwner).card.create({
+      listId: fromList.id,
+      title: 'K3',
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Etiketli bir kart — aynı-board taşımada etiket korunmalı.
+    const label = await callerFor(bulkOwner).label.create({
+      boardId: board.id,
+      name: 'bulk',
+      color: 'blue',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(bulkOwner).card.labels.add({
+      cardId: c1.id,
+      labelId: label.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    // Arşivli bir kart — taşınmamalı.
+    const archived = await callerFor(bulkOwner).card.create({
+      listId: fromList.id,
+      title: 'Arşivli',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(bulkOwner).card.archive({
+      cardId: archived.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    const enqueue = vi.fn<EnqueueRealtimePublish>();
+    const res = await callerWithRealtimeEnqueue(bulkOwner, enqueue).list.moveAllCards({
+      boardId: board.id,
+      fromListId: fromList.id,
+      toListId: toList.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(res).toEqual({ changed: true, movedCount: 3 });
+
+    // Kaynak liste yalnızca arşivli kartı tutar (aktif kartlar taşındı).
+    const remaining = await db()
+      .select({ id: dbMod.cards.id })
+      .from(dbMod.cards)
+      .where(dbMod.and(dbMod.eq(dbMod.cards.listId, fromList.id), dbMod.isNull(dbMod.cards.archivedAt)));
+    expect(remaining).toHaveLength(0);
+
+    // Hedef liste: mevcut + 3 taşınan; taşınanlar mevcut sıralarını (K1<K2<K3)
+    // ve hepsi `existing`'in ardından gelir.
+    const targetCards = await db()
+      .select({ id: dbMod.cards.id, position: dbMod.cards.position })
+      .from(dbMod.cards)
+      .where(dbMod.and(dbMod.eq(dbMod.cards.listId, toList.id), dbMod.isNull(dbMod.cards.archivedAt)))
+      .orderBy(dbMod.cards.position);
+    const order = targetCards.map((c) => c.id);
+    expect(order).toEqual([existing.id, c1.id, c2.id, c3.id]);
+
+    // Etiket bağı korundu (board-scope değişmedi).
+    const labelLinks = await db()
+      .select()
+      .from(dbMod.cardLabels)
+      .where(dbMod.eq(dbMod.cardLabels.cardId, c1.id));
+    expect(labelLinks).toHaveLength(1);
+
+    // Düşük-sinyal: hiçbir `card.moved` activity yazılmadı.
+    const movedActs = await db()
+      .select()
+      .from(activityEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(activityEvents.boardId, board.id),
+          dbMod.eq(activityEvents.type, 'card.moved'),
+        ),
+      );
+    expect(movedActs).toHaveLength(0);
+
+    // Realtime: `list.cardsMoved` + enqueue.
+    const rt = await db()
+      .select()
+      .from(realtimeEvents)
+      .where(
+        dbMod.and(
+          dbMod.eq(realtimeEvents.boardId, board.id),
+          dbMod.eq(realtimeEvents.type, 'list.cardsMoved'),
+        ),
+      );
+    expect(rt).toHaveLength(1);
+    expect((rt[0]!.payload as { data: { movedCount: number } }).data.movedCount).toBe(3);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('no-op: kaynak = hedef, boş kaynak; hata: arşivli hedef BAD_REQUEST, viewer FORBIDDEN', async () => {
+    const board = await callerFor(bulkOwner).board.create({
+      workspaceId: wsId,
+      title: 'Bulk Board 2',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const fromList = await callerFor(bulkOwner).list.create({
+      boardId: board.id,
+      title: 'Kaynak2',
+      clientMutationId: crypto.randomUUID(),
+    });
+    const toList = await callerFor(bulkOwner).list.create({
+      boardId: board.id,
+      title: 'Hedef2',
+      clientMutationId: crypto.randomUUID(),
+    });
+
+    // Kaynak = hedef → no-op.
+    const sameRes = await callerFor(bulkOwner).list.moveAllCards({
+      boardId: board.id,
+      fromListId: fromList.id,
+      toListId: fromList.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(sameRes).toEqual({ changed: false, movedCount: 0 });
+
+    // Boş kaynak → no-op.
+    const emptyRes = await callerFor(bulkOwner).list.moveAllCards({
+      boardId: board.id,
+      fromListId: fromList.id,
+      toListId: toList.id,
+      clientMutationId: crypto.randomUUID(),
+    });
+    expect(emptyRes).toEqual({ changed: false, movedCount: 0 });
+
+    // Arşivli hedef → BAD_REQUEST.
+    await callerFor(bulkOwner).card.create({
+      listId: fromList.id,
+      title: 'Bir kart',
+      clientMutationId: crypto.randomUUID(),
+    });
+    await callerFor(bulkOwner).list.archive({
+      boardId: board.id,
+      listId: toList.id,
+      archived: true,
+      clientMutationId: crypto.randomUUID(),
+    });
+    await expect(
+      callerFor(bulkOwner).list.moveAllCards({
+        boardId: board.id,
+        fromListId: fromList.id,
+        toListId: toList.id,
+        clientMutationId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+});
+
 // File-scoped teardown: close the probe pool once after every suite in this file.
 afterAll(async () => {
   await probe?.pool.end();

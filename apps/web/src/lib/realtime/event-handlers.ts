@@ -24,6 +24,8 @@
  *   - `board.updated`   → `{ patch }`
  *   - `board.archived`  → `{ archived }`
  *   - `board.movedToWorkspace` → `{ boardId, fromWorkspaceId, toWorkspaceId }` (pano taşıma, 2026-07-13)
+ *   - `card.movedToList` / `list.movedToBoard` → cross-board; izlenen board refetch (2026-07-14)
+ *   - `list.cardsMoved`  → toplu kart taşıma; izlenen board refetch (2026-07-14)
  *
  * Spec: `05-board-mekanigi.md` §5.3, `08-web-ve-mobil.md` §8.1.10.
  */
@@ -472,6 +474,27 @@ export function dispatchRealtimeEvent(
       setBoard(qc, filters, (data) =>
         applyCardMove(data, { cardId, toListId, newPosition: position }),
       );
+      return;
+    }
+    case 'list.cardsMoved': {
+      // Toplu kart taşıma (2026-07-14) — aynı board içinde N kart bir listeden
+      // diğerine gitti; hangi kartların/pozisyonların değiştiğini payload tek
+      // tek taşımaz (düşük-sinyal). İzlenen panoyu refetch etmek en yalın
+      // reconciliation (seq zaten +1 hizalı geldiğinden handler olmadan sessizce
+      // stale kalırdı).
+      invalidate(qc, filters.board);
+      return;
+    }
+    case 'card.movedToList':
+    case 'list.movedToBoard': {
+      // Cross-board taşıma (kart Faz 3E / liste 2026-07-14) — envelope worker
+      // fanout'uyla HEM kaynak HEM hedef board odasına gelir; dispatcher hangi
+      // panonun izlendiğini bilmez, iki taraf için de doğru sonuç izlenen
+      // panonun refetch'idir (kaynakta öğe düşer, hedefte belirir). Not:
+      // kaynak izleyicide seq zaten uyuşmaz ve hook gap-invalidate yapar; bu
+      // case asıl hedef izleyici içindir — seq tam +1 hizalandığından handler
+      // olmadan sessizce stale kalırdı (gelen kart/liste görünmezdi).
+      invalidate(qc, filters.board);
       return;
     }
     case 'card.created': {

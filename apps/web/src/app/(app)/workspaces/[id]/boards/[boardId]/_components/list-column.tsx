@@ -6,6 +6,8 @@ import {
   ArchiveRestoreIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  CopyPlusIcon,
+  FolderInputIcon,
   MoreHorizontalIcon,
   PaletteIcon,
   PanelLeftCloseIcon,
@@ -70,6 +72,8 @@ import {
   type BoardCardMemberOption,
 } from './card-item';
 import { ListColorPicker } from './list-color-picker';
+import { MoveAllCardsDialog } from './move-all-cards-dialog';
+import { MoveListToBoardDialog } from './move-list-to-board-dialog';
 import {
   LIST_ICON_COMPONENTS,
   LIST_ICON_FG,
@@ -244,6 +248,10 @@ export function ListColumn({
   const [renameValue, setRenameValue] = useState(list.title);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // Liste taşıma (2026-07-14) — "Başka panoya taşı…" diyalogu.
+  const [moveToBoardOpen, setMoveToBoardOpen] = useState(false);
+  // Toplu kart taşıma (2026-07-14) — "Tüm kartları taşı…" diyalogu.
+  const [moveAllCardsOpen, setMoveAllCardsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
   // Daralt/genişlet tercihi list.id bazında localStorage'de saklanır; lazy init
@@ -482,6 +490,22 @@ export function ListColumn({
           )}
           <Separator />
         </>
+      )}
+      {/* Toplu kart taşıma (2026-07-14) — bu listedeki tüm kartları aynı board
+          içinde başka listeye taşır; arşivli listede gizli. */}
+      {!listArchived && cards.length > 0 && (
+        <Item onSelect={() => setMoveAllCardsOpen(true)}>
+          <CopyPlusIcon />
+          {strings.board.moveAllCards.trigger}
+        </Item>
+      )}
+      {/* Liste taşıma (2026-07-14) — listeyi tüm kartlarıyla başka panoya
+          (cross-workspace dahil) taşır; arşivli listede gizli. */}
+      {!listArchived && (
+        <Item onSelect={() => setMoveToBoardOpen(true)}>
+          <FolderInputIcon />
+          {strings.board.moveListToBoard.trigger}
+        </Item>
       )}
       {/* Faz 13G (DEM-263) — list scope rapor composer'ı açar.
           workspaceId yoksa item gizlenir; archive'dan önceki tek Separator
@@ -861,6 +885,24 @@ export function ListColumn({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {canEdit && (
+        <MoveListToBoardDialog
+          listId={list.id}
+          currentBoardId={boardId}
+          open={moveToBoardOpen}
+          onOpenChange={setMoveToBoardOpen}
+        />
+      )}
+
+      {canEdit && (
+        <MoveAllCardsDialog
+          boardId={boardId}
+          fromListId={list.id}
+          open={moveAllCardsOpen}
+          onOpenChange={setMoveAllCardsOpen}
+        />
       )}
     </section>
   );

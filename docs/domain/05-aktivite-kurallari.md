@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-07-13
+updated: 2026-07-14
 ---
 
 # 05 — Aktivite Kuralları (Activity Events)
@@ -46,6 +46,8 @@ beslenir. Salt teknik bakım işlemleri (örn. position compaction) activity eve
 >
 > **Pano arka planı (Faz 2.7 follow-up #4 — [DEM-100](https://linear.app/demirkol/issue/DEM-100)):** `board.update({ background })` yeni değere geçişte `board.background_changed` üretir; payload `{from, to}`. `background: null` ile temizleme `board.background_cleared` üretir; payload `{from}`. `from`/`to` değerleri kanonik string (`gradient:<ad>` / `solid:<paletAd>`) ya da `null` olur. No-op (mevcut değerle aynı) activity/version/realtime üretmez. **Faz 8.X ([DEM-242](https://linear.app/demirkol/issue/DEM-242) önce-belge, 2026-05-20):** üçüncü kanonik varyant `image:<attachmentId>` payload'da geçerli olur — `from`/`to` artık `'gradient:<ad>' | 'solid:<ad>' | 'image:<uuid>' | null` setindendir. `board.backgroundUploadCommit` çağrısı (Faz 8.X) atomik olarak `attachments.committed_at = NOW()` + `boards.background = 'image:<id>'` + `board.background_changed` payload `{from, to: 'image:<id>'}` yazar; eski image background ise `attachments` DELETE (aynı tx) + `pusula-attachment-cleanup` BullMQ job storage objesini temizler. Image → null geçişi `board.background_cleared` payload `{from: 'image:<id>'}` üretir (gradient/solid simetrisi); aynı zincirde eski image attachment temizlenir.
 > **Liste rengi (DEM-98):** `list.update({ color })` ile renksiz → renkli veya renkli → başka renk geçişi `list.color_changed` üretir; payload `{ listId, oldColor, newColor }`. Rengi kaldırma (`color: null`) `list.color_cleared` üretir; payload `{ listId, oldColor }`. Aynı renk tekrar set/clear idempotent no-op'tur; activity ve version üretmez. Bu iki event tipi `ACTIVITY_EVENT_TYPES`'a **append** edilir ve `lists.color` migration'ıyla aynı PR'dadır. Bkz. [`01-urun-modeli.md`](01-urun-modeli.md) invariant 17.
+>
+> **Liste taşıma — başka panoya (2026-07-14):** `list.moveToBoard` **yeni activity tipi açmaz**; mevcut `list.moved` payload'u additive genişler: `{ listId, title, fromBoardId, toBoardId, fromBoardTitle?, toBoardTitle, fromPosition, toPosition, clientMutationId? }` (aynı-board taşımada `fromBoardId`/`toBoardId` yoktur — `card.moved` cross-board simetrisi). Satır **hedef** board/workspace'e yazılır; bildirim mevcut `list_moved` tipiyle hedef board audience'a gider (yeni notification tipi de açılmaz). Kurallar: [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md) drag-drop/move haritası.
 >
 > **Pano taşıma (2026-07-13):** `board.moveToWorkspace` gerçek taşımada tek `board.moved_workspace` activity üretir; payload `{ fromWorkspaceId, toWorkspaceId, fromWorkspaceName, toWorkspaceName, clientMutationId? }`. Satır **hedef** workspace'e yazılır; board'un tüm geçmiş `activity_events` satırlarının `workspace_id`'si de aynı tx'te hedefe taşınır (pano geçmişi panoyla gider — kaynak workspace feed'inde board izi kalmaz). No-op (hedef = mevcut) activity/version/realtime üretmez. Tip `ACTIVITY_EVENT_TYPES`'a **append** edilir (`ALTER TYPE activity_event_type ADD VALUE`). **Bildirim üretmez** (v1 — `mapEventToNotificationType` null döner; [`04-bildirim-kurallari.md`](04-bildirim-kurallari.md) matrisi değişmez). Yetki/denormalizasyon kuralları: [`02-yetkilendirme-kurallari.md`](02-yetkilendirme-kurallari.md) CRUD haritası.
 >

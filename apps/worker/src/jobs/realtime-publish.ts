@@ -249,7 +249,10 @@ function parseEventPayload(type: string, payload: unknown): unknown {
  * delivery. Adding a new cross-board event type requires touching this set —
  * an intentional speed bump.
  */
-const CROSS_BOARD_EVENT_TYPES = new Set<string>(['card.movedToList']);
+// Liste taşıma (2026-07-14) — `list.movedToBoard` da aynı sözleşmeyle
+// `payload.data.fromBoardId` taşır; kaynak board izleyicisi listenin
+// ayrıldığını görsün diye iki odaya da yayınlanır.
+const CROSS_BOARD_EVENT_TYPES = new Set<string>(['card.movedToList', 'list.movedToBoard']);
 
 function roomsFor(row: RealtimeEventRow): RealtimePublishMessage['rooms'] {
   const rooms: RealtimePublishMessage['rooms'] = [];

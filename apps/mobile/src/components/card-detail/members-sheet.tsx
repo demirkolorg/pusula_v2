@@ -49,7 +49,16 @@ export function MembersSheetBody({ cardId, members, boardMembers, canEdit }: Mem
         if (prev && candidate && !prev.some((m) => m.userId === vars.userId)) {
           queryClient.setQueryData<CardMembers>(membersKey, [
             ...prev,
-            { userId: candidate.userId, role: vars.role, name: candidate.name, image: candidate.image },
+            {
+              userId: candidate.userId,
+              role: vars.role,
+              name: candidate.name,
+              image: candidate.image,
+              // Bot işiyle (public API) `card.members.list` çıktısına `isBot`
+              // eklendi; optimistic satır da taşımalı — aday `board.members.list`
+              // satırından okunur.
+              isBot: candidate.isBot ?? null,
+            },
           ]);
         }
         return { prev };

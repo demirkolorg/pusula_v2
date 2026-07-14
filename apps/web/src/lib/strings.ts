@@ -1523,6 +1523,45 @@ export const strings = {
       boardDisabledHint: 'Önce çalışma alanı seç.',
       listDisabledHint: 'Önce pano seç.',
     },
+    // Toplu kart taşıma (2026-07-14) — liste ⋮ menüsündeki "Tüm kartları
+    // taşı…" aksiyonu + MoveAllCardsDialog (aynı board içinde hedef liste seçici).
+    moveAllCards: {
+      trigger: 'Tüm kartları taşı…',
+      title: 'Tüm kartları taşı',
+      description: 'Bu listedeki tüm aktif kartlar seçtiğin listenin sonuna taşınır.',
+      listLabel: 'Hedef liste',
+      listPlaceholder: 'Liste seç',
+      noTargets: 'Bu panoda taşınabilecek başka liste yok.',
+      empty: 'Bu listede taşınacak aktif kart yok.',
+      submit: 'Taşı',
+      submitting: 'Taşınıyor…',
+      cancel: 'İptal',
+      success: 'Kartlar taşındı',
+      error: 'Kartlar taşınamadı',
+    },
+    // Liste taşıma (2026-07-14) — liste kolonu ⋮ menüsündeki "Başka panoya
+    // taşı…" aksiyonu + MoveListToBoardDialog (kart taşıma diyaloğunun
+    // liste-adımsız hali).
+    moveListToBoard: {
+      trigger: 'Başka panoya taşı…',
+      title: 'Listeyi başka panoya taşı',
+      description:
+        'Liste, tüm kartlarıyla birlikte seçtiğin panonun sonuna taşınır; kart etiketleri panoya özel olduğu için kaldırılır.',
+      workspaceLabel: 'Çalışma alanı',
+      workspacePlaceholder: 'Çalışma alanı seç',
+      boardLabel: 'Pano',
+      boardPlaceholder: 'Pano seç',
+      workspacesLoading: 'Çalışma alanları yükleniyor…',
+      workspacesEmpty: 'Çalışma alanı bulunamadı.',
+      boardsLoading: 'Panolar yükleniyor…',
+      noEditableBoards: 'Bu çalışma alanında taşıyabileceğin başka pano yok.',
+      boardDisabledHint: 'Önce çalışma alanı seç.',
+      submit: 'Taşı',
+      submitting: 'Taşınıyor…',
+      cancel: 'İptal',
+      success: 'Liste taşındı',
+      error: 'Liste taşınamadı',
+    },
     // Pano taşıma (2026-07-13) — pano ayarları "Eylemler" sekmesindeki
     // "Başka çalışma alanına taşı…" aksiyonu + MoveBoardToWorkspaceDialog.
     moveToWorkspace: {

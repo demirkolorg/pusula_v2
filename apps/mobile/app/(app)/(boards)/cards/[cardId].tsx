@@ -31,6 +31,7 @@ import { DescriptionChecklistTabs } from '@/components/card-detail/description-c
 import { CardMetaBar } from '@/components/card-detail/meta-bar';
 import { CardCompleteToggle } from '@/components/card-detail/complete-toggle';
 import { CardActionsSheet } from '@/components/card-detail/card-actions-sheet';
+import { MoveCardToBoardSheet } from '@/components/card-detail/move-to-board-sheet';
 import { CardDetailHeaderTitle } from '@/components/card-detail/header-title';
 import { AttachmentsSection } from '@/components/card-detail/attachments-section';
 import { CommentList, type AuthorResolver } from '@/components/card-detail/comment-list';
@@ -115,6 +116,8 @@ export default function CardDetailScreen() {
   const [editingTitle, setEditingTitle] = useState(false);
   // DEM-196 — başlık yanı ⋮ "Kart işlemleri" bottom sheet'i.
   const [actionsOpen, setActionsOpen] = useState(false);
+  // Kartı başka panoya taşıma sheet'i (2026-07-14).
+  const [moveToBoardOpen, setMoveToBoardOpen] = useState(false);
 
   // DEM-196 — kartı arşivle: `Alert` ile onayla, optimistic mutation tetikle,
   // board ekranına geri dön (arşivlenen kart board görünümünde görünmez).
@@ -131,6 +134,15 @@ export default function CardDetailScreen() {
         },
       },
     ]);
+  }
+
+  // Kartı başka panoya taşı (2026-07-14) — `card.moveToList` cross-board
+  // destekli; optimistic mutation tetiklenir ve board ekranına dönülür (kart
+  // artık kaynak panoda değil; `onSettled` board invalidate'i tazeler).
+  function handleMoveToBoard(toListId: string) {
+    setMoveToBoardOpen(false);
+    cardMutations.moveToList(toListId);
+    router.back();
   }
 
   // Faz 7G-3 — collapsing nav başlığı: gövdedeki büyük kart başlığı yukarı
@@ -581,11 +593,22 @@ export default function CardDetailScreen() {
       </Animated.ScrollView>
       </ScrollHighlightProvider>
 
-      {/* DEM-196 — başlık yanı ⋮ menüsü: kartı arşivle. */}
+      {/* DEM-196 — başlık yanı ⋮ menüsü: başka panoya taşı + arşivle. */}
       <CardActionsSheet
         visible={actionsOpen}
         onArchive={handleArchive}
+        onMoveToBoard={() => {
+          setActionsOpen(false);
+          setMoveToBoardOpen(true);
+        }}
         onClose={() => setActionsOpen(false)}
+      />
+
+      {/* Kartı başka panoya taşı (2026-07-14) — çalışma alanı→pano→liste seçici. */}
+      <MoveCardToBoardSheet
+        visible={moveToBoardOpen}
+        onConfirm={handleMoveToBoard}
+        onClose={() => setMoveToBoardOpen(false)}
       />
     </SafeAreaView>
   );

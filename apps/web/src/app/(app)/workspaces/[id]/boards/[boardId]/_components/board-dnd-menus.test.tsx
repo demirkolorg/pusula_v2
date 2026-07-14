@@ -29,6 +29,13 @@ vi.mock('@/trpc/client', () => ({
       update: { mutationOptions: (o: unknown) => o },
       archive: { mutationOptions: (o: unknown) => o },
       delete: { mutationOptions: (o: unknown) => o },
+      // Liste tasima (2026-07-14) — MoveListToBoardDialog list-column icinde mount edilir.
+      moveToBoard: { mutationOptions: (o: unknown) => o },
+      // Toplu kart tasima (2026-07-14) — MoveAllCardsDialog list-column icinde mount edilir.
+      moveAllCards: { mutationOptions: (o: unknown) => o },
+    },
+    workspace: {
+      list: { queryOptions: (_input: unknown, opts: unknown) => ({ __q: 'workspace.list', opts }) },
     },
     card: {
       update: { mutationOptions: (o: unknown) => o },
@@ -49,7 +56,13 @@ vi.mock('@/trpc/client', () => ({
         list: { queryFilter: () => ({}) },
       },
     },
-    board: { get: { queryFilter: () => ({}) } },
+    board: {
+      get: {
+        queryFilter: () => ({}),
+        queryOptions: (input: unknown, opts: unknown) => ({ __q: 'board.get', input, opts }),
+      },
+      list: { queryOptions: (input: unknown, opts: unknown) => ({ __q: 'board.list', input, opts }) },
+    },
     attachment: {
       // Faz 11B (DEM-148) — board-dnd-menus renders card-item children that
       // mount the full attachment surface; mock all leaves for hook safety.

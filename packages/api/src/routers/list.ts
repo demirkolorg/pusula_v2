@@ -24,17 +24,21 @@
  * no archive flips on its lists. DEM-98 also treats an archived *list* as
  * read-only for `list.update`.
  */
-import { desc, eq, inArray, sql } from '@pusula/db';
-import { activityEvents, boards, cards, lists } from '@pusula/db';
+import { and, desc, eq, inArray, isNull, sql } from '@pusula/db';
+import { activityEvents, boards, cardLabels, cards, lists } from '@pusula/db';
 import {
   archiveListInput,
   canEditBoardContent,
   canManageBoard,
+  comparePosition,
   createListInput,
   deleteListInput,
   firstPosition,
+  moveAllCardsInput,
   moveListInput,
+  moveListToBoardInput,
   positionBetween,
+  positionsBetween,
   updateListInput,
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
@@ -52,6 +56,7 @@ import {
   upsertSearchDocument,
 } from '../lib/search-indexer';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
+import { resolveBoardAccess } from '../middleware/board-access';
 import { router } from '../trpc';
 
 /** Columns of a full list row returned to clients. */
@@ -642,6 +647,310 @@ export const listRouter = router({
     maybeEnqueueNotificationPublish(ctx, notificationEventId);
 
     return result;
+  }),
+
+  /**
+   * Listeyi **tüm kartlarıyla** (aktif + arşivli) başka panoya taşır —
+   * cross-workspace dahil (2026-07-14). Kaynak board `member+` (zaten
+   * `boardProcedure` + `canEditBoardContent`) **ve** hedef board `member+`
+   * (`resolveBoardAccess`) ister; liste hedef panonun **sonuna** eklenir.
+   *
+   * Cross-board etkileri (`card.moveToList` simetrisi): kartların
+   * `cards.board_id`'si güncellenir; kartların `card_labels` satırları
+   * **silinir** (etiketler board-scope); `card_members`/checklist/yorum/ek/
+   * activity kartla gelir. Activity **yeni tip açmaz** — mevcut `list.moved`
+   * payload'u additive genişler (`title` + `fromBoardId`/`toBoardId` + board
+   * başlıkları); bildirim mevcut `list_moved` tipiyle hedef board audience'a.
+   * İki board `version++`; realtime `list.movedToBoard` worker'ın cross-board
+   * fanout'uyla **iki** board odasına yayınlanır (`payload.fromBoardId`).
+   * Hedef board search scope re-sync edilir.
+   *
+   * İdempotent: liste zaten hedef board'daysa (duplicate teslim) `changed:
+   * false` döner. Aynı-board çağrı da no-op'tur (sıralama `list.move`).
+   * Kurallar: `docs/domain/02-yetkilendirme-kurallari.md` drag-drop/move haritası.
+   */
+  moveToBoard: boardProcedure.input(moveListToBoardInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.board.role))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Listeyi taşıma yetkiniz yok.' });
+    }
+
+    let realtimeEventId: string | undefined;
+    let notificationEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
+      const [list] = await tx.select(listCols).from(lists).where(eq(lists.id, input.listId)).limit(1);
+      if (!list) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Liste bulunamadı.' });
+      }
+      // Duplicate teslim: liste zaten hedefte → no-op (kaynak-board kontrolünden
+      // ÖNCE, yoksa retry "liste bu board'a ait değil" ile düşerdi).
+      if (list.boardId === input.toBoardId) {
+        return { ...list, changed: false as const };
+      }
+      if (list.boardId !== ctx.board.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: "Liste bu board'a ait değil." });
+      }
+      assertNotArchived('list', list, 'Arşivli liste taşınamaz.');
+
+      const [sourceBoard] = await tx
+        .select({ archivedAt: boards.archivedAt, title: boards.title })
+        .from(boards)
+        .where(eq(boards.id, ctx.board.id))
+        .limit(1);
+      if (!sourceBoard) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      }
+      assertNotArchived('board', sourceBoard);
+
+      // Hedef board erişimi (kaynaktan farklı — cross-workspace olabilir).
+      const targetBoard = await resolveBoardAccess(tx, input.toBoardId, ctx.session.user.id);
+      if (!canEditBoardContent(accessFromBoardRole(targetBoard.role))) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: "Hedef board'da düzenleme yetkiniz yok.",
+        });
+      }
+      if (targetBoard.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Arşivli board düzenlenemez.' });
+      }
+      const [targetBoardRow] = await tx
+        .select({ title: boards.title })
+        .from(boards)
+        .where(eq(boards.id, input.toBoardId))
+        .limit(1);
+
+      // Advisory lock — hedef board'un liste-pozisyon scope'u (compaction ile
+      // aynı anahtar). Kaynak board'un kalan listeleri yerinden oynamaz.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'board', boardId: input.toBoardId })}))`,
+      );
+
+      // Hedef panonun sonu (aktif + arşivli — pozisyonlar tek dizi; `list.create` idiomu).
+      const [last] = await tx
+        .select({ position: lists.position })
+        .from(lists)
+        .where(eq(lists.boardId, input.toBoardId))
+        .orderBy(desc(lists.position))
+        .limit(1);
+      const position = last ? positionBetween(last.position, null) : firstPosition();
+
+      const [updated] = await tx
+        .update(lists)
+        .set({ boardId: input.toBoardId, position })
+        .where(eq(lists.id, input.listId))
+        .returning(listCols);
+      if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      // Kartlar listeyle gelir (kart ⊆ liste.board invariant'ı) — arşivli
+      // kartlar dahil. Etiket bağları board-scope olduğu için düşer.
+      await tx
+        .update(cards)
+        .set({ boardId: input.toBoardId })
+        .where(eq(cards.listId, input.listId));
+      await tx
+        .delete(cardLabels)
+        .where(
+          inArray(
+            cardLabels.cardId,
+            tx.select({ id: cards.id }).from(cards).where(eq(cards.listId, input.listId)),
+          ),
+        );
+
+      const listMovedPayload = {
+        listId: updated.id,
+        title: updated.title,
+        fromBoardId: ctx.board.id,
+        toBoardId: input.toBoardId,
+        fromBoardTitle: sourceBoard.title,
+        ...(targetBoardRow ? { toBoardTitle: targetBoardRow.title } : {}),
+        fromPosition: list.position,
+        toPosition: updated.position,
+        clientMutationId: ctx.clientMutationId,
+      };
+      const [listMovedActivity] = await tx
+        .insert(activityEvents)
+        .values({
+          // Liste artık hedef board'da — activity yeni evine yazılır
+          // (`card.moveToList` simetrisi).
+          workspaceId: targetBoard.workspaceId,
+          boardId: input.toBoardId,
+          actorId: ctx.session.user.id,
+          type: 'list.moved',
+          payload: listMovedPayload,
+        })
+        .returning({ id: activityEvents.id });
+      if (!listMovedActivity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+
+      const dispatched = await dispatchNotificationsForActivity(tx, {
+        id: listMovedActivity.id,
+        type: 'list.moved',
+        workspaceId: targetBoard.workspaceId,
+        boardId: input.toBoardId,
+        cardId: null,
+        actorId: ctx.session.user.id,
+        payload: listMovedPayload,
+      });
+      if (dispatched.inserted > 0) notificationEventId = listMovedActivity.id;
+
+      const [bumpedTarget] = await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, input.toBoardId))
+        .returning({ version: boards.version });
+      await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, ctx.board.id));
+
+      // Tek outbox satırı hedef board'a; worker `payload.fromBoardId` üzerinden
+      // envelope'u kaynak board odasına da fan-out eder (`card.movedToList` politikası).
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.movedToBoard',
+        workspaceId: targetBoard.workspaceId,
+        boardId: input.toBoardId,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumpedTarget?.version ?? 0,
+        data: {
+          listId: updated.id,
+          fromBoardId: ctx.board.id,
+          toBoardId: input.toBoardId,
+          fromPosition: list.position,
+          toPosition: updated.position,
+        },
+      });
+
+      // Taşınan liste + kartlarının (ve yorum/ek dokümanlarının) board/workspace
+      // alanları hedefe göre yeniden yazılır — scope, entity'leri güncel
+      // `board_id`'den topladığı için taşınanlar hedef kapsamında görünür.
+      await syncSearchDocumentsForScope(tx, { boardId: input.toBoardId });
+
+      return { ...updated, changed: true as const };
+    });
+
+    if (result.changed) {
+      maybeEnqueueCompaction(ctx, { kind: 'board', boardId: result.boardId }, [result.position]);
+    }
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+    maybeEnqueueNotificationPublish(ctx, notificationEventId);
+
+    return result;
+  }),
+
+  /**
+   * Bir listedeki **tüm aktif** kartları **aynı board içinde** başka listenin
+   * sonuna toplu taşır (2026-07-14; Trello "Move all cards in this list").
+   * Board `member+`. Kaynak/hedef aynı board'da olmalı; hedef liste arşivli →
+   * `BAD_REQUEST`. Kartların mevcut sırası korunur — hedef sonuna ardışık
+   * `positionsBetween` pozisyonlarıyla eklenir; aynı-board taşıma olduğu için
+   * kart etiketleri (`card_labels`) korunur (board-scope değişmiyor).
+   *
+   * **Düşük-sinyal toplu işlem:** `card.moved` activity **yazılmaz** ve bildirim
+   * üretilmez (position compaction / etiket CRUD emsali — kullanıcı tek tek
+   * taşırsa activity + bildirim üretilir). Yalnız `boards.version++` +
+   * `list.cardsMoved` realtime event (izleyiciler board refetch eder). No-op:
+   * kaynak = hedef veya kaynak liste boş → `{ changed: false, movedCount: 0 }`.
+   * İdempotent (`clientMutationId`). Cross-board toplu taşıma kapsam dışı —
+   * tüm listeyi taşımak için `list.moveToBoard`.
+   * Kurallar: `docs/domain/02-yetkilendirme-kurallari.md` drag-drop/move haritası.
+   */
+  moveAllCards: boardProcedure.input(moveAllCardsInput).mutation(async ({ ctx, input }) => {
+    if (!canEditBoardContent(accessFromBoardRole(ctx.board.role))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Kartları taşıma yetkiniz yok.' });
+    }
+    if (input.fromListId === input.toListId) {
+      return { changed: false as const, movedCount: 0 };
+    }
+
+    let realtimeEventId: string | undefined;
+    const result = await ctx.db.transaction(async (tx) => {
+      // Advisory lock — hedef listenin kart-pozisyon scope'u (compaction ile aynı).
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${compactionScopeKey({ kind: 'list', listId: input.toListId })}))`,
+      );
+
+      const [board] = await tx
+        .select({ archivedAt: boards.archivedAt })
+        .from(boards)
+        .where(eq(boards.id, ctx.board.id))
+        .limit(1);
+      if (!board) throw new TRPCError({ code: 'NOT_FOUND', message: 'Board bulunamadı.' });
+      assertNotArchived('board', board);
+
+      const listRows = await tx
+        .select({ id: lists.id, boardId: lists.boardId, archivedAt: lists.archivedAt })
+        .from(lists)
+        .where(inArray(lists.id, [input.fromListId, input.toListId]));
+      const fromList = listRows.find((l) => l.id === input.fromListId);
+      const toList = listRows.find((l) => l.id === input.toListId);
+      if (!fromList || !toList) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Liste bulunamadı.' });
+      }
+      if (fromList.boardId !== ctx.board.id || toList.boardId !== ctx.board.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Listeler bu board\'a ait olmalı.' });
+      }
+      assertNotArchived('list', toList, 'Arşivli listeye kart taşınamaz.');
+
+      // Kaynak listenin aktif kartları, mevcut sıralarıyla.
+      const sourceCards = await tx
+        .select({ id: cards.id, position: cards.position })
+        .from(cards)
+        .where(and(eq(cards.listId, input.fromListId), isNull(cards.archivedAt)))
+        .orderBy(cards.position);
+      if (sourceCards.length === 0) {
+        return { changed: false as const, movedCount: 0 };
+      }
+      const ordered = [...sourceCards].sort((a, b) => comparePosition(a.position, b.position));
+
+      // Hedef listenin sonu (aktif + arşivli — tek dizi).
+      const [last] = await tx
+        .select({ position: cards.position })
+        .from(cards)
+        .where(eq(cards.listId, input.toListId))
+        .orderBy(desc(cards.position))
+        .limit(1);
+      const newPositions = positionsBetween(last?.position ?? null, null, ordered.length);
+
+      // Kartları sırayla hedefe taşı (tek tek — her kartın kendi pozisyonu var).
+      for (let i = 0; i < ordered.length; i++) {
+        await tx
+          .update(cards)
+          .set({ listId: input.toListId, position: newPositions[i] })
+          .where(eq(cards.id, ordered[i]!.id));
+      }
+
+      const [bumped] = await tx
+        .update(boards)
+        .set({ version: sql`${boards.version} + 1` })
+        .where(eq(boards.id, ctx.board.id))
+        .returning({ version: boards.version });
+
+      realtimeEventId = await insertRealtimeEvent(tx, {
+        type: 'list.cardsMoved',
+        workspaceId: ctx.board.workspaceId,
+        boardId: ctx.board.id,
+        actorId: ctx.session.user.id,
+        clientMutationId: ctx.clientMutationId,
+        seq: bumped?.version ?? 0,
+        data: {
+          fromListId: input.fromListId,
+          toListId: input.toListId,
+          movedCount: ordered.length,
+        },
+      });
+
+      return {
+        changed: true as const,
+        movedCount: ordered.length,
+        lastPosition: newPositions[newPositions.length - 1],
+      };
+    });
+
+    if (result.changed && result.lastPosition) {
+      maybeEnqueueCompaction(ctx, { kind: 'list', listId: input.toListId }, [result.lastPosition]);
+    }
+    maybeEnqueueRealtimePublish(ctx, realtimeEventId);
+
+    return { changed: result.changed, movedCount: result.movedCount };
   }),
 
   /**

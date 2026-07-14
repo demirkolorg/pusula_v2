@@ -361,6 +361,13 @@ export const strings = {
     cardActions: 'Kart işlemleri',
     cardActionsTitle: 'Kart işlemleri',
     archiveAction: 'Kartı arşivle',
+    // Kartı başka panoya taşıma (2026-07-14) — web'deki "Başka panoya taşı"
+    // aksiyonunun mobil karşılığı; LocationPicker (çalışma alanı→pano→liste).
+    moveToBoardAction: 'Başka panoya taşı',
+    moveToBoardTitle: 'Kartı başka panoya taşı',
+    moveToBoardDescription: 'Çalışma alanı, pano ve liste seç; kart o listenin sonuna taşınır.',
+    moveToBoardSubmit: 'Taşı',
+    moveToBoardError: 'Kart taşınamadı. Lütfen tekrar dene.',
     archiveConfirmTitle: 'Kartı arşivle',
     archiveConfirmBody: 'Bu kart panodan kaldırılacak. Arşivden geri yükleyebilirsin.',
     archiveConfirmAction: 'Arşivle',
