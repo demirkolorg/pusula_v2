@@ -83,11 +83,23 @@ const config: ExpoConfig = {
   android: {
     package: 'com.pusula.app',
     edgeToEdgeEnabled: true,
+    // NOT (2026-07-20): Android ikonu iOS ile eşitlendi (kullanıcı kararı).
+    // Önceki kurulum `adaptive-icon.png` + yeşil zemin idi ve çirkin görünüyordu:
+    // o dosya `splash-icon.png` ile birebir aynı (içine DAİRE çizilmiş) — adaptive
+    // icon'da şekil foreground'a gömülmez, maskeyi launcher uygular. Çifte
+    // maskeleme sonucu yeşil halka + kesik siyah daire + küçülmüş ibre çıkıyordu.
+    // `adaptive-icon.png` artık `icon.png`den türetilir: aynı sanat (siyah zemin +
+    // beyaz pusula), ibre %66 ölçeklenip siyahla 1024'e pad'lenmiş. Ölçek şart —
+    // adaptive icon canvas'ının yalnız merkez ~%66'sı görünür; `icon.png` doğrudan
+    // foreground yapılsaydı ibre görünür alanın %75'ini kaplar, iOS'taki %50'ye
+    // göre şişkin dururdu. Şimdi ibre canvas'ın %33'ü → görünürde %50 = iOS ile
+    // birebir. Yeniden üretim (sharp-cli): resize 676 + extend 174 (#000000).
+    // Zemin siyah çünkü foreground opak; maske kenarında yeşil sızmasın
+    // (2026-06-21 marka rengi kararı splash + tema için geçerliliğini korur,
+    // yalnız ikon zeminini kapsamaz). NATIVE — OTA ile gitmez, yeni build gerekir.
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      // Marka rengi = tema `primary` (2026-06-21 kullanıcı kararı: marka birincil
-      // rengi artık tema primary ile aynı). `tokens.ts` light `primary` (#0f9171).
-      backgroundColor: '#0f9171',
+      backgroundColor: '#000000',
     },
     // Faz 7L — Android App Links. `https://pusulaportal.com` linkleri uygulamada
     // açılır; `autoVerify` Digital Asset Links (`assetlinks.json`) ile doğrulanır
