@@ -37,7 +37,13 @@ const config: ExpoConfig = {
   // Görünen belirti: kontrol listesi maddeleri telefonda ham Tiptap JSON olarak
   // görünüyordu (`tiptapToPlainText` cihazdaki bundle'da yoktu). Bu bump ile
   // birikmiş 3 commit store build üzerinden gidiyor.
-  version: '1.1.5',
+  // NOT (2026-07-20): 1.1.5 → 1.1.6. 1.1.5 mağazalara submit edildi (Android ikon
+  // fix dahil); aynı sürüm ikinci kez kabul edilmiyor. Bu bump ile checklist
+  // maddesine dosya eki (attachment) + checklist maddelerinde zengin metin
+  // gösterimi + kompakt satır (İş 1-2) store build ile gidiyor. İkisi de saf
+  // JS/TS (native değişiklik yok) ama 1.1.5 henüz yayılmadığından OTA yerine
+  // store build tercih edildi (kullanıcı kararı).
+  version: '1.1.6',
   // Faz 15A (DEM-301) — iPad uyarlaması (sürüm v1.1.0 hedefli). `portrait` →
   // `default`: tüm route'lar landscape açık. iPhone'da çoğu ekran tek-kolon
   // kalır, iPad'de master-detail layout (Faz 15C) landscape'i kullanır.
