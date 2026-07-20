@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Linking, View } from 'react-native';
 import { Text } from '@/components/text';
 import type { FontWeight } from '@/theme/fonts';
 import {
+  asTiptapNode,
   parseTiptapValue,
   tiptapChildren,
   tiptapMarkTypes,
@@ -17,17 +18,46 @@ import {
  * Desteklenen düğümler: `doc`, `paragraph`, `heading`, `bulletList`,
  * `orderedList`, `listItem`, `blockquote`, `codeBlock`, `horizontalRule`,
  * `hardBreak`, `text`, `mention`. Mark'lar: `bold`, `italic`, `strike`,
- * `code`. Tam mobil rich editör yok (7.0) — yalnız render.
+ * `code`, `link`. Tam mobil rich editör yok (7.0) — yalnız render.
  */
 
-/** Satır içi düğüm (text / mention / hardBreak) — bir `<Text>` içine girer. */
-function renderInline(node: TiptapNode, key: string): ReactNode {
+/**
+ * Bir text düğümündeki `link` mark'ının `href`'i (yoksa `null`). Web editörü
+ * StarterKit `link` extension'ıyla link üretebilir; render tarafında `href`'i
+ * mark objesinden okuruz (`tiptapMarkTypes` yalnız tip kümesini verir).
+ */
+function tiptapLinkHref(node: TiptapNode): string | null {
+  if (!Array.isArray(node.marks)) return null;
+  for (const raw of node.marks) {
+    const mark = asTiptapNode(raw);
+    if (mark?.type === 'link' && typeof mark.attrs?.href === 'string') return mark.attrs.href;
+  }
+  return null;
+}
+
+/**
+ * Yalnız güvenli protokoller açılır — web editörünün XSS allowlist'i (`http(s)`,
+ * `mailto`) temel alınır; `tel:` mobilde ek olarak izinlidir (güvenli şema,
+ * telefonda anlamlı). `javascript:`/`data:` gibi şemalar tıklanamaz kalır.
+ */
+function isSafeHref(href: string): boolean {
+  return /^(https?:|mailto:|tel:)/i.test(href.trim());
+}
+
+/**
+ * Satır içi düğüm (text / mention / hardBreak) — bir `<Text>` içine girer.
+ * `muted` (tamamlanmış checklist maddesi): metin `text-muted-foreground`'a düşer
+ * (dış `<Text>` line-through'u ekler); `TiptapRender` bunu geçmez (default `false`).
+ */
+function renderInline(node: TiptapNode, key: string, muted = false): ReactNode {
   if (node.type === 'hardBreak') return '\n';
+
+  const baseColor = muted ? 'text-muted-foreground' : 'text-foreground';
 
   if (node.type === 'mention') {
     const label = typeof node.attrs?.label === 'string' ? node.attrs.label : '';
     return (
-      <Text key={key} weight="medium" className="text-primary">
+      <Text key={key} weight="medium" className={muted ? 'text-muted-foreground' : 'text-primary'}>
         @{label}
       </Text>
     );
@@ -37,16 +67,43 @@ function renderInline(node: TiptapNode, key: string): ReactNode {
     const marks = tiptapMarkTypes(node);
     const weight: FontWeight = marks.has('bold') ? 'semibold' : 'regular';
     const isCode = marks.has('code');
+    const inlineStyle = {
+      ...(marks.has('italic') ? { fontStyle: 'italic' as const } : {}),
+      // `muted` (tamamlanmış madde) iken çizgi HER iç düğüme uygulanır — RN'de
+      // nested `<Text>`'e `textDecorationLine` mirası (özellikle Android)
+      // tutarsız; dış `<Text>` çizgisi yalnız yedek. `strike` mark'ı da aynı.
+      ...(marks.has('strike') || muted ? { textDecorationLine: 'line-through' as const } : {}),
+      ...(isCode ? { fontFamily: 'monospace' } : {}),
+    };
+
+    // Link mark: güvenli `href` ise tıklanınca sistem tarayıcı/uygulama açılır.
+    // `<Text onPress>` satır-içi çalışır (Pressable gerekmez) ve `numberOfLines`
+    // kırpmasıyla uyumludur.
+    const href = tiptapLinkHref(node);
+    if (href && isSafeHref(href)) {
+      return (
+        <Text
+          key={key}
+          weight={weight}
+          onPress={() => {
+            // Desteklenmeyen şema / handler yoksa `openURL` reject eder — yut
+            // (unhandled rejection uyarısı / crash olmasın).
+            void Linking.openURL(href).catch(() => {});
+          }}
+          className={muted ? 'text-muted-foreground underline' : 'text-primary underline'}
+          style={inlineStyle}
+        >
+          {node.text}
+        </Text>
+      );
+    }
+
     return (
       <Text
         key={key}
         weight={weight}
-        className={isCode ? 'text-destructive' : 'text-foreground'}
-        style={{
-          ...(marks.has('italic') ? { fontStyle: 'italic' as const } : {}),
-          ...(marks.has('strike') ? { textDecorationLine: 'line-through' as const } : {}),
-          ...(isCode ? { fontFamily: 'monospace' } : {}),
-        }}
+        className={isCode && !muted ? 'text-destructive' : baseColor}
+        style={inlineStyle}
       >
         {node.text}
       </Text>
@@ -141,4 +198,65 @@ export function TiptapRender({ doc }: { doc: unknown }) {
   if (!root) return null;
   const blocks = root.type === 'doc' ? tiptapChildren(root) : [root];
   return <View className="gap-2">{blocks.map((block, index) => renderBlock(block, `b${index}`))}</View>;
+}
+
+/**
+ * Bir düğümün satır-içi parçalarını tek `<Text>` ağacına düzleştirir: text/
+ * mention/hardBreak doğrudan eklenir, blok/bilinmeyen düğümler çocuklarına
+ * inilir. `out` yerinde biriktirilir (lokal accumulator; `tiptapToPlainText`
+ * ile aynı desen).
+ */
+function collectInline(
+  node: TiptapNode,
+  keyPrefix: string,
+  muted: boolean,
+  out: ReactNode[],
+): void {
+  const el = renderInline(node, keyPrefix, muted);
+  if (el !== null) {
+    out.push(el);
+    return;
+  }
+  tiptapChildren(node).forEach((child, i) => collectInline(child, `${keyPrefix}.${i}`, muted, out));
+}
+
+/**
+ * Rich-text değerini **tek satır-içi `<Text>`** olarak render eder — checklist
+ * maddesi gibi kompakt, `numberOfLines` ile kırpılabilir bağlamlar için.
+ * `TiptapRender`'ın blok yerleşiminden (çok satır `View`) farkı: tüm bloklar
+ * `\n` ile ayrılıp tek `<Text>` içine düzleştirilir, böylece `numberOfLines`
+ * tüm içeriği kırpar. Biçim mark'ları (bold/italic/strike/code/link) korunur.
+ *
+ * `muted` (tamamlanmış madde): dış `<Text>` line-through, iç metinler
+ * `text-muted-foreground` (renderInline üzerinden). `className` yalnız boyut/
+ * satır aralığı taşımalı; renk `muted`'a göre iç düğümlerden gelir.
+ */
+export function TiptapInline({
+  doc,
+  numberOfLines,
+  muted = false,
+  className = 'text-sm leading-5',
+}: {
+  doc: unknown;
+  numberOfLines?: number;
+  muted?: boolean;
+  className?: string;
+}) {
+  const root = parseTiptapValue(doc);
+  if (!root) return null;
+  const blocks = root.type === 'doc' ? tiptapChildren(root) : [root];
+  const parts: ReactNode[] = [];
+  blocks.forEach((block, bi) => {
+    if (bi > 0) parts.push('\n');
+    collectInline(block, `b${bi}`, muted, parts);
+  });
+  return (
+    <Text
+      numberOfLines={numberOfLines}
+      className={className}
+      style={muted ? { textDecorationLine: 'line-through' } : undefined}
+    >
+      {parts}
+    </Text>
+  );
 }

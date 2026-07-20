@@ -11,6 +11,7 @@ import type { RouterOutputs } from '@pusula/api';
 import { Icon } from '@/components/icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { Text } from '@/components/text';
+import { TiptapInline } from '@/components/tiptap-render';
 import { useScrollHighlightTarget } from '@/components/card-detail/scroll-highlight';
 import { strings } from '@/lib/strings';
 import { tiptapToPlainText } from '@/lib/tiptap';
@@ -88,9 +89,11 @@ export function ChecklistItemRow({
   children,
 }: ChecklistItemRowProps) {
   const theme = useTheme();
-  // Madde içeriği artık zengin (Tiptap JSON) olabilir (web, 2026-07-08) — mobil
-  // şimdilik düz metne indirip gösterir (ham JSON'u önler; biçimli render sonraki
-  // tur). Yazma tarafı (composer / edit sheet) da düz metin kalır.
+  // Madde içeriği zengin (Tiptap JSON) olabilir (web, 2026-07-08). Gösterim artık
+  // biçimli: `TiptapInline` mark'ları (kalın/italik/link…) korur ve tek `<Text>`
+  // içine düzleştirip `numberOfLines` ile kompakt tutar. Düz metin yalnız
+  // erişilebilirlik etiketi (screen reader) için türetilir. Yazma tarafı
+  // (composer / edit sheet) 7.0 kararınca düz metin kalır.
   const plainText = tiptapToPlainText(item.content);
 
   const interactive = canEdit && !optimistic;
@@ -224,15 +227,17 @@ export function ChecklistItemRow({
         accessibilityLabel={interactive ? strings.cardDetail.checklistItemEdit : undefined}
         disabled={!interactive}
         onPress={onEdit}
-        className="min-h-12 flex-1 justify-center py-2.5 pr-1 active:opacity-60"
+        className="min-h-12 flex-1 justify-center py-2 pr-1 active:opacity-60"
       >
-        <Text
-          className={`text-sm ${
-            item.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-          }`}
-        >
-          {plainText}
-        </Text>
+        {/* Biçimli, kompakt gösterim — en çok 2 satır, taşan içerik "…" ile
+            kesilir (tam metin düzenleme sheet'inde). `muted` tamamlanmış maddede
+            soluk + line-through. */}
+        <TiptapInline
+          doc={item.content}
+          numberOfLines={2}
+          muted={item.completed}
+          className="text-sm leading-5"
+        />
       </Pressable>
 
       {/* "Alt madde ekle" (+) — derinlik sınırı altındaki maddelerde; ek/yorum
