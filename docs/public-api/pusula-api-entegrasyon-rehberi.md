@@ -168,7 +168,7 @@ Not: yalnızca **kendi** oluşturduğun yorumu düzenler/silersin; başkasının
 
 Bunlar en sık `400` sebebidir — dikkat et:
 
-- **Zengin metin (kart açıklaması, yorum, checklist maddesi):** düz metin gönderebilirsin; sunucu bunu editör formatına (Tiptap JSON) çevirir. Satır sonu (`\n`) ayrı paragraf olur. Yanıtta okunabilir bir `previewText` döner.
+- **Zengin metin (kart açıklaması, yorum, checklist maddesi):** düz metin gönderebilirsin; sunucu bunu editör formatına (Tiptap JSON) çevirir. Satır sonu (`\n`) ayrı paragraf olur. Yanıtta okunabilir bir `previewText` döner. GET'ten okuduğun ham içeriği (`{"type":"doc",…}`) olduğu gibi geri göndermen de güvenlidir — sunucu onu düz metin sanıp tekrar sarmalamaz. Sadece okunabilir metni değiştirmek istiyorsan en temizi düz metin göndermektir.
 - **Etiket rengi** sabit bir listeden olmalı (hex kod **değil**): `green`, `yellow`, `orange`, `red`, `purple`, `blue`, `sky`, `lime`, `pink`, `black`.
 - **Dosya eki türü** izin listesindedir: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `application/pdf`, Word (`.docx`), Excel (`.xlsx`) vb. Düz metin (`text/plain`) kabul edilmez.
 - **Arşiv/geri al tek uçtur:** `POST .../archive` gövdesine `{ "archived": false }` verirsen geri alır.

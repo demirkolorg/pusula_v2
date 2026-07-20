@@ -364,6 +364,63 @@ describe('/api/v1 — checklist items', () => {
     });
   });
 
+  // Regresyon: bot GET'ten okuduğu ham içeriği geri gönderdiğinde (oku → değiştir
+  // → PATCH) değer ikinci kez adaptörden geçer. Guard olmadan serialize doc dış
+  // bir doc'un text düğümüne gömülür ve web/mobil maddeyi ham JSON gösterirdi.
+  it('POST …/items with an already serialized Tiptap doc string → passed through (idempotent)', async () => {
+    seedValidKey();
+    seedCardInBoard();
+    callerMock.checklist.item.create.mockResolvedValueOnce({ id: 'it-1' });
+    const stored = JSON.stringify(plainTextToTiptap('Ana ekranda kayan yazılar var.'));
+    const res = await buildApp().request('/cards/card-1/checklists/cl-1/items', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ content: stored }),
+    });
+    expect(res.status).toBe(201);
+    expect(callerMock.checklist.item.create).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      checklistId: 'cl-1',
+      content: stored,
+      clientMutationId: UUID,
+    });
+  });
+
+  it('PATCH …/items/:itemId with an already serialized Tiptap doc string → passed through', async () => {
+    seedValidKey();
+    seedCardInBoard();
+    callerMock.checklist.item.update.mockResolvedValueOnce({ id: 'it-1' });
+    const stored = JSON.stringify(plainTextToTiptap('Güncellenmiş madde'));
+    const res = await buildApp().request('/cards/card-1/checklists/cl-1/items/it-1', {
+      method: 'PATCH',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ content: stored }),
+    });
+    expect(res.status).toBe(200);
+    expect(callerMock.checklist.item.update).toHaveBeenCalledWith(
+      expect.objectContaining({ content: stored }),
+    );
+  });
+
+  // Düz metnin `{` ile başlaması guard'ı tetiklememeli — yalnız `type: 'doc'`
+  // çözülen string kanonik sayılır.
+  it('POST …/items with a plain string that merely starts with "{" → still wrapped', async () => {
+    seedValidKey();
+    seedCardInBoard();
+    callerMock.checklist.item.create.mockResolvedValueOnce({ id: 'it-1' });
+    const res = await buildApp().request('/cards/card-1/checklists/cl-1/items', {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ content: '{ bozuk json değil ama süslü ile başlıyor' }),
+    });
+    expect(res.status).toBe(201);
+    expect(callerMock.checklist.item.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: JSON.stringify(plainTextToTiptap('{ bozuk json değil ama süslü ile başlıyor')),
+      }),
+    );
+  });
+
   it('POST …/items/:itemId/toggle → caller.checklist.item.toggle with completed', async () => {
     seedValidKey();
     seedCardInBoard();

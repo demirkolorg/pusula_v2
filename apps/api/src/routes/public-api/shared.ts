@@ -198,19 +198,48 @@ export function pickPresent(
 }
 
 /**
+ * String zaten `JSON.stringify(tiptapDoc)` biçiminde mi? `richTextInputToString`
+ * idempotency guard'ı — bkz. oradaki açıklama.
+ */
+function isSerializedTiptapDoc(value: string): boolean {
+  if (!value.trim().startsWith('{')) return false;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as { type?: unknown }).type === 'doc'
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Normalize a REST rich-text field (comment body / checklist item content) to
  * the canonical **string** the procedures store (`z.string()` columns holding
  * either legacy plain text or `JSON.stringify(tiptapDoc)`, the exact shape the
  * web editor persists). A bot may send either:
  *  - a plain **string** → wrapped into a minimal Tiptap doc (`plainTextToTiptap`)
  *    and serialized (each `\n` → a paragraph);
+ *  - an **already serialized** Tiptap doc string (the exact value a bot reads
+ *    back from GET) → passed through untouched;
  *  - a Tiptap JSON **object** → serialized as-is (structured content passthrough).
  * Both consumers (`richTextPreview`, `parseRichTextValue`) parse the result.
  * A non-string / non-object value is returned untouched so the procedure's Zod
  * schema rejects it (400) rather than the adapter guessing.
+ *
+ * **Idempotent olmalı.** GET checklist item / comment / card ham saklanan string'i
+ * döndürür; bot "oku → değiştir → PATCH" yaparsa değer bu adaptörden ikinci kez
+ * geçer. Guard olmadan serialize doc bir kez daha `plainTextToTiptap`'e girip
+ * dış doc'un text düğümüne gömülürdü (çift sarmalama) ve web/mobil o maddeyi ham
+ * JSON olarak gösterirdi. Tespit kuralı `parseRichTextValue` (`@pusula/ui`) ve
+ * `parseTiptapValue` (mobil) ile aynı: `{` ile başlayan, `type: 'doc'` çözülen
+ * string zaten kanonik biçimdir.
  */
 export function richTextInputToString(value: unknown): unknown {
   if (typeof value === 'string') {
+    if (isSerializedTiptapDoc(value)) return value;
     return JSON.stringify(plainTextToTiptap(value));
   }
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
