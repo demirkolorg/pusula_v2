@@ -184,4 +184,67 @@ describe.runIf(dbAvailable)('runDueDateScheduler (integration)', () => {
       await db().delete(cards).where(dbMod.eq(cards.id, cardId));
     }
   });
+
+  it('skips card members without effective board access — guest needs an explicit seat (2026-07-20)', async () => {
+    // Stale `card_members` rows survive board moves / role downgrades; the
+    // scheduler must re-check access at emit time or a workspace guest keeps
+    // receiving `due_*` reminders for a board they can no longer open.
+    const now = new Date('2026-05-13T10:00:00Z');
+    const guestId = newId('u-ds-guest');
+    const cardId = newId('c-ds');
+    const overdueAt = new Date(now.getTime() - 60_000);
+    await db()
+      .insert(users)
+      .values({ id: guestId, name: guestId, email: `${guestId}@example.test` });
+    await db().insert(workspaceMembers).values({ workspaceId, userId: guestId, role: 'guest' });
+    await db()
+      .insert(cards)
+      .values({ id: cardId, boardId, listId, title: 'Guest due card', position: 'a3', dueAt: overdueAt });
+    await db().insert(cardMembers).values({ cardId, userId: guestId, role: 'assignee' });
+    try {
+      await runDueDateScheduler(db(), async () => {}, now);
+      const leaked = await db()
+        .select({ id: notificationOutbox.id })
+        .from(notificationOutbox)
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_overdue:${cardId}:%`}`,
+        );
+      expect(leaked).toHaveLength(0);
+
+      // An explicit `board_members` seat flips the outcome — the guest is a
+      // legitimate recipient again (mirrors `effectiveBoardRole`).
+      await db().insert(boardMembers).values({ boardId, userId: guestId, role: 'member' });
+      await runDueDateScheduler(db(), async () => {}, now);
+      const rows = await db()
+        .select({ recipientId: notificationOutbox.recipientId })
+        .from(notificationOutbox)
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_overdue:${cardId}:%`}`,
+        );
+      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows.every((r) => r.recipientId === guestId)).toBe(true);
+    } finally {
+      await db()
+        .delete(notificationOutbox)
+        .where(
+          dbMod.sql`${notificationOutbox.payload}->>'dedupeKey' LIKE ${`due:due_overdue:${cardId}:%`}`,
+        );
+      await db().delete(cardMembers).where(dbMod.eq(cardMembers.cardId, cardId));
+      await db().delete(cards).where(dbMod.eq(cards.id, cardId));
+      await db()
+        .delete(boardMembers)
+        .where(
+          dbMod.and(dbMod.eq(boardMembers.boardId, boardId), dbMod.eq(boardMembers.userId, guestId)),
+        );
+      await db()
+        .delete(workspaceMembers)
+        .where(
+          dbMod.and(
+            dbMod.eq(workspaceMembers.workspaceId, workspaceId),
+            dbMod.eq(workspaceMembers.userId, guestId),
+          ),
+        );
+      await db().delete(users).where(dbMod.eq(users.id, guestId));
+    }
+  });
 });

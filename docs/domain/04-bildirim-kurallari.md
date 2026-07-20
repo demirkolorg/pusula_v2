@@ -11,7 +11,7 @@ type: 'domain'
 axis: 'domain'
 status: 'active'
 parent: '[[docs/domain/README|İş / Domain Kuralları]]'
-updated: 2026-06-20
+updated: 2026-07-20
 ---
 
 # 04 — Bildirim Kuralları
@@ -246,7 +246,7 @@ Bir bildirime tıklamak artık doğrudan kartı **açmaz**; önce **bildirim det
 - **Dedupe (event_id):** Aynı domain event'inden aynı alıcıya **tek** bildirim üretilir (`notification_outbox.event_id` üzerinden).
 - **Rol birleşimi:** Bir alıcı birden fazla rolle ilgiliyse (örn. hem assignee hem watcher) en kapsamlı tek bildirim üretilir, çoğaltılmaz (recipient + event_id unique).
 - **Mute-bypass:** `mention` ve doğrudan `davet` her zaman geçer (mute / mention-only ayarları görmez).
-- **Permission check:** Bildirim alıcısı olay anında ilgili kaynağa erişebilmelidir (board üyesi değilse / silinmişse → bildirim üretilmez).
+- **Permission check:** Bildirim alıcısı olay anında ilgili kaynağa erişebilmelidir (board üyesi değilse / silinmişse → bildirim üretilmez). Bu kural **due-date scheduler** hatırlatmaları (`due_reminder_1d/1h`, `due_overdue`) için de geçerlidir (2026-07-20): alıcı havuzu `card_members` olsa da, efektif pano erişimi kalmamış kullanıcı (workspace üyeliği kalkmış **veya** `guest` olup explicit pano koltuğu olmayan) filtrelenir — `card_members` satırları pano taşıma / rol düşürme / üyelikten çıkarma akışlarında silinmediği için bu kontrol üretim anında yapılmak zorundadır.
 
 ## Cooldown (Faz 6A — DEM-90)
 

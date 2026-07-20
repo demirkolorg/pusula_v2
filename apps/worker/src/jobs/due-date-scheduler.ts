@@ -30,6 +30,7 @@
  */
 import { and, eq, isNotNull, isNull, notificationOutbox, sql } from '@pusula/db';
 import {
+  boardMembers,
   boards,
   cardMembers,
   cards,
@@ -115,8 +116,12 @@ export async function runDueDateScheduler(
     // çıkarmaz).
 
     // Fan out per card member, per channel. Skips members without effective
-    // board access (the simpler permission check than the rule engine's —
-    // a board's `card_members` are already gated by the same invariant).
+    // board access — the same rule the notification-rules permission filter
+    // applies: workspace membership required, and a `guest` reaches the board
+    // only through an explicit `board_members` seat. `card_members` rows are
+    // NOT cleaned up on board move / role downgrade / member removal, so the
+    // access check must happen here at emit time (2026-07-20 fix — a guest
+    // stripped of board access kept receiving `due_*` reminders).
     const memberRows = await db
       .select({ userId: cardMembers.userId })
       .from(cardMembers)
@@ -129,13 +134,29 @@ export async function runDueDateScheduler(
       .where(eq(workspaceMembers.workspaceId, card.workspaceId));
     const wsRole = new Map(wsRows.map((r) => [r.userId, r.role] as const));
 
+    // Explicit seats are only consulted for guests — skip the lookup on the
+    // common no-guest path.
+    const hasGuestMember = memberRows.some((m) => wsRole.get(m.userId) === 'guest');
+    const explicitSeats = hasGuestMember
+      ? new Set(
+          (
+            await db
+              .select({ userId: boardMembers.userId })
+              .from(boardMembers)
+              .where(eq(boardMembers.boardId, card.boardId))
+          ).map((r) => r.userId),
+        )
+      : new Set<string>();
+
     const notificationType: NotificationType =
       tier === 'due_overdue' ? 'due_overdue' : 'due_approaching';
 
     let wroteForThisCard = false;
     await db.transaction(async (tx) => {
       for (const m of memberRows) {
-        if (!wsRole.has(m.userId)) continue; // workspace membership revoked
+        const role = wsRole.get(m.userId);
+        if (!role) continue; // workspace membership revoked
+        if (role === 'guest' && !explicitSeats.has(m.userId)) continue; // guest, no board seat
         const channels = await pickDueChannels(tx, m.userId, card, notificationType);
         for (const channel of channels) {
           // `ON CONFLICT DO NOTHING` on the partial unique index
