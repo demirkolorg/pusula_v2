@@ -555,6 +555,14 @@ export default function CardDetailScreen() {
             myBoardRole,
             canComment: canEdit,
           }}
+          // Madde ek bağlamı — satır ek rozeti + ek sheet'i. Yükleme yetkisi
+          // `canEdit` (board member+); viewer açıp ekleri görebilir. Kart ekiyle
+          // aynı `attachment.*` akışı, `checklistItemId` scope'uyla.
+          checklistAttachments={{
+            boardId: card.boardId,
+            currentUserId,
+            myBoardRole,
+          }}
           // Deep-link / madde yorum bildirimiyle gelinmişse o maddenin yorum
           // thread'i otomatik açılır (bir kez).
           initialCommentItemId={params.checklistItemId}

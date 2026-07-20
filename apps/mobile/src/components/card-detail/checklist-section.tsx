@@ -23,6 +23,7 @@ import { SortableChecklistItems } from '@/components/card-detail/sortable-checkl
 import {
   ChecklistItemThreadSheet,
 } from '@/components/card-detail/checklist-item-thread-sheet';
+import { ChecklistItemAttachmentSheet } from '@/components/card-detail/checklist-item-attachment-sheet';
 import type { AuthorResolver } from '@/components/card-detail/comment-list';
 import { newClientMutationId } from '@/lib/client-mutation-id';
 import { OPTIMISTIC_PREFIX, isOptimisticItemId } from '@/lib/checklist-reorder';
@@ -47,6 +48,18 @@ export type ChecklistCommentContext = {
   canComment: boolean;
 };
 
+/**
+ * Madde ek bağlamı — verilirse satırlar ek rozeti + ek sheet'i alır (yorum
+ * bağlamıyla simetrik). Yükleme yetkisi `ChecklistSection`'ın `canEdit`'inden
+ * gelir; burada yalnız ek listesi/silme için gereken kimlik + board bilgisi.
+ */
+export type ChecklistAttachmentContext = {
+  /** Kart sayacı tazelensin diye alt bileşen `board.get` invalidate eder. */
+  boardId: string | undefined;
+  currentUserId: string | undefined;
+  myBoardRole: 'admin' | 'member' | 'viewer' | undefined;
+};
+
 type ChecklistSectionProps = {
   cardId: string;
   checklists: Checklists;
@@ -54,6 +67,8 @@ type ChecklistSectionProps = {
   canEdit: boolean;
   /** Madde yorum bağlamı — verilirse satırlar yorum rozeti + thread sheet'i alır. */
   comments?: ChecklistCommentContext;
+  /** Madde ek bağlamı — verilirse satırlar ek rozeti + ek sheet'i alır. */
+  attachments?: ChecklistAttachmentContext;
   /**
    * Deep-link / bildirimle gelinen madde id'si — yorum bağlamı varsa ve madde
    * yüklenen listede mevcutsa o maddenin thread'i bir kez otomatik açılır.
@@ -97,6 +112,7 @@ export function ChecklistSection({
   checklists,
   canEdit,
   comments,
+  attachments,
   initialCommentItemId,
   onDragActiveChange,
   scrollRef,
@@ -110,6 +126,8 @@ export function ChecklistSection({
   // Açık madde yorum thread'i — bir madde id'si tutar; tek sheet tüm satırlar
   // için paylaşılır (her satıra ayrı modal mount edilmez). `null` → kapalı.
   const [openThreadItemId, setOpenThreadItemId] = useState<string | null>(null);
+  // Açık madde ek sheet'i — yorum thread'iyle simetrik; tek sheet paylaşılır.
+  const [openAttachmentItemId, setOpenAttachmentItemId] = useState<string | null>(null);
   // Açık madde düzenleme sheet'i — hedef madde (checklist + id + mevcut içerik).
   // Tek sheet paylaşılır; `update` mutation `checklistId` istediğinden id'yle
   // birlikte taşınır. `null` → kapalı.
@@ -533,6 +551,9 @@ export function ChecklistSection({
                         onOpenComments={
                           comments ? (itemId) => setOpenThreadItemId(itemId) : undefined
                         }
+                        onOpenAttachments={
+                          attachments ? (itemId) => setOpenAttachmentItemId(itemId) : undefined
+                        }
                         onCreateSubItem={(parentItemId, content) =>
                           createItem.mutate({
                             cardId,
@@ -604,6 +625,22 @@ export function ChecklistSection({
       />
     ) : null}
 
+    {/* Madde ek sheet'i — thread sheet'le simetrik KOŞULLU mount (çakışan
+        her-zaman-mount Modal'ların iOS crash'ini önler). Yükleme yetkisi
+        bölümün `canEdit`'i; salt-okunur (viewer) açıp ekleri görebilir. */}
+    {attachments && openAttachmentItemId != null ? (
+      <ChecklistItemAttachmentSheet
+        visible
+        cardId={cardId}
+        boardId={attachments.boardId}
+        checklistItemId={openAttachmentItemId}
+        canEdit={canEdit}
+        currentUserId={attachments.currentUserId}
+        myBoardRole={attachments.myBoardRole}
+        onClose={() => setOpenAttachmentItemId(null)}
+      />
+    ) : null}
+
     {/* Madde düzenleme sheet'i — thread sheet gibi KOŞULLU mount (çakışan
         her-zaman-mount Modal'ların iOS crash'ini önler). `key={itemId}` ile her
         madde için taze taslak. `update` optimistic olduğundan kaydetme anında
@@ -647,6 +684,8 @@ type ChecklistTreeItemProps = {
   onDelete: (itemId: string) => void;
   /** Yorum bağlamı varsa — madde thread sheet'ini açar. */
   onOpenComments?: (itemId: string) => void;
+  /** Ek bağlamı varsa — madde ek sheet'ini açar. */
+  onOpenAttachments?: (itemId: string) => void;
   /** Bir maddenin altına alt madde ekler (`parentItemId` = ebeveyn madde id'si). */
   onCreateSubItem: (parentItemId: string, content: string) => void;
 };
@@ -674,6 +713,7 @@ function ChecklistTreeItem({
   onEdit,
   onDelete,
   onOpenComments,
+  onOpenAttachments,
   onCreateSubItem,
 }: ChecklistTreeItemProps) {
   // "Alt madde ekle" formu açık mı — satırdaki (+) ile açılır; ekleme/vazgeç
@@ -693,6 +733,7 @@ function ChecklistTreeItem({
       onEdit={() => onEdit(node.id, node.content)}
       onDelete={() => onDelete(node.id)}
       onOpenComments={onOpenComments ? () => onOpenComments(node.id) : undefined}
+      onOpenAttachments={onOpenAttachments ? () => onOpenAttachments(node.id) : undefined}
       highlighted={node.id === highlightItemId}
       onAddSubItem={canAddSub ? () => setAddingSub(true) : undefined}
     >
@@ -712,6 +753,7 @@ function ChecklistTreeItem({
               onEdit={onEdit}
               onDelete={onDelete}
               onOpenComments={onOpenComments}
+              onOpenAttachments={onOpenAttachments}
               onCreateSubItem={onCreateSubItem}
             />
           ))}

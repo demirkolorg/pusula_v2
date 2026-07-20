@@ -35,6 +35,13 @@ type ChecklistItemRowProps = {
    * Optimistic satırda rozet gizlenir (madde henüz sunucuda yok).
    */
   onOpenComments?: () => void;
+  /**
+   * Verilirse satır madde ek rozetini gösterir; rozete (ya da `attachmentCount`
+   * 0 iken küçük ataç ikonuna) dokununca bu çağrılır — üst bileşen ek sheet'ini
+   * açar. Yorum rozetiyle simetrik: viewer da açabilir (salt-okunur), optimistic
+   * satırda gizlenir (madde henüz sunucuda yok, ekleri çekilemez).
+   */
+  onOpenAttachments?: () => void;
   /** Bildirim deep-link'iyle gelinince bu satır flash vurgulanır (bir kez). */
   highlighted?: boolean;
   /**
@@ -75,6 +82,7 @@ export function ChecklistItemRow({
   onEdit,
   onDelete,
   onOpenComments,
+  onOpenAttachments,
   highlighted = false,
   onAddSubItem,
   children,
@@ -143,6 +151,34 @@ export function ChecklistItemRow({
       </Pressable>
     ) : null;
 
+  // Madde ek rozeti — yorum rozetiyle birebir simetrik: `onOpenAttachments`
+  // verilmeli ve satır optimistic olmamalı. `attachmentCount > 0` ise ataç ikonu
+  // + sayı, 0 ise yalnız ikon (boş ek listesini açıp ilk dosyayı yüklemek için).
+  // `?? 0` defansif: eski/yarı yüklenmiş cache satırında alan tanımsız olabilir.
+  const attachmentCount = item.attachmentCount ?? 0;
+  const hasAttachments = attachmentCount > 0;
+  const attachmentsBadge =
+    onOpenAttachments && !optimistic ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.cardDetail.itemAttachmentsOpen}
+        hitSlop={6}
+        onPress={onOpenAttachments}
+        className="h-11 min-w-11 flex-row items-center justify-center gap-1 px-1 active:opacity-60"
+      >
+        <Icon
+          name="paperclip"
+          size={16}
+          color={hasAttachments ? theme.primary : theme.mutedForeground}
+        />
+        {hasAttachments ? (
+          <Text weight="medium" className="text-xs text-primary">
+            {attachmentCount}
+          </Text>
+        ) : null}
+      </Pressable>
+    ) : null;
+
   // "Alt madde ekle" (+) ikon-butonu — derinlik sınırı altındaki maddelerde
   // (üst bileşen `onAddSubItem`'i yalnız o zaman geçer) + satır optimistic
   // değilken. 44×44 dokunma hedefi; `corner-down-right` ikonu "altına ekle"
@@ -199,9 +235,13 @@ export function ChecklistItemRow({
         </Text>
       </Pressable>
 
-      {/* "Alt madde ekle" (+) — derinlik sınırı altındaki maddelerde; yorum
-          rozetinin solunda. */}
+      {/* "Alt madde ekle" (+) — derinlik sınırı altındaki maddelerde; ek/yorum
+          rozetlerinin solunda. */}
       {addSubButton}
+
+      {/* Madde ek rozeti — `attachmentCount > 0` ise ataç ikonu + sayı, 0 ise
+          yalnız ikon. Yorum rozetiyle simetrik; optimistic satırda gizli. */}
+      {attachmentsBadge}
 
       {/* Madde yorum rozeti — `commentCount > 0` ise mesaj ikonu + sayı, 0 ise
           yalnız ikon (boş thread'i açıp ilk yorumu yazmak için). Optimistic

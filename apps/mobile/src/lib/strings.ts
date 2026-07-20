@@ -345,6 +345,8 @@ export const strings = {
     itemCommentsTitle: 'Madde yorumları',
     itemCommentsCountLabel: (count: number) => `${count} yorum`,
     itemCommentsEmpty: 'Bu maddeye henüz yorum yapılmadı.',
+    itemAttachmentsOpen: 'Madde eklerini aç',
+    itemAttachmentsTitle: 'Madde ekleri',
     // Başlık düzenleme + liste taşıma (Faz 7H).
     editTitleLabel: 'Kart başlığını düzenle',
     titlePlaceholder: 'Kart başlığı',

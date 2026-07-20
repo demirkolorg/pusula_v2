@@ -7,6 +7,7 @@ import { DescriptionEditor } from '@/components/card-detail/description-editor';
 import {
   ChecklistSection,
   type ChecklistCommentContext,
+  type ChecklistAttachmentContext,
 } from '@/components/card-detail/checklist-section';
 import { useIsTablet } from '@/lib/use-device-class';
 import { strings } from '@/lib/strings';
@@ -25,6 +26,8 @@ type DescriptionChecklistProps = {
   checklistsError: boolean;
   /** Madde yorum bağlamı — `ChecklistSection`'a iletilir (rozet + thread sheet). */
   checklistComments?: ChecklistCommentContext;
+  /** Madde ek bağlamı — `ChecklistSection`'a iletilir (rozet + ek sheet). */
+  checklistAttachments?: ChecklistAttachmentContext;
   /**
    * Deep-link / bildirimle gelinen madde id'si — `ChecklistSection`'a iletilir;
    * o maddenin yorum thread'i (bottom sheet) otomatik açılır. (Sekme kalktığından
@@ -79,6 +82,7 @@ export function DescriptionChecklistTabs({
   checklists,
   checklistsError,
   checklistComments,
+  checklistAttachments,
   initialCommentItemId,
   highlightItemId,
   onDragActiveChange,
@@ -98,6 +102,7 @@ export function DescriptionChecklistTabs({
       checklists={checklists}
       canEdit={canEdit}
       comments={checklistComments}
+      attachments={checklistAttachments}
       initialCommentItemId={initialCommentItemId}
       highlightItemId={highlightItemId}
       onDragActiveChange={onDragActiveChange}

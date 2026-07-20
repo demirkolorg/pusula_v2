@@ -42,6 +42,20 @@ type AttachmentsSectionProps = {
   myBoardRole: 'admin' | 'member' | 'viewer' | undefined;
   /** Bildirim deep-link'iyle gelinince bu id'li ek tile'ı flash vurgulanır. */
   highlightAttachmentId?: string;
+  /**
+   * Verilirse bölüm kart eki yerine bu kontrol listesi maddesinin eklerini
+   * yönetir (`attachment.*` `checklistItemId` scope'u — backend zaten ayırır).
+   * Bu modda kapak yap/kaldır gizlenir (madde eki kart kapağı olamaz) ve satır
+   * ek rozeti için `checklist.list` de invalidate edilir.
+   */
+  checklistItemId?: string;
+  /**
+   * `true` ise `DetailSection` sarmalayıcısı (başlık + katlama + kart yüzeyi)
+   * çizilmez; içerik doğrudan döner — bir `Sheet` içinde (madde eki sheet'i)
+   * kullanım için. Sheet zaten başlığı ve yüzeyi sağlar; ikinci bir başlık/kart
+   * olmasın.
+   */
+  chromeless?: boolean;
 };
 
 /** Yükleme kaynağı seçenekleri — bottom sheet satırları. */
@@ -73,15 +87,23 @@ export function AttachmentsSection({
   currentUserId,
   myBoardRole,
   highlightAttachmentId,
+  checklistItemId,
+  chromeless = false,
 }: AttachmentsSectionProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const theme = useTheme();
-  const listKey = trpc.attachment.list.queryKey({ cardId });
+  // Ek scope'u: madde eki (`checklistItemId`) ya da kart eki. Cache anahtarı,
+  // sorgu ve yükleme hook'u aynı scope'u paylaşır — kart ve madde ekleri
+  // birbirinin listesini yamamaz (backend `attachment.list` de ayırır).
+  const listKey = trpc.attachment.list.queryKey({ cardId, checklistItemId });
   const boardKey = boardId ? trpc.board.get.queryKey({ boardId }) : null;
+  const isItemScope = checklistItemId != null;
 
-  const attachmentsQuery = useQuery(trpc.attachment.list.queryOptions({ cardId }));
-  const upload = useAttachmentUpload({ cardId, boardId });
+  const attachmentsQuery = useQuery(
+    trpc.attachment.list.queryOptions({ cardId, checklistItemId }),
+  );
+  const upload = useAttachmentUpload({ cardId, boardId, checklistItemId });
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
@@ -94,6 +116,11 @@ export function AttachmentsSection({
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: listKey });
     void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
+    // Madde eki: silme/değişimde satır ek rozeti (`attachmentCount`)
+    // `checklist.list`'ten tazelensin. Kart eki için gereksiz.
+    if (isItemScope) {
+      void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+    }
     if (boardId) {
       void queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
     }
@@ -359,17 +386,8 @@ export function AttachmentsSection({
   // bekleyen dosya varken "Ek ekle" pasiftir.
   const addDisabled = upload.uploadingName !== null || upload.pendingFileName !== null;
 
-  return (
-    <DetailSection
-      icon="paperclip"
-      title={strings.attachments.title}
-      collapsible
-      defaultCollapsed
-      forceExpand={!!highlightAttachmentId}
-      trailing={
-        attachments.length > 0 ? <SectionBadge label={String(attachments.length)} /> : undefined
-      }
-    >
+  const body = (
+    <>
       <View className="gap-2">
         {attachmentsQuery.isError ? (
           <Text className="text-sm text-destructive">{strings.attachments.loadError}</Text>
@@ -413,7 +431,7 @@ export function AttachmentsSection({
                 attachment={attachment}
                 canDelete={canDelete(attachment)}
                 canEditDescription={canDelete(attachment)}
-                canSetCover={canEdit}
+                canSetCover={canEdit && !isItemScope}
                 downloading={downloadingId === attachment.id}
                 busy={busyAttachmentId === attachment.id}
                 highlighted={attachment.id === highlightAttachmentId}
@@ -442,24 +460,34 @@ export function AttachmentsSection({
         ) : null}
       </View>
 
-      <Sheet visible={sheetOpen} title={strings.attachments.sheetTitle} onClose={() => setSheetOpen(false)}>
-        <View className="gap-1">
-          {UPLOAD_SOURCES.map(({ source, icon, labelKey }) => (
-            <Pressable
-              key={source}
-              accessibilityRole="button"
-              onPress={() => handlePickSource(source)}
-              className="flex-row items-center gap-3 rounded-lg px-2 py-3 active:bg-muted"
-            >
-              <Icon name={icon} size={20} color={theme.foreground} />
-              <Text className="text-base text-foreground">{strings.attachments[labelKey]}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </Sheet>
+      {/* Yükleme kaynağı seçici. `chromeless` modda (madde eki) bu bölüm bir
+          `Sheet` (Modal) İÇİNDE render edilir; `Sheet` her zaman Modal mount
+          ettiğinden nested Modal'ların hep-mount kalması iOS'ta çakışabilir
+          (bkz. checklist thread/edit sheet koşullu mount dersi). Bu yüzden
+          chromeless modda yalnız açıkken mount edilir; kart eki modunda mevcut
+          davranış (hep mount, `visible` toggle) korunur — sıfır regresyon. */}
+      {(!chromeless || sheetOpen) ? (
+        <Sheet visible={sheetOpen} title={strings.attachments.sheetTitle} onClose={() => setSheetOpen(false)}>
+          <View className="gap-1">
+            {UPLOAD_SOURCES.map(({ source, icon, labelKey }) => (
+              <Pressable
+                key={source}
+                accessibilityRole="button"
+                onPress={() => handlePickSource(source)}
+                className="flex-row items-center gap-3 rounded-lg px-2 py-3 active:bg-muted"
+              >
+                <Icon name={icon} size={20} color={theme.foreground} />
+                <Text className="text-base text-foreground">{strings.attachments[labelKey]}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Sheet>
+      ) : null}
 
       {/* Yükleme öncesi opsiyonel açıklama girişi (Faz 7P). Backdrop/Kapat =
-          iptal — bekleyen dosya yüklenmeden atılır. */}
+          iptal — bekleyen dosya yüklenmeden atılır. Nested Modal koşullu mount:
+          yukarıdaki kaynak sheet'iyle aynı gerekçe. */}
+      {(!chromeless || upload.pendingFileName !== null) ? (
       <Sheet
         visible={upload.pendingFileName !== null}
         title={strings.attachments.descriptionSheetTitle}
@@ -483,8 +511,33 @@ export function AttachmentsSection({
           <Button label={strings.attachments.descriptionUploadAction} onPress={handleConfirmUpload} />
         </View>
       </Sheet>
+      ) : null}
 
-      <AttachmentImageViewer attachment={previewing} onClose={() => setPreviewing(null)} />
+      {/* Resim önizleme lightbox — kendisi de Modal. chromeless modda yalnız
+          önizlenen ek varken mount; kart modunda hep mount (`attachment` null
+          iken görünmez). */}
+      {(!chromeless || previewing) ? (
+        <AttachmentImageViewer attachment={previewing} onClose={() => setPreviewing(null)} />
+      ) : null}
+    </>
+  );
+
+  // Madde eki sheet'i (chromeless) — başlığı/yüzeyi saran `Sheet` sağlar; burada
+  // yalnız içerik döner. Kart eki modunda katlanabilir `DetailSection` yüzeyi.
+  if (chromeless) return body;
+
+  return (
+    <DetailSection
+      icon="paperclip"
+      title={strings.attachments.title}
+      collapsible
+      defaultCollapsed
+      forceExpand={!!highlightAttachmentId}
+      trailing={
+        attachments.length > 0 ? <SectionBadge label={String(attachments.length)} /> : undefined
+      }
+    >
+      {body}
     </DetailSection>
   );
 }

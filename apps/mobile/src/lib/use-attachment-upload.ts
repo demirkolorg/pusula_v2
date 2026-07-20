@@ -54,6 +54,13 @@ type UseAttachmentUploadArgs = {
   cardId: string;
   /** Yükleme bitince kart sayacı tazelensin diye `board.get` invalidate edilir. */
   boardId: string | undefined;
+  /**
+   * Verilirse ek kart yerine bu kontrol listesi maddesine iliştirilir
+   * (`attachment.initiate` `checklistItemId` opsiyonel parametresi). Liste
+   * invalidate'i o maddenin scope'una daraltılır; ayrıca satır ek rozetinin
+   * (`attachmentCount`) tazelenmesi için `checklist.list` invalidate edilir.
+   */
+  checklistItemId?: string;
 };
 
 export type UseAttachmentUploadResult = {
@@ -82,6 +89,7 @@ function showPermissionDenied(title: string, body: string): void {
 export function useAttachmentUpload({
   cardId,
   boardId,
+  checklistItemId,
 }: UseAttachmentUploadArgs): UseAttachmentUploadResult {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -137,6 +145,7 @@ export function useAttachmentUpload({
       try {
         const initiated = await initiate.mutateAsync({
           cardId,
+          checklistItemId,
           fileName: file.name,
           mimeType: file.mimeType,
           size: file.size,
@@ -182,12 +191,20 @@ export function useAttachmentUpload({
         try {
           // Liste refetch'i `await` edilir — `uploadingName` (bekleyen tile)
           // ancak gerçek ek satırı listeye düştükten sonra temizlenir, aksi
-          // halde tek frame'lik "ek kayboldu" titremesi olur.
-          await queryClient.invalidateQueries(trpc.attachment.list.queryFilter({ cardId }));
+          // halde tek frame'lik "ek kayboldu" titremesi olur. Scope madde eki
+          // ise o maddenin listesi (`checklistItemId`), değilse kart listesi.
+          await queryClient.invalidateQueries(
+            trpc.attachment.list.queryFilter({ cardId, checklistItemId }),
+          );
         } catch {
           // Refetch başarısız — bir sonraki ekran odağında yeniden denenir.
         }
         void queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId }));
+        // Madde eki: satır ek rozeti (`attachmentCount`) `checklist.list`'ten
+        // gelir — commit sonrası tazelensin. Kart eki için gereksiz.
+        if (checklistItemId) {
+          void queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId }));
+        }
         if (boardId) {
           void queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId }));
         }
@@ -200,7 +217,7 @@ export function useAttachmentUpload({
         setUploadProgress(null);
       }
     },
-    [boardId, cardId, commit, initiate, queryClient, trpc],
+    [boardId, cardId, checklistItemId, commit, initiate, queryClient, trpc],
   );
 
   /** Bekleyen dosyayı opsiyonel açıklamayla yüklemeye başlatır. */
