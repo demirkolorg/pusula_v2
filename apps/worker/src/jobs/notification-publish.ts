@@ -196,13 +196,33 @@ async function dispatchOutboxRow(
     //    the centre lists). The Drizzle insert path picks up the schema's
     //    `$defaultFn(() => nanoid())` id default — a raw SQL INSERT skips
     //    that and the NOT NULL on `id` rejects the row.
+    //
+    // Scope kolonları (2026-07-20) — payload'daki workspace/board/card id'leri
+    // kolonlara da yazılır (`board.moveToWorkspace` bildirim migrate'i ve
+    // scope sorguları kolondan çalışabilsin; öncesinde kolonlar hep NULL
+    // kalıyordu). Değer payload'dan köre kopyalanmaz: kaynak kayıt outbox
+    // yazıldıktan sonra silinmiş olabilir → scalar subquery varlığı doğrular,
+    // kayıt yoksa NULL düşer ve FK ihlali oluşmaz.
+    const payloadObj = (row.payload ?? {}) as Record<string, unknown>;
+    const scopeId = (key: string): string | null => {
+      const v = payloadObj[key];
+      return typeof v === 'string' && v.length > 0 ? v : null;
+    };
+    const wsScopeId = scopeId('workspaceId');
+    const boardScopeId = scopeId('boardId');
+    const cardScopeId = scopeId('cardId');
     const [insertedRow] = await tx
       .insert(notifications)
       .values({
         recipientId: row.recipientId,
         actorId: row.actorId,
         type: row.type as typeof notifications.$inferInsert.type,
-        payload: (row.payload ?? {}) as Record<string, unknown>,
+        payload: payloadObj,
+        workspaceId: wsScopeId
+          ? sql`(select id from workspaces where id = ${wsScopeId})`
+          : null,
+        boardId: boardScopeId ? sql`(select id from boards where id = ${boardScopeId})` : null,
+        cardId: cardScopeId ? sql`(select id from cards where id = ${cardScopeId})` : null,
         // Bildirim detay / audit (2026-06-20) — back-link the in-app record to
         // the activity event that produced it. Scheduler-fired `due_*` rows
         // carry `event_id IS NULL` (no triggering activity) → stays null, fine.

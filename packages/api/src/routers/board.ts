@@ -46,6 +46,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { removeCardMembershipsOnBoardExcept } from '../lib/card-members-cleanup';
 import { COVER_IMAGE_URL_TTL_SECONDS, toCoverImage } from '../lib/object-storage';
 import {
   dispatchNotificationsForActivity,
@@ -1080,7 +1081,7 @@ export const boardRouter = router({
           .from(boardMembers)
           .where(eq(boardMembers.boardId, ctx.board.id));
         const targetMembers = await tx
-          .select({ userId: workspaceMembers.userId })
+          .select({ userId: workspaceMembers.userId, role: workspaceMembers.role })
           .from(workspaceMembers)
           .where(eq(workspaceMembers.workspaceId, input.toWorkspaceId));
         const targetMemberIds = new Set(targetMembers.map((m) => m.userId));
@@ -1111,6 +1112,17 @@ export const boardRouter = router({
           }
         }
 
+        // Invariant 24 (2026-07-20) — hedef workspace'te panoya erişimi
+        // kalmayanların (explicit koltuk yok + hedefte non-guest ws üyeliği
+        // yok) bu panodaki kart üyelikleri düşer. Explicit üyeler yukarıda
+        // otomatik `guest` yapıldığı için erişimlerini korur ve sette zaten
+        // vardır.
+        const accessibleAfterMove = new Set<string>(explicitMembers.map((m) => m.userId));
+        for (const m of targetMembers) {
+          if (m.role !== 'guest') accessibleAfterMove.add(m.userId);
+        }
+        await removeCardMembershipsOnBoardExcept(tx, ctx.board.id, accessibleAfterMove);
+
         // Denormalize `workspace_id` alanlarını hedefe taşı. Board'un geçmiş
         // activity satırları panoyla gider; bildirim satırlarının hem kolonu
         // (FK cascade doğruluğu — kaynak workspace silinirse pano bildirimleri
@@ -1124,13 +1136,18 @@ export const boardRouter = router({
           .update(activityEvents)
           .set({ workspaceId: input.toWorkspaceId })
           .where(eq(activityEvents.boardId, ctx.board.id));
+        // Bildirim satırları: tarihsel kayıtlarda `board_id` kolonu NULL'dur
+        // (in-app fan-out 2026-07-20'ye dek scope kolonlarını doldurmuyordu) —
+        // eşleşme bu yüzden kolondan DEĞİL `payload->>'boardId'`dan yapılır;
+        // kolonlar burada geriye dönük de doldurulur (board mevcut — FK güvenli).
         await tx
           .update(notifications)
           .set({
             workspaceId: input.toWorkspaceId,
+            boardId: ctx.board.id,
             payload: sql`CASE WHEN ${notifications.payload} ? 'workspaceId' THEN jsonb_set(${notifications.payload}, '{workspaceId}', to_jsonb(${input.toWorkspaceId}::text)) ELSE ${notifications.payload} END`,
           })
-          .where(eq(notifications.boardId, ctx.board.id));
+          .where(sql`${notifications.payload}->>'boardId' = ${ctx.board.id}`);
         await tx
           .update(shareLinks)
           .set({ workspaceId: input.toWorkspaceId })

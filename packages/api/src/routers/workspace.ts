@@ -28,6 +28,7 @@ import {
 } from '@pusula/domain';
 import { TRPCError } from '@trpc/server';
 import { appendAudit } from '../lib/audit-log';
+import { removeCardMembershipsInWorkspace } from '../lib/card-members-cleanup';
 import {
   dispatchNotificationsForActivity,
   maybeEnqueueNotificationPublish,
@@ -144,6 +145,15 @@ const workspaceMembersRouter = router({
             ),
           );
 
+        // Invariant 24 (2026-07-20) — `guest`'e düşürülen kullanıcı yalnız
+        // explicit koltuğu olan panolara erişir; diğer panolardaki kart
+        // üyelikleri aynı tx'te düşer.
+        if (input.role === 'guest') {
+          await removeCardMembershipsInWorkspace(tx, ctx.workspace.id, input.userId, {
+            keepExplicitSeatBoards: true,
+          });
+        }
+
         const roleChangePayload = {
           // Faz 10A (DEM-135): alıcı `targetUserId` (rule engine bunu okur);
           // `userId` legacy alanını da koruyoruz (activity feed sözleşmesi).
@@ -236,6 +246,11 @@ const workspaceMembersRouter = router({
             eq(workspaceMembers.userId, input.userId),
           ),
         );
+
+      // Invariant 24 (2026-07-20) — workspace üyeliği kalkınca bu workspace'in
+      // hiçbir panosuna erişim kalmaz (explicit koltuk da yetmez —
+      // `resolveBoardAccess` ws üyeliği şart koşar); tüm kart üyelikleri düşer.
+      await removeCardMembershipsInWorkspace(tx, ctx.workspace.id, input.userId);
 
       const removedPayload = {
         // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);

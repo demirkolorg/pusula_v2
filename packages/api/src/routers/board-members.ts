@@ -61,6 +61,7 @@ import {
 import { TRPCError } from '@trpc/server';
 import { assertNotArchived } from '../lib/archive-guard';
 import { appendAudit } from '../lib/audit-log';
+import { removeCardMembershipsOnBoard } from '../lib/card-members-cleanup';
 import { accessFromBoardRole, boardProcedure } from '../middleware/board';
 import type { Queryable } from '../middleware/board-access';
 import {
@@ -607,8 +608,11 @@ export const boardMembersRouter = router({
    * archived board is read-only. Only explicit `board_members` rows can be
    * removed — a workspace `owner`/`admin` who merely inherits board access has no
    * row (`NOT_FOUND`). The last explicit board `admin` cannot be removed
-   * (`BAD_REQUEST`). The member's card memberships/assignments are *not* touched
-   * (preserved). Writes `board.member_removed` + bumps `boards.version`.
+   * (`BAD_REQUEST`). Card memberships/assignments are preserved while the
+   * member keeps effective access via a non-guest workspace role; if the seat
+   * was their only access (ws `guest`), their card memberships on this board
+   * are deleted in the same tx (invariant 24 — 2026-07-20). Writes
+   * `board.member_removed` + bumps `boards.version`.
    */
   remove: boardProcedure.input(removeBoardMemberInput).mutation(async ({ ctx, input }) => {
     const isSelf = input.userId === ctx.session.user.id;
@@ -653,6 +657,24 @@ export const boardMembersRouter = router({
       await tx
         .delete(boardMembers)
         .where(and(eq(boardMembers.boardId, ctx.board.id), eq(boardMembers.userId, input.userId)));
+
+      // Invariant 24 (2026-07-20) — koltuk gidince geriye efektif erişim
+      // kalmadıysa (ws `guest` + explicit satır yok) bu panodaki kart
+      // üyelikleri de düşer. Non-guest ws üyesi panoya ws rolüyle erişmeye
+      // devam eder → atamaları korunur.
+      const [wsRow] = await tx
+        .select({ role: workspaceMembers.role })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, ctx.board.workspaceId),
+            eq(workspaceMembers.userId, input.userId),
+          ),
+        )
+        .limit(1);
+      if (!wsRow || wsRow.role === 'guest') {
+        await removeCardMembershipsOnBoard(tx, ctx.board.id, input.userId);
+      }
 
       const removedPayload = {
         // Faz 10A (DEM-135): alıcı `removedUserId` (rule engine bunu okur);

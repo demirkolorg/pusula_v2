@@ -13,6 +13,7 @@ export {
   lt,
   lte,
   inArray,
+  notInArray,
   isNull,
   isNotNull,
   between,

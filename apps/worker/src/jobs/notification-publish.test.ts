@@ -125,7 +125,13 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
         channel: 'in_app',
         recipientId,
         type: 'card_assigned',
-        payload: { activityType: 'card.member_added', cardId, notificationType: 'card_assigned' },
+        payload: {
+          activityType: 'card.member_added',
+          workspaceId,
+          boardId,
+          cardId,
+          notificationType: 'card_assigned',
+        },
       })
       .returning({ id: notificationOutbox.id });
     const outboxId = outbox!.id;
@@ -145,11 +151,19 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
         id: notifications.id,
         recipientId: notifications.recipientId,
         type: notifications.type,
+        workspaceId: notifications.workspaceId,
+        boardId: notifications.boardId,
+        cardId: notifications.cardId,
       })
       .from(notifications)
       .where(dbMod.eq(notifications.recipientId, recipientId));
     expect(inserted).toHaveLength(1);
     expect(inserted[0]!.type).toBe('card_assigned');
+    // Scope kolonları (2026-07-20) — payload'daki id'ler kolonlara da yazılır
+    // (board.moveToWorkspace bildirim migrate'i kolondan eşleşebilsin).
+    expect(inserted[0]!.workspaceId).toBe(workspaceId);
+    expect(inserted[0]!.boardId).toBe(boardId);
+    expect(inserted[0]!.cardId).toBe(cardId);
 
     // Outbox row stamped.
     const [stamped] = await db()
@@ -166,6 +180,54 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     expect(publisher.calls[0]?.message.notificationType).toBe('card_assigned');
 
     // Cleanup so the next test is independent.
+    await db().delete(notifications).where(dbMod.eq(notifications.recipientId, recipientId));
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
+  });
+
+  it('scope columns fall back to NULL when the payload references deleted records', async () => {
+    // Outbox rows can outlive their workspace/board/card (event_id is SET
+    // NULL on delete, the outbox row itself is not cascaded). The scalar
+    // subqueries in the insert must degrade to NULL instead of violating the
+    // FK (2026-07-20).
+    const [outbox] = await db()
+      .insert(notificationOutbox)
+      .values({
+        eventId: activityId,
+        channel: 'in_app',
+        recipientId,
+        type: 'card_assigned',
+        payload: {
+          activityType: 'card.member_added',
+          workspaceId: 'ws_gone_cmc',
+          boardId: 'b_gone_cmc',
+          cardId: 'c_gone_cmc',
+          notificationType: 'card_assigned',
+        },
+      })
+      .returning({ id: notificationOutbox.id });
+    const outboxId = outbox!.id;
+
+    const result = await processNotificationPublishJob(
+      db(),
+      capturingPublisher(),
+      {},
+      { eventId: activityId },
+    );
+    expect(result.processed).toBe(1);
+
+    const inserted = await db()
+      .select({
+        workspaceId: notifications.workspaceId,
+        boardId: notifications.boardId,
+        cardId: notifications.cardId,
+      })
+      .from(notifications)
+      .where(dbMod.eq(notifications.recipientId, recipientId));
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]!.workspaceId).toBeNull();
+    expect(inserted[0]!.boardId).toBeNull();
+    expect(inserted[0]!.cardId).toBeNull();
+
     await db().delete(notifications).where(dbMod.eq(notifications.recipientId, recipientId));
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
