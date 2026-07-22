@@ -29,7 +29,7 @@
  * handoff problem in `last_error`.
  */
 import { Redis } from 'ioredis';
-import { and, asc, eq, isNull, notificationOutbox, notifications, sql } from '@pusula/db';
+import { and, asc, eq, inArray, isNull, notificationOutbox, notifications, sql } from '@pusula/db';
 import type { Database } from '@pusula/db';
 
 /** Redis pub/sub channel `apps/api` subscribes to for user-room badge updates. */
@@ -38,7 +38,7 @@ export const NOTIFICATION_USER_CHANNEL = 'pusula:notifications:user';
 /** BullMQ job name (documentation; the worker matches by queue, not name). */
 export const NOTIFICATION_PUBLISH_JOB_NAME = 'notification-publish';
 
-export type NotificationPublishJobData = { eventId: string };
+export type NotificationPublishJobData = { eventId: string; outboxIds?: string[] };
 
 /**
  * Sentinel eventId — the due-date scheduler enqueues a job with this value
@@ -94,6 +94,11 @@ export interface ChannelEnqueuers {
   enqueuePush?: (outboxId: string) => Promise<void> | void;
 }
 
+type PendingChannelHandoff = {
+  channel: 'email' | 'push';
+  outboxId: string;
+};
+
 /**
  * Process one publish job: read pending outbox rows for the event, fan out per
  * channel, stamp `processed_at`. Returns `{ processed, skipped }` for logs.
@@ -104,11 +109,12 @@ export async function processNotificationPublishJob(
   enqueuers: ChannelEnqueuers,
   data: NotificationPublishJobData,
 ): Promise<{ processed: number; skipped: number }> {
-  // Best-effort Redis publish messages are buffered inside the transaction
-  // and flushed *after* the commit — that way a publish failure can't roll
-  // back the `notifications` insert (which would double-deliver on the
-  // sweeper's retry).
+  // Every external side effect is buffered inside the transaction and flushed
+  // only after commit. This is not merely an optimisation: enqueueing a child
+  // email/push job while its outbox row is still locked lets the child run
+  // early, skip the lock, report `missing`, and complete without delivery.
   const pendingMessages: Array<{ outboxId: string; recipientId: string; message: string }> = [];
+  const pendingHandoffs: PendingChannelHandoff[] = [];
   const result = await db.transaction(async (tx) => {
     // Lock + read pending rows for this event. SKIP LOCKED so a parallel
     // worker doesn't double-process the same row. `processed_at IS NULL`
@@ -119,6 +125,10 @@ export async function processNotificationPublishJob(
       data.eventId === SCHEDULER_TICK_EVENT_ID
         ? isNull(notificationOutbox.eventId)
         : eq(notificationOutbox.eventId, data.eventId);
+    const pendingFilters = [eventFilter, isNull(notificationOutbox.processedAt)];
+    if (data.outboxIds && data.outboxIds.length > 0) {
+      pendingFilters.push(inArray(notificationOutbox.id, data.outboxIds));
+    }
     const rows = (await tx
       .select({
         id: notificationOutbox.id,
@@ -133,7 +143,7 @@ export async function processNotificationPublishJob(
         createdAt: notificationOutbox.createdAt,
       })
       .from(notificationOutbox)
-      .where(and(eventFilter, isNull(notificationOutbox.processedAt)))
+      .where(and(...pendingFilters))
       .orderBy(asc(notificationOutbox.createdAt))
       .for('update', { skipLocked: true })) as OutboxRow[];
     if (rows.length === 0) return { processed: 0, skipped: 0 };
@@ -142,12 +152,9 @@ export async function processNotificationPublishJob(
     let skipped = 0;
 
     for (const row of rows) {
-      const outcome = await dispatchOutboxRow(tx, enqueuers, pendingMessages, row);
-      // `'enqueued'` is success for the 6A processor: the row has been
-      // handed off to the Faz 6B channel queue — the 6B processor stamps
-      // `processed_at` itself once the email/push actually sends.
-      if (outcome === 'delivered' || outcome === 'enqueued') processed++;
-      else skipped++;
+      const outcome = await dispatchOutboxRow(tx, pendingMessages, pendingHandoffs, row);
+      if (outcome === 'delivered') processed++;
+      else if (outcome === 'skipped') skipped++;
     }
 
     return { processed, skipped };
@@ -167,15 +174,50 @@ export async function processNotificationPublishJob(
       );
     }
   }
-  return result;
+
+  // Channel queue handoff must happen after the transaction commits. A failed
+  // handoff leaves the outbox pending and fails this parent job so BullMQ can
+  // retry immediately; the periodic sweeper remains the final recovery layer.
+  let handedOff = 0;
+  const failures: string[] = [];
+  for (const handoff of pendingHandoffs) {
+    const enqueuer = handoff.channel === 'email' ? enqueuers.enqueueEmail : enqueuers.enqueuePush;
+    if (!enqueuer) {
+      const reason = `${handoff.channel} enqueuer is not wired`;
+      await markChannelHandoffUnavailable(db, handoff.outboxId, reason);
+      failures.push(`${handoff.channel}:${handoff.outboxId}: ${reason}`);
+      continue;
+    }
+
+    try {
+      await enqueuer(handoff.outboxId);
+      await clearChannelHandoffError(db, handoff.outboxId);
+      handedOff++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const reason = `${handoff.channel} enqueue failed: ${message}`;
+      console.warn(
+        `[worker:notifications] ${handoff.channel} enqueue failed (outbox=${handoff.outboxId}):`,
+        message,
+      );
+      await markChannelHandoffUnavailable(db, handoff.outboxId, reason);
+      failures.push(`${handoff.channel}:${handoff.outboxId}: ${reason}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`notification channel handoff failed (${failures.join('; ')})`);
+  }
+
+  return { processed: result.processed + handedOff, skipped: result.skipped };
 }
 
-type DispatchOutcome = 'delivered' | 'enqueued' | 'skipped';
+type DispatchOutcome = 'delivered' | 'deferred' | 'skipped';
 
 async function dispatchOutboxRow(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-  enqueuers: ChannelEnqueuers,
   pendingMessages: Array<{ outboxId: string; recipientId: string; message: string }>,
+  pendingHandoffs: PendingChannelHandoff[],
   row: OutboxRow,
 ): Promise<DispatchOutcome> {
   if (row.channel === 'in_app') {
@@ -218,9 +260,7 @@ async function dispatchOutboxRow(
         actorId: row.actorId,
         type: row.type as typeof notifications.$inferInsert.type,
         payload: payloadObj,
-        workspaceId: wsScopeId
-          ? sql`(select id from workspaces where id = ${wsScopeId})`
-          : null,
+        workspaceId: wsScopeId ? sql`(select id from workspaces where id = ${wsScopeId})` : null,
         boardId: boardScopeId ? sql`(select id from boards where id = ${boardScopeId})` : null,
         cardId: cardScopeId ? sql`(select id from cards where id = ${cardScopeId})` : null,
         // Bildirim detay / audit (2026-06-20) — back-link the in-app record to
@@ -293,53 +333,11 @@ async function dispatchOutboxRow(
     if (row.status === 'digest_queued') {
       return 'skipped';
     }
-    if (enqueuers.enqueueEmail) {
-      try {
-        await enqueuers.enqueueEmail(row.id);
-        await clearChannelHandoffError(tx, row.id);
-        // The Faz 6B email processor (`notification-email.ts`) stamps
-        // `processed_at` after sending — we must not stamp here, otherwise
-        // its `processed_at IS NULL` filter would make the row look
-        // already-handled and the email would never go out.
-        return 'enqueued';
-      } catch (err) {
-        console.warn(
-          `[worker:notifications] email enqueue failed (outbox=${row.id}):`,
-          err instanceof Error ? err.message : String(err),
-        );
-        await markChannelHandoffUnavailable(
-          tx,
-          row.id,
-          `email enqueue failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return 'skipped';
-      }
-    }
-    await markChannelHandoffUnavailable(tx, row.id, 'email enqueuer is not wired');
-    return 'skipped';
+    pendingHandoffs.push({ channel: 'email', outboxId: row.id });
+    return 'deferred';
   } else if (row.channel === 'push') {
-    if (enqueuers.enqueuePush) {
-      try {
-        await enqueuers.enqueuePush(row.id);
-        await clearChannelHandoffError(tx, row.id);
-        // Same hand-off discipline as the email branch — the 6B push
-        // processor stamps the row.
-        return 'enqueued';
-      } catch (err) {
-        console.warn(
-          `[worker:notifications] push enqueue failed (outbox=${row.id}):`,
-          err instanceof Error ? err.message : String(err),
-        );
-        await markChannelHandoffUnavailable(
-          tx,
-          row.id,
-          `push enqueue failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return 'skipped';
-      }
-    }
-    await markChannelHandoffUnavailable(tx, row.id, 'push enqueuer is not wired');
-    return 'skipped';
+    pendingHandoffs.push({ channel: 'push', outboxId: row.id });
+    return 'deferred';
   }
 
   // Stamp `processed_at` on success (one-shot — idempotent re-runs see this
@@ -357,31 +355,27 @@ async function dispatchOutboxRow(
 }
 
 async function markChannelHandoffUnavailable(
-  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  db: Database,
   outboxId: string,
   reason: string,
 ): Promise<void> {
-  await tx
+  await db
     .update(notificationOutbox)
     .set({
       status: 'pending',
       lastError: reason,
       attempts: sql`${notificationOutbox.attempts} + 1`,
     })
-    .where(eq(notificationOutbox.id, outboxId));
+    .where(and(eq(notificationOutbox.id, outboxId), isNull(notificationOutbox.processedAt)));
 }
 
-async function clearChannelHandoffError(
-  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-  outboxId: string,
-): Promise<void> {
-  await tx
+async function clearChannelHandoffError(db: Database, outboxId: string): Promise<void> {
+  await db
     .update(notificationOutbox)
     .set({
-      status: 'pending',
       lastError: null,
     })
-    .where(eq(notificationOutbox.id, outboxId));
+    .where(and(eq(notificationOutbox.id, outboxId), isNull(notificationOutbox.processedAt)));
 }
 
 /** Default Redis publisher (production wiring). */

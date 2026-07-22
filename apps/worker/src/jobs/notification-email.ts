@@ -46,6 +46,8 @@ import {
 import { renderNotificationEmail, type RenderedEmail } from './notification-templates';
 
 export const NOTIFICATION_EMAIL_JOB_NAME = 'notification-email';
+export const NOTIFICATION_EMAIL_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
+export const NOTIFICATION_EMAIL_STALE_REASON = 'email_stale';
 
 export type NotificationEmailJobData = { outboxId: string };
 
@@ -54,7 +56,7 @@ export type NotificationEmailOutcome =
   | { kind: 'sent'; messageId: string | null }
   | {
       kind: 'skipped';
-      reason: 'missing' | 'preference-disabled' | 'no-recipient' | 'quiet-hours';
+      reason: 'missing' | 'preference-disabled' | 'no-recipient' | 'quiet-hours' | 'stale';
     };
 
 /** Minimal mailer surface — `resend.emails.send` shape; injectable for tests. */
@@ -133,6 +135,7 @@ type OutboxRow = {
   workspaceId: string | null;
   boardId: string | null;
   cardId: string | null;
+  createdAt: Date;
 };
 
 /**
@@ -143,7 +146,7 @@ type OutboxRow = {
 export async function processNotificationEmailJob(
   db: Database,
   mailer: EmailMailer,
-  config: { from: string; appUrl: string },
+  config: { from: string; appUrl: string; maxAgeMs?: number; now?: Date },
   data: NotificationEmailJobData,
 ): Promise<NotificationEmailOutcome> {
   return db.transaction(async (tx) => {
@@ -159,6 +162,7 @@ export async function processNotificationEmailJob(
         workspaceId: sql<string | null>`(${notificationOutbox.payload}->>'workspaceId')`,
         boardId: sql<string | null>`(${notificationOutbox.payload}->>'boardId')`,
         cardId: sql<string | null>`(${notificationOutbox.payload}->>'cardId')`,
+        createdAt: notificationOutbox.createdAt,
       })
       .from(notificationOutbox)
       .where(
@@ -172,7 +176,27 @@ export async function processNotificationEmailJob(
       .for('update', { skipLocked: true })) as OutboxRow[];
 
     if (!row) {
+      // A pending row may be temporarily invisible to `FOR UPDATE SKIP
+      // LOCKED`. Treat that as retryable contention instead of completing the
+      // BullMQ job as a false "missing" success.
+      const [state] = await tx
+        .select({ processedAt: notificationOutbox.processedAt })
+        .from(notificationOutbox)
+        .where(
+          and(eq(notificationOutbox.id, data.outboxId), eq(notificationOutbox.channel, 'email')),
+        )
+        .limit(1);
+      if (state?.processedAt === null) {
+        throw new Error(`notification email outbox is locked (outbox=${data.outboxId})`);
+      }
       return { kind: 'skipped', reason: 'missing' };
+    }
+
+    const now = config.now ?? new Date();
+    const maxAgeMs = config.maxAgeMs ?? NOTIFICATION_EMAIL_MAX_AGE_MS;
+    if (Math.max(0, now.getTime() - row.createdAt.getTime()) > maxAgeMs) {
+      await stampDead(tx, row.id, NOTIFICATION_EMAIL_STALE_REASON);
+      return { kind: 'skipped', reason: 'stale' };
     }
 
     if (!row.recipientId) {
@@ -352,9 +376,7 @@ async function loadEmailDecision(
   const best = matched[0]?.c;
   const emailEnabled = best ? best.emailEnabled : true;
 
-  const globalRow = candidates.find(
-    (c) => !c.workspaceId && !c.boardId && !c.cardId,
-  );
+  const globalRow = candidates.find((c) => !c.workspaceId && !c.boardId && !c.cardId);
   const quietHours = globalRow
     ? {
         quietFrom: globalRow.quietFrom,

@@ -48,12 +48,17 @@ import { renderNotificationPush } from './notification-templates';
 const require = createRequire(import.meta.url);
 
 export const NOTIFICATION_PUSH_JOB_NAME = 'notification-push';
+export const NOTIFICATION_PUSH_MAX_AGE_MS = 15 * 60 * 1_000;
+export const NOTIFICATION_PUSH_STALE_REASON = 'push_stale';
 
 export type NotificationPushJobData = { outboxId: string };
 
 export type NotificationPushOutcome =
   | { kind: 'sent'; ticketCount: number; revokedTokens: number }
-  | { kind: 'skipped'; reason: 'missing' | 'no-tokens' | 'no-recipient' | 'quiet-hours' };
+  | {
+      kind: 'skipped';
+      reason: 'missing' | 'no-tokens' | 'no-recipient' | 'quiet-hours' | 'stale';
+    };
 
 // ───────────────────────────────────────────────────────────────────────────
 // Expo client surface — narrow enough to mock in tests, fat enough to map
@@ -81,6 +86,8 @@ export interface ExpoPushMessage {
   // delivery (sound + banner + wake) and needs NO entitlement; `'time-sensitive'`
   // would pierce Focus but requires the time-sensitive entitlement (native).
   interruptionLevel?: 'active' | 'critical' | 'passive' | 'time-sensitive';
+  /** Provider-side lifetime in seconds; bounded by the remaining freshness window. */
+  ttl?: number;
 }
 
 export interface ExpoPushTicketOk {
@@ -185,12 +192,13 @@ type OutboxRow = {
   // tap on the notification opens the same in-app detail screen. NULL for
   // scheduler-fired rows (no in-app sibling) → omitted from `data`.
   inAppNotificationId: string | null;
+  createdAt: Date;
 };
 
 export async function processNotificationPushJob(
   db: Database,
   client: ExpoPushClient,
-  config: { appUrl: string; dryRun?: boolean },
+  config: { appUrl: string; dryRun?: boolean; maxAgeMs?: number; now?: Date },
   data: NotificationPushJobData,
 ): Promise<NotificationPushOutcome> {
   return db.transaction(async (tx) => {
@@ -201,6 +209,7 @@ export async function processNotificationPushJob(
         type: notificationOutbox.type,
         payload: notificationOutbox.payload,
         inAppNotificationId: notificationOutbox.inAppNotificationId,
+        createdAt: notificationOutbox.createdAt,
       })
       .from(notificationOutbox)
       .where(
@@ -213,7 +222,31 @@ export async function processNotificationPushJob(
       .limit(1)
       .for('update', { skipLocked: true })) as OutboxRow[];
 
-    if (!row) return { kind: 'skipped', reason: 'missing' };
+    if (!row) {
+      // `SKIP LOCKED` can return no row even though a pending row exists. That
+      // is transient lock contention, not an idempotent "missing" outcome;
+      // fail the BullMQ attempt so it retries after the lock holder commits.
+      const [state] = await tx
+        .select({ processedAt: notificationOutbox.processedAt })
+        .from(notificationOutbox)
+        .where(
+          and(eq(notificationOutbox.id, data.outboxId), eq(notificationOutbox.channel, 'push')),
+        )
+        .limit(1);
+      if (state?.processedAt === null) {
+        throw new Error(`notification push outbox is locked (outbox=${data.outboxId})`);
+      }
+      return { kind: 'skipped', reason: 'missing' };
+    }
+
+    const now = config.now ?? new Date();
+    const maxAgeMs = config.maxAgeMs ?? NOTIFICATION_PUSH_MAX_AGE_MS;
+    const ageMs = Math.max(0, now.getTime() - row.createdAt.getTime());
+    if (ageMs > maxAgeMs) {
+      await stampDead(tx, row.id, NOTIFICATION_PUSH_STALE_REASON);
+      return { kind: 'skipped', reason: 'stale' };
+    }
+    const remainingTtlSeconds = Math.max(1, Math.ceil((maxAgeMs - ageMs) / 1_000));
 
     if (!row.recipientId) {
       // Push notifications without a recipient_id make no sense (push is
@@ -300,6 +333,7 @@ export async function processNotificationPushJob(
       // iOS: kilitli ekranda ses + ekran uyanması için açık interruption-level.
       // Olmadan iOS sessiz teslime düşüyordu (priority+sound yetmiyor).
       interruptionLevel: 'active',
+      ttl: remainingTtlSeconds,
     }));
 
     const chunks = client.chunkPushNotifications(messages);

@@ -40,6 +40,7 @@ import {
   processNotificationPublishJob,
   type NotificationPublishJobData,
 } from './jobs/notification-publish';
+import { enqueueRecoverableJob } from './recoverable-job';
 import {
   createResendMailer,
   NOTIFICATION_EMAIL_JOB_NAME,
@@ -83,7 +84,6 @@ import {
 } from './jobs/realtime-publish';
 import {
   notificationEmailJobId,
-  notificationPublishJobId,
   notificationPushJobId,
   realtimePublishJobId,
 } from './jobs/bullmq-job-ids';
@@ -148,11 +148,9 @@ const notificationsWorker = new Worker(
     if (job.name === NOTIFICATION_PUBLISH_SWEEPER_JOB_NAME) {
       const enqueued = await sweepStaleNotificationEvents(db, {
         enqueue: async (eventId) => {
-          await notificationsQueue.add(
-            NOTIFICATION_PUBLISH_JOB_NAME,
-            { eventId },
-            { jobId: notificationPublishJobId(eventId) },
-          );
+          // Recovery must bypass a retained completed/failed notify-{eventId}
+          // record. DB locking + processed_at provide idempotency.
+          await notificationsQueue.add(NOTIFICATION_PUBLISH_JOB_NAME, { eventId });
         },
       });
       if (enqueued > 0) {
@@ -164,22 +162,24 @@ const notificationsWorker = new Worker(
     const outcome = await processNotificationPublishJob(
       db,
       notificationPublisher,
-      // Faz 6B (DEM-91) — wire the channel queues. Each enqueue is
-      // best-effort; a BullMQ error logs + the publish processor returns
-      // `'skipped'`, the 60 s sweeper re-picks the row later.
+      // Faz 6B (DEM-91) — channel handoff runs only after the DB transaction
+      // commits. A BullMQ error fails this parent attempt; the 60 s sweeper is
+      // the final recovery layer.
       {
         enqueueEmail: async (outboxId) => {
-          await notificationsEmailQueue.add(
+          await enqueueRecoverableJob(
+            notificationsEmailQueue,
             NOTIFICATION_EMAIL_JOB_NAME,
             { outboxId } satisfies NotificationEmailJobData,
-            { jobId: notificationEmailJobId(outboxId) },
+            notificationEmailJobId(outboxId),
           );
         },
         enqueuePush: async (outboxId) => {
-          await notificationsPushQueue.add(
+          await enqueueRecoverableJob(
+            notificationsPushQueue,
             NOTIFICATION_PUSH_JOB_NAME,
             { outboxId } satisfies NotificationPushJobData,
-            { jobId: notificationPushJobId(outboxId) },
+            notificationPushJobId(outboxId),
           );
         },
       },
@@ -264,11 +264,9 @@ const scheduledWorker = new Worker(
   async (job) => {
     if (job.name === DUE_DATE_SCHEDULER_JOB_NAME) {
       const result = await runDueDateScheduler(db, async (eventId) => {
-        await notificationsQueue.add(
-          NOTIFICATION_PUBLISH_JOB_NAME,
-          { eventId },
-          { jobId: notificationPublishJobId(eventId) },
-        );
+        // Scheduler uses the stable `scheduler:tick` sentinel; a deterministic
+        // job id would suppress every tick until BullMQ retention removes it.
+        await notificationsQueue.add(NOTIFICATION_PUBLISH_JOB_NAME, { eventId });
       });
       if (result.written > 0) {
         console.warn(
@@ -375,8 +373,7 @@ const notificationPushWorker = new Worker(
 const notificationEmailDigestWorker = new Worker(
   QUEUE.notificationsEmailDigest,
   async (job) => {
-    const cadence =
-      job.name === NOTIFICATION_EMAIL_DIGEST_HOURLY_JOB_NAME ? 'hourly' : 'daily';
+    const cadence = job.name === NOTIFICATION_EMAIL_DIGEST_HOURLY_JOB_NAME ? 'hourly' : 'daily';
     const result = await processEmailDigestTick(
       db,
       emailMailer,
@@ -503,11 +500,7 @@ const reportRenderWorker = new Worker(
               );
             },
             enqueueNotificationPublish: async ({ eventId }) => {
-              await notificationsQueue.add(
-                NOTIFICATION_PUBLISH_JOB_NAME,
-                { eventId },
-                { jobId: notificationPublishJobId(eventId) },
-              );
+              await notificationsQueue.add(NOTIFICATION_PUBLISH_JOB_NAME, { eventId });
             },
           },
           { renderId: input.renderId },
@@ -812,7 +805,10 @@ void attachmentCleanupQueue
     },
   )
   .catch((err) => {
-    console.error('[worker:attachment-cleanup-sweeper] failed to register repeatable job:', err.message);
+    console.error(
+      '[worker:attachment-cleanup-sweeper] failed to register repeatable job:',
+      err.message,
+    );
   });
 
 // Faz 8F (DEM-283) — register the daily invitation expiry sweeper. Cron

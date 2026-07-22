@@ -31,6 +31,8 @@ import {
 } from '@pusula/db';
 import {
   createDryRunExpoClient,
+  NOTIFICATION_PUSH_MAX_AGE_MS,
+  NOTIFICATION_PUSH_STALE_REASON,
   processNotificationPushJob,
   type ExpoPushClient,
   type ExpoPushMessage,
@@ -128,7 +130,9 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationPreferences)
       .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
-    await db().delete(notifications).where(dbMod.inArray(notifications.recipientId, createdUserIds));
+    await db()
+      .delete(notifications)
+      .where(dbMod.inArray(notifications.recipientId, createdUserIds));
   });
 
   afterAll(async () => {
@@ -140,7 +144,9 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await db()
       .delete(notificationPreferences)
       .where(dbMod.inArray(notificationPreferences.userId, createdUserIds));
-    await db().delete(notifications).where(dbMod.inArray(notifications.recipientId, createdUserIds));
+    await db()
+      .delete(notifications)
+      .where(dbMod.inArray(notifications.recipientId, createdUserIds));
     await db().delete(users).where(dbMod.inArray(users.id, createdUserIds));
     await probe.pool.end();
   });
@@ -151,6 +157,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     channel?: 'in_app' | 'email' | 'push';
     payload?: Record<string, unknown>;
     inAppNotificationId?: string;
+    createdAt?: Date;
   }): Promise<string> {
     const [row] = await db()
       .insert(notificationOutbox)
@@ -161,6 +168,7 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
         channel: opts.channel ?? 'push',
         payload: opts.payload ?? {},
         inAppNotificationId: opts.inAppNotificationId ?? null,
+        createdAt: opts.createdAt,
       })
       .returning({ id: notificationOutbox.id });
     return row!.id;
@@ -221,6 +229,8 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     expect(msg.sound).toBe('notification.wav');
     expect(msg.priority).toBe('high');
     expect(msg.interruptionLevel).toBe('active');
+    expect(msg.ttl).toBeGreaterThan(0);
+    expect(msg.ttl).toBeLessThanOrEqual(NOTIFICATION_PUSH_MAX_AGE_MS / 1_000);
 
     const row = await readOutbox(outboxId);
     expect(row?.processedAt).not.toBeNull();
@@ -229,6 +239,63 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     const tokenRow = await readToken(token);
     expect(tokenRow?.lastUsedAt).not.toBeNull();
     expect(tokenRow?.revokedAt).toBeNull();
+  });
+
+  it('drops a push older than the 15-minute freshness window', async () => {
+    await seedToken(aliceId);
+    const now = new Date('2026-07-22T16:00:00.000Z');
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'Eski olay' },
+      createdAt: new Date(now.getTime() - NOTIFICATION_PUSH_MAX_AGE_MS - 1),
+    });
+    const client = capturingClient();
+
+    const outcome = await processNotificationPushJob(
+      db() as never,
+      client,
+      { ...CONFIG, now },
+      { outboxId },
+    );
+
+    expect(outcome).toEqual({ kind: 'skipped', reason: 'stale' });
+    expect(client.sentChunks).toHaveLength(0);
+    const row = await readOutbox(outboxId);
+    expect(row?.processedAt).not.toBeNull();
+    expect(row?.status).toBe('dead');
+    expect(row?.lastError).toBe(NOTIFICATION_PUSH_STALE_REASON);
+  });
+
+  it('treats a pending row hidden by SKIP LOCKED as retryable contention', async () => {
+    const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
+    let releaseLock!: () => void;
+    let reportLocked!: () => void;
+    const lockHeld = new Promise<void>((resolve) => {
+      reportLocked = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const locker = db().transaction(async (tx) => {
+      await tx
+        .select({ id: notificationOutbox.id })
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.id, outboxId))
+        .for('update');
+      reportLocked();
+      await release;
+    });
+
+    await lockHeld;
+    try {
+      await expect(
+        processNotificationPushJob(db() as never, capturingClient(), CONFIG, { outboxId }),
+      ).rejects.toThrow(/outbox is locked/);
+    } finally {
+      releaseLock();
+      await locker;
+    }
+    expect((await readOutbox(outboxId))?.processedAt).toBeNull();
   });
 
   it('routes the linked in-app notification id onto push data.notificationId', async () => {
@@ -438,14 +505,12 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
   it('quiet-hours: card_assigned inside window → dead + quiet_hours_window reason', async () => {
     await seedToken(aliceId);
     const { from, to } = windowAroundNow();
-    await db()
-      .insert(notificationPreferences)
-      .values({
-        userId: aliceId,
-        quietFrom: from,
-        quietTo: to,
-        quietTimezone: 'Europe/Istanbul',
-      });
+    await db().insert(notificationPreferences).values({
+      userId: aliceId,
+      quietFrom: from,
+      quietTo: to,
+      quietTimezone: 'Europe/Istanbul',
+    });
     const outboxId = await seedOutbox({
       recipientId: aliceId,
       type: 'card_assigned',
@@ -464,14 +529,12 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
   it('quiet-hours: mention inside window BYPASSES suppression (sent)', async () => {
     await seedToken(aliceId);
     const { from, to } = windowAroundNow();
-    await db()
-      .insert(notificationPreferences)
-      .values({
-        userId: aliceId,
-        quietFrom: from,
-        quietTo: to,
-        quietTimezone: 'Europe/Istanbul',
-      });
+    await db().insert(notificationPreferences).values({
+      userId: aliceId,
+      quietFrom: from,
+      quietTo: to,
+      quietTimezone: 'Europe/Istanbul',
+    });
     const outboxId = await seedOutbox({
       recipientId: aliceId,
       type: 'mention',
@@ -524,7 +587,12 @@ describe.runIf(dbAvailable)('processNotificationPushJob (integration)', () => {
     await seedToken(aliceId);
     const outboxId = await seedOutbox({ recipientId: aliceId, payload: {} });
     const client = capturingClient();
-    await processNotificationPushJob(db() as never, client, { ...CONFIG, dryRun: true }, { outboxId });
+    await processNotificationPushJob(
+      db() as never,
+      client,
+      { ...CONFIG, dryRun: true },
+      { outboxId },
+    );
 
     const receipts = await db()
       .select()

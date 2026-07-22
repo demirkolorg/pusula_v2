@@ -267,7 +267,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
       publisher,
       // push enqueuer wired so the push row is handed off (not stamped); the
       // back-link UPDATE runs in the in_app branch regardless.
-      { enqueuePush: async () => {} },
+      { enqueueEmail: async () => {}, enqueuePush: async () => {} },
       { eventId: activityId },
     );
     expect(result.processed).toBe(2);
@@ -307,15 +307,13 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
 
     // Seed a sibling (in_app, push) pair for one recipient on the shared event.
     const seedPair = async (rid: string) => {
-      await db()
-        .insert(notificationOutbox)
-        .values({
-          eventId: activityId,
-          channel: 'in_app',
-          recipientId: rid,
-          type: 'card_assigned',
-          payload: { cardId },
-        });
+      await db().insert(notificationOutbox).values({
+        eventId: activityId,
+        channel: 'in_app',
+        recipientId: rid,
+        type: 'card_assigned',
+        payload: { cardId },
+      });
       const [pushRow] = await db()
         .insert(notificationOutbox)
         .values({
@@ -401,8 +399,8 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await processNotificationPublishJob(
       db(),
       publisher,
-      { enqueuePush: async () => {} },
-      { eventId: SCHEDULER_TICK_EVENT_ID },
+      { enqueueEmail: async () => {}, enqueuePush: async () => {} },
+      { eventId: SCHEDULER_TICK_EVENT_ID, outboxIds: [inAppOutboxId, pushOutboxId] },
     );
 
     const [inApp] = await db()
@@ -526,18 +524,26 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const outboxId = outbox!.id;
 
     const enqueuedPush: string[] = [];
+    let handoffSawUnlockedRow = false;
     const publisher = capturingPublisher();
     const result = await processNotificationPublishJob(
       db(),
       publisher,
       {
         enqueuePush: async (id) => {
+          // Regression guard (2026-07-22): this NOWAIT lock succeeds only if
+          // the parent notification-publish transaction already committed.
+          await db().execute(
+            dbMod.sql`SELECT id FROM notification_outbox WHERE id = ${id} FOR UPDATE NOWAIT`,
+          );
+          handoffSawUnlockedRow = true;
           enqueuedPush.push(id);
         },
       },
       { eventId: activityId },
     );
     expect(result.processed).toBe(1);
+    expect(handoffSawUnlockedRow).toBe(true);
     expect(enqueuedPush).toEqual([outboxId]);
     expect(publisher.calls).toHaveLength(0);
 
@@ -567,14 +573,9 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const outboxId = outbox!.id;
 
     const publisher = capturingPublisher();
-    const result = await processNotificationPublishJob(
-      db(),
-      publisher,
-      {},
-      { eventId: activityId },
-    );
-    expect(result.processed).toBe(0);
-    expect(result.skipped).toBe(1);
+    await expect(
+      processNotificationPublishJob(db(), publisher, {}, { eventId: activityId }),
+    ).rejects.toThrow(/email enqueuer is not wired/);
 
     const [stamped] = await db()
       .select({
@@ -607,14 +608,9 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const outboxId = outbox!.id;
 
     const publisher = capturingPublisher();
-    const result = await processNotificationPublishJob(
-      db(),
-      publisher,
-      {},
-      { eventId: activityId },
-    );
-    expect(result.processed).toBe(0);
-    expect(result.skipped).toBe(1);
+    await expect(
+      processNotificationPublishJob(db(), publisher, {}, { eventId: activityId }),
+    ).rejects.toThrow(/push enqueuer is not wired/);
 
     const [stamped] = await db()
       .select({
@@ -647,20 +643,18 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     const outboxId = outbox!.id;
 
     const publisher = capturingPublisher();
-    const result = await processNotificationPublishJob(
-      db(),
-      publisher,
-      {
-        enqueueEmail: async () => {
-          throw new Error('queue temporarily unavailable');
+    await expect(
+      processNotificationPublishJob(
+        db(),
+        publisher,
+        {
+          enqueueEmail: async () => {
+            throw new Error('queue temporarily unavailable');
+          },
         },
-      },
-      { eventId: activityId },
-    );
-    // The throw is caught inside `dispatchOutboxRow` → row counted as
-    // skipped (not delivered, not enqueued). The processed counter stays 0.
-    expect(result.processed).toBe(0);
-    expect(result.skipped).toBe(1);
+        { eventId: activityId },
+      ),
+    ).rejects.toThrow(/queue temporarily unavailable/);
 
     const [stamped] = await db()
       .select({ processedAt: notificationOutbox.processedAt, status: notificationOutbox.status })
@@ -673,7 +667,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
-  it("digest_queued email row is skipped (not handed off, not stamped) — Faz 10G", async () => {
+  it('digest_queued email row is skipped (not handed off, not stamped) — Faz 10G', async () => {
     // Faz 10G: digest worker bu satırı kendi cron'unda işler; publish
     // processor email kanal kuyruğuna push etmemeli.
     const [outbox] = await db()
@@ -715,7 +709,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.id, outboxId));
   });
 
-  it("sweeper ignores digest_queued rows — Faz 10G", async () => {
+  it('sweeper ignores digest_queued rows — Faz 10G', async () => {
     // Sweeper digest satırlarını yeniden enqueue etmemeli — digest worker
     // ayrı cron üzerinden işler. Aksi halde her tick'te aynı satır publish
     // processor'a düşüp tekrar skip edilir (gürültü).
@@ -725,9 +719,7 @@ describe.runIf(dbAvailable)('processNotificationPublishJob (integration)', () =>
     // sonucunda *bu* activityId enqueued listesinde olmamalı (diğer
     // paralel testlerden artık stale satırlar varsa onların sayısına
     // değil, kendi event'imizin akıbetine bakıyoruz).
-    await db()
-      .delete(notificationOutbox)
-      .where(dbMod.eq(notificationOutbox.eventId, activityId));
+    await db().delete(notificationOutbox).where(dbMod.eq(notificationOutbox.eventId, activityId));
     const [outbox] = await db()
       .insert(notificationOutbox)
       .values({

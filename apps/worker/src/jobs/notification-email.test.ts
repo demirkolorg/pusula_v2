@@ -21,6 +21,8 @@ import * as dbMod from '@pusula/db';
 import { notificationOutbox, notificationPreferences, users } from '@pusula/db';
 import {
   createResendMailer,
+  NOTIFICATION_EMAIL_MAX_AGE_MS,
+  NOTIFICATION_EMAIL_STALE_REASON,
   processNotificationEmailJob,
   type EmailMailer,
 } from './notification-email';
@@ -123,6 +125,7 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
     type?: dbMod.NotificationOutboxRow['type'];
     channel?: 'in_app' | 'email' | 'push';
     payload?: Record<string, unknown>;
+    createdAt?: Date;
   }): Promise<string> {
     const [row] = await db()
       .insert(notificationOutbox)
@@ -132,6 +135,7 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
         type: opts.type ?? 'card_assigned',
         channel: opts.channel ?? 'email',
         payload: opts.payload ?? {},
+        createdAt: opts.createdAt,
       })
       .returning({ id: notificationOutbox.id });
     return row!.id;
@@ -193,6 +197,65 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
     const second = await processNotificationEmailJob(db() as never, mailer, CONFIG, { outboxId });
     expect(second).toEqual({ kind: 'skipped', reason: 'missing' });
     expect(mailer.calls).toHaveLength(1);
+  });
+
+  it('drops transactional email older than the 24-hour freshness window', async () => {
+    const now = new Date('2026-07-22T16:00:00.000Z');
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'Eski olay' },
+      createdAt: new Date(now.getTime() - NOTIFICATION_EMAIL_MAX_AGE_MS - 1),
+    });
+    const mailer = capturingMailer();
+
+    const outcome = await processNotificationEmailJob(
+      db() as never,
+      mailer,
+      { ...CONFIG, now },
+      { outboxId },
+    );
+
+    expect(outcome).toEqual({ kind: 'skipped', reason: 'stale' });
+    expect(mailer.calls).toHaveLength(0);
+    const row = await readOutbox(outboxId);
+    expect(row?.processedAt).not.toBeNull();
+    expect(row?.status).toBe('dead');
+    expect(row?.lastError).toBe(NOTIFICATION_EMAIL_STALE_REASON);
+  });
+
+  it('treats a pending row hidden by SKIP LOCKED as retryable contention', async () => {
+    const outboxId = await seedOutbox({
+      recipientId: aliceId,
+      payload: { actorName: 'Bob', cardTitle: 'X' },
+    });
+    let releaseLock!: () => void;
+    let reportLocked!: () => void;
+    const lockHeld = new Promise<void>((resolve) => {
+      reportLocked = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const locker = db().transaction(async (tx) => {
+      await tx
+        .select({ id: notificationOutbox.id })
+        .from(notificationOutbox)
+        .where(dbMod.eq(notificationOutbox.id, outboxId))
+        .for('update');
+      reportLocked();
+      await release;
+    });
+
+    await lockHeld;
+    try {
+      await expect(
+        processNotificationEmailJob(db() as never, capturingMailer(), CONFIG, { outboxId }),
+      ).rejects.toThrow(/outbox is locked/);
+    } finally {
+      releaseLock();
+      await locker;
+    }
+    expect((await readOutbox(outboxId))?.processedAt).toBeNull();
   });
 
   it('channel filter: rows with channel=in_app are skipped', async () => {
@@ -393,14 +456,12 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
 
   it('quiet-hours: card_assigned inside window → dead + quiet_hours_window reason', async () => {
     const { from, to } = windowAroundNow();
-    await db()
-      .insert(notificationPreferences)
-      .values({
-        userId: aliceId,
-        quietFrom: from,
-        quietTo: to,
-        quietTimezone: 'Europe/Istanbul',
-      });
+    await db().insert(notificationPreferences).values({
+      userId: aliceId,
+      quietFrom: from,
+      quietTo: to,
+      quietTimezone: 'Europe/Istanbul',
+    });
     const outboxId = await seedOutbox({
       recipientId: aliceId,
       type: 'card_assigned',
@@ -419,14 +480,12 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
 
   it('quiet-hours: mention inside window BYPASSES suppression (sent)', async () => {
     const { from, to } = windowAroundNow();
-    await db()
-      .insert(notificationPreferences)
-      .values({
-        userId: aliceId,
-        quietFrom: from,
-        quietTo: to,
-        quietTimezone: 'Europe/Istanbul',
-      });
+    await db().insert(notificationPreferences).values({
+      userId: aliceId,
+      quietFrom: from,
+      quietTo: to,
+      quietTimezone: 'Europe/Istanbul',
+    });
     const outboxId = await seedOutbox({
       recipientId: aliceId,
       type: 'mention',
@@ -440,14 +499,12 @@ describe.runIf(dbAvailable)('processNotificationEmailJob (integration)', () => {
 
   it('quiet-hours: window in the past → not quiet → normal send', async () => {
     const { from, to } = windowFarFromNow();
-    await db()
-      .insert(notificationPreferences)
-      .values({
-        userId: aliceId,
-        quietFrom: from,
-        quietTo: to,
-        quietTimezone: 'Europe/Istanbul',
-      });
+    await db().insert(notificationPreferences).values({
+      userId: aliceId,
+      quietFrom: from,
+      quietTo: to,
+      quietTimezone: 'Europe/Istanbul',
+    });
     const outboxId = await seedOutbox({
       recipientId: aliceId,
       type: 'card_assigned',
