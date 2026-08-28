@@ -16,7 +16,7 @@ parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
 related:
   - '[[docs/architecture/10-platform|10 — Platform]]'
   - '[[docs/architecture/02-teknoloji-kararlari|02 — Teknoloji Kararları]]'
-updated: 2026-07-06
+updated: 2026-08-28
 ---
 
 # 12 — Üretim Deploy Runbook'u (Dokploy "Docker Compose" servis tipi)
@@ -156,7 +156,7 @@ services:
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
       API_PORT: 3001
-      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_ENDPOINT: http://pusula-minio:9000
       S3_REGION: ${S3_REGION}
       S3_BUCKET: ${S3_BUCKET}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
@@ -168,6 +168,7 @@ services:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      minio-setup: { condition: service_completed_successfully }
     # Traefik (Dokploy) — domain'i ya bu label'larla ya da Dokploy UI "Domains" sekmesinden ver:
     labels:
       - 'traefik.enable=true'
@@ -183,7 +184,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_ENDPOINT: http://pusula-minio:9000
       S3_BUCKET: ${S3_BUCKET}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
@@ -193,6 +194,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+      minio-setup: { condition: service_completed_successfully }
     # worker'a Traefik label yok — HTTP açmaz.
 
   web:
@@ -250,17 +252,39 @@ services:
     image: minio/minio:latest
     command: ['server', '/data', '--console-address', ':9001']
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    # S3 endpoint'ini app'ler internal ad (`http://minio:9000`) ile kullanır; konsol gerekiyorsa
-    # ayrı subdomain + Traefik label ekle (`...loadbalancer.server.port=9001`).
+    networks:
+      default:
+        aliases: [pusula-minio]
+    # API/worker yalnız proje-özel `http://pusula-minio:9000` endpoint'ini kullanır.
+    # `minio-setup` kendi retry döngüsüyle readiness + bucket/policy bootstrap'ını
+    # tamamlar; konsol gerekiyorsa ayrı subdomain + Traefik label ekle.
+
+  minio-setup:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      - minio
+    volumes:
+      - ./infra/minio/policies:/policies:ro
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set local http://pusula-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done;
+        mc mb --ignore-existing local/pusula;
+        mc mb --ignore-existing local/pusula-reports;
+        mc anonymous set download local/pusula/avatars;
+        mc admin policy create local pusula-app /policies/pusula-app.json || mc admin policy update local pusula-app /policies/pusula-app.json;
+        exit 0;
+    restart: 'no'
+    networks:
+      - default
 
 volumes:
   pg_data:
@@ -343,11 +367,12 @@ Dokploy compose servisinin **Environment** sekmesinde tüm anahtarları gir. Kay
 | `APP_URL`                                             | `https://${ROOT_DOMAIN}` (web kök domain'de)                                                                 |
 | `API_URL`                                             | `https://api.${ROOT_DOMAIN}`                                                                                 |
 | `NEXT_PUBLIC_API_URL`                                 | `https://api.${ROOT_DOMAIN}` — **build arg** (web image'ına inline edilir)                                   |
-| `S3_ENDPOINT`                                         | `http://minio:9000` (app'ler internal kullanır)                                                              |
+| `S3_ENDPOINT`                                         | Production Compose içinde `http://pusula-minio:9000` sabittir; ortak `dokploy-network` üzerindeki başka projelerin `minio` alias'larıyla çakışmaması için genel `minio` hostname'i kullanılmaz |
 | `S3_PUBLIC_URL`                                       | Avatarların tarayıcıya açık MinIO origin'i (Traefik subdomain, ör. `https://s3.${ROOT_DOMAIN}`) — DEM-160; `S3_ENDPOINT` internal olduğu için ayrı |
 | `S3_REGION`                                           | `us-east-1` (MinIO için fark etmez)                                                                          |
 | `S3_BUCKET`                                           | `pusula`                                                                                                     |
-| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`           | MinIO root kimliği — güçlü, dev `minioadmin`'den farklı                                                      |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`             | Yalnız `minio` ve `minio-setup` için güçlü yönetici kimliği; API/worker'a verilmez                           |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`           | `pusula-app` policy'sine bağlı dar-yetkili uygulama servis hesabı; MinIO root kimliği değildir               |
 | `RESEND_API_KEY`                                      | Resend prod API key                                                                                          |
 | `EMAIL_FROM`                                          | `Pusula <no-reply@${ROOT_DOMAIN}>` (gönderen domain Resend'de doğrulanmış olmalı)                            |
 | `NEXT_PUBLIC_SENTRY_DSN`                              | `pusula-web` Sentry DSN — **build arg** (web image'ına inline edilir; opsiyonel)                            |
@@ -379,7 +404,7 @@ DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olar
 ## 12.7 Aşama 4 — İlk deploy + migration + MinIO bucket
 
 1. Dokploy compose servisinde **Deploy**'a bas. Build logunu izle (web + api/worker image'ları build edilir).
-2. Sıra: `postgres` healthy → `migrate` koşar ve `service_completed_successfully` olur → `api`/`worker` başlar → `web` başlar.
+2. Sıra: `postgres` healthy → `migrate` koşar ve `service_completed_successfully` olur → `minio` başlar ve idempotent `minio-setup` tamamlanır → `api`/`worker` başlar → `web` başlar.
    `migrate` fail ederse logdan bak (`DATABASE_URL` yanlış / şema sorunu); düzelt, redeploy.
 3. **MinIO bucket + policy bootstrap'ı `minio-setup` servisi otomatik yapar** (compose'da; her deploy'da idempotent koşar — DEM-276 follow-up 2026-06-01):
    - **Yapılanlar (otomatik):**
@@ -397,7 +422,7 @@ DNS oturunca redeploy. **CORS:** Hono `apps/api` `APP_URL`'i allowed origin olar
      Üretilen credentials'i Dokploy `web`/`api`/`worker` Environment'ına ekle. Bu adım secret üretimi içerir, bootstrap'a girmez. Service account bir kez kurulur; sonraki deploy'larda policy üzerinden bucket erişimi senkron kalır (yeni bucket eklenirse `policies/pusula-app.json` güncellenir, bir sonraki deploy uygular).
    - **Opsiyonel — bucket CORS (`Access-Control-Allow-Origin`):** Web `app.${ROOT_DOMAIN}` origin'inden kart kapağı görselinin baskın rengini canvas örneklemesiyle çıkarıp modal banner arkaplanına uygulamak için (`apps/web` `card-cover-image.tsx` → `onDominantColor`), MinIO bucket'ına `https://app.${ROOT_DOMAIN}` origin'i için CORS izni eklenmelidir. CORS yoksa modal kapak banner'ı sessizce `bg-muted` fallback'inde kalır — kapak görseli yine yüklenir, sadece dominant renk uygulanmaz. `mc` ile: bucket için bir CORS JSON (`AllowedOrigins: ["https://app.${ROOT_DOMAIN}"]`, `AllowedMethods: ["GET"]`, `AllowedHeaders: ["*"]`) hazırlanıp `mc anonymous set-json` benzeri politika veya MinIO konsolundan **Buckets → pusula → Configure → CORS** üzerinden tanımlanır.
    - **Yeni bucket eklerken:** `infra/minio/policies/pusula-app.json` resource listesine `arn:aws:s3:::<bucket>` + `arn:aws:s3:::<bucket>/*` ekle, `docker-compose.yml` + `compose.prod.yml` `minio-setup` entrypoint'ine `mc mb --ignore-existing local/<bucket>` satırı ekle, commit + deploy. Sonraki deploy `minio-setup` yeni bucket'ı + güncel policy'yi uygular.
-4. **Doğrulama:** `docker ps` — `pusula-api`, `pusula-worker`, `pusula-web`, `pusula-postgres`, `pusula-redis`, `pusula-minio` ayakta, healthcheck'ler `healthy`; `migrate` `Exited (0)`.
+4. **Doğrulama:** `docker ps -a` — `pusula-api`, `pusula-worker`, `pusula-web`, `pusula-postgres`, `pusula-redis`, `pusula-minio` ayakta; healthcheck tanımlı servisler `healthy`; `migrate` ve `minio-setup` `Exited (0)`.
 
 ---
 
@@ -473,6 +498,7 @@ Hepsi yeşilse → Aşama 6.
 | Web açılıyor ama API çağrıları başarısız                    | `NEXT_PUBLIC_API_URL` build arg'ı doğru mu (build zamanı inline)? Yanlışsa web image'ını yeniden build et. CORS: `apps/api` `APP_URL`'i origin olarak okuyor mu? |
 | `migrate` servisi fail                                      | `DATABASE_URL` (`@postgres:5432`, prod parola) doğru mu? Postgres `healthy` mı? Log: hangi migration patladı?                                                    |
 | api/worker "ECONNREFUSED redis"                             | `REDIS_URL=redis://redis:6379` (internal host adı), `redis` `healthy` mı? `depends_on` koşulu var mı?                                                            |
+| Avatarlar ve kart kapakları birlikte kırık; `s3.<domain>` 404 | `docker compose ps -a` içinde Pusula `minio` var mı ve `https://s3.<domain>/minio/health/live` 200 mü? Volume'u silme; mevcut `minio_data` ile yalnız `minio` servisini geri kaldır, ardından `minio-setup`ı çalıştır. API içinde `minio` birden fazla IP'ye çözülüyorsa production endpoint'in `http://pusula-minio:9000` olduğunu doğrula. |
 | Build çok yavaş                                             | `output: 'standalone'` açık mı (web)? `turbo prune --docker` kullanılıyor mu (gereksiz workspace'ler image'a girmesin)? Dokploy build cache açık mı?             |
 | Build logunu nereden görürüm                                | Dokploy panel → compose servisi → Deployments → ilgili deploy → Logs. Runtime log: aynı yerde container logları.                                                 |
 | Container ayakta ama 502                                    | Traefik label'daki `loadbalancer.server.port` container'ın gerçekte dinlediği port mu (web 3000, api 3001)?                                                      |

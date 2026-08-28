@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-06-18
+updated: 2026-08-28
 ---
 
 # 09 — Depolama ve Arama
@@ -86,6 +86,16 @@ Tek-fazlı `createUpload` (DEM-110) paterni yerine **iki-fazlı initiate → upl
 ### Env değişkenleri (mevcut + Faz 11)
 
 `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — `apps/api/src/env.ts`'te local dev için MinIO default'larıyla zaten tanımlı. Faz 11 yeni env eklemez; bucket policy + CORS (web origin'inden direct PUT için) `compose.prod.yml` / Dokploy attach edilirken kontrol edilir.
+
+> **Üretim Docker DNS izolasyonu (2026-08-28 incident kuralı):** Aynı VDS'teki birden
+> fazla Dokploy Compose projesi `dokploy-network` ağına bağlanabilir. Bu ağda genel
+> `minio` servis adı proje sınırlarını aşarak birden fazla IP'ye çözülebilir; Pusula
+> API'sinin başka projenin object storage servisine bağlanması kabul edilmez.
+> `compose.prod.yml`, Pusula MinIO'suna yalnız iç ağda geçerli proje-özel
+> `pusula-minio` alias'ı verir ve production `S3_ENDPOINT` değerini
+> `http://pusula-minio:9000` olarak container'a sabitler. API ve worker ayrıca
+> `minio-setup` başarıyla tamamlanmadan başlamaz. Tarayıcıya açık
+> `S3_PUBLIC_URL=https://s3.${ROOT_DOMAIN}` kuralı değişmez.
 
 ---
 
