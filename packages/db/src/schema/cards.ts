@@ -8,6 +8,7 @@ import {
   timestamp,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './auth';
 import { boards, labels } from './boards';
 import { lists } from './lists';
@@ -52,6 +53,12 @@ export const cards = pgTable(
   (t) => [
     index('cards_list_position_idx').on(t.listId, t.position),
     index('cards_board_idx').on(t.boardId),
+    // `board.get` only loads active cards. Keep archived history out of its
+    // hot read path while preserving the existing broad board index for admin
+    // and archival queries.
+    index('cards_active_board_position_idx')
+      .on(t.boardId, t.position)
+      .where(sql`${t.archivedAt} IS NULL`),
   ],
 );
 

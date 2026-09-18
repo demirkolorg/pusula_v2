@@ -28,7 +28,7 @@ function makeCard(
   return {
     boardId: 'board-1',
     title: 'Kart',
-    description: null,
+    hasDescription: false,
     dueAt: null,
     completed: false,
     completedAt: null,
@@ -256,10 +256,7 @@ describe('removeCardFromCache', () => {
 describe('moveCardInCache', () => {
   it('kartı hedef listenin sonuna taşır', () => {
     const board = makeBoard(
-      [
-        makeList({ id: 'list-1', position: 'a0' }),
-        makeList({ id: 'list-2', position: 'a1' }),
-      ],
+      [makeList({ id: 'list-1', position: 'a0' }), makeList({ id: 'list-2', position: 'a1' })],
       [
         makeCard({ id: 'c1', listId: 'list-1', position: 'a0' }),
         makeCard({ id: 'c2', listId: 'list-2', position: 'a0' }),

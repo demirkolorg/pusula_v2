@@ -32,7 +32,7 @@ function reseed(): void {
   });
 }
 
-const columnCopy = strings.board.list.column;
+const columnCopy = strings.board.column;
 const bulkCopy = strings.board.moveAllCards;
 
 test.describe.configure({ mode: 'serial' });
@@ -48,11 +48,12 @@ test.describe('board move — bulk card move', () => {
     const board = new BoardPage(authedPage);
     await board.goto();
 
-    // Başlangıç durumu (seed): Liste 1 = [A, B, C], Liste 2 = [D, E].
+    // Başlangıç durumu: Liste 1 = [A, B, C]; Liste 2 ayrıca işbirliği
+    // fixture'ının iki kartını da taşır. Bu kartlar test boyunca hedefte kalır.
+    await expect.poll(() => board.cardTitlesIn('Liste 1')).toEqual(['Kart A', 'Kart B', 'Kart C']);
     await expect
-      .poll(() => board.cardTitlesIn('Liste 1'))
-      .toEqual(['Kart A', 'Kart B', 'Kart C']);
-    await expect.poll(() => board.cardTitlesIn('Liste 2')).toEqual(['Kart D', 'Kart E']);
+      .poll(() => board.cardTitlesIn('Liste 2'))
+      .toEqual(['Kart D', 'İşbirliği Kartı', 'Arşivlenecek Kart', 'Kart E']);
 
     // Liste 1 ⋮ menüsünü aç → "Tüm kartları taşı…".
     await board.column('Liste 1').getByRole('button', { name: columnCopy.more }).click();
@@ -68,7 +69,15 @@ test.describe('board move — bulk card move', () => {
     await expect.poll(() => board.cardTitlesIn('Liste 1')).toEqual([]);
     await expect
       .poll(() => board.cardTitlesIn('Liste 2'))
-      .toEqual(['Kart D', 'Kart E', 'Kart A', 'Kart B', 'Kart C']);
+      .toEqual([
+        'Kart D',
+        'İşbirliği Kartı',
+        'Arşivlenecek Kart',
+        'Kart E',
+        'Kart A',
+        'Kart B',
+        'Kart C',
+      ]);
 
     // Kalıcı — reload sonrası aynı durum.
     await authedPage.reload();
@@ -76,6 +85,14 @@ test.describe('board move — bulk card move', () => {
     await expect.poll(() => board.cardTitlesIn('Liste 1')).toEqual([]);
     await expect
       .poll(() => board.cardTitlesIn('Liste 2'))
-      .toEqual(['Kart D', 'Kart E', 'Kart A', 'Kart B', 'Kart C']);
+      .toEqual([
+        'Kart D',
+        'İşbirliği Kartı',
+        'Arşivlenecek Kart',
+        'Kart E',
+        'Kart A',
+        'Kart B',
+        'Kart C',
+      ]);
   });
 });

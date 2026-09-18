@@ -209,10 +209,7 @@ export const boardRouter = router({
               .select({ boardId: boardFavorites.boardId })
               .from(boardFavorites)
               .where(
-                and(
-                  eq(boardFavorites.userId, callerId),
-                  inArray(boardFavorites.boardId, boardIds),
-                ),
+                and(eq(boardFavorites.userId, callerId), inArray(boardFavorites.boardId, boardIds)),
               ),
             ctx.db
               .select({
@@ -411,7 +408,9 @@ export const boardRouter = router({
         listId: cards.listId,
         boardId: cards.boardId,
         title: cards.title,
-        description: cards.description,
+        // Board canvas only needs a badge; the potentially large Tiptap JSON
+        // itself is intentionally deferred to `card.get` when the detail opens.
+        hasDescription: sql<boolean>`coalesce(nullif(btrim(${cards.description}), ''), '') <> ''`,
         position: cards.position,
         dueAt: cards.dueAt,
         completed: cards.completed,
@@ -458,14 +457,7 @@ export const boardRouter = router({
     const coverAttachmentIds = boardCards
       .map((c) => c.coverImageAttachmentId)
       .filter((id): id is string => Boolean(id));
-    const [
-      labelRows,
-      checklistRows,
-      commentRows,
-      attachmentRows,
-      memberRows,
-      coverRows,
-    ]: [
+    const [labelRows, checklistRows, commentRows, attachmentRows, memberRows, coverRows]: [
       CardLabelRow[],
       ChecklistAggRow[],
       CommentAggRow[],
@@ -510,9 +502,7 @@ export const boardRouter = router({
             ctx.db
               .select({ cardId: attachments.cardId, count: sql<number>`(count(*))::int` })
               .from(attachments)
-              .where(
-                and(inArray(attachments.cardId, cardIds), isNotNull(attachments.committedAt)),
-              )
+              .where(and(inArray(attachments.cardId, cardIds), isNotNull(attachments.committedAt)))
               .groupBy(attachments.cardId),
             ctx.db
               .select({
@@ -1057,7 +1047,7 @@ export const boardRouter = router({
         if (!targetMembership || targetMembership.role === 'guest') {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: "Hedef çalışma alanında pano taşıma yetkiniz yok.",
+            message: 'Hedef çalışma alanında pano taşıma yetkiniz yok.',
           });
         }
 

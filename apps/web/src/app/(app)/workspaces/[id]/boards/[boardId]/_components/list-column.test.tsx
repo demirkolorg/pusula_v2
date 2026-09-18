@@ -62,7 +62,9 @@ vi.mock('@/trpc/client', () => ({
         queryFilter: () => ({}),
         queryOptions: (input: unknown, opts: unknown) => ({ __q: 'board.get', input, opts }),
       },
-      list: { queryOptions: (input: unknown, opts: unknown) => ({ __q: 'board.list', input, opts }) },
+      list: {
+        queryOptions: (input: unknown, opts: unknown) => ({ __q: 'board.list', input, opts }),
+      },
     },
     attachment: {
       // Faz 11B (DEM-148) — list-column transitively renders card-item which
@@ -165,6 +167,31 @@ describe('<ListColumn>', () => {
     expect(screen.getByRole('heading', { name: 'Yapılacak' })).toHaveClass('text-[15px]');
     expect(screen.queryByText(`2 ${columnCopy.cardCount}`)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bir' }).parentElement).toHaveClass('pt-1');
+  });
+
+  it('defers off-screen rendering only for large lists while retaining every card in the DOM', () => {
+    const manyCards = Array.from({ length: 50 }, (_, index) => card(`c${index}`, `Kart ${index}`));
+    render(<ListColumn boardId="b1" list={list} cards={manyCards} canEdit={false} />);
+
+    expect(screen.getByRole('button', { name: 'Kart 0' }).closest('article')).toHaveClass(
+      '[content-visibility:auto]',
+    );
+    expect(screen.getByRole('button', { name: 'Kart 49' })).toBeInTheDocument();
+  });
+
+  it('windows very large lists so only the viewport slice mounts', () => {
+    const veryManyCards = Array.from({ length: 400 }, (_, index) =>
+      card(`virtual-${index}`, `Sanal Kart ${index}`),
+    );
+    const { container } = render(
+      <ListColumn boardId="b1" list={list} cards={veryManyCards} canEdit={false} />,
+    );
+
+    expect(screen.getByTestId('virtual-card-stack')).toBeInTheDocument();
+    expect(container.querySelectorAll('article[data-board-card-id]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('article[data-board-card-id]').length).toBeLessThan(400);
+    expect(screen.getByRole('button', { name: 'Sanal Kart 0' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sanal Kart 399' })).not.toBeInTheDocument();
   });
 
   it('keeps the add-card button hidden until the list is hovered or focused', () => {

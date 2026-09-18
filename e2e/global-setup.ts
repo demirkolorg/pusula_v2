@@ -21,6 +21,15 @@ const DATABASE_URL = E2E_DATABASE_URL;
 
 const childEnv = { ...process.env, DATABASE_URL };
 
+function performanceSeedArgument(): string {
+  const value = process.env.E2E_PERF_CARDS;
+  if (value === undefined) return '';
+  if (!/^\d+$/.test(value) || Number(value) > 10_000) {
+    throw new Error('E2E_PERF_CARDS must be an integer between 0 and 10000.');
+  }
+  return ` --perf-cards=${value}`;
+}
+
 function run(cmd: string): void {
   console.warn(`[e2e:setup] $ ${cmd}`);
   execSync(cmd, { cwd: repoRoot, stdio: 'inherit', env: childEnv });
@@ -29,7 +38,7 @@ function run(cmd: string): void {
 export default async function globalSetup(): Promise<void> {
   try {
     run('pnpm db:migrate');
-    run('pnpm exec tsx e2e/fixtures/seed.ts');
+    run(`pnpm exec tsx e2e/fixtures/seed.ts${performanceSeedArgument()}`);
   } catch (err) {
     throw new Error(
       `[e2e:setup] DB migrate/seed failed — is the local stack up? Run \`pnpm infra:up\` first.\n${

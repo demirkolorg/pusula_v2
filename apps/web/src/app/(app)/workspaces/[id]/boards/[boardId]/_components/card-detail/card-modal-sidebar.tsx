@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 export type CardSidebarTab = 'comments' | 'activity';
-import { Tabs, TabsContent, TabsList, TabsTrigger, type MentionSource } from '@pusula/ui';
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger, type MentionSource } from '@pusula/ui';
 import { strings } from '@/lib/strings';
 import { CardDetailActivity } from './card-detail-activity';
 import { CardCommentComposer, CardDetailComments, type CommentView } from './card-detail-comments';
@@ -40,6 +40,10 @@ type CardModalSidebarProps = {
   onDeleteComment: (commentId: string) => void;
   commentPending: boolean;
   commentError: string | null;
+  /** Whether a full current comment page may have an older continuation. */
+  canLoadOlderComments?: boolean;
+  olderCommentsLoading?: boolean;
+  onLoadOlderComments?: () => void;
   /** Optional @-mention picker source (board members) for composer + inline edit. */
   mentions?: MentionSource;
   /**
@@ -82,6 +86,9 @@ export function CardModalSidebar({
   onDeleteComment,
   commentPending,
   commentError,
+  canLoadOlderComments = false,
+  olderCommentsLoading = false,
+  onLoadOlderComments,
   mentions,
   tab: controlledTab,
   onTabChange,
@@ -158,6 +165,20 @@ export function CardModalSidebar({
                 error={commentError}
                 mentions={mentions}
               />
+            )}
+            {canLoadOlderComments && onLoadOlderComments && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                disabled={olderCommentsLoading}
+                onClick={onLoadOlderComments}
+              >
+                {olderCommentsLoading
+                  ? strings.card.comments.loadingMore
+                  : strings.card.comments.loadMore}
+              </Button>
             )}
             {commentsList}
           </TabsContent>

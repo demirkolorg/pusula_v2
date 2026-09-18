@@ -47,7 +47,10 @@ export type CardDragPreviewProps = {
  */
 export function CardDragPreview({ card, width }: CardDragPreviewProps) {
   const coverColor = asCoverColor(card.coverColor);
-  const hasDescription = card.description != null && card.description.trim() !== '';
+  // `board.get` sends only this compact flag. The fallback keeps old cached
+  // responses and test fixtures compatible during a rolling deployment.
+  const hasDescription =
+    card.hasDescription ?? (card.description != null && card.description.trim() !== '');
   const hasLabels = card.labels.length > 0;
   const hasChecklist = card.checklistTotal > 0;
   const hasComments = card.commentCount > 0;

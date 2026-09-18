@@ -27,7 +27,7 @@
  * `docs/domain/02-yetkilendirme-kurallari.md` (Board / Card içerik procedure
  * haritası — Faz 2.5).
  */
-import { and, asc, eq, isNull } from '@pusula/db';
+import { and, asc, desc, eq, isNull, lt, or } from '@pusula/db';
 import { activityEvents, boards, checklistItems, checklists, comments } from '@pusula/db';
 import type { Database } from '@pusula/db';
 import {
@@ -110,7 +110,13 @@ export const commentRouter = router({
    * yorumlarını karıştırmaz ve her madde kendi thread'ini ayrı çeker.
    */
   list: cardProcedure.input(listCommentsInput).query(async ({ ctx, input }) => {
-    return ctx.db
+    const beforeCursor = input.cursor
+      ? or(
+          lt(comments.createdAt, input.cursor.createdAt),
+          and(eq(comments.createdAt, input.cursor.createdAt), lt(comments.id, input.cursor.id)),
+        )
+      : undefined;
+    const newestFirst = await ctx.db
       .select(commentCols)
       .from(comments)
       .where(
@@ -119,9 +125,16 @@ export const commentRouter = router({
           input.checklistItemId
             ? eq(comments.checklistItemId, input.checklistItemId)
             : isNull(comments.checklistItemId),
+          beforeCursor,
         ),
       )
-      .orderBy(asc(comments.createdAt));
+      .orderBy(desc(comments.createdAt), desc(comments.id))
+      .limit(input.limit);
+
+    // The database can stop after one bounded page, while the conversation UI
+    // keeps its established oldest-to-newest reading order. Consumers pass
+    // `items[0]` back as `cursor` to load the next, older page.
+    return newestFirst.reverse();
   }),
 
   /**
@@ -182,7 +195,12 @@ export const commentRouter = router({
           cardId: ctx.card.id,
           actorId: ctx.session.user.id,
           type: 'comment.created',
-          payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview, ...itemTarget },
+          payload: {
+            commentId: createdComment.id,
+            cardId: ctx.card.id,
+            commentPreview,
+            ...itemTarget,
+          },
         })
         .returning({ id: activityEvents.id });
       if (!activity) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -221,7 +239,12 @@ export const commentRouter = router({
         boardId: ctx.card.boardId,
         cardId: ctx.card.id,
         actorId: ctx.session.user.id,
-        payload: { commentId: createdComment.id, cardId: ctx.card.id, commentPreview, ...itemTarget },
+        payload: {
+          commentId: createdComment.id,
+          cardId: ctx.card.id,
+          commentPreview,
+          ...itemTarget,
+        },
       });
       if (dispatched.inserted > 0) notificationEventIds.push(activity.id);
 

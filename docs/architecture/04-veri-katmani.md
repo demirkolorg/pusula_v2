@@ -12,7 +12,7 @@ type: 'architecture'
 axis: 'architecture'
 status: 'active'
 parent: '[[docs/architecture/README|Tasarım / Teknik Mimari]]'
-updated: 2026-07-05
+updated: 2026-09-17
 ---
 
 # 04 — Veri Katmanı (PostgreSQL + Drizzle)
@@ -147,6 +147,15 @@ Faydası: her taşımada tüm liste yeniden numaralanmaz; optimistic UI kolay; c
 yönetilebilir; büyük listelerde performans iyi. Aralık tükenince ilgili liste için worker'da
 **background compaction**. Compaction tetiği ve concurrent move semantiği iş kuralıdır →
 [`../domain/03-siralama-kurallari.md`](../domain/03-siralama-kurallari.md).
+
+## Pano okuma indeksleri
+
+`board.get` yalnız aktif kartları `board_id` ile filtreleyip `position` ile sıralar.
+Bu sıcak yol için `cards(board_id, position) WHERE archived_at IS NULL` partial index'i
+kullanılır. Arşivli kartlar index dışında kaldığından aktif pano açılışı, geçmişte çok sayıda
+kart arşivlenmiş olsa da gereksiz satır taramaz. Sorgu planı değişikliği `EXPLAIN (ANALYZE,
+BUFFERS)` ile, uygulama öncesi/sonrası aynı representative board üzerinde doğrulanır →
+[`22-pano-performans-analizi.md`](22-pano-performans-analizi.md).
 
 ## Transaction disiplini
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -204,6 +204,11 @@ const CONTEXT_MENU_KIT: ListMenuKit = {
   SubContent: ContextMenuSubContent,
 };
 
+/** Large columns only mount an overscanned slice of their stable card slots. */
+const VIRTUAL_CARD_THRESHOLD = 200;
+const VIRTUAL_CARD_SLOT_PX = 112;
+const VIRTUAL_CARD_OVERSCAN = 8;
+
 /**
  * Fixed-width board column for a single list: a header (drag handle + title +
  * a "⋮" menu — rename / archive / restore, and — when there's a neighbour that
@@ -216,7 +221,7 @@ const CONTEXT_MENU_KIT: ListMenuKit = {
  * menu actions reuse the existing mutations (`list.update` / `list.archive` /
  * `list.move`); archiving still goes through a confirm dialog.
  */
-export function ListColumn({
+function ListColumnInner({
   boardId,
   workspaceId,
   list,
@@ -264,6 +269,18 @@ export function ListColumn({
   const handleRef = useRef<HTMLDivElement | null>(null);
   const cardsAreaRef = useRef<HTMLDivElement | null>(null);
   const [columnDragging, setColumnDragging] = useState(false);
+  const [cardsScrollTop, setCardsScrollTop] = useState(0);
+  const [cardsViewportHeight, setCardsViewportHeight] = useState(600);
+  const virtualizeCards = cards.length >= VIRTUAL_CARD_THRESHOLD;
+  const virtualRange = useMemo(() => {
+    if (!virtualizeCards) return { start: 0, end: cards.length };
+    const start = Math.max(0, Math.floor(cardsScrollTop / VIRTUAL_CARD_SLOT_PX) - VIRTUAL_CARD_OVERSCAN);
+    const visibleSlots = Math.ceil(cardsViewportHeight / VIRTUAL_CARD_SLOT_PX);
+    return {
+      start,
+      end: Math.min(cards.length, start + visibleSlots + VIRTUAL_CARD_OVERSCAN * 2),
+    };
+  }, [cards.length, cardsScrollTop, cardsViewportHeight, virtualizeCards]);
 
   // The column is only draggable / a column drop target when the list is active
   // (you can drag an archived list around? no — it's read-only) and DnD is on.
@@ -291,6 +308,18 @@ export function ListColumn({
       listId: list.id,
     });
   }, [dnd, list.id, listArchived, collapsed]);
+
+  useEffect(() => {
+    if (!virtualizeCards) return;
+    const element = cardsAreaRef.current;
+    if (!element) return;
+    const updateHeight = () => setCardsViewportHeight(element.clientHeight || 600);
+    updateHeight();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [virtualizeCards, collapsed]);
 
   useEffect(() => setRenameValue(list.title), [list.title]);
   useEffect(() => {
@@ -719,31 +748,63 @@ export function ListColumn({
           id={cardsAreaId}
           ref={cardsAreaRef}
           className="pusula-scrollbar flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 pt-1 pb-2"
+          onScroll={
+            virtualizeCards
+              ? (event) => setCardsScrollTop(event.currentTarget.scrollTop)
+              : undefined
+          }
         >
           {cards.length === 0 && !listEditable ? (
             <p className="text-muted-foreground px-1 py-2 text-sm">{columnCopy.empty}</p>
           ) : (
             <>
-              {cards.map((card) => (
-                <Fragment key={card.id}>
-                  {cardPlaceholder?.targetCardId === card.id && cardPlaceholder.edge === 'top' && (
-                    <CardDropPlaceholderMarker height={cardPlaceholder.height} />
-                  )}
-                  <CardItem
-                    boardId={boardId}
-                    card={card}
-                    canEdit={listEditable && card.archivedAt == null}
-                    isBoardAdmin={isBoardAdmin}
-                    allLists={allLists}
-                    boardLabels={boardLabels}
-                    boardMembers={boardMembers}
-                  />
-                  {cardPlaceholder?.targetCardId === card.id &&
-                    cardPlaceholder.edge === 'bottom' && (
-                      <CardDropPlaceholderMarker height={cardPlaceholder.height} />
-                    )}
-                </Fragment>
-              ))}
+              <div
+                data-testid={virtualizeCards ? 'virtual-card-stack' : undefined}
+                className={virtualizeCards ? 'relative w-full' : 'contents pt-1'}
+                style={
+                  virtualizeCards
+                    ? { height: cards.length * VIRTUAL_CARD_SLOT_PX }
+                    : undefined
+                }
+              >
+                {cards.slice(virtualRange.start, virtualRange.end).map((card, visibleIndex) => {
+                  const cardIndex = virtualRange.start + visibleIndex;
+                  return (
+                    <div
+                      key={card.id}
+                      className={
+                        virtualizeCards
+                          ? 'absolute right-0 left-0 min-h-26'
+                          : 'contents pt-1'
+                      }
+                      style={
+                        virtualizeCards
+                          ? { top: cardIndex * VIRTUAL_CARD_SLOT_PX }
+                          : undefined
+                      }
+                    >
+                      {cardPlaceholder?.targetCardId === card.id &&
+                        cardPlaceholder.edge === 'top' && (
+                          <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+                        )}
+                      <CardItem
+                        boardId={boardId}
+                        card={card}
+                        canEdit={listEditable && card.archivedAt == null}
+                        isBoardAdmin={isBoardAdmin}
+                        allLists={allLists}
+                        boardLabels={boardLabels}
+                        boardMembers={boardMembers}
+                        deferOffscreenRendering={cards.length >= 50}
+                      />
+                      {cardPlaceholder?.targetCardId === card.id &&
+                        cardPlaceholder.edge === 'bottom' && (
+                          <CardDropPlaceholderMarker height={cardPlaceholder.height} />
+                        )}
+                    </div>
+                  );
+                })}
+              </div>
               {cardPlaceholder && cardPlaceholder.targetCardId == null && (
                 <CardDropPlaceholderMarker height={cardPlaceholder.height} />
               )}
@@ -907,3 +968,34 @@ export function ListColumn({
     </section>
   );
 }
+
+/**
+ * A card mutation recreates the board response array, but unaffected card
+ * objects retain their references. Comparing these short lists shallowly keeps
+ * sibling columns out of the render path while preserving updates in the
+ * changed column. Context changes (drag state) still propagate normally.
+ */
+function sameReferences<T>(left: readonly T[] | undefined, right: readonly T[] | undefined) {
+  return (
+    left === right ||
+    (left != null &&
+      right != null &&
+      left.length === right.length &&
+      left.every((item, i) => item === right[i]))
+  );
+}
+
+export const ListColumn = memo(
+  ListColumnInner,
+  (previous, next) =>
+    previous.boardId === next.boardId &&
+    previous.workspaceId === next.workspaceId &&
+    previous.list === next.list &&
+    sameReferences(previous.cards, next.cards) &&
+    previous.canEdit === next.canEdit &&
+    previous.isBoardAdmin === next.isBoardAdmin &&
+    sameReferences(previous.allLists, next.allLists) &&
+    sameReferences(previous.boardLabels, next.boardLabels) &&
+    sameReferences(previous.boardMembers, next.boardMembers) &&
+    previous.openAddCardComposerToken === next.openAddCardComposerToken,
+);

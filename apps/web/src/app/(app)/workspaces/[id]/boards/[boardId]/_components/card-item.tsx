@@ -101,7 +101,10 @@ export type BoardCard = {
   listId: string;
   boardId: string;
   title: string;
-  description: string | null;
+  /** True when the deferred card detail has a non-empty description. */
+  hasDescription?: boolean;
+  /** @deprecated Only retained for legacy test fixtures; board.get omits it. */
+  description?: string | null;
   position: string;
   dueAt: Date | string | null;
   archivedAt: Date | string | null;
@@ -151,6 +154,11 @@ type CardItemProps = {
   boardLabels?: BoardCardLabelOption[];
   /** Board members used by the card context menu. */
   boardMembers?: BoardCardMemberOption[];
+  /**
+   * Large-list paint optimization. The card stays mounted (and therefore
+   * remains a Pragmatic DnD source); Chromium may skip off-screen rendering.
+   */
+  deferOffscreenRendering?: boolean;
 };
 
 /** Whether `value` is one of the 12 cover-colour palette names. */
@@ -248,6 +256,7 @@ function CardItemInner({
   allLists = [],
   boardLabels = [],
   boardMembers = [],
+  deferOffscreenRendering = false,
 }: CardItemProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -513,7 +522,9 @@ function CardItemInner({
       // DEM-174 — ham `err.message` teknik/İngilizce sızdırabilir; tRPC hatasını
       // friendly Türkçeye çevir, diğer her şeyde bağlamsal mesajı göster.
       toast.error(
-        err instanceof TRPCClientError ? friendlyErrorMessage(err) : menuCopy.coverImageUploadFailed,
+        err instanceof TRPCClientError
+          ? friendlyErrorMessage(err)
+          : menuCopy.coverImageUploadFailed,
       );
     } finally {
       pendingCoverImageRef.current = null;
@@ -549,6 +560,13 @@ function CardItemInner({
         !dragging && 'active:scale-[0.98]',
         !dragging &&
           'group group/kart bg-[color:var(--board-card-bg)] shadow-sm hover:shadow-card-hover',
+        // Large lists retain every card in the DOM for PDD and keyboard order,
+        // but off-screen cards no longer take a paint/layout turn until needed.
+        // Never enable while this card is dragging: the source geometry must
+        // remain immediately available to PDD's drag preview and drop logic.
+        deferOffscreenRendering &&
+          !dragging &&
+          '[content-visibility:auto] [contain-intrinsic-size:auto_104px]',
         !dragging &&
           card.archivedAt != null &&
           'border border-dashed border-muted-foreground/40 opacity-70 shadow-none',

@@ -60,6 +60,7 @@ function toBoardCard(raw: RawCard): BoardCard {
     attachmentCount: 0,
     members: [],
     coverImage: null,
+    hasDescription: raw.description != null && raw.description.trim() !== '',
     // DEM-227 — board.get kart projection'ı kapak presigned URL'i taşır.
     coverImageUrl: null,
   };
@@ -80,7 +81,7 @@ export function addOptimisticCard(
     listId: args.listId,
     boardId: data.board.id,
     title: args.title,
-    description: null,
+    hasDescription: false,
     position: appendCardPosition(data.cards, args.listId),
     dueAt: null,
     completed: false,
@@ -105,11 +106,7 @@ export function addOptimisticCard(
 }
 
 /** Geçici (optimistic) kartı `card.create` dönüşündeki gerçek kartla değiştirir. */
-export function replaceOptimisticCard(
-  data: BoardData,
-  tempId: string,
-  real: RawCard,
-): BoardData {
+export function replaceOptimisticCard(data: BoardData, tempId: string, real: RawCard): BoardData {
   return {
     ...data,
     cards: data.cards.map((card) => (card.id === tempId ? toBoardCard(real) : card)),
@@ -137,11 +134,7 @@ export function addOptimisticList(
 }
 
 /** Geçici (optimistic) listeyi `list.create` dönüşündeki gerçek listeyle değiştirir. */
-export function replaceOptimisticList(
-  data: BoardData,
-  tempId: string,
-  real: RawList,
-): BoardData {
+export function replaceOptimisticList(data: BoardData, tempId: string, real: RawList): BoardData {
   const next: BoardList = {
     id: real.id,
     title: real.title,
@@ -276,8 +269,6 @@ export function setCardCoverColorInCache(
 ): BoardData {
   return {
     ...data,
-    cards: data.cards.map((card) =>
-      card.id === cardId ? { ...card, coverColor } : card,
-    ),
+    cards: data.cards.map((card) => (card.id === cardId ? { ...card, coverColor } : card)),
   };
 }

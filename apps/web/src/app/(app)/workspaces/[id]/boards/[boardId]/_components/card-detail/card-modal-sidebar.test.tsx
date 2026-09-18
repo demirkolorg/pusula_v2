@@ -105,6 +105,16 @@ describe('<CardModalSidebar>', () => {
     expect(screen.getByLabelText(detailCopy.composer.placeholder)).toBeInTheDocument();
   });
 
+  it('loads an older comment page only when the dialog says one exists', async () => {
+    const user = userEvent.setup();
+    const onLoadOlderComments = vi.fn();
+    setup({ canLoadOlderComments: true, onLoadOlderComments });
+
+    await user.click(screen.getByRole('button', { name: strings.card.comments.loadMore }));
+
+    expect(onLoadOlderComments).toHaveBeenCalledTimes(1);
+  });
+
   it('the activity tab is labelled "Aktivite" (not "İşlemler")', () => {
     setup();
     expect(tabs.activity).toBe('Aktivite');

@@ -55,7 +55,62 @@ import { E2E } from './e2e-data';
 
 type Db = ReturnType<typeof createDb>['db'];
 
-async function resetThenSeed(db: Db): Promise<void> {
+type SeedOptions = {
+  /** Extra cards in one isolated list for local board-performance measurements. */
+  perfCards?: number;
+};
+
+function parsePerfCards(value: string | undefined): number {
+  if (value === undefined) return 0;
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 0 || count > 10_000) {
+    throw new Error('--perf-cards must be an integer between 0 and 10000.');
+  }
+  return count;
+}
+
+async function seedPerformanceCards(
+  db: Db,
+  cardCount: number,
+  lastListPosition: string,
+): Promise<void> {
+  if (cardCount === 0) return;
+
+  const [position] = positionsBetween(lastListPosition, null, 1);
+  const perfListId = 'e2e-perf-list';
+  await db.insert(lists).values({
+    id: perfListId,
+    boardId: E2E.boardId,
+    title: 'Yük Testi',
+    position: position!,
+  });
+
+  const positions = positionsBetween(null, null, cardCount);
+  const description = 'Yük testi kart açıklaması. '.repeat(24);
+  // Keep batches well below PostgreSQL's bind-parameter limit so the same
+  // deterministic fixture can cover the 10,000-card boundary too.
+  const batchSize = 250;
+  for (let start = 0; start < cardCount; start += batchSize) {
+    const end = Math.min(start + batchSize, cardCount);
+    await db.insert(cards).values(
+      Array.from({ length: end - start }, (_, offset) => {
+        const index = start + offset;
+        return {
+          id: `e2e-perf-card-${index + 1}`,
+          boardId: E2E.boardId,
+          listId: perfListId,
+          title: `Yük testi kartı ${index + 1}`,
+          // A realistic non-empty body verifies that board.get keeps detail
+          // text out of its large-board response.
+          description,
+          position: positions[index]!,
+        };
+      }),
+    );
+  }
+}
+
+async function resetThenSeed(db: Db, { perfCards = 0 }: SeedOptions = {}): Promise<void> {
   // --- Reset (cascades clean up board_members / lists / cards / accounts) ---
   // Faz 8A (DEM-284) — `e2e-ws-deletable` workspace lifecycle testinde
   // silinebilir; reset bunu da temizler.
@@ -207,6 +262,7 @@ async function resetThenSeed(db: Db): Promise<void> {
       })),
     );
   }
+  await seedPerformanceCards(db, perfCards, listRows[listRows.length - 1]!.position);
 
   // DEM-94: Bob starts as a watcher on one deterministic card so the
   // notification e2e can assert watcher comment fan-out without setup UI.
@@ -294,7 +350,11 @@ async function seedReportsExtraBoards(db: Db): Promise<void> {
   //    - alice: yalnız ilk 2 ek panoda (`-2`, `-3`) `board:member`.
   //      (`-4`, `-5` → restricted-scope rozetini görmesi için erişim yok.)
   //    - viewer + bob: ek panolarda yok.
-  const memberships: Array<{ boardId: string; userId: string; role: 'admin' | 'member' | 'viewer' }> = [];
+  const memberships: Array<{
+    boardId: string;
+    userId: string;
+    role: 'admin' | 'member' | 'viewer';
+  }> = [];
   for (const b of extraBoards) {
     memberships.push({ boardId: b.id, userId: E2E.user.id, role: 'admin' });
   }
@@ -318,7 +378,12 @@ async function seedReportsExtraBoards(db: Db): Promise<void> {
   for (const board of extraBoards) {
     const listPositions = positionsBetween(null, null, 2);
     const listRows = [
-      { id: `${board.id}-list-1`, title: 'Yapılacak', boardId: board.id, position: listPositions[0]! },
+      {
+        id: `${board.id}-list-1`,
+        title: 'Yapılacak',
+        boardId: board.id,
+        position: listPositions[0]!,
+      },
       { id: `${board.id}-list-2`, title: 'Bitti', boardId: board.id, position: listPositions[1]! },
     ];
     await db.insert(lists).values(listRows);
@@ -374,9 +439,10 @@ async function seedReportsExtraBoards(db: Db): Promise<void> {
 
     // Üyelik atamaları (member-contribution micro-report KPI'si için):
     // overdue → alice (boards 1-2'de), user (boards 3-4'te).
-    const overdueAssignee = board.id === extraBoards[0]!.id || board.id === extraBoards[1]!.id
-      ? E2E.alice.id
-      : E2E.user.id;
+    const overdueAssignee =
+      board.id === extraBoards[0]!.id || board.id === extraBoards[1]!.id
+        ? E2E.alice.id
+        : E2E.user.id;
     await db.insert(cardMembers).values({
       cardId: `${board.id}-card-overdue`,
       userId: overdueAssignee,
@@ -584,10 +650,10 @@ async function seedNotificationExtras(db: Db): Promise<void> {
   });
 }
 
-export async function seed(): Promise<void> {
+export async function seed(options: SeedOptions = {}): Promise<void> {
   const { db, pool } = createDb();
   try {
-    await resetThenSeed(db);
+    await resetThenSeed(db, options);
   } finally {
     await pool.end();
   }
@@ -597,9 +663,10 @@ export async function seed(): Promise<void> {
 const invokedDirectly =
   typeof argv[1] === 'string' && import.meta.url === pathToFileURL(argv[1]).href;
 if (invokedDirectly) {
-  seed()
+  const perfCardsArg = argv.find((arg) => arg.startsWith('--perf-cards='))?.split('=')[1];
+  seed({ perfCards: parsePerfCards(perfCardsArg) })
     .then(() => {
-      console.warn('[e2e] seeded e2e workspace/board.');
+      console.warn(`[e2e] seeded e2e workspace/board (${perfCardsArg ?? 0} performance cards).`);
     })
     .catch((err) => {
       console.error('[e2e] seed failed:', err);

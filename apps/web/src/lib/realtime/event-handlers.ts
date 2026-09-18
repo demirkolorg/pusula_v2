@@ -155,7 +155,7 @@ function cardFromPayload(payload: Payload, envelope: RealtimeEventEnvelope): Car
     boardId: stringField(source, 'boardId') ?? envelope.boardId ?? '',
     listId,
     title,
-    description: null,
+    hasDescription: false,
     position,
     dueAt: null,
     completed: false,

@@ -1,0 +1,1 @@
+CREATE INDEX "cards_active_board_position_idx" ON "cards" USING btree ("board_id","position") WHERE "cards"."archived_at" IS NULL;

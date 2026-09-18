@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { TRPCClientError } from '@trpc/client';
 import { ChevronDownIcon, ChevronUpIcon, PaperclipIcon } from 'lucide-react';
@@ -46,6 +46,7 @@ import { CardAttachmentAddForm } from './card-attachment-add-form';
 import { CardDetailAttachments } from './card-detail-attachments';
 import { CardDetailChecklists, type ChecklistView } from './card-detail-checklists';
 import { CardDetailCoverColor } from './card-detail-cover-color';
+import type { CommentView } from './card-detail-comments';
 import { CardDetailDescription } from './card-detail-description';
 import { CardDetailDueDate } from './card-detail-due-date';
 import { CardDetailLabels } from './card-detail-labels';
@@ -138,11 +139,13 @@ export function CardDetailDialog({
   const deepLinkWantsSidebar = Boolean(highlightCommentId) || requestedTab != null;
   // Ek deep-link'i (bildirim → ek) galeriyi açılışta açar; `initialTab` geriye
   // dönük olarak eski `attachments` değeriyle de gelebilir.
-  const deepLinkWantsAttachments =
-    Boolean(highlightAttachmentId) || initialTab === 'attachments';
+  const deepLinkWantsAttachments = Boolean(highlightAttachmentId) || initialTab === 'attachments';
   const [sidebarOpen, setSidebarOpen] = useState(deepLinkWantsSidebar);
   const [sidebarTab, setSidebarTab] = useState<CardSidebarTab>(requestedTab ?? 'comments');
   const [attachmentsOpen, setAttachmentsOpen] = useState(deepLinkWantsAttachments);
+  const [olderComments, setOlderComments] = useState<CommentView[]>([]);
+  const [olderCommentsLoading, setOlderCommentsLoading] = useState(false);
+  const [olderCommentsMayExist, setOlderCommentsMayExist] = useState(false);
   // Kontrol listesinde bir madde detayı açık mı — açıksa açıklama paneli gizlenip
   // kontrol listesi tam genişliğe yayılır ("odaklanınca genişlet").
   const [checklistFocused, setChecklistFocused] = useState(false);
@@ -155,15 +158,26 @@ export function CardDetailDialog({
       trpc.card.members.list.queryOptions({ cardId }),
       trpc.card.labels.list.queryOptions({ cardId }),
       trpc.checklist.list.queryOptions({ cardId }),
-      trpc.comment.list.queryOptions({ cardId }),
-      trpc.card.activity.list.queryOptions({ cardId }),
+      // Sidebar data is intentionally deferred. A card opens frequently while
+      // comments/activity are often never viewed in that visit.
+      trpc.comment.list.queryOptions(
+        { cardId },
+        { enabled: sidebarOpen && sidebarTab === 'comments' },
+      ),
+      trpc.card.activity.list.queryOptions(
+        { cardId },
+        { enabled: sidebarOpen && sidebarTab === 'activity' },
+      ),
       trpc.board.members.list.queryOptions({ boardId }),
       trpc.label.list.queryOptions({ boardId }),
       trpc.board.get.queryOptions({ boardId }),
       // Faz 11D (DEM-150) — attachment list drives the "Ekler" tab counter +
       // the cover-image picker; warm here so the sidebar/cover picker share
       // one cache entry. Loads on its own (not part of the modal gate).
-      trpc.attachment.list.queryOptions({ cardId }),
+      trpc.attachment.list.queryOptions(
+        { cardId },
+        { enabled: attachmentsOpen || addMenu === 'cover' || addMenu === 'attachment' },
+      ),
     ],
   });
   const [
@@ -178,6 +192,44 @@ export function CardDetailDialog({
     boardQ,
     attachmentsQ,
   ] = queries;
+
+  // A dialog is keyed by card in normal routing, yet clear pagination state as
+  // a safeguard if a parent ever reuses this instance for another card.
+  useEffect(() => {
+    setOlderComments([]);
+    setOlderCommentsLoading(false);
+    setOlderCommentsMayExist(false);
+  }, [cardId]);
+
+  const commentThread = useMemo(
+    () => [...olderComments, ...((commentsQ.data ?? []) as CommentView[])],
+    [olderComments, commentsQ.data],
+  );
+  const canLoadOlderComments =
+    commentThread.length > 0 &&
+    (olderComments.length > 0 ? olderCommentsMayExist : (commentsQ.data?.length ?? 0) === 50);
+
+  const loadOlderComments = useCallback(async () => {
+    const cursor = commentThread[0];
+    if (!cursor || olderCommentsLoading) return;
+
+    setOlderCommentsLoading(true);
+    try {
+      const page = (await queryClient.fetchQuery(
+        trpc.comment.list.queryOptions({
+          cardId,
+          limit: 50,
+          cursor: { createdAt: cursor.createdAt, id: cursor.id },
+        }),
+      )) as CommentView[];
+      setOlderComments((previous) => [...page, ...previous]);
+      setOlderCommentsMayExist(page.length === 50);
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error));
+    } finally {
+      setOlderCommentsLoading(false);
+    }
+  }, [cardId, commentThread, olderCommentsLoading, queryClient, trpc]);
 
   /**
    * Invalidate the per-card queries + the board screen's `board.get`.
@@ -201,6 +253,39 @@ export function CardDetailDialog({
     ]);
   }, [queryClient, trpc, cardId, boardId]);
   const onMutated = useMemo(() => ({ onSuccess: invalidateCard }), [invalidateCard]);
+
+  /**
+   * A comment changes neither card members nor labels nor checklist content.
+   * Keeping this invalidate set narrow prevents an otherwise unrelated modal
+   * refetch fan-out after every comment action; `board.get` remains because it
+   * owns the card-face comment counter.
+   */
+  const invalidateCommentData = useCallback(async () => {
+    setOlderComments([]);
+    setOlderCommentsMayExist(false);
+    await Promise.all([
+      queryClient.invalidateQueries(trpc.comment.list.queryFilter({ cardId })),
+      queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId })),
+      queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId })),
+    ]);
+  }, [queryClient, trpc, cardId, boardId]);
+  const onCommentMutated = useMemo(
+    () => ({ onSuccess: invalidateCommentData }),
+    [invalidateCommentData],
+  );
+
+  /** Checklist edits only affect their own tree, activity, and card badges. */
+  const invalidateChecklistData = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries(trpc.checklist.list.queryFilter({ cardId })),
+      queryClient.invalidateQueries(trpc.card.activity.list.queryFilter({ cardId })),
+      queryClient.invalidateQueries(trpc.board.get.queryFilter({ boardId })),
+    ]);
+  }, [queryClient, trpc, cardId, boardId]);
+  const onChecklistMutated = useMemo(
+    () => ({ onSuccess: invalidateChecklistData }),
+    [invalidateChecklistData],
+  );
 
   // --- Mutations -----------------------------------------------------------
   // Title / description / due-date / cover-colour each get their own `card.update`
@@ -238,7 +323,9 @@ export function CardDetailDialog({
     apply: (data, vars) =>
       vars.description === undefined
         ? data
-        : applyCardPatch(data, vars.cardId, { description: vars.description }),
+        : applyCardPatch(data, vars.cardId, {
+            hasDescription: vars.description.trim().length > 0,
+          }),
     applyCardDetail: (data, vars) =>
       vars.description === undefined
         ? data
@@ -355,19 +442,19 @@ export function CardDetailDialog({
   // migration `0027`).
   const initiateAttachment = useMutation(trpc.attachment.initiate.mutationOptions());
   const commitAttachment = useMutation(trpc.attachment.commit.mutationOptions());
-  const createChecklist = useMutation(trpc.checklist.create.mutationOptions(onMutated));
-  const renameChecklist = useMutation(trpc.checklist.update.mutationOptions(onMutated));
-  const deleteChecklist = useMutation(trpc.checklist.delete.mutationOptions(onMutated));
-  const archiveChecklist = useMutation(trpc.checklist.archive.mutationOptions(onMutated));
-  const addItem = useMutation(trpc.checklist.item.create.mutationOptions(onMutated));
-  const toggleItem = useMutation(trpc.checklist.item.toggle.mutationOptions(onMutated));
-  const editItem = useMutation(trpc.checklist.item.update.mutationOptions(onMutated));
-  const deleteItem = useMutation(trpc.checklist.item.delete.mutationOptions(onMutated));
+  const createChecklist = useMutation(trpc.checklist.create.mutationOptions(onChecklistMutated));
+  const renameChecklist = useMutation(trpc.checklist.update.mutationOptions(onChecklistMutated));
+  const deleteChecklist = useMutation(trpc.checklist.delete.mutationOptions(onChecklistMutated));
+  const archiveChecklist = useMutation(trpc.checklist.archive.mutationOptions(onChecklistMutated));
+  const addItem = useMutation(trpc.checklist.item.create.mutationOptions(onChecklistMutated));
+  const toggleItem = useMutation(trpc.checklist.item.toggle.mutationOptions(onChecklistMutated));
+  const editItem = useMutation(trpc.checklist.item.update.mutationOptions(onChecklistMutated));
+  const deleteItem = useMutation(trpc.checklist.item.delete.mutationOptions(onChecklistMutated));
   // JSON ile toplu içe aktarma — `createChecklist` gibi invalidate-only
   // (optimistic ŞART DEĞİL: tek transaction'da N liste + madde eklenir, sonuç
   // `invalidateCard` ile geri çekilir). `clientMutationId` collaborative
   // sözleşmesi gereği gönderilir; kendi realtime echo'su onunla filtrelenir.
-  const bulkImport = useMutation(trpc.checklist.bulkImport.mutationOptions(onMutated));
+  const bulkImport = useMutation(trpc.checklist.bulkImport.mutationOptions(onChecklistMutated));
   // Madde sıralama (DEM — web checklist item reorder). Diğer checklist
   // mutation'larından farklı olarak OPTIMISTIC: `checklist.list` cache'inde
   // ilgili checklist'in `items` dizisini drop'taki `orderedIds`'e göre anında
@@ -422,9 +509,9 @@ export function CardDetailDialog({
       onSettled: () => queryClient.invalidateQueries(checklistListFilter),
     }),
   );
-  const createComment = useMutation(trpc.comment.create.mutationOptions(onMutated));
-  const editComment = useMutation(trpc.comment.update.mutationOptions(onMutated));
-  const deleteComment = useMutation(trpc.comment.delete.mutationOptions(onMutated));
+  const createComment = useMutation(trpc.comment.create.mutationOptions(onCommentMutated));
+  const editComment = useMutation(trpc.comment.update.mutationOptions(onCommentMutated));
+  const deleteComment = useMutation(trpc.comment.delete.mutationOptions(onCommentMutated));
 
   const errOf = (m: { isError: boolean; error: unknown }): string | null =>
     m.isError ? (getMutationErrorMessage(m) ?? strings.common.unknownError) : null;
@@ -629,9 +716,7 @@ export function CardDetailDialog({
   // --- Loading / error states ---------------------------------------------
   // Activity + attachments load on their own — the sidebar renders its own
   // skeleton — so they must not hold the whole modal in the loading state.
-  const isPending = queries.some(
-    (q) => q !== activityQ && q !== attachmentsQ && q.isPending,
-  );
+  const isPending = queries.some((q) => q !== activityQ && q !== attachmentsQ && q.isPending);
   const attachmentList = (attachmentsQ.data ?? []) as {
     id: string;
     fileName: string;
@@ -801,11 +886,7 @@ export function CardDetailDialog({
                       onCreate={(input: { color: LabelColor; name?: string }) =>
                         createLabel.mutate({ boardId, ...input, clientMutationId: cmid() })
                       }
-                      pending={
-                        addLabel.isPending ||
-                        removeLabel.isPending ||
-                        createLabel.isPending
-                      }
+                      pending={addLabel.isPending || removeLabel.isPending || createLabel.isPending}
                       error={errOf(addLabel) || errOf(removeLabel) || errOf(createLabel)}
                     />
                   }
@@ -814,9 +895,7 @@ export function CardDetailDialog({
                       coverColor={coverColor}
                       coverImage={card.coverImage ?? null}
                       canEdit={canEdit}
-                      onSelect={(next) =>
-                        updateCoverColor.mutate({ cardId, coverColor: next })
-                      }
+                      onSelect={(next) => updateCoverColor.mutate({ cardId, coverColor: next })}
                       onImageSelect={uploadCoverImage}
                       onClearImage={clearCoverImage}
                       imageAttachments={coverImageOptions}
@@ -929,144 +1008,144 @@ export function CardDetailDialog({
                   >
                     <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
                       <CardDetailDescription
-                      description={card.description}
-                      cardTitle={card.title}
-                      canEdit={canEdit}
-                      onSave={(description) => updateDescription.mutate({ cardId, description })}
-                      pending={updateDescription.isPending}
-                      error={errOf(updateDescription)}
-                    />
-                  </div>
+                        description={card.description}
+                        cardTitle={card.title}
+                        canEdit={canEdit}
+                        onSave={(description) => updateDescription.mutate({ cardId, description })}
+                        pending={updateDescription.isPending}
+                        error={errOf(updateDescription)}
+                      />
+                    </div>
 
-                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
-                    <CardDetailChecklists
-                      checklists={(checklistsQ.data ?? []) as ChecklistView[]}
-                      canEdit={canEdit}
-                      onFocusedChange={setChecklistFocused}
-                      nameOf={nameOf}
-                      imageOf={imageOf}
-                      comments={{
-                        cardId,
-                        canComment: canEdit,
-                        isBoardAdmin,
-                        viewerUserId,
-                        viewerName,
-                        viewerImage,
-                        mentions: mentionSource,
-                      }}
-                      attachments={{
-                        cardId,
-                        canEdit,
-                        isBoardAdmin,
-                        viewerUserId,
-                      }}
-                      onCreateChecklist={(title) =>
-                        createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
-                      }
-                      onRenameChecklist={({ checklistId, title }) =>
-                        renameChecklist.mutate({
+                    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
+                      <CardDetailChecklists
+                        checklists={(checklistsQ.data ?? []) as ChecklistView[]}
+                        canEdit={canEdit}
+                        onFocusedChange={setChecklistFocused}
+                        nameOf={nameOf}
+                        imageOf={imageOf}
+                        comments={{
                           cardId,
-                          checklistId,
-                          title,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onDeleteChecklist={(checklistId) =>
-                        deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
-                      }
-                      onArchiveChecklist={({ checklistId, archived }) =>
-                        archiveChecklist.mutate({
+                          canComment: canEdit,
+                          isBoardAdmin,
+                          viewerUserId,
+                          viewerName,
+                          viewerImage,
+                          mentions: mentionSource,
+                        }}
+                        attachments={{
                           cardId,
-                          checklistId,
-                          archived,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onAddItem={({ checklistId, content, parentItemId }) =>
-                        addItem.mutate({
-                          cardId,
-                          checklistId,
-                          content,
-                          parentItemId: parentItemId ?? undefined,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
-                        toggleItem.mutate({
-                          cardId,
-                          checklistId,
-                          itemId,
-                          completed: itemCompleted,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onEditItem={({ checklistId, itemId, content }) =>
-                        editItem.mutate({
-                          cardId,
-                          checklistId,
-                          itemId,
-                          content,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onDeleteItem={({ checklistId, itemId }) =>
-                        deleteItem.mutate({
-                          cardId,
-                          checklistId,
-                          itemId,
-                          clientMutationId: cmid(),
-                        })
-                      }
-                      onReorderItem={({
-                        checklistId,
-                        itemId,
-                        beforeItemId,
-                        afterItemId,
-                        newPosition,
-                      }) => {
-                        // Taşınan maddenin `newPosition`'ını optimistic patch için
-                        // ref'e koy, sonra mutation'ı gerçek komşularla at (drop'ta
-                        // bir kez). Render `buildChecklistTree` ile yeniden dizer.
-                        reorderPatchRef.current = { itemId, newPosition };
-                        reorderItem.mutate({
-                          cardId,
+                          canEdit,
+                          isBoardAdmin,
+                          viewerUserId,
+                        }}
+                        onCreateChecklist={(title) =>
+                          createChecklist.mutate({ cardId, title, clientMutationId: cmid() })
+                        }
+                        onRenameChecklist={({ checklistId, title }) =>
+                          renameChecklist.mutate({
+                            cardId,
+                            checklistId,
+                            title,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onDeleteChecklist={(checklistId) =>
+                          deleteChecklist.mutate({ cardId, checklistId, clientMutationId: cmid() })
+                        }
+                        onArchiveChecklist={({ checklistId, archived }) =>
+                          archiveChecklist.mutate({
+                            cardId,
+                            checklistId,
+                            archived,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onAddItem={({ checklistId, content, parentItemId }) =>
+                          addItem.mutate({
+                            cardId,
+                            checklistId,
+                            content,
+                            parentItemId: parentItemId ?? undefined,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onToggleItem={({ checklistId, itemId, completed: itemCompleted }) =>
+                          toggleItem.mutate({
+                            cardId,
+                            checklistId,
+                            itemId,
+                            completed: itemCompleted,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onEditItem={({ checklistId, itemId, content }) =>
+                          editItem.mutate({
+                            cardId,
+                            checklistId,
+                            itemId,
+                            content,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onDeleteItem={({ checklistId, itemId }) =>
+                          deleteItem.mutate({
+                            cardId,
+                            checklistId,
+                            itemId,
+                            clientMutationId: cmid(),
+                          })
+                        }
+                        onReorderItem={({
                           checklistId,
                           itemId,
-                          beforeItemId: beforeItemId ?? undefined,
-                          afterItemId: afterItemId ?? undefined,
-                          clientMutationId: cmid(),
-                        });
-                      }}
-                      onBulkImport={(checklists) =>
-                        bulkImport.mutate({ cardId, checklists, clientMutationId: cmid() })
-                      }
-                      pending={
-                        createChecklist.isPending ||
-                        renameChecklist.isPending ||
-                        deleteChecklist.isPending ||
-                        archiveChecklist.isPending ||
-                        addItem.isPending ||
-                        toggleItem.isPending ||
-                        editItem.isPending ||
-                        deleteItem.isPending ||
-                        bulkImport.isPending
-                      }
-                      error={
-                        errOf(createChecklist) ||
-                        errOf(renameChecklist) ||
-                        errOf(deleteChecklist) ||
-                        errOf(archiveChecklist) ||
-                        errOf(addItem) ||
-                        errOf(toggleItem) ||
-                        errOf(editItem) ||
-                        errOf(deleteItem) ||
-                        errOf(bulkImport)
-                      }
-                      // Dialog'un yalnız kendi durumunu göstermesi için izole
-                      // pending/error (modal açıkken üstteki genel Alert görünmez).
-                      bulkImportPending={bulkImport.isPending}
-                      bulkImportError={errOf(bulkImport)}
-                    />
+                          beforeItemId,
+                          afterItemId,
+                          newPosition,
+                        }) => {
+                          // Taşınan maddenin `newPosition`'ını optimistic patch için
+                          // ref'e koy, sonra mutation'ı gerçek komşularla at (drop'ta
+                          // bir kez). Render `buildChecklistTree` ile yeniden dizer.
+                          reorderPatchRef.current = { itemId, newPosition };
+                          reorderItem.mutate({
+                            cardId,
+                            checklistId,
+                            itemId,
+                            beforeItemId: beforeItemId ?? undefined,
+                            afterItemId: afterItemId ?? undefined,
+                            clientMutationId: cmid(),
+                          });
+                        }}
+                        onBulkImport={(checklists) =>
+                          bulkImport.mutate({ cardId, checklists, clientMutationId: cmid() })
+                        }
+                        pending={
+                          createChecklist.isPending ||
+                          renameChecklist.isPending ||
+                          deleteChecklist.isPending ||
+                          archiveChecklist.isPending ||
+                          addItem.isPending ||
+                          toggleItem.isPending ||
+                          editItem.isPending ||
+                          deleteItem.isPending ||
+                          bulkImport.isPending
+                        }
+                        error={
+                          errOf(createChecklist) ||
+                          errOf(renameChecklist) ||
+                          errOf(deleteChecklist) ||
+                          errOf(archiveChecklist) ||
+                          errOf(addItem) ||
+                          errOf(toggleItem) ||
+                          errOf(editItem) ||
+                          errOf(deleteItem) ||
+                          errOf(bulkImport)
+                        }
+                        // Dialog'un yalnız kendi durumunu göstermesi için izole
+                        // pending/error (modal açıkken üstteki genel Alert görünmez).
+                        bulkImportPending={bulkImport.isPending}
+                        bulkImportError={errOf(bulkImport)}
+                      />
                     </div>
                   </div>
 
@@ -1130,7 +1209,7 @@ export function CardDetailDialog({
               {/* Right panel ------------------------------------------------ */}
               {sidebarOpen && (
                 <CardModalSidebar
-                  comments={commentsQ.data ?? []}
+                  comments={commentThread}
                   activity={activityQ.data ?? []}
                   activityPending={activityQ.isPending}
                   activityError={
@@ -1159,6 +1238,9 @@ export function CardDetailDialog({
                     createComment.isPending || editComment.isPending || deleteComment.isPending
                   }
                   commentError={errOf(createComment) || errOf(editComment) || errOf(deleteComment)}
+                  canLoadOlderComments={canLoadOlderComments}
+                  olderCommentsLoading={olderCommentsLoading}
+                  onLoadOlderComments={loadOlderComments}
                   mentions={mentionSource}
                   tab={sidebarTab}
                   onTabChange={setSidebarTab}

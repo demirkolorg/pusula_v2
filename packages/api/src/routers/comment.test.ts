@@ -195,6 +195,32 @@ describe.runIf(dbAvailable)('comment router (integration)', () => {
     expect(deleted.body).toBe('');
   });
 
+  it('list: cursor returns the next older bounded page without duplicates', async () => {
+    const created = [];
+    for (const body of ['one', 'two', 'three']) {
+      created.push(
+        await callerFor(memberId).comment.create({
+          cardId,
+          body,
+          clientMutationId: crypto.randomUUID(),
+        }),
+      );
+    }
+
+    const latest = await callerFor(guestId).comment.list({ cardId, limit: 2 });
+    expect(latest).toHaveLength(2);
+    const older = await callerFor(guestId).comment.list({
+      cardId,
+      limit: 2,
+      cursor: { createdAt: latest[0]!.createdAt, id: latest[0]!.id },
+    });
+
+    expect(older.map((comment) => comment.id)).toContain(created[0]!.id);
+    expect(
+      older.some((comment) => latest.some((latestComment) => latestComment.id === comment.id)),
+    ).toBe(false);
+  });
+
   // ---------------------------------------------------------------- update
 
   it('update: the author edits a comment (comment.updated, version+1); same body is idempotent; a non-author non-admin is FORBIDDEN; a board admin may edit it; a viewer is FORBIDDEN', async () => {

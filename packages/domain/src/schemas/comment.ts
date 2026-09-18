@@ -17,6 +17,19 @@ export const commentBodySchema = z.string().trim().min(1).max(20_000);
 
 export const listCommentsInput = z.object({
   cardId: idSchema,
+  /** Bounded initial history; the server keeps the returned UI order ascending. */
+  limit: z.number().int().min(1).max(50).default(50),
+  /**
+   * The oldest row of the previously returned page.  Pairing the timestamp
+   * with the id makes the descending database order stable even when several
+   * comments share the same millisecond.
+   */
+  cursor: z
+    .object({
+      createdAt: z.coerce.date(),
+      id: idSchema,
+    })
+    .optional(),
   /**
    * Belirtilirse yalnız o checklist (yapılacaklar) maddesine ait thread
    * döner; verilmezse kart-seviyesi yorumlar (`checklist_item_id IS NULL`)

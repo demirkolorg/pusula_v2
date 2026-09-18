@@ -1151,7 +1151,8 @@ export const strings = {
       apiKeysEmpty: 'Bu panoda API anahtarı yok.',
       apiKeyNewButton: 'Yeni anahtar',
       apiKeyCreateTitle: 'Yeni API anahtarı',
-      apiKeyCreateDescription: 'Bota bir ad ve rol verin. Anahtar oluşturulunca yalnızca bir kez gösterilir.',
+      apiKeyCreateDescription:
+        'Bota bir ad ve rol verin. Anahtar oluşturulunca yalnızca bir kez gösterilir.',
       apiKeyNameLabel: 'Ad',
       apiKeyNamePlaceholder: 'Örn. Otomasyon botu',
       apiKeyRoleLabel: 'Rol',
@@ -2159,6 +2160,8 @@ export const strings = {
       addPlaceholder: 'Bir yorum yazın…',
       addSubmit: 'Yorum ekle',
       adding: 'Ekleniyor…',
+      loadMore: 'Eski yorumları yükle',
+      loadingMore: 'Yorumlar yükleniyor…',
       deletedPlaceholder: 'Bu yorum silindi.',
       editedSuffix: '(düzenlendi)',
       // Yorum satırına sağ tık context menüsü (kopyala + düzenle + sil).
