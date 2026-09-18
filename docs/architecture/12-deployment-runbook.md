@@ -249,7 +249,9 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # MinIO community images are distributed from Quay. Docker Hub's
+    # `minio/minio` and `minio/mc` repositories are no longer pullable.
+    image: quay.io/minio/minio:latest
     command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -264,10 +266,10 @@ services:
     # tamamlar; konsol gerekiyorsa ayrı subdomain + Traefik label ekle.
 
   minio-setup:
-    # Fully-qualified, immutable Docker Hub digest. Dokploy hosts where the
-    # short `minio/mc:<tag>` reference is resolved through a private mirror
-    # otherwise report a misleading "pull access denied" error.
-    image: docker.io/minio/mc@sha256:eb4ea9884b77704230e2423e9004d2fa738dc272876b9cc41a297d29443b8780
+    # Quay is MinIO's active container registry. Pin the bootstrap client to
+    # the release used by this runbook; this image has multi-architecture
+    # manifests, so it also works on ARM hosts.
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       - minio
     volumes:

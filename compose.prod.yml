@@ -246,7 +246,9 @@ services:
 
   # --- MinIO — S3-compatible object storage (attachments) -----------------
   minio:
-    image: minio/minio:latest
+    # MinIO'nun Docker Hub depoları artık pull edilemediği için resmi Quay
+    # dağıtımı kullanılır. `latest`, önceki compose davranışını korur.
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -299,11 +301,10 @@ services:
   # DEM-276 follow-up: ilk deploy'da `pusula-reports` bucket'ı + policy
   # adımı manuel kaldı, atlandı, 4 gün incident'e sebep oldu — artık otomatik.
   minio-setup:
-    # Sürüm/digest sabit. Kısa `minio/mc:<tag>` adı bazı Dokploy registry
-    # mirror'larında yanlış çözülüp "pull access denied" döndürdüğü için
-    # Docker Hub adresi ve linux/amd64 digest'i açıkça kullanılır. Bu image,
-    # mc RELEASE.2025-08-13T08-35-41Z sürümünü taşır.
-    image: docker.io/minio/mc@sha256:eb4ea9884b77704230e2423e9004d2fa738dc272876b9cc41a297d29443b8780
+    # MinIO'nun aktif container registry'si Quay'dir. Tag sürümü sabittir;
+    # image multi-architecture manifest içerdiğinden amd64 ve arm64 hostlarda
+    # doğru istemci otomatik seçilir.
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       - minio
     volumes:

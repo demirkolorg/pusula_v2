@@ -38,7 +38,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -59,7 +59,7 @@ services:
   #     ile çalışıyor; policy create yine de yapılır ki dev'de service account
   #     oluşturmak istenirse template hazır olur ve dev↔prod simetri korunur.
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       - minio
     volumes:
