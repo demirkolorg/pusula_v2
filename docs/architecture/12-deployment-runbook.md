@@ -264,7 +264,10 @@ services:
     # tamamlar; konsol gerekiyorsa ayrı subdomain + Traefik label ekle.
 
   minio-setup:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    # Fully-qualified, immutable Docker Hub digest. Dokploy hosts where the
+    # short `minio/mc:<tag>` reference is resolved through a private mirror
+    # otherwise report a misleading "pull access denied" error.
+    image: docker.io/minio/mc@sha256:eb4ea9884b77704230e2423e9004d2fa738dc272876b9cc41a297d29443b8780
     depends_on:
       - minio
     volumes:

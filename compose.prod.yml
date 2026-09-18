@@ -299,12 +299,11 @@ services:
   # DEM-276 follow-up: ilk deploy'da `pusula-reports` bucket'ı + policy
   # adımı manuel kaldı, atlandı, 4 gün incident'e sebep oldu — artık otomatik.
   minio-setup:
-    # Sürüm sabit — `minio/mc:latest` çekimi prod deploy'da "No such image" ile
-    # patladı (2026-06-02). MinIO lisans değişikliği sonrası public mc imajları
-    # 2025-09-07'de donduruldu; `latest` manifest'i güvenilmez. Bu, dondurma
-    # öncesi son kararlı mc sürümü — reprodüklenebilir, `mc admin policy
-    # create/update` ikisi de mevcut.
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    # Sürüm/digest sabit. Kısa `minio/mc:<tag>` adı bazı Dokploy registry
+    # mirror'larında yanlış çözülüp "pull access denied" döndürdüğü için
+    # Docker Hub adresi ve linux/amd64 digest'i açıkça kullanılır. Bu image,
+    # mc RELEASE.2025-08-13T08-35-41Z sürümünü taşır.
+    image: docker.io/minio/mc@sha256:eb4ea9884b77704230e2423e9004d2fa738dc272876b9cc41a297d29443b8780
     depends_on:
       - minio
     volumes:
