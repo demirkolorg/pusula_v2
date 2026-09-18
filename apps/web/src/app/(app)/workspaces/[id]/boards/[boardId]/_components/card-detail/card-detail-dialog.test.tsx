@@ -39,10 +39,12 @@ const h = vi.hoisted(() => ({
   completeMutate: vi.fn(),
   uncompleteMutate: vi.fn(),
   archiveMutate: vi.fn(),
+  secondaryQueriesPending: false,
 }));
 
 // A resolved query result with `data`.
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, error: null });
+const pending = () => ({ data: undefined, isPending: true, isError: false, error: null });
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: { url: 'https://storage.test/modal-cover.png' } }),
@@ -53,17 +55,19 @@ vi.mock('@tanstack/react-query', () => ({
     const boardMembers = [{ userId: 'u1', name: 'Ada', role: h.boardRole }];
     const results = [
       ok({ card: h.card, relations: [] }),
-      ok([]), // card members
-      ok([]), // card labels
-      ok([]), // checklists
+      h.secondaryQueriesPending ? pending() : ok([]), // card members
+      h.secondaryQueriesPending ? pending() : ok([]), // card labels
+      h.secondaryQueriesPending ? pending() : ok([]), // checklists
       ok([]), // comments
       ok([]), // activity
-      ok(boardMembers),
-      ok([]), // board labels
-      ok({
-        board: { title: 'Pano', role: h.boardRole, archivedAt: null },
-        lists: [{ id: 'l1', title: 'Liste' }],
-      }),
+      h.secondaryQueriesPending ? pending() : ok(boardMembers),
+      h.secondaryQueriesPending ? pending() : ok([]), // board labels
+      h.secondaryQueriesPending
+        ? pending()
+        : ok({
+            board: { title: 'Pano', role: h.boardRole, archivedAt: null },
+            lists: [{ id: 'l1', title: 'Liste' }],
+          }),
       ok([]), // attachment list (Faz 11D)
     ];
     return results.slice(0, queries.length);
@@ -185,6 +189,7 @@ describe('<CardDetailDialog>', () => {
     h.completeMutate.mockReset();
     h.uncompleteMutate.mockReset();
     h.archiveMutate.mockReset();
+    h.secondaryQueriesPending = false;
     h.boardRole = 'member';
     h.card.completed = false;
     h.card.archivedAt = null;
@@ -202,6 +207,14 @@ describe('<CardDetailDialog>', () => {
     expect(content).toHaveClass('sm:max-w-none');
     expect(content).toHaveClass('max-w-none');
     expect(content).toHaveClass('flex', 'flex-col', 'overflow-hidden', 'p-0');
+  });
+
+  it('opens as soon as card.get resolves while secondary metadata is still pending', () => {
+    h.secondaryQueriesPending = true;
+    renderDialog();
+
+    expect(screen.getAllByText('Kart başlığı').length).toBeGreaterThan(0);
+    expect(screen.queryByText(strings.card.detail.loading)).not.toBeInTheDocument();
   });
 
   it('toggles to a full-screen surface when the fullscreen control is clicked', async () => {

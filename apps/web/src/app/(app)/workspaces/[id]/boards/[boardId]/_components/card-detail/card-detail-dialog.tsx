@@ -714,9 +714,12 @@ export function CardDetailDialog({
   };
 
   // --- Loading / error states ---------------------------------------------
-  // Activity + attachments load on their own — the sidebar renders its own
-  // skeleton — so they must not hold the whole modal in the loading state.
-  const isPending = queries.some((q) => q !== activityQ && q !== attachmentsQ && q.isPending);
+  // Only the card projection is required to open the modal. Member, label,
+  // checklist and board metadata have null/empty fallbacks below and can settle
+  // independently. Gating the whole dialog on every one of those queries made
+  // a successfully returned `card.get` appear to load forever in production.
+  // Activity + attachments were already intentionally deferred.
+  const isPending = cardQ.isPending;
   const attachmentList = (attachmentsQ.data ?? []) as {
     id: string;
     fileName: string;
