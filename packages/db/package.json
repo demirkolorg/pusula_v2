@@ -17,6 +17,7 @@
     "seed": "tsx src/seed.ts",
     "seed:kaymakamlik": "tsx scripts/seed-kaymakamlik.ts",
     "seed:screenshots": "tsx scripts/seed-screenshots.ts",
+    "seed:inceleme": "tsx scripts/seed-inceleme.ts",
     "users:list": "tsx scripts/list-users.ts",
     "test": "vitest run",
     "lint": "eslint .",
