@@ -9,15 +9,18 @@
  *
  *   - 1 ana kullanıcı (GİRİŞ YAPILABİLİR — Better Auth scrypt parolası).
  *   - 7 kurum temsilcisi (giriş yapamaz; yalnızca atama/yorum/avatar için).
+ *     Avatarlar MinIO `avatars/*` (public) altına yüklenir — web CSP'si
+ *     `img-src`'i yalnız `s3.pusulaportal.com` ile sınırlar.
  *   - 3 çalışma alanı: Örnek İlçe Kaymakamlığı · Ortak Projeler · Özel Kalem.
- *   - 6 pano; kartlarda açıklama, kontrol listesi, yorum, etiket, sorumlu,
- *     son tarih, ek (örnek PDF / saha fotoğrafı) alanları el ile yazılmıştır.
- *   - Geriye tarihli `activity_events` (oluşturma / taşıma / tamamlama / yorum)
- *     → pano raporları (akış, cycle time, ısı haritası, katkı) boş görünmez.
+ *   - 6 pano; kartlarda kapak fotoğrafı, açıklama, iç içe (3 seviye) kontrol
+ *     listesi, madde yorumu/eki, kart yorumu, etiket, sorumlu, son tarih ve ek
+ *     (örnek PDF / saha fotoğrafı) alanları el ile yazılmıştır.
+ *   - Geriye tarihli `activity_events` (oluşturma / taşıma / tamamlama / yorum /
+ *     ek) → pano raporları boş görünmez.
  *   - Ana kullanıcıya örnek bildirimler + birkaç hızlı not.
- *   - Tüm demo kullanıcılarında e-posta bildirimi kapalıdır (worker, demo
- *     adreslerine posta göndermez).
+ *   - Tüm demo kullanıcılarında e-posta bildirimi kapalıdır.
  *
+ * Fotoğraflar picsum.photos (Unsplash lisanslı) sabit id'lerinden gelir.
  * Parola koda gömülmez; `INCELEME_PASSWORD` ortam değişkeninden okunur.
  *
  * IDEMPOTENT: ana çalışma alanı zaten varsa hiçbir şey yapmaz.
@@ -28,7 +31,7 @@
  *   INCELEME_PASSWORD='…' pnpm --filter @pusula/db seed:inceleme
  *   INCELEME_PASSWORD='…' pnpm --filter @pusula/db seed:inceleme -- --reset
  */
-import { randomBytes, scryptSync } from 'node:crypto';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import { resolve } from 'node:path';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { config as loadDotenv } from 'dotenv';
@@ -77,25 +80,23 @@ interface Person {
   email: string;
   /** DiceBear initials seed'i (avatar üzerindeki baş harfler). */
   avatar: string;
+  /** Avatar arka plan rengi (hex, # olmadan). */
+  color: string;
 }
 
 const PEOPLE: Record<PersonKey, Person> = {
-  ben: { name: MAIN_NAME, email: MAIN_EMAIL, avatar: 'İnceleme Hesabı' },
-  yazi: { name: 'Yazı İşleri Md. (Demo)', email: 'demo.yaziisleri@pusulaportal.com', avatar: 'Yazı İşleri' },
-  mem: { name: 'İlçe Milli Eğitim Md. (Demo)', email: 'demo.milliegitim@pusulaportal.com', avatar: 'Milli Eğitim' },
-  gsb: { name: 'Gençlik ve Spor İlçe Md. (Demo)', email: 'demo.genclikspor@pusulaportal.com', avatar: 'Gençlik Spor' },
-  tarim: { name: 'İlçe Tarım ve Orman Md. (Demo)', email: 'demo.tarim@pusulaportal.com', avatar: 'Tarım Orman' },
-  sydv: { name: 'SYDV Müdürlüğü (Demo)', email: 'demo.sydv@pusulaportal.com', avatar: 'Sosyal Yardım' },
-  muftu: { name: 'İlçe Müftülüğü (Demo)', email: 'demo.muftuluk@pusulaportal.com', avatar: 'Müftülük' },
-  muhtar: { name: 'Muhtarlar Derneği (Demo)', email: 'demo.muhtarlar@pusulaportal.com', avatar: 'Muhtarlar' },
+  ben: { name: MAIN_NAME, email: MAIN_EMAIL, avatar: 'İnceleme Hesabı', color: '1e3a8a' },
+  yazi: { name: 'Yazı İşleri Md. (Demo)', email: 'demo.yaziisleri@pusulaportal.com', avatar: 'Yazı İşleri', color: '0f766e' },
+  mem: { name: 'İlçe Milli Eğitim Md. (Demo)', email: 'demo.milliegitim@pusulaportal.com', avatar: 'Milli Eğitim', color: '7c3aed' },
+  gsb: { name: 'Gençlik ve Spor İlçe Md. (Demo)', email: 'demo.genclikspor@pusulaportal.com', avatar: 'Gençlik Spor', color: 'b45309' },
+  tarim: { name: 'İlçe Tarım ve Orman Md. (Demo)', email: 'demo.tarim@pusulaportal.com', avatar: 'Tarım Orman', color: '4d7c0f' },
+  sydv: { name: 'SYDV Müdürlüğü (Demo)', email: 'demo.sydv@pusulaportal.com', avatar: 'Sosyal Yardım', color: 'be123c' },
+  muftu: { name: 'İlçe Müftülüğü (Demo)', email: 'demo.muftuluk@pusulaportal.com', avatar: 'Müftülük', color: '0369a1' },
+  muhtar: { name: 'Muhtarlar Derneği (Demo)', email: 'demo.muhtarlar@pusulaportal.com', avatar: 'Muhtarlar', color: '9a3412' },
 };
 
-const MEMBER_KEYS: Exclude<PersonKey, 'ben'>[] = ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'];
+const PERSON_KEYS = Object.keys(PEOPLE) as PersonKey[];
 const ALL_EMAILS = Object.values(PEOPLE).map((p) => p.email);
-
-const avatarUrl = (seed: string) =>
-  `https://api.dicebear.com/9.x/initials/png?seed=${encodeURIComponent(seed)}&size=200&radius=50` +
-  `&backgroundColor=1e3a8a,0f766e,7c3aed,b45309,be123c,0369a1,4d7c0f`;
 
 /** Better Auth (1.6.x) varsayılan scrypt hash'iyle birebir uyumlu — bkz. seed-screenshots.ts. */
 function hashPassword(password: string): string {
@@ -134,7 +135,7 @@ const rndInt = (min: number, max: number) => Math.floor(rng() * (max - min + 1))
 const textNode = (text: string, bold = false) =>
   bold ? { type: 'text', marks: [{ type: 'bold' }], text } : { type: 'text', text };
 
-/** Düz metni Tiptap doc'una çevirir — boş satırla ayrılmış her blok bir paragraf. */
+/** Düz metni Tiptap doc'una çevirir — her satır bir paragraf. */
 function plainDoc(text: string): string {
   return JSON.stringify({
     type: 'doc',
@@ -170,6 +171,147 @@ function richDoc(blocks: RichBlock[]): string {
 const DEMO_NOTE = 'Not: Bu kart Pusula Portal inceleme hesabı için hazırlanmış kurgusal örnek veridir.';
 
 // ---------------------------------------------------------------------------
+// Ekler — örnek PDF'ler (script içinde üretilir) + saha fotoğrafları
+// ---------------------------------------------------------------------------
+
+const PDF_DOCS = {
+  teklif: {
+    fileName: 'mobilya-teklif-karsilastirma-ornek.pdf',
+    title: 'Cocuk Kutuphanesi - Mobilya Teklif Karsilastirmasi',
+    lines: [
+      'Firma A (ornek) ........ Raf + masa + minder seti',
+      'Firma B (ornek) ........ Raf + masa seti',
+      'Firma C (ornek) ........ Raf + masa + minder + aydinlatma',
+      '',
+      'Degerlendirme: Firma C kapsam olarak ihtiyaci tam karsilamaktadir.',
+    ],
+  },
+  ihtiyac: {
+    fileName: 'kutuphane-ihtiyac-listesi-ornek.pdf',
+    title: 'Cocuk Kutuphanesi - Ihtiyac Listesi',
+    lines: ['12 adet kitap rafi', '6 adet okuma masasi', '30 adet minder', '2 adet bilgisayar masasi'],
+  },
+  tutanak: {
+    fileName: 'kurum-amirleri-toplanti-tutanagi-ornek.pdf',
+    title: 'Kurum Amirleri Toplantisi Tutanagi',
+    lines: [
+      '1. Kis tedbirleri ve kar mucadelesi ekip plani gorusuldu.',
+      '2. Is makinelerinin bakimlari ay sonuna kadar tamamlanacak.',
+      '3. Koy yollari oncelik sirasi muhtarlarla birlikte belirlenecek.',
+      '4. Resmi bayram programi gorev dagilimi kesinlesti.',
+    ],
+  },
+  muhtarTutanak: {
+    fileName: 'muhtarlar-toplantisi-notlari-ornek.pdf',
+    title: 'Muhtarlar Toplantisi Notlari',
+    lines: [
+      '1. Koy yollarindaki menfez ihtiyaclari listelenecek.',
+      '2. Icme suyu kalite kontrol takvimi paylasildi.',
+      '3. Muhtarlik talepleri portal uzerinden takip edilecek.',
+    ],
+  },
+  ilan: {
+    fileName: 'dis-cephe-ihale-ilani-ornek.pdf',
+    title: 'Hukumet Konagi Dis Cephe Giydirme Isi - Ihale Ilani',
+    lines: ['Ihale usulu: Acik ihale', 'Isin suresi: Yer tesliminden itibaren 120 takvim gunu', 'Gercek bir ihale ilani degildir.'],
+  },
+  sartname: {
+    fileName: 'ups-teknik-sartname-ornek.pdf',
+    title: 'Kesintisiz Guc Kaynagi - Teknik Sartname',
+    lines: ['Guc: 10 kVA, cevrimici (online)', 'Aku suresi: tam yukte en az 15 dakika', 'Garanti: en az 2 yil'],
+  },
+  hakedis: {
+    fileName: 'lojman-hakedis-ozeti-ornek.pdf',
+    title: 'Kaymakamlik Lojmani - Hakedis Ozeti',
+    lines: [
+      'Kaba insaat ................ tamamlandi',
+      'Cati ve yalitim ............ tamamlandi',
+      'Tesisat .................... devam ediyor',
+      'Fiziki gerceklesme ......... yaklasik %65',
+    ],
+  },
+  kesif: {
+    fileName: 'kultur-merkezi-kesif-raporu-ornek.pdf',
+    title: 'Kultur Merkezi Modernizasyonu - Kesif Raporu',
+    lines: ['Salon kapasitesi: 250 kisi', 'Ses sistemi: yenilenmeli', 'Isik sistemi: kismi yenileme', 'Koltuklar: bakim gerekli'],
+  },
+  eylem: {
+    fileName: 'ilce-eylem-plani-taslagi-ornek.pdf',
+    title: 'Ilce Stratejik Eylem Plani - Taslak',
+    lines: [
+      'Hedef 1: Egitim altyapisinin guclendirilmesi',
+      'Hedef 2: Kirsal kalkinma ve uretici destegi',
+      'Hedef 3: Sosyal destek hizmetlerinin yayginlastirilmasi',
+      'Hedef 4: Kultur, sanat ve spor faaliyetleri',
+    ],
+  },
+  afet: {
+    fileName: 'afet-koordinasyon-plani-ornek.pdf',
+    title: 'Afet ve Acil Durum Koordinasyon Plani',
+    lines: ['Toplanma alanlari: 6 nokta (ornek)', 'Kurum irtibat listesi: guncellendi', 'Tatbikat: planlaniyor'],
+  },
+  faaliyet: {
+    fileName: 'faaliyet-raporu-taslak-ornek.pdf',
+    title: '2026 Yili Faaliyet Raporu - Taslak Icindekiler',
+    lines: ['1. Genel bilgiler', '2. Yatirimlar', '3. Egitim ve kultur', '4. Sosyal destek', '5. Degerlendirme'],
+  },
+  program: {
+    fileName: 'doga-yuruyusu-programi-ornek.pdf',
+    title: 'Doga Yuruyusu ve Kamp - Etkinlik Programi',
+    lines: ['08:00 Toplanma ve kayit', '09:00 Yuruyus baslangici', '13:00 Ogle yemegi', '16:00 Kapanis'],
+  },
+  yakacak: {
+    fileName: 'yakacak-ihtiyac-ozeti-ornek.pdf',
+    title: 'Kis Donemi Yakacak Ihtiyac Ozeti',
+    lines: ['Tespit edilen hane sayisi: ornek veri', 'Kisisel veri icermez; yalnizca toplam sayilar.'],
+  },
+  egitim: {
+    fileName: 'hizmet-ici-egitim-takvimi-ornek.pdf',
+    title: 'Hizmet Ici Egitim Takvimi',
+    lines: ['Ocak: Resmi yazisma', 'Subat: Pusula Portal kullanimi', 'Mart: Afet farkindaligi'],
+  },
+} satisfies Record<string, { fileName: string; title: string; lines: string[] }>;
+
+type PdfKey = keyof typeof PDF_DOCS;
+
+/** Fotoğraf eki: [picsum id, dosya adı]. */
+type Photo = [number, string];
+
+/** Tek sayfalık, yalnız ASCII metinli minimal PDF üretir (Helvetica). */
+function buildPdf(title: string, lines: string[]): Uint8Array {
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const all = [
+    'ORNEK BELGE - PUSULA PORTAL INCELEME HESABI',
+    'Ornek Ilce Kaymakamligi (Demo)',
+    '',
+    title,
+    '',
+    ...lines,
+    '',
+    'Bu belge kurgusaldir; gercek kurum, kisi veya tutar icermez.',
+  ];
+  const stream = ['BT', '/F1 12 Tf', '18 TL', '60 780 Td', ...all.map((l, i) => `${i === 0 ? '' : 'T* '}(${esc(l)}) Tj`), 'ET'].join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
+  ];
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objects.forEach((obj, i) => {
+    offsets.push(Buffer.byteLength(out, 'latin1'));
+    out += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out, 'latin1');
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Uint8Array(Buffer.from(out, 'latin1'));
+}
+
+// ---------------------------------------------------------------------------
 // Pano içerikleri (el ile yazılmış)
 // ---------------------------------------------------------------------------
 
@@ -178,6 +320,19 @@ interface SeedComment {
   text: string;
   daysAgo: number;
 }
+
+/** Kontrol listesi maddesi — `sub` ile en fazla 3 seviye iç içe. */
+interface CItem {
+  t: string;
+  done?: boolean;
+  sub?: CItem[];
+  cm?: SeedComment[];
+  pdf?: PdfKey;
+  photo?: Photo;
+}
+
+const I = (t: string, done = false, extra: Omit<CItem, 't' | 'done'> = {}): CItem => ({ t, done, ...extra });
+const C = (by: PersonKey, daysAgo: number, text: string): SeedComment => ({ by, daysAgo, text });
 
 interface SeedCard {
   t: string;
@@ -188,10 +343,14 @@ interface SeedCard {
   labels?: string[];
   a?: PersonKey[];
   w?: PersonKey[];
+  /** Renk kapağı (görsel kapak yoksa). */
   cover?: string;
-  cl?: { title: string; items: [string, boolean][] }[];
+  /** Görsel kapak: picsum id. */
+  img?: number;
+  cl?: { title: string; items: CItem[] }[];
   cm?: SeedComment[];
-  att?: AttachmentKey[];
+  pdf?: PdfKey[];
+  photos?: Photo[];
 }
 
 interface SeedList {
@@ -225,6 +384,7 @@ interface SeedWorkspace {
 const L = (title: string, color: string, icon: string, iconColor = color) => ({ title, color, icon, iconColor });
 
 const FULL_CARD_TITLE = 'Çocuk kütüphanesi tefrişat işi';
+const ALL_INSTITUTIONS: PersonKey[] = ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'];
 
 const WORKSPACES: SeedWorkspace[] = [
   // =========================================================================
@@ -232,7 +392,7 @@ const WORKSPACES: SeedWorkspace[] = [
     name: 'Örnek İlçe Kaymakamlığı (Demo)',
     slug: 'demo-inceleme-kaymakamlik',
     icon: 'building',
-    members: ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'],
+    members: ALL_INSTITUTIONS,
     boards: [
       // ---------------------------------------------------------------------
       {
@@ -240,7 +400,7 @@ const WORKSPACES: SeedWorkspace[] = [
         icon: 'clipboard-list',
         background: 'gradient:trello-ocean',
         flow: false,
-        members: ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'],
+        members: ALL_INSTITUTIONS,
         labels: [
           { name: 'Öncelikli', color: 'red' },
           { name: 'Yatırım', color: 'blue' },
@@ -267,7 +427,7 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     b: [
                       'Sol menüden üç çalışma alanı: Kaymakamlık, Ortak Projeler ve Özel Kalem',
-                      'Kartları açarak açıklama, kontrol listesi, yorum, etiket, sorumlu ve son tarih alanları',
+                      'Kartları açarak açıklama, alt maddeli kontrol listesi, yorum, etiket, sorumlu, son tarih ve ek alanları',
                       'Kartları listeler arasında sürükleyerek aşama değiştirme',
                       'Pano menüsündeki raporlar (akış, tamamlanma süresi, iş yükü)',
                       'Sağ üstteki bildirim merkezi ve arama',
@@ -278,10 +438,12 @@ const WORKSPACES: SeedWorkspace[] = [
               },
               {
                 t: 'İlçe stratejik eylem planının hazırlanması',
+                img: 180,
                 due: 12,
                 labels: ['Kurumlar Arası'],
                 a: ['ben', 'yazi'],
                 w: ['mem'],
+                pdf: ['eylem'],
                 d: richDoc([
                   { kv: ['Amaç', 'Kurumların 2027 yılı hedeflerini tek bir eylem planında toplamak.'] },
                   { kv: ['Koordinatör', 'Yazı İşleri Müdürlüğü (Demo)'] },
@@ -294,50 +456,78 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     title: 'Hazırlık Adımları',
                     items: [
-                      ['Kurumlardan katkı yazılarının istenmesi', true],
-                      ['Gelen katkıların tek tabloda birleştirilmesi', true],
-                      ['Taslak eylem planının hazırlanması', false],
-                      ['Kurum amirleri toplantısında görüşülmesi', false],
-                      ['Nihai metnin makam onayına sunulması', false],
+                      I('Kurumlardan katkı yazılarının istenmesi', true),
+                      I('Gelen katkıların tek tabloda birleştirilmesi', true, {
+                        sub: [
+                          I('Milli Eğitim katkısı', true),
+                          I('Tarım ve Orman katkısı', true),
+                          I('Gençlik ve Spor katkısı', false, {
+                            cm: [C('gsb', 2, 'Katkı yazımız bu hafta içinde gönderilecek.')],
+                          }),
+                        ],
+                      }),
+                      I('Taslak eylem planının hazırlanması', false, { pdf: 'eylem' }),
+                      I('Kurum amirleri toplantısında görüşülmesi'),
+                      I('Nihai metnin makam onayına sunulması'),
                     ],
                   },
                 ],
                 cm: [
-                  { by: 'yazi', text: 'Yedi kurumdan katkı yazısı geldi, ikisi bu hafta içinde gönderecek.', daysAgo: 6 },
-                  { by: 'ben', text: 'Taslak, bir sonraki kurum amirleri toplantısının gündemine alınsın.', daysAgo: 4 },
+                  C('yazi', 6, 'Yedi kurumdan beşinin katkı yazısı geldi, ikisi bu hafta içinde gönderecek.'),
+                  C('mem', 5, 'Eğitim hedeflerimizi tabloya ekledik; derslik ihtiyacını ayrıca vurguladık.'),
+                  C('ben', 4, 'Taslak, bir sonraki kurum amirleri toplantısının gündemine alınsın.'),
                 ],
               },
               {
                 t: 'Afet ve acil durum koordinasyon planının güncellenmesi',
+                img: 442,
                 due: -2,
                 labels: ['Öncelikli', 'Kurumlar Arası'],
                 a: ['ben'],
                 w: ['yazi', 'sydv'],
+                pdf: ['afet'],
                 d: 'Kış dönemi öncesinde afet ve acil durum koordinasyon planındaki irtibat listeleri, toplanma alanları ve kurum görev dağılımı güncellenecektir.\n\nKurumlardan güncel irtibat bilgileri istenmiş olup iki kurumun dönüşü beklenmektedir.',
                 cl: [
                   {
                     title: 'Güncelleme',
                     items: [
-                      ['Kurum irtibat listelerinin güncellenmesi', true],
-                      ['Toplanma alanlarının yerinde kontrolü', false],
-                      ['Tatbikat tarihinin belirlenmesi', false],
+                      I('Kurum irtibat listelerinin güncellenmesi', true),
+                      I('Toplanma alanlarının yerinde kontrolü', false, {
+                        sub: [I('Merkez mahalle (2 alan)', true), I('Köy toplanma alanları', false)],
+                      }),
+                      I('Tatbikat tarihinin belirlenmesi'),
                     ],
                   },
                 ],
+                cm: [
+                  C('sydv', 3, 'Barınma ve gıda stok bilgilerimizi plana işledik.'),
+                  C('ben', 1, 'Son tarih geçti; kalan iki kurumla bugün görüşelim lütfen.'),
+                ],
               },
-              { t: 'Kurumsal kimlik ve tanıtım materyallerinin yenilenmesi', due: 20, labels: ['Sosyal Fayda'], a: ['yazi'] },
+              {
+                t: 'Kurumsal kimlik ve tanıtım materyallerinin yenilenmesi',
+                img: 464,
+                due: 20,
+                labels: ['Sosyal Fayda'],
+                a: ['yazi'],
+                cm: [C('yazi', 4, 'Logo ve renk kılavuzunun taslağı hazır; broşür tasarımına geçiyoruz.')],
+              },
               {
                 t: '2026 yılı faaliyet raporunun derlenmesi',
+                img: 20,
                 due: 30,
                 a: ['yazi'],
+                pdf: ['faaliyet'],
                 cl: [
                   {
                     title: 'Rapor',
                     items: [
-                      ['Kurumlardan faaliyet verilerinin istenmesi', true],
-                      ['Fotoğraf arşivinin seçilmesi', false],
-                      ['Taslak metnin yazılması', false],
-                      ['Baskı öncesi son okuma', false],
+                      I('Kurumlardan faaliyet verilerinin istenmesi', true),
+                      I('Fotoğraf arşivinin seçilmesi', false, {
+                        sub: [I('Yatırım fotoğrafları', true), I('Etkinlik fotoğrafları')],
+                      }),
+                      I('Taslak metnin yazılması'),
+                      I('Baskı öncesi son okuma'),
                     ],
                   },
                 ],
@@ -349,29 +539,54 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Hükümet Konağı ön bahçe peyzaj düzenlemesi',
+                img: 553,
                 due: 15,
                 labels: ['Yatırım'],
                 a: ['yazi'],
+                photos: [[785, 'fidan-teslimi-ornek.jpg']],
                 d: 'Hükümet Konağı ön bahçesinde yürüyüş yolu, oturma alanları ve sulama hattını kapsayan peyzaj düzenlemesi yapılacaktır.\n\nÇalışmanın bahar dikim dönemine yetiştirilmesi planlanmaktadır.',
                 cl: [
                   {
                     title: 'İş Adımları',
                     items: [
-                      ['Keşif ve metraj', true],
-                      ['Fidan ve malzeme temini', true],
-                      ['Sulama hattının döşenmesi', false],
-                      ['Çim ekimi ve son kontrol', false],
+                      I('Keşif ve metraj', true),
+                      I('Fidan ve malzeme temini', true, {
+                        sub: [I('Fidanlar', true, { photo: [785, 'fidanlar-ornek.jpg'] }), I('Bank ve çöp kutuları', true)],
+                      }),
+                      I('Sulama hattının döşenmesi'),
+                      I('Çim ekimi ve son kontrol'),
+                    ],
+                  },
+                ],
+                cm: [C('yazi', 3, 'Fidanlar teslim alındı, fotoğrafını ekledim.')],
+              },
+              {
+                t: 'Arşiv odasındaki evrakın dijital arşive aktarılması',
+                img: 998,
+                labels: ['Kurumlar Arası'],
+                a: ['yazi'],
+                due: 40,
+                cl: [
+                  {
+                    title: 'Aktarım',
+                    items: [
+                      I('Evrakın yıllara göre ayrılması', true),
+                      I('Taranacak klasörlerin listelenmesi', false, {
+                        sub: [I('2020–2022 klasörleri', true), I('2023–2025 klasörleri')],
+                      }),
+                      I('Taramaların portala yüklenmesi'),
                     ],
                   },
                 ],
               },
-              { t: 'Arşiv odasındaki evrakın dijital arşive aktarılması', labels: ['Kurumlar Arası'], a: ['yazi'], due: 40 },
               {
                 t: 'Kesintisiz güç kaynağı (UPS) alımı',
                 due: 8,
                 labels: ['İhale'],
                 a: ['yazi'],
+                pdf: ['sartname'],
                 d: 'Hizmet binasındaki sunucu ve iletişim cihazları için kesintisiz güç kaynağı alınacaktır. Teknik şartname hazırlanmış, piyasa fiyat araştırması sürmektedir.',
+                cm: [C('yazi', 2, 'Teknik şartnameyi ekledim; üç firmadan fiyat istendi.')],
               },
               { t: 'Hizmet binası dış cephe bakım ve onarımı', labels: ['Yatırım', 'Beklemede'] },
             ],
@@ -381,12 +596,16 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: FULL_CARD_TITLE,
+                img: 24,
                 due: 5,
-                cover: 'turuncu',
                 labels: ['Sosyal Fayda', 'Kurumlar Arası'],
                 a: ['mem', 'ben'],
                 w: ['yazi', 'muhtar'],
-                att: ['teklif', 'foto1'],
+                pdf: ['teklif', 'ihtiyac'],
+                photos: [
+                  [1073, 'bagis-kitaplar-ornek.jpg'],
+                  [625, 'okuma-salonu-ornek.jpg'],
+                ],
                 d: richDoc([
                   {
                     kv: [
@@ -414,63 +633,79 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     title: 'Tefrişat Adımları',
                     items: [
-                      ['İhtiyaç listesinin çıkarılması', true],
-                      ['Raf ve masa ölçülerinin alınması', true],
-                      ['Mobilya tekliflerinin toplanması', true],
-                      ['Kitap bağışı kampanyasının duyurulması', false],
-                      ['Okuma köşesinin düzenlenmesi', false],
-                      ['Açılış programının planlanması', false],
+                      I('İhtiyaç listesinin çıkarılması', true, { pdf: 'ihtiyac' }),
+                      I('Raf ve masa ölçülerinin alınması', true),
+                      I('Mobilya tekliflerinin toplanması', true, {
+                        pdf: 'teklif',
+                        sub: [I('Firma A teklifi', true), I('Firma B teklifi', true), I('Firma C teklifi', true)],
+                        cm: [C('mem', 5, 'Üç teklif de geldi; karşılaştırma tablosu bu maddeye eklendi.')],
+                      }),
+                      I('Kitap bağışı kampanyasının duyurulması', false, {
+                        sub: [
+                          I('Afiş ve duyuru metni', true),
+                          I('Toplama noktaları', false, {
+                            sub: [I('Muhtarlıklar', false), I('Okullar', true)],
+                          }),
+                        ],
+                        cm: [C('muhtar', 3, 'Mahalle muhtarlıklarında toplama kutusu kurabiliriz.')],
+                      }),
+                      I('Okuma köşesinin düzenlenmesi'),
+                      I('Açılış programının planlanması'),
                     ],
                   },
                   {
                     title: 'Açılış Hazırlığı',
                     items: [
-                      ['Davetli listesinin hazırlanması', false],
-                      ['Protokol düzeninin belirlenmesi', false],
-                      ['Basın duyurusunun yazılması', false],
+                      I('Davetli listesinin hazırlanması', false, {
+                        sub: [I('Kurum amirleri'), I('Okul müdürleri'), I('Veliler')],
+                      }),
+                      I('Protokol düzeninin belirlenmesi'),
+                      I('Basın duyurusunun yazılması'),
                     ],
                   },
                 ],
                 cm: [
-                  {
-                    by: 'mem',
-                    text: 'Üç firmadan mobilya teklifi alındı; karşılaştırma tablosunu ekledim.',
-                    daysAgo: 5,
-                  },
-                  {
-                    by: 'muhtar',
-                    text: 'Kitap bağışı için mahalle muhtarlıklarında toplama kutusu kurabiliriz.',
-                    daysAgo: 3,
-                  },
-                  {
-                    by: 'yazi',
-                    text: `@${MAIN_NAME} açılış için protokol listesinin taslağını hazırladım, uygun görürseniz kesinleştirelim.`,
-                    daysAgo: 1,
-                  },
+                  C('mem', 6, 'Raf ve masa ölçüleri alındı; salon 30 çocuğu rahat ağırlıyor.'),
+                  C('mem', 5, 'Üç firmadan mobilya teklifi alındı; karşılaştırma tablosunu ekledim.'),
+                  C('muhtar', 3, 'Kitap bağışı için mahalle muhtarlıklarında toplama kutusu kurabiliriz.'),
+                  C('ben', 2, 'Firma C’nin kapsamı uygun görünüyor; geçici kabul sonrası açılış tarihini belirleyelim.'),
+                  C('yazi', 1, `@${MAIN_NAME} açılış için protokol listesinin taslağını hazırladım, uygun görürseniz kesinleştirelim.`),
                 ],
               },
               {
                 t: 'Öğretmenevi tadilat ve tefriş işi',
+                img: 625,
                 due: 25,
                 labels: ['Yatırım'],
                 a: ['mem'],
+                photos: [[284, 'tadilat-malzeme-ornek.jpg']],
                 cl: [
                   {
                     title: 'Tadilat',
                     items: [
-                      ['Oda ve banyoların keşfi', true],
-                      ['Boya ve zemin yenileme', false],
-                      ['Mobilya ve tekstil tefrişi', false],
+                      I('Oda ve banyoların keşfi', true),
+                      I('Boya ve zemin yenileme', false, {
+                        sub: [I('Zemin kaplaması', true), I('Boya'), I('Kapı ve pencere bakımı')],
+                      }),
+                      I('Mobilya ve tekstil tefrişi'),
                     ],
                   },
                 ],
+                cm: [C('mem', 4, 'Zemin kaplaması bitti, boya işine pazartesi başlanacak.')],
               },
               {
                 t: 'Okullarda kış dönemi yakıt ihtiyacının tespiti',
+                img: 571,
                 due: 2,
                 labels: ['Öncelikli'],
                 a: ['mem'],
                 d: 'Merkez ve köy okullarının kış dönemi yakıt ihtiyacı okul müdürlüklerinden alınan bilgilerle tabloya işlenecektir.',
+                cl: [
+                  {
+                    title: 'Tespit',
+                    items: [I('Merkez okullar', true), I('Köy okulları', false, { sub: [I('Kuzey köyleri', true), I('Güney köyleri')] })],
+                  },
+                ],
               },
               {
                 t: 'Ortaokul için yeni derslik ihtiyacının yatırım programına önerilmesi',
@@ -485,13 +720,38 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'İlçe kültür sanat kulübünün kurulması',
+                img: 453,
                 labels: ['Sosyal Fayda'],
                 a: ['gsb', 'yazi'],
                 due: 18,
                 d: 'Müzik, resim, tiyatro ve fotoğraf atölyelerinden oluşan bir kulüp yapısı kurulacaktır. Atölye eğitmenleri gönüllülük esasıyla belirlenecektir.',
+                cl: [
+                  {
+                    title: 'Atölyeler',
+                    items: [
+                      I('Müzik atölyesi', true, { sub: [I('Eğitmen belirlendi', true), I('Enstrüman envanteri')] }),
+                      I('Resim atölyesi', true),
+                      I('Tiyatro atölyesi'),
+                      I('Fotoğraf atölyesi'),
+                    ],
+                  },
+                ],
+                cm: [C('gsb', 5, 'Müzik ve resim atölyeleri için 42 başvuru aldık.')],
               },
-              { t: 'İlçe bülteninin aylık yayına hazırlanması', a: ['yazi'], due: 9 },
-              { t: 'Kültür merkezi ses ve ışık sisteminin yenilenmesi', labels: ['Yatırım', 'İhale'], a: ['gsb'] },
+              {
+                t: 'İlçe bülteninin aylık yayına hazırlanması',
+                img: 885,
+                a: ['yazi'],
+                due: 9,
+                cm: [C('yazi', 2, 'Kasım sayısının haber başlıkları belirlendi.')],
+              },
+              {
+                t: 'Kültür merkezi ses ve ışık sisteminin yenilenmesi',
+                img: 158,
+                labels: ['Yatırım', 'İhale'],
+                a: ['gsb'],
+                pdf: ['kesif'],
+              },
               { t: 'Halk oyunları ekibi için kostüm temini', a: ['gsb'] },
             ],
           },
@@ -500,10 +760,12 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Soğuk zincir süt toplama merkezi projesi',
+                img: 200,
                 due: 21,
                 labels: ['Yatırım', 'Kurumlar Arası'],
                 a: ['tarim', 'muhtar'],
                 w: ['ben'],
+                photos: [[699, 'mera-ziyareti-ornek.jpg']],
                 d: richDoc([
                   { kv: ['Amaç', 'Köylerden toplanan sütün soğuk zincir bozulmadan işletmeye ulaştırılması.'] },
                   {
@@ -519,20 +781,31 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     title: 'Proje Adımları',
                     items: [
-                      ['Toplama noktalarının belirlenmesi', true],
-                      ['Tank kapasitelerinin hesaplanması', true],
-                      ['Hibe başvuru dosyasının hazırlanması', false],
-                      ['Üretici eğitim takvimi', false],
+                      I('Toplama noktalarının belirlenmesi', true, {
+                        sub: [I('Kuzey toplama noktası', true), I('Merkez toplama noktası', true), I('Güney toplama noktası', true)],
+                      }),
+                      I('Tank kapasitelerinin hesaplanması', true),
+                      I('Hibe başvuru dosyasının hazırlanması', false, {
+                        cm: [C('tarim', 7, 'Üretici listesi tamamlandı; dosyaya fizibilite eklenecek.')],
+                      }),
+                      I('Üretici eğitim takvimi'),
                     ],
                   },
                 ],
                 cm: [
-                  { by: 'tarim', text: 'Hibe başvuru dosyası için üretici listesi tamamlandı.', daysAgo: 7 },
+                  C('tarim', 7, 'Hibe başvuru dosyası için üretici listesi tamamlandı.'),
+                  C('muhtar', 4, 'Güney toplama noktası için köy konağının yanı uygun, muhtar onayladı.'),
                 ],
               },
-              { t: 'Çiftçilere yem bitkisi tohumu dağıtımı', due: 10, a: ['tarim'] },
-              { t: 'Mera ıslahı ve hayvan içme suyu göletleri', labels: ['Beklemede'], a: ['tarim'] },
-              { t: 'Arıcılık eğitim programı', a: ['tarim'], due: 35 },
+              { t: 'Çiftçilere yem bitkisi tohumu dağıtımı', img: 729, due: 10, a: ['tarim'] },
+              { t: 'Mera ıslahı ve hayvan içme suyu göletleri', img: 699, labels: ['Beklemede'], a: ['tarim'] },
+              {
+                t: 'Arıcılık eğitim programı',
+                img: 312,
+                a: ['tarim'],
+                due: 35,
+                cm: [C('tarim', 3, 'Eğitime 25 üretici kaydoldu; uygulamalı ders için arılık belirlendi.')],
+              },
             ],
           },
           {
@@ -548,15 +821,16 @@ const WORKSPACES: SeedWorkspace[] = [
               {
                 t: 'Şehitlik çevre düzenlemesi ve bayrakların yenilenmesi',
                 due: 7,
+                cover: 'kirmizi',
                 labels: ['Öncelikli'],
                 a: ['muftu', 'ben'],
                 cl: [
                   {
                     title: 'Düzenleme',
                     items: [
-                      ['Çevre duvarı ve yürüyüş yolu onarımı', true],
-                      ['Bayrak ve direklerin yenilenmesi', false],
-                      ['Peyzaj ve aydınlatma', false],
+                      I('Çevre duvarı ve yürüyüş yolu onarımı', true),
+                      I('Bayrak ve direklerin yenilenmesi'),
+                      I('Peyzaj ve aydınlatma'),
                     ],
                   },
                 ],
@@ -567,11 +841,17 @@ const WORKSPACES: SeedWorkspace[] = [
             ...L('Tamamlanan Projeler', 'yesil', 'circle-check'),
             done: true,
             cards: [
-              { t: 'Aşevi kurulumu ve hizmete açılması', labels: ['Sosyal Fayda'], a: ['sydv'] },
+              {
+                t: 'Aşevi kurulumu ve hizmete açılması',
+                img: 490,
+                labels: ['Sosyal Fayda'],
+                a: ['sydv'],
+                cm: [C('sydv', 9, 'Aşevi günlük 150 kişilik kapasiteyle hizmete açıldı.')],
+              },
               { t: 'Hastane helikopter pisti yapım işi', labels: ['Yatırım'], a: ['yazi'] },
-              { t: 'Jandarma yerleşkesi halı saha onarımı', a: ['gsb'] },
+              { t: 'Jandarma yerleşkesi halı saha onarımı', img: 1058, a: ['gsb'] },
               { t: 'Vardiya yatakhanesinin kütüphaneye dönüştürülmesi', labels: ['Sosyal Fayda'], a: ['mem'] },
-              { t: 'İlçe futbol turnuvası organizasyonu', a: ['gsb'] },
+              { t: 'İlçe futbol turnuvası organizasyonu', img: 840, a: ['gsb'] },
               { t: 'Tören ve kutlama komisyonunun oluşturulması', a: ['yazi'] },
             ],
           },
@@ -583,7 +863,7 @@ const WORKSPACES: SeedWorkspace[] = [
         icon: 'calendar',
         background: 'gradient:lavender',
         flow: false,
-        members: ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'],
+        members: ALL_INSTITUTIONS,
         labels: [
           { name: 'Karar', color: 'blue' },
           { name: 'Talimat', color: 'orange' },
@@ -597,11 +877,13 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Kış tedbirleri: kar mücadelesi ekip ve araç planı',
+                img: 964,
                 due: 6,
                 labels: ['Talimat'],
                 a: ['ben', 'yazi'],
                 w: ['muhtar'],
-                att: ['tutanak'],
+                pdf: ['tutanak'],
+                photos: [[559, 'kar-yolu-kontrol-ornek.jpg']],
                 d: richDoc([
                   { kv: ['Toplantı', 'Kurum Amirleri Toplantısı (örnek tarih)'] },
                   { kv: ['Karar', 'Kar mücadelesinde kurumlar arası nöbet ve araç planı ortak hazırlanacaktır.'] },
@@ -619,15 +901,20 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     title: 'Talimatlar',
                     items: [
-                      ['İş makinelerinin bakımı', true],
-                      ['Nöbet listesinin hazırlanması', true],
-                      ['Köy yollarının öncelik sıralaması', false],
-                      ['Muhtarlarla iletişim kanalının oluşturulması', false],
+                      I('İş makinelerinin bakımı', true, {
+                        sub: [I('Greyderler', true), I('Kepçeler', true), I('Tuz serpme aracı', true)],
+                      }),
+                      I('Nöbet listesinin hazırlanması', true),
+                      I('Köy yollarının öncelik sıralaması', false, {
+                        cm: [C('muhtar', 2, 'Okul ve sağlık ocağı güzergâhları birinci öncelik olarak işaretlendi.')],
+                      }),
+                      I('Muhtarlarla iletişim kanalının oluşturulması'),
                     ],
                   },
                 ],
                 cm: [
-                  { by: 'muhtar', text: 'Öncelikli köy yolu listesini muhtarlardan topladım, karta ekleyeceğim.', daysAgo: 2 },
+                  C('yazi', 4, 'Toplantı tutanağını ekledim; nöbet listesi kurumlara gönderildi.'),
+                  C('muhtar', 2, 'Öncelikli köy yolu listesini muhtarlardan topladım, karta ekleyeceğim.'),
                 ],
               },
               { t: 'Kurumların bütçe ve yatırım ihtiyaçlarının bildirilmesi', due: 9, labels: ['Karar'], a: ['yazi'] },
@@ -640,11 +927,28 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Köy yollarındaki menfez ve stabilize ihtiyaçlarının listelenmesi',
+                img: 335,
                 labels: ['Takipte'],
                 a: ['muhtar'],
                 due: 16,
+                pdf: ['muhtarTutanak'],
+                cl: [
+                  {
+                    title: 'Listeleme',
+                    items: [
+                      I('Menfez ihtiyacı', true, { sub: [I('Kuzey köyleri', true), I('Güney köyleri', true)] }),
+                      I('Stabilize ihtiyacı', false, { sub: [I('Kuzey köyleri', true), I('Güney köyleri')] }),
+                    ],
+                  },
+                ],
               },
-              { t: 'Köylerde içme suyu kalite kontrollerinin yapılması', labels: ['Talimat'], a: ['muhtar', 'tarim'], due: 11 },
+              {
+                t: 'Köylerde içme suyu kalite kontrollerinin yapılması',
+                img: 466,
+                labels: ['Talimat'],
+                a: ['muhtar', 'tarim'],
+                due: 11,
+              },
               { t: 'Muhtarlık taleplerinin portal üzerinden takibi', labels: ['Bilgi'], a: ['ben'] },
             ],
           },
@@ -658,6 +962,16 @@ const WORKSPACES: SeedWorkspace[] = [
                 a: ['ben'],
                 w: ['yazi'],
                 d: 'Valilik koordinasyon toplantısında ilçemizi ilgilendiren talimatlar ilgili kurumlara görev olarak iletilecek ve bu panodan takip edilecektir.',
+                cl: [
+                  {
+                    title: 'İletilecek talimatlar',
+                    items: [
+                      I('Kış tedbirleri → Yazı İşleri', true),
+                      I('Okul güvenliği → Milli Eğitim', true),
+                      I('Sosyal destek başvuruları → SYDV'),
+                    ],
+                  },
+                ],
               },
               { t: 'İlçe yatırım izleme tablosunun güncellenmesi', due: 6, labels: ['Karar'], a: ['yazi'] },
               {
@@ -671,10 +985,17 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Talimat Takibi', 'turuncu', 'hourglass', 'kirmizi'),
             cards: [
-              { t: 'Okul servis araçlarının denetimi', due: 4, labels: ['Talimat'], a: ['mem'] },
+              {
+                t: 'Okul servis araçlarının denetimi',
+                due: 4,
+                labels: ['Talimat'],
+                a: ['mem'],
+                cm: [C('mem', 1, '18 aracın 14’ü denetlendi; kalan araçlar perşembe.')],
+              },
               { t: 'Pazar yeri düzenlemesi ve denetim', labels: ['Takipte'], a: ['yazi'] },
               {
                 t: 'Kamu binalarında erişilebilirlik eksiklerinin giderilmesi',
+                img: 240,
                 labels: ['Talimat'],
                 a: ['yazi'],
                 due: 19,
@@ -685,7 +1006,7 @@ const WORKSPACES: SeedWorkspace[] = [
             ...L('Sonuçlanan Kararlar', 'yesil', 'circle-check'),
             done: true,
             cards: [
-              { t: 'Hizmet içi eğitim takviminin belirlenmesi', labels: ['Karar'], a: ['yazi'] },
+              { t: 'Hizmet içi eğitim takviminin belirlenmesi', labels: ['Karar'], a: ['yazi'], pdf: ['egitim'] },
               { t: 'Kurumlar arası ortak duyuru panosunun oluşturulması', labels: ['Karar'], a: ['ben'] },
               { t: 'Bayram öncesi temizlik ve çevre düzenlemesi', labels: ['Talimat'], a: ['muhtar'] },
             ],
@@ -712,7 +1033,7 @@ const WORKSPACES: SeedWorkspace[] = [
             ...L('Planlama', 'mavi', 'list-todo'),
             cards: [
               { t: 'Kapalı spor salonu çatı yalıtımı', labels: ['Ödenek Bekliyor'], a: ['gsb'] },
-              { t: 'İlkokul bahçesine çok amaçlı saha yapımı', a: ['mem'] },
+              { t: 'İlkokul bahçesine çok amaçlı saha yapımı', img: 820, a: ['mem'] },
               { t: 'Merkez mahallede yağmur suyu kanalı', labels: ['Kritik'], a: ['yazi'], due: 30 },
               { t: 'Mezarlık çevre duvarının yenilenmesi', a: ['muftu'] },
             ],
@@ -720,7 +1041,15 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Proje ve Keşif', 'sky', 'layers', 'mavi'),
             cards: [
-              { t: 'Kültür merkezi modernizasyonu keşif çalışması', labels: ['Keşif'], a: ['gsb'], due: 12 },
+              {
+                t: 'Kültür merkezi modernizasyonu keşif çalışması',
+                img: 117,
+                labels: ['Keşif'],
+                a: ['gsb'],
+                due: 12,
+                pdf: ['kesif'],
+                cm: [C('gsb', 3, 'Keşif raporu hazır; ses sistemi öncelikli yenilenmeli.')],
+              },
               { t: 'Öğretmenevi ek bina dönüşüm projesi', labels: ['Keşif'], a: ['mem'], due: 17 },
               { t: 'Köy konağı onarım keşfi', labels: ['Keşif'], a: ['muhtar'] },
             ],
@@ -730,11 +1059,12 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Hükümet Konağı dış cephe giydirme işi',
+                img: 946,
                 due: 10,
                 labels: ['İhale', 'Kritik'],
                 a: ['yazi'],
                 w: ['ben'],
-                att: ['ilan'],
+                pdf: ['ilan'],
                 d: richDoc([
                   { kv: ['Yaklaşık maliyet', 'Örnek tutar (demo)'] },
                   { kv: ['İhale usulü', 'Açık ihale'] },
@@ -747,17 +1077,22 @@ const WORKSPACES: SeedWorkspace[] = [
                   {
                     title: 'İhale Süreci',
                     items: [
-                      ['İhale dokümanının hazırlanması', true],
-                      ['İlanın yayımlanması', true],
-                      ['Tekliflerin değerlendirilmesi', false],
-                      ['Sözleşmenin imzalanması', false],
-                      ['Yer tesliminin yapılması', false],
+                      I('İhale dokümanının hazırlanması', true, {
+                        sub: [I('Teknik şartname', true), I('İdari şartname', true), I('Yaklaşık maliyet', true)],
+                      }),
+                      I('İlanın yayımlanması', true, { pdf: 'ilan' }),
+                      I('Tekliflerin değerlendirilmesi', false, {
+                        cm: [C('yazi', 1, 'Komisyon toplantısı salı günü saat 10:00’da.')],
+                      }),
+                      I('Sözleşmenin imzalanması'),
+                      I('Yer tesliminin yapılması'),
                     ],
                   },
                 ],
+                cm: [C('yazi', 2, 'İlan yayımlandı; dört firma ihale dokümanını indirdi.')],
               },
               { t: 'Kaymakamlık hizmet aracı kiralama', labels: ['İhale'], a: ['yazi'], due: 14 },
-              { t: 'Okul bahçe duvarı yapımı', labels: ['İhale'], a: ['mem'] },
+              { t: 'Okul bahçe duvarı yapımı', img: 210, labels: ['İhale'], a: ['mem'] },
             ],
           },
           {
@@ -765,22 +1100,37 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Kaymakamlık lojmanı yapım işi',
+                img: 514,
                 due: 45,
                 labels: ['Uygulama'],
                 a: ['yazi'],
-                att: ['hakedis', 'foto2'],
+                pdf: ['hakedis'],
+                photos: [
+                  [284, 'santiye-malzeme-ornek.jpg'],
+                  [437, 'cephe-gorunumu-ornek.jpg'],
+                ],
                 d: 'Kaba inşaat tamamlanmış, ince işler devam etmektedir. Fiziki gerçekleşme yaklaşık %65 olarak bildirilmiştir.',
                 cl: [
                   {
                     title: 'İş Programı',
                     items: [
-                      ['Kaba inşaat', true],
-                      ['Çatı ve yalıtım', true],
-                      ['Elektrik ve mekanik tesisat', false],
-                      ['İnce işler ve boya', false],
-                      ['Çevre düzenlemesi', false],
+                      I('Kaba inşaat', true),
+                      I('Çatı ve yalıtım', true),
+                      I('Elektrik ve mekanik tesisat', false, {
+                        sub: [
+                          I('Elektrik', true, { sub: [I('Kablolama', true), I('Pano montajı', true)] }),
+                          I('Sıhhi tesisat', false),
+                          I('Isıtma', false),
+                        ],
+                      }),
+                      I('İnce işler ve boya'),
+                      I('Çevre düzenlemesi'),
                     ],
                   },
+                ],
+                cm: [
+                  C('yazi', 6, 'Hakediş özetini ekledim; fiziki gerçekleşme %65.'),
+                  C('yazi', 2, 'Şantiye ziyaretinde çekilen fotoğraflar eklendi.'),
                 ],
               },
               { t: 'Cemevi yapım işi', labels: ['Uygulama'], a: ['muftu', 'yazi'], due: 60 },
@@ -805,7 +1155,7 @@ const WORKSPACES: SeedWorkspace[] = [
     name: 'Ortak Projeler (Demo)',
     slug: 'demo-inceleme-ortak-projeler',
     icon: 'network',
-    members: ['yazi', 'mem', 'gsb', 'tarim', 'sydv', 'muftu', 'muhtar'],
+    members: ALL_INSTITUTIONS,
     boards: [
       {
         title: 'Kültür, Sanat ve Spor Etkinlikleri',
@@ -824,10 +1174,16 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Planlanan', 'mavi', 'calendar'),
             cards: [
-              { t: 'Yaz dönemi bisiklet festivali', labels: ['Spor', 'Tanıtım'], a: ['gsb'] },
-              { t: 'Kış sporları tanıtım günü', labels: ['Spor', 'Gençlik'], a: ['gsb'], due: 40 },
-              { t: 'Yöresel ürünler ve el sanatları sergisi', labels: ['Kültür'], a: ['tarim'] },
-              { t: 'Okullar arası kitap okuma kampanyası', labels: ['Kültür', 'Gençlik'], a: ['mem'], due: 25 },
+              { t: 'Yaz dönemi bisiklet festivali', img: 1076, labels: ['Spor', 'Tanıtım'], a: ['gsb'] },
+              { t: 'Kış sporları tanıtım günü', img: 1036, labels: ['Spor', 'Gençlik'], a: ['gsb'], due: 40 },
+              { t: 'Yöresel ürünler ve el sanatları sergisi', img: 674, labels: ['Kültür'], a: ['tarim'] },
+              {
+                t: 'Okullar arası kitap okuma kampanyası',
+                img: 1073,
+                labels: ['Kültür', 'Gençlik'],
+                a: ['mem'],
+                due: 25,
+              },
             ],
           },
           {
@@ -835,41 +1191,55 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Doğa yürüyüşü ve kamp organizasyonu',
+                img: 177,
                 due: 13,
                 labels: ['Spor', 'Tanıtım'],
                 a: ['gsb'],
                 w: ['ben'],
+                pdf: ['program'],
+                photos: [[324, 'parkur-kesfi-ornek.jpg']],
                 d: 'Kurumların ortaklığıyla düzenlenecek doğa yürüyüşünde parkur güvenliği, sağlık ekibi ve ulaşım planı birlikte hazırlanacaktır.',
                 cl: [
                   {
                     title: 'Hazırlık',
                     items: [
-                      ['Parkur keşfi', true],
-                      ['Katılımcı kayıt formu', true],
-                      ['Güvenlik ve sağlık ekibi planı', false],
-                      ['Ulaşım ve konaklama', false],
+                      I('Parkur keşfi', true, { photo: [324, 'parkur-ornek.jpg'] }),
+                      I('Katılımcı kayıt formu', true),
+                      I('Güvenlik ve sağlık ekibi planı', false, {
+                        sub: [I('Sağlık ekibi', true), I('Arama kurtarma desteği')],
+                      }),
+                      I('Ulaşım ve konaklama'),
                     ],
                   },
                 ],
-                cm: [{ by: 'gsb', text: 'Kayıt formu yayında, ilk gün 40 başvuru geldi.', daysAgo: 2 }],
+                cm: [
+                  C('gsb', 4, 'Parkur keşfi tamamlandı, fotoğrafları ekledim.'),
+                  C('gsb', 2, 'Kayıt formu yayında, ilk gün 40 başvuru geldi.'),
+                ],
               },
-              { t: 'Gençlik kampı programı', labels: ['Gençlik'], a: ['gsb', 'muftu'], due: 21 },
-              { t: 'İlçe tanıtım filmi çekimi', labels: ['Tanıtım'], a: ['yazi'] },
+              { t: 'Gençlik kampı programı', img: 287, labels: ['Gençlik'], a: ['gsb', 'muftu'], due: 21 },
+              { t: 'İlçe tanıtım filmi çekimi', img: 319, labels: ['Tanıtım'], a: ['yazi'] },
             ],
           },
           {
             ...L('Kurumlar Arası Koordinasyon', 'turuncu', 'users'),
             cards: [
               { t: 'Festival güvenlik ve sağlık ekiplerinin planlanması', labels: ['Protokol'], a: ['yazi'], due: 8 },
-              { t: 'Sponsor ve paydaş kurumlarla toplantı', labels: ['Protokol'], a: ['ben'], due: 5 },
+              {
+                t: 'Sponsor ve paydaş kurumlarla toplantı',
+                labels: ['Protokol'],
+                a: ['ben'],
+                due: 5,
+                cm: [C('yazi', 1, 'Toplantı salonu ayarlandı, davet yazıları gönderildi.')],
+              },
             ],
           },
           {
             ...L('Gerçekleşen', 'yesil', 'trophy'),
             done: true,
             cards: [
-              { t: 'Futbol turnuvası ödül töreni', labels: ['Spor'], a: ['gsb'] },
-              { t: 'Okul tiyatro günleri', labels: ['Kültür'], a: ['mem'] },
+              { t: 'Futbol turnuvası ödül töreni', img: 1058, labels: ['Spor'], a: ['gsb'] },
+              { t: 'Okul tiyatro günleri', img: 452, labels: ['Kültür'], a: ['mem'] },
               { t: 'Kurumlar arası satranç turnuvası', labels: ['Spor'], a: ['gsb'] },
             ],
           },
@@ -894,20 +1264,25 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Kış dönemi yakacak yardımı ihtiyaç tespiti',
+                img: 261,
                 due: 9,
                 labels: ['Kış Yardımı'],
                 a: ['sydv', 'muhtar'],
+                pdf: ['yakacak'],
                 d: 'Muhtarlıklardan gelen listeler ile hane ziyaretlerinde yapılan tespitler birleştirilecektir. Kişisel veri içeren listeler portala eklenmez; yalnızca hane sayısı ve ilerleme takip edilir.',
                 cl: [
                   {
                     title: 'Tespit',
                     items: [
-                      ['Muhtarlık listelerinin toplanması', true],
-                      ['Hane ziyaretlerinin planlanması', false],
-                      ['Mütevelli heyeti gündemine alınması', false],
+                      I('Muhtarlık listelerinin toplanması', true),
+                      I('Hane ziyaretlerinin planlanması', false, {
+                        sub: [I('Merkez mahalleler', true), I('Köyler')],
+                      }),
+                      I('Mütevelli heyeti gündemine alınması'),
                     ],
                   },
                 ],
+                cm: [C('sydv', 3, 'Muhtarlık listeleri birleştirildi; özet tabloyu ekledim (kişisel veri içermez).')],
               },
               { t: 'Engelli bireylere evde bakım ziyaretleri', labels: ['Yaşlı ve Engelli'], a: ['sydv'] },
               { t: 'Okul kıyafeti desteği başvuruları', labels: ['Eğitim Desteği'], a: ['sydv', 'mem'], due: 15 },
@@ -916,14 +1291,27 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Değerlendirme', 'sari', 'list-checks', 'turuncu'),
             cards: [
-              { t: 'Aşevi menü ve kapasite planı', labels: ['Gıda'], a: ['sydv'], due: 7 },
-              { t: 'Üniversite öğrencilerine burs desteği', labels: ['Eğitim Desteği'], a: ['sydv'] },
+              { t: 'Aşevi menü ve kapasite planı', img: 292, labels: ['Gıda'], a: ['sydv'], due: 7 },
+              { t: 'Üniversite öğrencilerine burs desteği', img: 832, labels: ['Eğitim Desteği'], a: ['sydv'] },
             ],
           },
           {
             ...L('Uygulamada', 'mor', 'activity'),
             cards: [
-              { t: 'Gıda kolisi dağıtımı', labels: ['Gıda'], a: ['sydv', 'muftu'], due: 3 },
+              {
+                t: 'Gıda kolisi dağıtımı',
+                img: 488,
+                labels: ['Gıda'],
+                a: ['sydv', 'muftu'],
+                due: 3,
+                cl: [
+                  {
+                    title: 'Dağıtım',
+                    items: [I('Kolilerin hazırlanması', true), I('Merkez dağıtımı', true), I('Köy dağıtımı')],
+                  },
+                ],
+                cm: [C('muftu', 2, 'Gönüllü ekibimiz köy dağıtımına cumartesi katılacak.')],
+              },
               { t: 'Yaşlılara sıcak yemek servisi', labels: ['Yaşlı ve Engelli'], a: ['sydv'] },
               { t: 'Güdümlü destek projesi', labels: ['Eğitim Desteği'], a: ['mem', 'sydv'], due: 26 },
             ],
@@ -932,7 +1320,7 @@ const WORKSPACES: SeedWorkspace[] = [
             ...L('Tamamlanan', 'yesil', 'circle-check'),
             done: true,
             cards: [
-              { t: 'Kırtasiye seti dağıtımı', labels: ['Eğitim Desteği'], a: ['sydv'] },
+              { t: 'Kırtasiye seti dağıtımı', img: 533, labels: ['Eğitim Desteği'], a: ['sydv'] },
               { t: 'Şehit ve gazi ailelerine bayram ziyaretleri', a: ['muftu'] },
               { t: 'Selzede ailelere acil barınma desteği', labels: ['Acil Destek'], a: ['sydv'] },
             ],
@@ -967,6 +1355,7 @@ const WORKSPACES: SeedWorkspace[] = [
             cards: [
               {
                 t: 'Kurum amirleri toplantısı',
+                img: 445,
                 due: 1,
                 labels: ['Toplantı'],
                 a: ['ben'],
@@ -981,8 +1370,14 @@ const WORKSPACES: SeedWorkspace[] = [
                   },
                   { p: DEMO_NOTE },
                 ]),
+                cl: [
+                  {
+                    title: 'Hazırlık',
+                    items: [I('Gündemin kurumlara gönderilmesi', true), I('Sunum dosyasının hazırlanması'), I('Salon düzeni')],
+                  },
+                ],
               },
-              { t: 'Okul ziyareti ve öğretmenlerle görüşme', due: 2, labels: ['Ziyaret'], a: ['ben'] },
+              { t: 'Okul ziyareti ve öğretmenlerle görüşme', img: 193, due: 2, labels: ['Ziyaret'], a: ['ben'] },
               { t: 'Muhtarlarla istişare toplantısı', due: 3, labels: ['Toplantı'], a: ['ben', 'yazi'] },
               { t: 'Hastane ziyareti', due: 4, labels: ['Ziyaret'], a: ['ben'] },
             ],
@@ -990,7 +1385,7 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Ziyaret ve Programlar', 'mor', 'users'),
             cards: [
-              { t: 'Köy ziyaretleri programı', labels: ['Program'], a: ['yazi'], due: 12 },
+              { t: 'Köy ziyaretleri programı', img: 563, labels: ['Program'], a: ['yazi'], due: 12 },
               { t: 'Şehit ailelerine ziyaret', labels: ['Ziyaret', 'Önemli'], a: ['ben'], due: 6 },
               { t: 'Sivil toplum kuruluşu temsilcileriyle görüşme', labels: ['Toplantı'], a: ['ben'] },
             ],
@@ -998,7 +1393,13 @@ const WORKSPACES: SeedWorkspace[] = [
           {
             ...L('Takip Edilecekler', 'sari', 'pin', 'turuncu'),
             cards: [
-              { t: 'Valilikten gelen yazıların cevaplanması', due: 2, labels: ['Takip', 'Önemli'], a: ['yazi'] },
+              {
+                t: 'Valilikten gelen yazıların cevaplanması',
+                due: 2,
+                labels: ['Takip', 'Önemli'],
+                a: ['yazi'],
+                cm: [C('yazi', 1, 'Üç yazının cevabı hazır, imzaya sunulacak.')],
+              },
               { t: 'Vatandaş taleplerinin ilgili kurumlara iletilmesi', labels: ['Takip'], a: ['yazi'] },
               { t: 'Basın açıklaması metninin hazırlanması', labels: ['Takip'], a: ['yazi'], due: 5 },
             ],
@@ -1007,7 +1408,7 @@ const WORKSPACES: SeedWorkspace[] = [
             ...L('Tamamlandı', 'yesil', 'circle-check'),
             done: true,
             cards: [
-              { t: 'Cumhuriyet Bayramı kutlama programı', labels: ['Program'], a: ['yazi'] },
+              { t: 'Cumhuriyet Bayramı kutlama programı', img: 828, labels: ['Program'], a: ['yazi'] },
               { t: 'Ekim ayı kurum ziyaretleri', labels: ['Ziyaret'], a: ['ben'] },
               { t: 'Yeni atanan personelle tanışma toplantısı', labels: ['Toplantı'], a: ['ben'] },
             ],
@@ -1028,109 +1429,8 @@ const QUICK_NOTES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Ekler — örnek PDF'ler (script içinde üretilir) + saha fotoğrafı
+// S3 / MinIO yüklemeleri
 // ---------------------------------------------------------------------------
-
-type AttachmentKey = 'teklif' | 'tutanak' | 'ilan' | 'hakedis' | 'foto1' | 'foto2';
-
-const PDF_DOCS: Record<Exclude<AttachmentKey, 'foto1' | 'foto2'>, { fileName: string; lines: string[] }> = {
-  teklif: {
-    fileName: 'mobilya-teklif-karsilastirma-ornek.pdf',
-    lines: [
-      'ORNEK BELGE - PUSULA PORTAL INCELEME HESABI',
-      '',
-      'Cocuk Kutuphanesi Tefrisat Isi',
-      'Mobilya Teklif Karsilastirma Tablosu',
-      '',
-      'Firma A (ornek) ........ Raf + masa + minder seti',
-      'Firma B (ornek) ........ Raf + masa seti',
-      'Firma C (ornek) ........ Raf + masa + minder + aydinlatma',
-      '',
-      'Bu belge kurgusaldir; gercek firma veya tutar icermez.',
-    ],
-  },
-  tutanak: {
-    fileName: 'kurum-amirleri-toplanti-tutanagi-ornek.pdf',
-    lines: [
-      'ORNEK BELGE - PUSULA PORTAL INCELEME HESABI',
-      '',
-      'Ornek Ilce Kaymakamligi',
-      'Kurum Amirleri Toplantisi Tutanagi',
-      '',
-      '1. Kis tedbirleri ve kar mucadelesi ekip plani gorusuldu.',
-      '2. Is makinelerinin bakimlarinin ay sonuna kadar tamamlanmasina karar verildi.',
-      '3. Koy yollari oncelik sirasi muhtarlarla birlikte belirlenecek.',
-      '',
-      'Bu belge kurgusaldir.',
-    ],
-  },
-  ilan: {
-    fileName: 'dis-cephe-ihale-ilani-ornek.pdf',
-    lines: [
-      'ORNEK BELGE - PUSULA PORTAL INCELEME HESABI',
-      '',
-      'Hukumet Konagi Dis Cephe Giydirme Isi',
-      'Ihale Ilani (ornek)',
-      '',
-      'Ihale usulu: Acik ihale',
-      'Isin suresi: Yer tesliminden itibaren 120 takvim gunu',
-      '',
-      'Bu belge kurgusaldir; gercek bir ihale ilani degildir.',
-    ],
-  },
-  hakedis: {
-    fileName: 'lojman-hakedis-ozeti-ornek.pdf',
-    lines: [
-      'ORNEK BELGE - PUSULA PORTAL INCELEME HESABI',
-      '',
-      'Kaymakamlik Lojmani Yapim Isi',
-      'Hakedis Ozeti (ornek)',
-      '',
-      'Kaba insaat ................ tamamlandi',
-      'Cati ve yalitim ............ tamamlandi',
-      'Tesisat .................... devam ediyor',
-      'Fiziki gerceklesme ......... yaklasik %65',
-      '',
-      'Bu belge kurgusaldir.',
-    ],
-  },
-};
-
-const PHOTOS: Record<'foto1' | 'foto2', { fileName: string; url: string }> = {
-  foto1: { fileName: 'saha-fotografi-ornek-1.jpg', url: 'https://picsum.photos/seed/pusula-inceleme-1/1200/800' },
-  foto2: { fileName: 'saha-fotografi-ornek-2.jpg', url: 'https://picsum.photos/seed/pusula-inceleme-2/1200/800' },
-};
-
-/** Tek sayfalık, yalnız ASCII metinli minimal PDF üretir (Helvetica). */
-function buildPdf(lines: string[]): Uint8Array {
-  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-  const stream = [
-    'BT',
-    '/F1 13 Tf',
-    '16 TL',
-    '60 780 Td',
-    ...lines.map((line, i) => `${i === 0 ? '' : 'T* '}(${esc(line)}) Tj`),
-    'ET',
-  ].join('\n');
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
-  ];
-  let out = '%PDF-1.4\n';
-  const offsets: number[] = [];
-  objects.forEach((obj, i) => {
-    offsets.push(Buffer.byteLength(out, 'latin1'));
-    out += `${i + 1} 0 obj\n${obj}\nendobj\n`;
-  });
-  const xref = Buffer.byteLength(out, 'latin1');
-  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
-  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new Uint8Array(Buffer.from(out, 'latin1'));
-}
 
 interface UploadedFile {
   storageKey: string;
@@ -1140,52 +1440,131 @@ interface UploadedFile {
 }
 
 const S3_BUCKET = process.env.S3_BUCKET ?? 'pusula';
+const S3_PUBLIC_URL = (process.env.S3_PUBLIC_URL ?? process.env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '');
 
-/** Ekleri MinIO'ya yükler; erişilemeyenler atlanır (kart eksiz kalır, seed sürer). */
-async function uploadAttachments(): Promise<Partial<Record<AttachmentKey, UploadedFile>>> {
-  const out: Partial<Record<AttachmentKey, UploadedFile>> = {};
-  const s3 = new S3Client({
-    endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
-    region: process.env.S3_REGION ?? 'us-east-1',
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'pusula',
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'pusula-secret',
-    },
-  });
+const s3 = new S3Client({
+  endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+  region: process.env.S3_REGION ?? 'us-east-1',
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'pusula',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'pusula-secret',
+  },
+});
 
-  const put = async (key: AttachmentKey, fileName: string, mimeType: string, body: Uint8Array) => {
-    const storageKey = `inceleme/attachments/${nanoid()}-${fileName}`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: storageKey,
-        Body: body,
-        ContentType: mimeType,
-        ContentLength: body.byteLength,
-      }),
-    );
-    out[key] = { storageKey, fileName, mimeType, size: body.byteLength };
+async function putObject(storageKey: string, mimeType: string, body: Uint8Array): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({ Bucket: S3_BUCKET, Key: storageKey, Body: body, ContentType: mimeType, ContentLength: body.byteLength }),
+  );
+}
+
+async function fetchBytes(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/** Eşzamanlılığı sınırlı map (picsum / MinIO'yu boğmamak için). */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]!);
+      }
+    }),
+  );
+  return out;
+}
+
+interface Uploads {
+  pdfs: Map<PdfKey, UploadedFile>;
+  photos: Map<string, UploadedFile>;
+  covers: Map<number, UploadedFile>;
+}
+
+const photoKey = ([id, name]: Photo) => `${id}:${name}`;
+
+/** Kart/madde tanımlarında geçen tüm PDF, fotoğraf ve kapakları toplayıp yükler. */
+async function uploadAll(): Promise<Uploads> {
+  const pdfKeys = new Set<PdfKey>();
+  const photos = new Map<string, Photo>();
+  const covers = new Set<number>();
+  const walkItems = (items: CItem[]) => {
+    for (const it of items) {
+      if (it.pdf) pdfKeys.add(it.pdf);
+      if (it.photo) photos.set(photoKey(it.photo), it.photo);
+      if (it.sub) walkItems(it.sub);
+    }
+  };
+  for (const ws of WORKSPACES)
+    for (const b of ws.boards)
+      for (const l of b.lists)
+        for (const c of l.cards) {
+          c.pdf?.forEach((k) => pdfKeys.add(k));
+          c.photos?.forEach((p) => photos.set(photoKey(p), p));
+          if (c.img != null) covers.add(c.img);
+          c.cl?.forEach((cl) => walkItems(cl.items));
+        }
+
+  const result: Uploads = { pdfs: new Map(), photos: new Map(), covers: new Map() };
+  const tryUpload = async (label: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (err) {
+      console.warn(`[seed] yüklenemedi (${label}):`, err instanceof Error ? err.message : err);
+    }
   };
 
-  for (const [key, doc] of Object.entries(PDF_DOCS) as [keyof typeof PDF_DOCS, (typeof PDF_DOCS)[keyof typeof PDF_DOCS]][]) {
-    try {
-      await put(key, doc.fileName, 'application/pdf', buildPdf(doc.lines));
-    } catch (err) {
-      console.warn(`[seed] ek yüklenemedi (${doc.fileName}):`, err);
-    }
+  await mapLimit([...pdfKeys], 6, (key) =>
+    tryUpload(key, async () => {
+      const doc = PDF_DOCS[key];
+      const body = buildPdf(doc.title, doc.lines);
+      const storageKey = `inceleme/attachments/${nanoid()}-${doc.fileName}`;
+      await putObject(storageKey, 'application/pdf', body);
+      result.pdfs.set(key, { storageKey, fileName: doc.fileName, mimeType: 'application/pdf', size: body.byteLength });
+    }),
+  );
+  await mapLimit([...photos.values()], 6, (photo) =>
+    tryUpload(photo[1], async () => {
+      const body = await fetchBytes(`https://picsum.photos/id/${photo[0]}/1400/933`);
+      const storageKey = `inceleme/attachments/${nanoid()}-${photo[1]}`;
+      await putObject(storageKey, 'image/jpeg', body);
+      result.photos.set(photoKey(photo), { storageKey, fileName: photo[1], mimeType: 'image/jpeg', size: body.byteLength });
+    }),
+  );
+  await mapLimit([...covers], 6, (id) =>
+    tryUpload(`kapak ${id}`, async () => {
+      const body = await fetchBytes(`https://picsum.photos/id/${id}/1200/675`);
+      const fileName = `kapak-${id}.jpg`;
+      const storageKey = `inceleme/covers/${nanoid()}-${fileName}`;
+      await putObject(storageKey, 'image/jpeg', body);
+      result.covers.set(id, { storageKey, fileName, mimeType: 'image/jpeg', size: body.byteLength });
+    }),
+  );
+  console.warn(
+    `[seed] MinIO: ${result.pdfs.size}/${pdfKeys.size} PDF, ${result.photos.size}/${photos.size} fotoğraf, ` +
+      `${result.covers.size}/${covers.size} kapak yüklendi.`,
+  );
+  return result;
+}
+
+/** Avatarı DiceBear'dan alıp public `avatars/{userId}/…` altına koyar; URL döner. */
+async function uploadAvatar(userId: string, person: Person): Promise<string | null> {
+  const url =
+    `https://api.dicebear.com/9.x/initials/png?seed=${encodeURIComponent(person.avatar)}` +
+    `&size=256&radius=50&backgroundColor=${person.color}&fontWeight=600`;
+  try {
+    const body = await fetchBytes(url);
+    const key = `avatars/${userId}/${randomUUID()}.png`;
+    await putObject(key, 'image/png', body);
+    return `${S3_PUBLIC_URL}/${S3_BUCKET}/${key}`;
+  } catch (err) {
+    console.warn(`[seed] avatar yüklenemedi (${person.name}):`, err instanceof Error ? err.message : err);
+    return null;
   }
-  for (const [key, photo] of Object.entries(PHOTOS) as ['foto1' | 'foto2', (typeof PHOTOS)['foto1']][]) {
-    try {
-      const res = await fetch(photo.url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await put(key, photo.fileName, 'image/jpeg', new Uint8Array(await res.arrayBuffer()));
-    } catch (err) {
-      console.warn(`[seed] fotoğraf yüklenemedi (${photo.url}):`, err);
-    }
-  }
-  console.warn(`[seed] ${Object.keys(out).length} ek MinIO'ya yüklendi.`);
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -1197,17 +1576,24 @@ const HOUR_MS = 60 * 60 * 1000;
 
 type Tx = Parameters<Parameters<ReturnType<typeof createDb>['db']['transaction']>[0]>[0];
 
-async function ensureUser(tx: Tx, person: Person, createdAt: Date, password?: string): Promise<string> {
+async function ensureUser(
+  tx: Tx,
+  person: Person,
+  id: string,
+  image: string | null,
+  createdAt: Date,
+  password?: string,
+): Promise<string> {
   const [existing] = await tx.select({ id: users.id }).from(users).where(eq(users.email, person.email)).limit(1);
   let userId = existing?.id;
   if (!userId) {
-    userId = nanoid();
+    userId = id;
     await tx.insert(users).values({
       id: userId,
       name: person.name,
       email: person.email,
       emailVerified: true,
-      image: avatarUrl(person.avatar),
+      image,
       createdAt,
       updatedAt: createdAt,
     });
@@ -1225,10 +1611,7 @@ async function ensureUser(tx: Tx, person: Person, createdAt: Date, password?: st
     }
   }
   // Demo adreslerine e-posta bildirimi gitmesin (global tercih satırı).
-  await tx
-    .insert(notificationPreferences)
-    .values({ userId, emailEnabled: false })
-    .onConflictDoNothing();
+  await tx.insert(notificationPreferences).values({ userId, emailEnabled: false }).onConflictDoNothing();
   return userId;
 }
 
@@ -1253,10 +1636,10 @@ async function main() {
   const daysAgo = (n: number) => new Date(now.getTime() - n * DAY_MS);
   const daysFromNow = (n: number) => new Date(now.getTime() + n * DAY_MS);
   const hoursAgo = (n: number) => new Date(now.getTime() - n * HOUR_MS);
-  /** Saat 09:00–17:00 arasına oturan geriye tarihli an (mesai görünümü). */
+  /** Saat 09:00–17:00 (TR) arasına oturan geriye tarihli an (mesai görünümü). */
   const workTimeDaysAgo = (n: number) => {
     const d = daysAgo(n);
-    d.setUTCHours(6 + rndInt(0, 8), rndInt(0, 59), 0, 0); // TR = UTC+3
+    d.setUTCHours(6 + rndInt(0, 8), rndInt(0, 59), 0, 0);
     return d > now ? hoursAgo(1) : d;
   };
 
@@ -1277,16 +1660,30 @@ async function main() {
       return;
     }
 
-    const files = await uploadAttachments();
-    const stats = { boards: 0, lists: 0, cards: 0, comments: 0, checklistItems: 0, attachments: 0, activities: 0 };
+    // Transaction öncesi: S3 yüklemeleri (rollback'e katılmaz).
+    const preIds = Object.fromEntries(PERSON_KEYS.map((k) => [k, nanoid()])) as Record<PersonKey, string>;
+    const avatars = Object.fromEntries(
+      await Promise.all(PERSON_KEYS.map(async (k) => [k, await uploadAvatar(preIds[k], PEOPLE[k])] as const)),
+    ) as Record<PersonKey, string | null>;
+    const files = await uploadAll();
+
+    const stats = { boards: 0, lists: 0, cards: 0, comments: 0, checklistItems: 0, attachments: 0, covers: 0, activities: 0 };
     const built: BuiltCard[] = [];
     const workspaceIds: string[] = [];
     const ids = {} as Record<PersonKey, string>;
     const SETUP_DAYS = 120;
 
     await db.transaction(async (tx) => {
-      ids.ben = await ensureUser(tx, PEOPLE.ben, daysAgo(SETUP_DAYS), password);
-      for (const key of MEMBER_KEYS) ids[key] = await ensureUser(tx, PEOPLE[key], daysAgo(SETUP_DAYS));
+      for (const key of PERSON_KEYS) {
+        ids[key] = await ensureUser(
+          tx,
+          PEOPLE[key],
+          preIds[key],
+          avatars[key],
+          daysAgo(SETUP_DAYS),
+          key === 'ben' ? password : undefined,
+        );
+      }
       const ownerId = ids.ben;
 
       type ActivityRow = typeof activityEvents.$inferInsert;
@@ -1370,11 +1767,19 @@ async function main() {
               const creator = c.a?.[0] ?? 'ben';
 
               // Zaman çizelgesi: oluşturma → (taşımalar) → (tamamlanma); yorumlar arada.
-              const oldestComment = Math.max(0, ...(c.cm ?? []).map((m) => m.daysAgo));
+              const itemCommentDays: number[] = [];
+              const collectDays = (items: CItem[]) =>
+                items.forEach((it) => {
+                  it.cm?.forEach((m) => itemCommentDays.push(m.daysAgo));
+                  if (it.sub) collectDays(it.sub);
+                });
+              c.cl?.forEach((cl) => collectDays(cl.items));
+              const oldestComment = Math.max(0, ...(c.cm ?? []).map((m) => m.daysAgo), ...itemCommentDays);
               const completedDays = completed ? rndInt(2, 40) : 0;
               const createdDays = Math.max(rndInt(12, 80), oldestComment + 3, completedDays + rndInt(4, 25));
               const createdAt = workTimeDaysAgo(createdDays);
               const completedAt = completed ? workTimeDaysAgo(completedDays) : null;
+              const attachedDaysAgo = () => Math.max(1, Math.min(createdDays - 1, rndInt(2, 10)));
 
               const [card] = await tx
                 .insert(cards)
@@ -1388,7 +1793,7 @@ async function main() {
                   completed,
                   completedAt,
                   completedBy: completed ? ids[creator] : null,
-                  coverColor: c.cover ?? null,
+                  coverColor: c.img != null && files.covers.has(c.img) ? null : (c.cover ?? null),
                   createdAt,
                   updatedAt: completedAt ?? workTimeDaysAgo(Math.min(createdDays, rndInt(0, 6))),
                 })
@@ -1405,16 +1810,77 @@ async function main() {
                 listTitle: listDef.title,
               });
 
+              const activity = (row: Omit<ActivityRow, 'workspaceId' | 'boardId' | 'cardId'>) =>
+                activityRows.push({ workspaceId: workspace.id, boardId: board.id, cardId: card.id, ...row });
+
+              /** Ek satırı + `attachment.added` aktivitesi; id döner. */
+              const addAttachment = async (
+                file: UploadedFile,
+                uploader: PersonKey,
+                at: Date,
+                checklistItemId: string | null = null,
+              ): Promise<string | null> => {
+                const [att] = await tx
+                  .insert(attachments)
+                  .values({
+                    cardId: card.id,
+                    checklistItemId,
+                    boardId: board.id,
+                    uploaderId: ids[uploader],
+                    storageKey: file.storageKey,
+                    fileName: file.fileName,
+                    mimeType: file.mimeType,
+                    size: file.size,
+                    committedAt: at,
+                    createdAt: at,
+                  })
+                  .returning({ id: attachments.id });
+                if (!att) return null;
+                stats.attachments++;
+                activity({
+                  actorId: ids[uploader],
+                  type: 'attachment.added',
+                  payload: { attachmentId: att.id, cardId: card.id, fileName: file.fileName },
+                  createdAt: at,
+                });
+                return att.id;
+              };
+
+              /** Kart ya da madde yorumu + `comment.created` aktivitesi. */
+              const addComment = async (m: SeedComment, checklistItemId: string | null = null) => {
+                const at = workTimeDaysAgo(m.daysAgo);
+                const [comment] = await tx
+                  .insert(comments)
+                  .values({
+                    cardId: card.id,
+                    checklistItemId,
+                    authorId: ids[m.by],
+                    body: plainDoc(m.text),
+                    createdAt: at,
+                    updatedAt: at,
+                  })
+                  .returning({ id: comments.id });
+                if (!comment) return;
+                stats.comments++;
+                activity({
+                  actorId: ids[m.by],
+                  type: 'comment.created',
+                  payload: {
+                    commentId: comment.id,
+                    cardId: card.id,
+                    commentPreview: m.text.slice(0, 140),
+                    ...(checklistItemId ? { checklistItemId } : {}),
+                  },
+                  createdAt: at,
+                });
+              };
+
               // --- activity: created / moved / completed ---
               const startIdx = boardDef.flow ? 0 : completed ? rndInt(0, Math.max(0, li - 1)) : li;
-              const startList = listRows[startIdx]!;
-              activityRows.push({
-                workspaceId: workspace.id,
-                boardId: board.id,
-                cardId: card.id,
+              activity({
                 actorId: ids[creator],
                 type: 'card.created',
-                payload: { cardId: card.id, listId: startList.id, title: c.t, position: card.position },
+                payload: { cardId: card.id, listId: listRows[startIdx]!.id, title: c.t, position: card.position },
                 createdAt,
               });
               const hops: number[] = [];
@@ -1423,13 +1889,7 @@ async function main() {
               const endMs = (completedAt ?? hoursAgo(rndInt(2, 72))).getTime();
               let prevIdx = startIdx;
               hops.forEach((toIdx, h) => {
-                const at = new Date(
-                  createdAt.getTime() + ((endMs - createdAt.getTime()) * (h + 1)) / (hops.length + 1),
-                );
-                activityRows.push({
-                  workspaceId: workspace.id,
-                  boardId: board.id,
-                  cardId: card.id,
+                activity({
                   actorId: ids[c.a?.[h % (c.a?.length ?? 1)] ?? 'ben'],
                   type: 'card.moved',
                   payload: {
@@ -1439,20 +1899,22 @@ async function main() {
                     fromListTitle: boardDef.lists[prevIdx]!.title,
                     toListTitle: boardDef.lists[toIdx]!.title,
                   },
-                  createdAt: at,
+                  createdAt: new Date(createdAt.getTime() + ((endMs - createdAt.getTime()) * (h + 1)) / (hops.length + 1)),
                 });
                 prevIdx = toIdx;
               });
               if (completedAt) {
-                activityRows.push({
-                  workspaceId: workspace.id,
-                  boardId: board.id,
-                  cardId: card.id,
-                  actorId: ids[creator],
-                  type: 'card.completed',
-                  payload: { cardId: card.id },
-                  createdAt: completedAt,
-                });
+                activity({ actorId: ids[creator], type: 'card.completed', payload: { cardId: card.id }, createdAt: completedAt });
+              }
+
+              // --- kapak görseli ---
+              const coverFile = c.img != null ? files.covers.get(c.img) : undefined;
+              if (coverFile) {
+                const coverId = await addAttachment(coverFile, creator, workTimeDaysAgo(Math.max(1, createdDays - 1)));
+                if (coverId) {
+                  await tx.update(cards).set({ coverImageAttachmentId: coverId }).where(eq(cards.id, card.id));
+                  stats.covers++;
+                }
               }
 
               // --- etiketler ---
@@ -1470,82 +1932,62 @@ async function main() {
               ];
               if (memberRows.length > 0) await tx.insert(cardMembers).values(memberRows);
 
-              // --- kontrol listeleri ---
+              // --- kontrol listeleri (iç içe maddeler + madde yorumu/eki) ---
+              const insertItems = async (
+                checklistId: string,
+                items: CItem[],
+                parentItemId: string | null,
+                depth: number,
+              ) => {
+                const positions = positionsBetween(null, null, items.length);
+                for (const [ii, it] of items.entries()) {
+                  const itemDone = it.done === true || completed;
+                  const [row] = await tx
+                    .insert(checklistItems)
+                    .values({
+                      checklistId,
+                      parentItemId,
+                      depth,
+                      content: it.t,
+                      position: positions[ii] ?? firstPosition(),
+                      completed: itemDone,
+                      completedAt: itemDone
+                        ? (completedAt ?? workTimeDaysAgo(rndInt(3, Math.max(3, createdDays - 1))))
+                        : null,
+                      completedBy: itemDone ? ids[creator] : null,
+                    })
+                    .returning({ id: checklistItems.id });
+                  if (!row) continue;
+                  stats.checklistItems++;
+                  for (const m of it.cm ?? []) await addComment(m, row.id);
+                  const pdf = it.pdf ? files.pdfs.get(it.pdf) : undefined;
+                  if (pdf) await addAttachment(pdf, creator, workTimeDaysAgo(attachedDaysAgo()), row.id);
+                  const photo = it.photo ? files.photos.get(photoKey(it.photo)) : undefined;
+                  if (photo) await addAttachment(photo, creator, workTimeDaysAgo(attachedDaysAgo()), row.id);
+                  if (it.sub && depth < 2) await insertItems(checklistId, it.sub, row.id, depth + 1);
+                }
+              };
               const checklistPositions = positionsBetween(null, null, c.cl?.length ?? 0);
               for (const [i, clDef] of (c.cl ?? []).entries()) {
                 const [checklist] = await tx
                   .insert(checklists)
                   .values({ cardId: card.id, title: clDef.title, position: checklistPositions[i] ?? firstPosition() })
                   .returning();
-                if (!checklist) continue;
-                const itemPositions = positionsBetween(null, null, clDef.items.length);
-                await tx.insert(checklistItems).values(
-                  clDef.items.map(([content, done], ii) => {
-                    const itemDone = done || completed;
-                    return {
-                      checklistId: checklist.id,
-                      content,
-                      position: itemPositions[ii] ?? firstPosition(),
-                      completed: itemDone,
-                      completedAt: itemDone ? (completedAt ?? workTimeDaysAgo(rndInt(3, Math.max(3, createdDays - 1)))) : null,
-                      completedBy: itemDone ? ids[creator] : null,
-                    };
-                  }),
-                );
-                stats.checklistItems += clDef.items.length;
+                if (checklist) await insertItems(checklist.id, clDef.items, null, 0);
               }
 
-              // --- yorumlar ---
-              for (const m of c.cm ?? []) {
-                const at = workTimeDaysAgo(m.daysAgo);
-                const [comment] = await tx
-                  .insert(comments)
-                  .values({ cardId: card.id, authorId: ids[m.by], body: plainDoc(m.text), createdAt: at, updatedAt: at })
-                  .returning({ id: comments.id });
-                if (!comment) continue;
-                stats.comments++;
-                activityRows.push({
-                  workspaceId: workspace.id,
-                  boardId: board.id,
-                  cardId: card.id,
-                  actorId: ids[m.by],
-                  type: 'comment.created',
-                  payload: { commentId: comment.id, cardId: card.id, commentPreview: m.text.slice(0, 140) },
-                  createdAt: at,
-                });
-              }
+              // --- kart yorumları ---
+              for (const m of c.cm ?? []) await addComment(m);
 
-              // --- ekler ---
-              for (const key of c.att ?? []) {
-                const file = files[key];
-                if (!file) continue;
-                const uploader = c.a?.[0] ?? 'ben';
-                const at = workTimeDaysAgo(Math.max(1, Math.min(createdDays - 1, rndInt(2, 10))));
-                const [att] = await tx
-                  .insert(attachments)
-                  .values({
-                    cardId: card.id,
-                    boardId: board.id,
-                    uploaderId: ids[uploader],
-                    storageKey: file.storageKey,
-                    fileName: file.fileName,
-                    mimeType: file.mimeType,
-                    size: file.size,
-                    committedAt: at,
-                    createdAt: at,
-                  })
-                  .returning({ id: attachments.id });
-                if (!att) continue;
-                stats.attachments++;
-                activityRows.push({
-                  workspaceId: workspace.id,
-                  boardId: board.id,
-                  cardId: card.id,
-                  actorId: ids[uploader],
-                  type: 'attachment.added',
-                  payload: { attachmentId: att.id, cardId: card.id, fileName: file.fileName },
-                  createdAt: at,
-                });
+              // --- kart ekleri ---
+              const uploader = c.a?.[0] ?? 'ben';
+              for (const key of c.pdf ?? []) {
+                const file = files.pdfs.get(key);
+                if (file) await addAttachment(file, uploader, workTimeDaysAgo(attachedDaysAgo()));
+              }
+              for (const p of c.photos ?? []) {
+                const file = files.photos.get(photoKey(p));
+                if (file) await addAttachment(file, uploader, workTimeDaysAgo(attachedDaysAgo()));
               }
             }
           }
@@ -1561,7 +2003,7 @@ async function main() {
         QUICK_NOTES.map((content, i) => ({ userId: ownerId, content, createdAt: daysAgo(i + 1), updatedAt: daysAgo(i + 1) })),
       );
 
-      await seedNotifications(tx, { ids, built, now, daysAgo, hoursAgo });
+      await seedNotifications(tx, { ids, avatars, built, now, daysAgo, hoursAgo });
     });
 
     let searchDocs = 0;
@@ -1572,8 +2014,8 @@ async function main() {
     console.warn(
       `[seed] İnceleme verisi hazır. Giriş: ${MAIN_EMAIL}\n` +
         `       ${workspaceIds.length} çalışma alanı, ${stats.boards} pano, ${stats.lists} liste, ${stats.cards} kart, ` +
-        `${stats.comments} yorum, ${stats.checklistItems} kontrol maddesi, ${stats.attachments} ek, ` +
-        `${stats.activities} aktivite. Arama indeksi: ${searchDocs} belge.`,
+        `${stats.covers} görsel kapak, ${stats.comments} yorum, ${stats.checklistItems} kontrol maddesi, ` +
+        `${stats.attachments} ek, ${stats.activities} aktivite. Arama indeksi: ${searchDocs} belge.`,
     );
   } finally {
     await pool.end();
@@ -1586,6 +2028,7 @@ async function main() {
 
 interface NotifCtx {
   ids: Record<PersonKey, string>;
+  avatars: Record<PersonKey, string | null>;
   built: BuiltCard[];
   now: Date;
   daysAgo: (n: number) => Date;
@@ -1623,9 +2066,7 @@ async function seedNotifications(tx: Tx, ctx: NotifCtx): Promise<void> {
       payload: {
         activityType,
         notificationType: type,
-        ...(actor
-          ? { actorUserId: ids[actor], actorName: PEOPLE[actor].name, actorImage: avatarUrl(PEOPLE[actor].avatar) }
-          : {}),
+        ...(actor ? { actorUserId: ids[actor], actorName: PEOPLE[actor].name, actorImage: ctx.avatars[actor] } : {}),
         workspaceId: c.workspaceId,
         workspaceName: c.workspaceName,
         boardId: c.boardId,
