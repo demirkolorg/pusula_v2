@@ -32,7 +32,7 @@
  * değildir ve transaction dışındadır; S3 erişilemezse kapaklar renk kapağına
  * düşer ve seed yine de tamamlanır.
  */
-import { randomBytes, scryptSync } from 'node:crypto';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import { resolve } from 'node:path';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { config as loadDotenv } from 'dotenv';
@@ -93,8 +93,12 @@ const WORK_SLUG = 'urun-ekibi';
 const PERSONAL_SLUG = 'kisisel-alanim';
 const ALL_SLUGS = [WORK_SLUG, PERSONAL_SLUG];
 
-/** Telifsiz, illüstrasyon tabanlı avatar (DiceBear) — users.image düz URL. */
-const avatarUrl = (seed: string) =>
+/**
+ * Telifsiz, illüstrasyon tabanlı avatar kaynağı (DiceBear). `users.image`'a bu
+ * URL doğrudan YAZILMAZ — web CSP'si `img-src`'i `s3.pusulaportal.com` ile
+ * sınırlar; görsel `uploadAvatar` ile MinIO `avatars/*` (public) altına taşınır.
+ */
+const avatarSourceUrl = (seed: string) =>
   `https://api.dicebear.com/9.x/notionists-neutral/png?seed=${encodeURIComponent(
     seed,
   )}&size=200&radius=50&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf,c1f0d0`;
@@ -756,6 +760,25 @@ function makeS3Client(): S3Client {
   });
 }
 
+const S3_PUBLIC_URL = (process.env.S3_PUBLIC_URL ?? process.env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '');
+
+/** DiceBear avatarını public `avatars/{userId}/…` altına yükler; kalıcı URL döner. */
+async function uploadAvatar(s3: S3Client, userId: string, name: string): Promise<string | null> {
+  try {
+    const res = await fetch(avatarSourceUrl(name));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = new Uint8Array(await res.arrayBuffer());
+    const key = `avatars/${userId}/${randomUUID()}.png`;
+    await s3.send(
+      new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: body, ContentType: 'image/png', ContentLength: body.byteLength }),
+    );
+    return `${S3_PUBLIC_URL}/${S3_BUCKET}/${key}`;
+  } catch (err) {
+    console.warn(`[seed] avatar yüklenemedi (${name}):`, err);
+    return null;
+  }
+}
+
 interface CoverImage {
   storageKey: string;
   fileName: string;
@@ -821,7 +844,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof createDb>['db']['transaction']
 async function ensureUser(
   tx: Tx,
   person: Person & { name: string },
-  opts: { password?: string } = {},
+  opts: { id: string; image: string | null; password?: string },
 ): Promise<string> {
   const [existing] = await tx
     .select({ id: users.id })
@@ -831,13 +854,13 @@ async function ensureUser(
 
   let userId = existing?.id;
   if (!userId) {
-    userId = nanoid();
+    userId = opts.id;
     await tx.insert(users).values({
       id: userId,
       name: person.name,
       email: person.email,
       emailVerified: true,
-      image: avatarUrl(person.name),
+      image: opts.image,
     });
   }
 
@@ -900,6 +923,18 @@ async function main() {
 
     // 2) Kapak görsellerini transaction ÖNCESİ yükle (S3 rollback'e katılmaz).
     const coverPool = await uploadCoverPool(12);
+
+    // Avatarlar da transaction öncesi: user id'leri önceden üretilir ki
+    // anahtar `avatars/{userId}/…` deseniyle uyumlu olsun.
+    const people: Person[] = [{ name: MAIN_NAME, email: MAIN_EMAIL }, ...MEMBERS];
+    const preIdByEmail = new Map(people.map((p) => [p.email, nanoid()]));
+    const avatarS3 = makeS3Client();
+    const avatarByEmail = new Map(
+      await Promise.all(
+        people.map(async (p) => [p.email, await uploadAvatar(avatarS3, preIdByEmail.get(p.email)!, p.name)] as const),
+      ),
+    );
+    const userOpts = (email: string) => ({ id: preIdByEmail.get(email)!, image: avatarByEmail.get(email) ?? null });
     let coverCursor = 0;
     const nextCover = (): CoverImage | null =>
       coverPool.length === 0 ? null : coverPool[coverCursor++ % coverPool.length]!;
@@ -915,9 +950,13 @@ async function main() {
 
     await db.transaction(async (tx) => {
       // 2a) Ana kullanıcı (giriş yapabilir) + 5 üye.
-      ownerId = await ensureUser(tx, { name: MAIN_NAME, email: MAIN_EMAIL }, { password: MAIN_PASSWORD });
+      ownerId = await ensureUser(
+        tx,
+        { name: MAIN_NAME, email: MAIN_EMAIL },
+        { ...userOpts(MAIN_EMAIL), password: MAIN_PASSWORD },
+      );
       for (const m of MEMBERS) {
-        memberIds.push(await ensureUser(tx, m));
+        memberIds.push(await ensureUser(tx, m, userOpts(m.email)));
       }
 
       for (const wsDef of WORKSPACES) {
@@ -1171,6 +1210,7 @@ async function main() {
         workspaceName: 'Ürün Ekibi',
         workCards,
         fullCardId,
+        avatarFor: (email) => avatarByEmail.get(email) ?? null,
         now,
         daysAgo,
         hoursAgo,
@@ -1206,6 +1246,8 @@ interface NotifCtx {
   workspaceName: string;
   workCards: BuiltCard[];
   fullCardId: string;
+  /** Kullanıcının MinIO'daki avatar URL'i (yüklenemediyse null). */
+  avatarFor: (email: string) => string | null;
   now: Date;
   daysAgo: (n: number) => Date;
   hoursAgo: (n: number) => Date;
@@ -1216,7 +1258,7 @@ async function seedNotifications(tx: Tx, ctx: NotifCtx): Promise<void> {
   if (workCards.length === 0) return;
 
   const memberName = (i: number) => MEMBERS[i]?.name ?? 'Ekip Üyesi';
-  const memberAvatar = (i: number) => avatarUrl(memberName(i));
+  const memberAvatar = (i: number) => ctx.avatarFor(MEMBERS[i]?.email ?? '');
   // Bildirimde referans verilecek kartlar.
   const fullCard = workCards.find((c) => c.id === fullCardId) ?? workCards[0]!;
   const pickCard = (offset: number) => workCards[(offset * 3) % workCards.length]!;
